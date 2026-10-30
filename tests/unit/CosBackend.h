@@ -109,6 +109,9 @@ public:
         entry->permissions = core::Permissions::assess(
             entry->tree, planted_.value_or(core::CosReading::Read), facts);
         planted_.reset();
+        // S7 T2: as the shipped backend -- a page tree the walk noted anything about keeps its order.
+        if (!sink.value()->pages().notes.empty())
+            entry->permissions.setPageTreeDamaged(sink.value()->pages().notes.front().objectNumber);
         entry->id = fromBytes ? core::DocumentId::of(QString(), 0, entry->bytes)
                               : core::DocumentId::of(path, QFileInfo(path).lastModified().toMSecsSinceEpoch(), entry->bytes);   // the real time: SaveCoordinator compares it (T8)
         // S6 T11: the document-level files, off the same walk as the shipped backend's.

@@ -384,6 +384,9 @@ core::Result<core::DocumentHandle> DocumentBackendImpl::assemble(Opening& openin
             QString()});
     }
     entry->permissions = core::Permissions::assess(entry->document->pages(), reading, facts);
+    // S7 T2 (D7-21): a tree the walk noted anything about keeps its page order -- the sink refuses it too.
+    if (sink && !sink.value()->pages().notes.empty())
+        entry->permissions.setPageTreeDamaged(sink.value()->pages().notes.front().objectNumber);
 
     // S6 T2 (D6-3): the annotations, first-party, and their agreement with the engine page by page.
     // A page whose /Annots the two read differently is read-only for annotations, and says which.

@@ -40,14 +40,25 @@
 // no rectangles is the WHOLE page, which is what every scope said before; any merge that cannot keep
 // the rectangles exactly drops them, and a page whole on either side is whole.
 //
+// AND WHERE THE PAGES WENT -- Stage 7 T2, decision D7-3 (`Stage7-Assembly-Plan.md` §3). A page command
+// moves, removes or inserts pages, and its scope is `WholeDocument` WITH A `PageMap` beside it: a
+// consumer that cannot remap reads the kind and drops everything, which is slower and never wrong (the
+// widening rule above); one that can reads `pageMap()` and carries what it holds to the page's new index
+// instead. Which consumers remap is Stage 7 T3's; at T2 every one of them drops. An UNDO is the inverse
+// map -- `reversed()`, which `CommandJournal` asks for -- and two page commands in one step compose
+// (`merged`). A map merged with any scope that is not a page command's is DROPPED: the union says
+// *everything*, and *everything, and here is where some of it went* is a claim nothing has needed yet.
+//
 // NO QT GUI TYPES, and no user-facing English: this is `core/`.
 
 #ifndef RAWPAGE_CORE_DOC_SCOPE_H
 #define RAWPAGE_CORE_DOC_SCOPE_H
 
 #include "core/Geometry.h"
+#include "core/doc/PageMap.h"
 
 #include <cstdint>
+#include <optional>
 #include <utility>
 #include <vector>
 
@@ -87,6 +98,14 @@ public:
     // `touchesPage` first).
     const std::vector<PdfRect>* regionsOf(int page) const noexcept;
 
+    // S7 T2 (D7-3): a page command's scope -- `WholeDocument`, with `map` beside it. An identity map is
+    // still a page command's (a caller makes none, guide A-17), so it is kept as it is.
+    static Scope pageCommand(PageMap map);
+    // Where the pages went, or null for every scope that is not a page command's.
+    const PageMap* pageMap() const noexcept { return map_ ? &*map_ : nullptr; }
+    // The scope of UNDOING this one: the map inverted, everything else as it is.
+    Scope reversed() const;
+
     // "Must I throw away the TEXT of page `index`?" -- `touchesPage` for every scope but one that
     // changed only annotations, which keeps it.
     bool touchesText(int index) const noexcept { return aspect_ == Aspect::Content && touchesPage(index); }
@@ -119,6 +138,7 @@ private:
     // Sorted by page; a page of `pages_` absent here is whole. Only for the `Annotations` aspect.
     std::vector<std::pair<int, std::vector<PdfRect>>> regions_;
     std::vector<long long> objects_;
+    std::optional<PageMap> map_;   // S7 T2: a page command's, and only with `WholeDocument`
 };
 
 // Stable, ASCII, non-localized. Diagnostics and test failure messages -- never a user-facing

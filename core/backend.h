@@ -97,6 +97,10 @@ struct AttachmentRef;        // core/doc/Attachments.h     -- Stage 6 T11
 struct DocumentAttachment;   // core/doc/Attachments.h     -- Stage 6 T11
 struct Fdf;                  // core/doc/Fdf.h             -- Stage 6 T13 (D6-20)
 enum class ExchangeFormat : std::uint8_t;   // core/doc/Fdf.h -- Stage 6 T13
+class PageMap;               // core/doc/PageMap.h         -- Stage 7 T2 (D7-3)
+struct PageCommandReport;    // core/doc/PageMap.h         -- Stage 7 T2 (D7-2)
+struct DuplicatedPages;      // core/doc/PageMap.h         -- Stage 7 T2
+struct AnnotationCopy;       // core/doc/Annotation.h      -- Stage 7 T2
 
 namespace render {
 struct RenderRequest;        // core/render/RenderRequest.h -- Stage 2 T10
@@ -337,6 +341,36 @@ public:
     // Where in the tree each goes is the sink's: a name tree is sorted by its keys' bytes.
     virtual Status insertAttachments(const std::vector<DocumentAttachment>& files) = 0;
     virtual Status removeAttachments(const std::vector<QString>& keys) = 0;
+
+    // PAGES -- Stage 7 T2 (`Stage7-Assembly-Plan.md` D7-2, D7-3, D7-24). Four intents over the document's
+    // page ORDER, each over a set and all or nothing, each named in page INDICES as the model counts them
+    // when the command runs -- the journal's order is the order they ran, so an index is unambiguous at a
+    // replay (D7-24). Which objects that means is the sink's: a page is its page OBJECT, so a move reorders
+    // the page tree and never copies a page, and everything that names a page by reference follows it with
+    // no write at all; what names a page any other way -- `/PageLabels`, a reference to a page that is no
+    // longer in the document -- is the sink's to repair (D7-2).
+    //
+    // `reorderPages`: the pages in `map`'s order. `map` must be a PERMUTATION of every page. Its report
+    // lists what names a page by index -- a remote `GoToR`, an integer destination -- which no page command
+    // repairs and every one reports (guide A-22).
+    virtual Result<PageCommandReport> reorderPages(const PageMap& map) = 0;
+    // `removePages`: the pages at `pages` (a set, `PageMap::isPageSet`) leave the document, and every
+    // reference to them is treated as D7-2 says -- cleared, removed or unlinked -- in the same command.
+    // What it found is the report. The pages and their state are KEPT under `key`, so `restorePages` with
+    // the same key puts them back exactly -- before a save or after one, when the repaired objects are
+    // written back as they were. Refused for a set that is every page (D7-21), or a key already holding pages.
+    virtual Result<PageCommandReport> removePages(const std::vector<int>& pages, const QString& key) = 0;
+    // `restorePages`: the pages `removePages` kept under `key` back at `pages`, the indices they had.
+    virtual Status restorePages(const std::vector<int>& pages, const QString& key) = 0;
+    // `duplicatePages`: a NEW page object after each of `pages`, a copy of it as it is now -- its content,
+    // its boxes and rotation, every inherited attribute made its own -- whose annotations are `copies[i]`: a
+    // copy of each source written from the source's dictionary as it is, its appearance shared, its `/NM` and
+    // `/P` its own (D7-2). References elsewhere keep pointing at the ORIGINALS. A key that `removePages` holds
+    // -- the duplicate undone and now redone -- puts back THOSE pages rather than making new ones, so a
+    // duplicate saved, undone and redone is the same object. Returns the copies' page labels -- each takes
+    // the next label of the range it lands in (guide A-21) -- and a report.
+    virtual Result<DuplicatedPages> duplicatePages(const std::vector<int>& pages, const QString& key,
+                                                   const std::vector<std::vector<AnnotationCopy>>& copies) = 0;
 };
 
 // =======================================================================================
@@ -440,6 +474,13 @@ public:
     //
     // Null for a handle this backend did not open, or has closed. The pointee is owned by the
     // backend and is valid until `close()`.
+    //
+    // STAGE 7 T2: A PAGE COMMAND REORDERS WHAT THE ENGINE DRAWS, AND THIS TREE DOES NOT FOLLOW YET. The
+    // show step (D6-2) reloads the engine with the composed update, so after a move the engine's page n is
+    // the MODEL's page n -- while this tree, read at open, still describes the order the file opened in.
+    // Making it the model's, and every index-keyed consumer remap (`Scope::pageMap`), is Stage 7 T3's
+    // (`Stage7-Assembly-Plan.md` D7-3); until then no surface runs a page command (the thumbnails pane's
+    // editing is T8), and what the saved file holds is graded by `tests/render/tst_reference_repair.cpp`.
     virtual const PageTree* pages(DocumentHandle document) const = 0;
 
     // WHAT HAD TO BE RECONSTRUCTED TO OPEN THIS FILE, or null for a handle this backend did not

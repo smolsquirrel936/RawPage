@@ -318,6 +318,15 @@ struct AnnotationPlacement {
     bool operator==(const AnnotationPlacement&) const = default;
 };
 
+// ONE ANNOTATION OF A DUPLICATED PAGE -- Stage 7 T2 (D7-2): the annotation it copies, and the copy as the model
+// holds it -- an identity of its own (`Created`, a new `/NM`), its page the copy's, its pop-up, parent and reply
+// target the COPIES of those where they were copied too and none where they were not. The sink writes it from the
+// source's dictionary, not from this model: a copy is the producer's annotation, keys and appearance included.
+struct AnnotationCopy {
+    AnnotationId source;
+    Annotation copy;
+};
+
 // THE IDENTITY AND METADATA OF AN ANNOTATION RAWPAGE CREATES (D6-4): a `/NM` of 128 random bits in
 // lowercase hex, generated here ONCE and then carried by the command that adds it -- so a replay, an
 // undo and a redo all name the same annotation -- `/T` from `author`, `/CreationDate` and `/M` at

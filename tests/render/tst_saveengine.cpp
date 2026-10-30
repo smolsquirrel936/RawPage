@@ -424,6 +424,54 @@ TEST_CASE("A4 product saves an annotation into every signed corpus file", "[rend
     CHECK(written == 4);
 }
 
+// ==========================================================================================
+// Stage 7 T2 -- A-27: A4 through the product with PAGE commands (D7-20)
+// ==========================================================================================
+
+TEST_CASE("A4 product saves page commands into every signed corpus file", "[render][save][a4][pages]")
+{
+    // RAWPAGE_A4_PAGES_DIR, for tests/render/RunA4Product.cmake to hand to OpenSSL -- controls first. Each signed
+    // file has ONE page, so the sequence makes room before it moves and deletes: duplicate the page, duplicate the
+    // copy, move the last copy to the front, delete the other copy -- SAVED AFTER EACH, so the file OpenSSL judges
+    // carries four incremental updates over the signed bytes. What a validator then says of the signature is
+    // policy (D7-20, Stage 11); what OpenSSL says is whether the signed BYTES survived, which is A4.
+    const QString outDir = QStringLiteral(RAWPAGE_A4_PAGES_DIR);
+    REQUIRE(QDir().mkpath(outDir));
+    std::size_t written = 0;
+    for (const char* name : {"approval.pdf", "approval-xrefstream.pdf", "certified-nochanges.pdf", "approval-then-update.pdf"}) {
+        INFO("file: " << name);
+        const QString target = QDir(outDir).filePath(QString::fromLatin1(name));
+        if (QFile::exists(target)) {
+            QFile::setPermissions(target, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+            REQUIRE(QFile::remove(target));
+        }
+        auto session = openCopy(QString::fromStdString((fs::path(RAWPAGE_CORPUS_DIR) / "signed" / name).string()), target);
+        REQUIRE(session);
+        std::vector<std::unique_ptr<core::Command>> commands;
+        commands.push_back(std::make_unique<core::DuplicatePagesCommand>(std::vector<int>{0}));
+        commands.push_back(std::make_unique<core::DuplicatePagesCommand>(std::vector<int>{1}));
+        commands.push_back(std::make_unique<core::MovePagesCommand>(std::vector<int>{2}, 0));
+        commands.push_back(std::make_unique<core::DeletePagesCommand>(std::vector<int>{2}));
+        QByteArray before = session->openedBytes;
+        for (auto& command : commands) {
+            auto run = session->journal->run(std::move(command));
+            INFO("run error: " << (run ? std::string() : std::string(run.error().messageKey.data())));
+            REQUIRE(run);
+            auto result = session->coordinator->save(*session->journal, target);
+            INFO("save error: " << (result ? std::string() : std::string(result.error().messageKey.data())));
+            REQUIRE(result);
+            REQUIRE(result.value().kind == SaveOutcome::Kind::Saved);
+            const QByteArray onDisk = readAll(target);   // FROM THE PATH: each save appends to the one before
+            CHECK(onDisk.startsWith(before));
+            CHECK(onDisk.size() > before.size());
+            before = onDisk;
+        }
+        CHECK(session->journal->document().pages().count() == 2);
+        ++written;
+    }
+    CHECK(written == 4);
+}
+
 TEST_CASE("the engine reads a highlight our writer saved as the first-party reader does", "[render][save][annotops]")
 {
     // D6-3 over OUR output: a page with no annotations, one with nine, a page whose /Annots sits in an

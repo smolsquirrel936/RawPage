@@ -2802,6 +2802,22 @@
         <translation>此 PDF 在第 %1 頁附近的頁面結構已損毀，變更頁面可能影響到錯誤的頁面。</translation>
     </message>
     <message>
+        <source>error.edit.pageReadingsDisagree</source>
+        <translation>此 PDF 第 %1 頁的儲存方式使 RawPage 讀取的內容與繪製的內容不同，因此無法移動、刪除或複製該頁。</translation>
+    </message>
+    <message>
+        <source>error.edit.noPagesLeft</source>
+        <translation>文件至少必須保留一頁，因此未刪除這些頁面。</translation>
+    </message>
+    <message>
+        <source>error.edit.copyNotSaved</source>
+        <translation>此註解位於尚未儲存的複製頁面上。請先儲存文件，再變更此註解。</translation>
+    </message>
+    <message>
+        <source>error.pdf.pageTreeDamaged</source>
+        <translation>此 PDF 的頁面清單已損毀，因此 RawPage 不會變更其頁面或頁面順序。</translation>
+    </message>
+    <message>
         <source>error.edit.annotationsDisagree</source>
         <translation>此 PDF 第 %1 頁的註解儲存方式，RawPage 讀取與繪製的結果不一致，因此無法變更該頁的註解。</translation>
     </message>
@@ -4253,6 +4269,18 @@
     <message>
         <source>command.annot.lockMany</source>
         <translation>變更 %1 個註解的鎖定</translation>
+    </message>
+    <message>
+        <source>command.page.move</source>
+        <translation>移動 %1 頁</translation>
+    </message>
+    <message>
+        <source>command.page.delete</source>
+        <translation>刪除 %1 頁</translation>
+    </message>
+    <message>
+        <source>command.page.duplicate</source>
+        <translation>建立 %1 頁的副本</translation>
     </message>
     <message>
         <source>command.page.rotate</source>

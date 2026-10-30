@@ -16,9 +16,10 @@
 > T6, which renumbered T6 … T18 as T7 … T19 throughout, added §3.9, A-122 … A-127 and M-13's Save As steps; Q4
 > ANSWERED the same day, approved — §3.7 and A-35 … A-37 stand, their *struck if declined* clauses removed; Q5
 > ANSWERED the same day, all five parts approved — §1's five out-of-scope rows, A-80, A-96 and §6's note stand
-> as written.** **T1 done 2026-10-29: A-13 … A-16 carry a result, all ✅; no other case has one.** It raised
-> **I-01 (S2), closed inside T1** — the engine facade showed a page that inherits its boxes at US Letter,
-> uncropped, and refused its document for editing (§8). **P-3, a duplex printer for M-04, is open.** **Cases
+> as written.** **T1 done 2026-10-29 and T2 2026-10-30: A-13 … A-24, A-26 and A-28 carry a result, all ✅;
+> A-03 and A-27 carry their T2 halves (🟡); A-08 … A-10 carry T2's readings; A-25 is wired and unread until a
+> push; no other case has one.** T1 raised **I-01 (S2), closed inside T1** — the engine facade showed a page
+> that inherits its boxes at US Letter, uncropped, and refused its document for editing (§8); T2 raised none. **P-3, a duplex printer for M-04, is open.** **Cases
 > written against a §0 proposal name it in their heading or row** (Q*n* ✅); none was declined, so none moved
 > or was struck. **127
 > automated** (A-01 … A-127) and **14 manual** (M-01 … M-14).
@@ -377,10 +378,11 @@ by a later task says so in its result.
 **Steps** Read `RAWPAGE_UI_WARNING_GRACE` in `cmake/RawPageWarnings.cmake`.
 **Expect** Empty. **If it fails** S3, and the entry's reason is recorded in the status block.
 
-**A-03 · The headless suite is still headless** ☐ *T2, T19*
+**A-03 · The headless suite is still headless** 🟡 *T2's files 2026-10-30; whole at T19*
 **Goal** The page tree, the map, the generators, the imposition order, the token expansion, `LayerTree`, `TagTree` and every command's apply and revert are `core/`, and `core/` links no display and no engine.
 **Steps** `ctest -R "gates.headless_assert"`; configure both presets.
 **Expect** Every case as before, the negative controls still caught; `rawpage_tests` configures (`rawpage_assert_headless()` fails configure otherwise) with every Stage 7 `core/` file in it. **If it fails** S1.
+**Result (T2)** Both presets configure with `core/doc/PageMap.cpp` in `rawpage_core` and `rawpage_tests` linking it -- `rawpage_assert_headless()` passed; `gates.headless_assert.*` green in `ctest --preset gates` (137/137) and in `x64-release`'s `^gates\.` run (137/137). The page tree's set operation, the map, the store's and the refusals' remap and the three commands' apply and revert all run in `rawpage_tests` (`[pagemap]`, `[pagetree]`, `[pages]`, `[reversibility]`). Re-run whole at T19 with every later `core/` file.
 
 **A-04 · `portable-asan` runs every Stage 7 suite in `core/`, `pdf/cos/` and `pdf/ops/`** ☐ *each task's push; whole at T19*
 **Steps** The `portable-asan` CI job; **read the log, not the tick** (rule 3).
@@ -405,14 +407,17 @@ by a later task says so in its result.
 **Goal** D7-1's mechanical proof.
 **Steps** `cmake --build --preset x64-release --target checks`; `mutation-lint.exe --root . --explain`.
 **Expect** Exit 0; four gates; `mutation-lint` names **exactly** the twelve commands of Stage 6's sign-off and plan §4's — **43** — re-derived from the plan's §4 after Q1 and Q2 (2026-10-29), and again if a later answer moves a command — each with its `Commands.def` row and its `[serialize:]` and `[revert:]` cases listed by `--explain`. **No `CreateLink`, `EditLink`, `DeleteLink`** (D7-12), and no `ExtractPages` or `MergeDocuments` (Q1 ✅). **If it fails** S1 for an unlisted command; S2 for a missing test.
+**T2 (2026-10-30)** `checks` clean; *"mutation-lint: clean -- 15 command(s)"* -- Stage 6's twelve and `MovePagesCommand`, `DeletePagesCommand`, `DuplicatePagesCommand`, each with its row and both tags; `gates.mutation_lint.clean_tree`'s roster updated to the fifteen. The gate first refused a shared `PageSetCommand` base (*row-without-class*), since it reads derivation from `Command` as text -- the three now derive from `Command` directly.
 
 **A-09 · `layer-lint`: no new waiver, no new edge** ☐ *every task; whole at T19*
 **Steps** `layer-lint.exe --root . --explain`.
 **Expect** Clean; **15 escapes**, the same fifteen; the extract, split, export and import paths write through `pdf/` (D7-5, D7-10). **The control:** a planted `QFile::open(WriteOnly)` in `ui/dialogs/PageOpsDialogs.cpp` is refused. **If it fails** S1 for an unwaived write; S2 for a new waiver.
+**T2 (2026-10-30)** *"layer-lint: clean -- 679 files, 6939 includes"*, `--explain`'s census the same fifteen escapes. The control waits for `PageOpsDialogs` (T7).
 
 **A-10 · `i18n-lint`: six new families, each a context of its own** ☐ *every task; whole at T19*
 **Steps** `i18n-lint.exe --root . --explain`; `checks`.
 **Expect** Clean, **0 literal waivers**; the families `pages`, `bookmarks`, `layers`, `tags`, `decorate`, `links` each in `en` and `zh-TW`; **`wrong-context` clean** — and no family spelled like a command or action id (Stage 5's I-08). **If it fails** S2.
+**T2 (2026-10-30)** *"i18n-lint: clean -- 424 files, 2 catalog(s), 0 waiver(s)"*. T2 has no surface, so it adds no new family: seven keys in the existing `command.` and `error.` families, in both locales (`command.page.move`, `.delete`, `.duplicate`; `error.edit.noPagesLeft`, `.pageReadingsDisagree`, `.copyNotSaved`; `error.pdf.pageTreeDamaged`), and `unit.every command name is a catalog key present in both shipped locales` covers the three names.
 
 **A-11 · `license-audit` unchanged** ☐ *T19*
 **Steps** `checks`' `license-audit` line.
@@ -447,53 +452,65 @@ by a later task says so in its result.
 
 ### 5.4 Moving pages without breaking what points at them (T2)
 
-**A-17 · The page tree's mutation set** ☐ *T2*
+**A-17 · The page tree's mutation set** ✅ *2026-10-30, T2*
 **Steps** `ctest -R "unit.pagetree"`.
 **Expect** Insert, remove, move and duplicate of single pages and ranges at the start, middle and end; a move to its own position changes nothing and makes no command; an index outside the tree, an overlapping move and **a removal of every page** are refused, changing nothing (D7-21). **If it fails** S1.
+**Result** Five `pagetree` cases (`tests/unit/tst_pagetree.cpp`, and one through the journal in `tests/unit/tst_reference_repair.cpp`). The tree's ONE operation, `PageTree::apply(PageMap, inserted)`, against hand-written orders graded BY NAME (each page labelled `a`…`f`): six moves -- a page and a range at the start, middle and end, and a set that is not contiguous -- each carrying its boxes, rotation and label, and each undone by the inverse map; a removal of three and a duplication of two, each undone with `removedBy(map)`'s pages; refused, unchanged, for every page removed, a wrong count and the wrong number of inserted pages. The store's half: listings carried with their pages, owners renumbered, an annotation listed by two pages re-owned when its page goes and given back on undo, a direct dictionary's name unmoved, a copy's listing added and dropped. Through the journal: a move to where the pages are (a page and a set), a block that would run past the end, a page set not ascending, one outside the tree, an empty one -- each refused, nothing recorded, the model's hash unchanged, the sink with nothing to write; the control, a real move, runs. **Control:** P7 (the store keeps an owner where its page was) turned the store case red, 5 assertions.
 
-**A-18 · The page map's arithmetic** ☐ *T2*
+**A-18 · The page map's arithmetic** ✅ *2026-10-30, T2*
 **Steps** `ctest -R "unit.pagemap"`.
 **Expect** Each command's map against hand-written tables; a map composed with its inverse is the identity; two maps compose to the map of the two commands run in order; removed and inserted indices exact. **If it fails** S1.
+**Result** Five `pagemap` cases (`tests/unit/tst_pagemap.cpp`), 75,676 assertions with `[pagetree]`. Each map against a hand-written order -- moves of a page, a range and a set, a removal, a duplication -- with its removed and inserted indices exact; refused for an empty, unsorted, repeated or out-of-range set and a block past the end. **The expectation was corrected by its first run:** a map composed with its inverse is the identity only for a MOVE -- a removal's inverse brings each removed page back as an INSERTION at its old index, since a map names pages by place and a page that went has none. So the case now asserts, over **every** map the three commands make over documents of 1 to 5 pages (280), that every page both keep is where it started, every removed page is an insertion there, and a permutation is exactly the identity; and that two maps compose to running both, checked by running them over a list of names (every pair over documents of 1 to 4 pages, more than 1,000). The page command's `Scope`: `WholeDocument` with the map, an undo's the inverse, two page commands composed, and every other scope with none.
 
-**A-19 · Every reference lands on the page it named — by what that page shows** ☐ *T2; re-run at T5, T8, T9, T10, T11, T14* — §3.2
+**A-19 · Every reference lands on the page it named — by what that page shows** ✅ *2026-10-30, T2; re-run at T5, T8, T9, T10, T11, T14* — §3.2
 **Steps** `ctest -R "render.reference_repair"`: for each page command and each fixture with references, apply, save, reopen in a fresh engine document, resolve each labelled reference through PDFium, and extract the identity of the page it lands on.
 **Expect** **0 failures** against §3.2's table. **The control (rule 5):** a planted repair that rewrites every `/Dest` to the page now at the OLD index — the error that looks like a repair — fails the case for every moved reference; a planted no-op `/PageLabels` rewrite fails the label rows. **If it fails** S1.
+**Result** **0 failures.** `tests/render/tst_reference_repair.cpp`, six fixtures -- `refs-every-kind` (every kind), `merge-a`/`-b`/`-c` (outlines, links), `annots-on-pages` (links), `split-blanks` (an outline) -- each through four to six commands (the first page to the end, the last to the front, the last two to the front, a duplicate of the first and last, a delete of the second, a delete of the first and last), each SAVED through the shipped backend and `SaveCoordinator`, reopened in a fresh engine and graded; then UNDONE after the save, saved, and graded against the original. **296 references landed on the page showing the identity their label names, 19 cleared as D7-2 says.** Resolved by PDFium: the outline, the named destinations and the page labels; read first-party by the case's own reader (no code shared with `pdf/ops/ReferenceRepair`): links, structure elements, beads and `/OpenAction`, each landing page's identity extracted by PDFium; and a first-party sweep that EVERY reference in the file -- labelled or not -- names a page or nothing. The model's page labels equal the saved file's, read by PDFium, after every command. **Controls:** P1, the repair that sends every explicit destination to the page now at its OLD index, red (25 failed assertions); P2, the no-op `/PageLabels` rewrite, red in A-21 (32). **P3 STAYED GREEN** at first -- outline items to a deleted page left as they were -- because PDFium answers *unresolved* alike for a destination cleared and one pointing at a page the tree no longer lists; the grade gained the first-party dangling sweep, and P3 then went red (7). **What it does not cover:** the screen (Stage 7 T3's A-29), and which of two pages showing one identity a reference lands on after a duplicate (the headless half shows the source's annotations are not the copy's, and a move writes no reference).
 
-**A-20 · A reference to a deleted page is never left dangling** ☐ *T2*
+**A-20 · A reference to a deleted page is never left dangling** ✅ *2026-10-30, T2*
 **Steps** `ctest -R "reference_repair.deleted"` over `refs-every-kind.pdf`, deleting each page in turn.
 **Expect** Each kind treated as D7-2 says — outline item kept with no destination, link kept with no action, named destination removed, structure content items removed, bead unlinked, `/OpenAction` removed — **every one listed in the command's report**; **every reference in the saved file resolves to a page or to nothing**; undo restores the structural hash. **If it fails** S1.
+**Result** All twelve pages, each deleted in a fresh copy: the command's report is EXACTLY the references the label says target that page -- outline items and links *cleared*, named destinations and structure elements *removed*, beads *unlinked*, `/OpenAction` *removed*, each with its page -- plus the `GoToR` *reported*; the saved file graded as A-19 (every remaining reference on its page, every one to the deleted page gone, nothing dangling, a thread left with no bead out of `/Threads`); then UNDONE after the save -- the model's hash the original's, and every reference back on its page in the file saved again, which is what the sink's LEDGER is for. **Found while building, by this case:** a thread whose beads all survived was not written back, so after an undo-after-save its ring kept the repaired links (5 beads); fixed in `ReferenceRepair::compose` -- every object a pass visits goes through the desired state. **Controls:** P3 (outline items left alone) red once the dangling sweep existed; P4 (the ledger never kept after a save) red, 12 assertions, every one in the undo-after-save grade.
 
-**A-21 · Page labels follow their pages** ☐ *T2*
+**A-21 · Page labels follow their pages** ✅ *2026-10-30, T2*
 **Steps** `ctest -R "reference_repair.labels"` over `refs-every-kind.pdf` and `outline-labels.pdf`.
 **Expect** After a move, every moved page shows **the label it had**, read by PDFium (`FPDF_GetPageLabel`); an inserted or duplicated page takes the next label of the range it lands in, against hand-written tables. **If it fails** S1.
+**Result** Three moves of `refs-every-kind.pdf` (the first page to the end; three pages from two ranges to the front; the last to the middle): every page, by the identity PDFium extracts, shows the label it had. A duplicate of pages 0 and 6, against the hand-written `i ii ii iii 1 2 3 4 5 5 6 A-1 A-2 A-3` (each copy the next number of its range, the page after it keeping its own); a delete of pages 3 and 10, against `i ii iii 2 3 4 5 6 A-1 A-3`. `outline-labels.pdf`: the first page moved to the end, every label as PDFium read it before, carried. **Control:** P2 (the `/PageLabels` rewrite a no-op) red, 32 assertions.
 
-**A-22 · What names a page by index is reported, not "fixed"** ☐ *T2*
+**A-22 · What names a page by index is reported, not "fixed"** ✅ *2026-10-30, T2*
 **Steps** `ctest -R "reference_repair.by_index"` over `refs-by-index.pdf` and the `GoToR` of `refs-every-kind.pdf`.
 **Expect** Those references **byte-identical in value** after every command, and each in the report. **If it fails** S2.
+**Result** `refs-by-index.pdf`'s outline item with an INTEGER `/Dest` and `refs-every-kind.pdf`'s `GoToR` link, each through a move, a delete and a duplicate: in the saved file, read from the original's bytes and the saved bytes alike, the value is EQUAL (`CosObject` semantic equality, which is the bytes' meaning), and each command's report lists it -- `IndexDestination` and `RemoteGoTo`, *reported*. `refs-by-index.pdf`'s link to a page outside the page tree is untouched by a delete. Every page command reports them, a move included (`MutationSink::reorderPages` returns a report for this).
 
-**A-23 · Serialize, revert and reversibility for every page command** ☐ *T2; extended at T5, T8, T9*
+**A-23 · Serialize, revert and reversibility for every page command** ✅ *2026-10-30, T2; extended at T5, T8, T9*
 **Steps** `ctest -R "serialize:|revert:|reversibility"` for `MovePagesCommand`, `DeletePagesCommand`, `DuplicatePagesCommand` (later tasks add theirs).
 **Expect** Each command's line round-trips; apply then revert restores the structural hash **over every editable corpus file**; the journal line names pages by index (D7-24). **If it fails** S1.
+**Result** `{"type": "page.move", "pages": [...], "to": n}`, `page.delete` and `page.duplicate` with their `key` -- pages by INDEX -- round-trip through `CommandRegistry` (7 samples, the limit of a page index among them; the round-trip count now 48, from 41); a new hostile case refuses 22 malformed lines by `error.command.malformed` -- a set not ascending, repeated, out of range, a million and one pages, a 10 MB string, a key short, upper-case or not hex -- with its control accepting the boundaries and keeping the key. **Reversibility:** the generators move the page to the other end, delete it, duplicate it, and the first and last as a SET, wherever the document has room and its tree is whole -- *"reversibility: 3649 combinations over 121 editable corpus files; 0 failures"*, model hash restored and the sink's delta empty after every revert, on both presets. **Control:** P10 (a delete undone that restores the model and forgets the sink) red, *"revert left the sink with a non-empty delta"*.
 
-**A-24 · The saved update holds exactly what changed** ☐ *T2*
+**A-24 · The saved update holds exactly what changed** ✅ *2026-10-30, T2*
 **Steps** `ctest -R "pageops.update"`: move, save; read the update.
 **Expect** The update holds **only** the page-tree nodes whose `/Kids` changed, the label tree when it changed, and the objects D7-2 repaired; the original is a **byte-identical prefix**; **a move and its undo before a save write nothing** (rule 5). **If it fails** S1.
+**Result** Six `pageops.update` cases (`tests/unit/tst_reference_repair.cpp`), each update named from the ORIGINAL bytes read independently: `pages-900.pdf` -- a move inside one node writes **that node alone**; a move of the first page to the end writes **the two nodes and that page** (its `/Parent`), not the nodes between; a delete writes the node that lost the page and every `/Count` above it; the saved files read back in the order asked, the original a byte-identical prefix. `refs-every-kind.pdf` -- a move writes the page-tree node and the catalog (its labels), and **no reference**. A move, a delete and a duplicate undone before a save write NOTHING, the composed bytes equal to the original, on three files. A duplicate is a new page object whose annotations are new objects naming it as `/P`, its widget not copied and reported, no `/StructParents`; undone after a save it leaves the tree, and REDONE it is listed again as the SAME object. **Design fixed by this case:** the first composition filled the tree's page slots in order, so moving page 0 to the end rewrote all nine nodes of `pages-900.pdf`; it now keeps the longest run of pages already in order where they are (`PageOps::composeTree`). **Controls:** P9 (every page re-listed) red; P6 (a copied annotation's `/P` left on its source) red -- refused at the save's own verify before any file was replaced.
 
 **A-25 · `qpdf --check` over every file a page command saves** ☐ *T2; the log read at each push*
 **Steps** The `portable-asan` job's `check-qpdf.py` step; **read the log** (rule 3).
 **Expect** *"No syntax or stream encoding errors found"* for every Stage 7 output, each named; the file count re-derived. **If it fails** S2.
+**Wired at T2, not yet read:** every file `tests/unit/tst_reference_repair.cpp` saves is kept as `written/pages-NN.pdf` (eight names) beside Stage 6's, which the job's existing step judges. No result until the job's log is read after a push (rule 3).
 
-**A-26 · What is refused is refused by key** ☐ *T2*
+**A-26 · What is refused is refused by key** ✅ *2026-10-30, T2*
 **Steps** `ctest -R "pageops.refused"`.
 **Expect** A page command on an encrypted document, one removing every page, and one naming a page whose two readings disagree are refused with their keys, the document untouched; a page command on a **repaired** document runs and its first save is Save-As. **If it fails** S2.
+**Result** Three `pageops.refused` cases: every page deleted -- `error.edit.noPagesLeft`, the hash and the sink untouched, and all but one accepted (the control); a move, a delete and a duplicate on a document assessed as encrypted -- `error.edit.encrypted` before anything runs; a page whose `/Annots` the readers read differently -- `error.edit.pageReadingsDisagree` with the page named, for a delete and for a move that names it, while a move of ANOTHER page past it runs and the refusal moves with the page (`mayEditPage` and `mayAnnotate` at its new index). **Added by D7-21's T2 amendment:** a page tree whose walk noted a kid that is no reference refuses a move and a duplicate by `error.pdf.pageTreeDamaged`, writing nothing, while a rotation runs. A repaired file (the first of five malformed fixtures the first-party writer opens that needs repair) runs a duplicate, and its save is `SaveAsRequired`; the Save As writes the pages. **Control:** P8 (a refusal left at its old index) red, 3 assertions.
 
-**A-27 · A signed document: warned once, and every signature still verifies** ☐ *T2 (OpenSSL); T8 (the warning)*
+**A-27 · A signed document: warned once, and every signature still verifies** 🟡 *OpenSSL half ✅ 2026-10-30, T2; the warning T8*
 **Steps** `ctest -R "a4_product" -V` with a `MovePages` and a `DeletePages` through the product on each of the four `corpus/signed/` files; the warning case in `rawpage_ui_tests`.
 **Expect** OpenSSL verifies **all four** after each save, each with one byte flipped first as its control (D3-2's order); the message bar warns **once** per document before its first page command, and **never** on an unsigned document. **If it fails** S1 for a signature broken by the bytes; S3 for the warning.
+**Result (OpenSSL)** `render.a4_product.pages.openssl`, a third run of `RunA4Product.cmake`: each signed file has ONE page, so the case makes room before it moves and deletes -- duplicate, duplicate again, move the last copy to the front, delete the other copy -- through the shipped backend, **saved after each**, each save's file a byte-identical prefix of the next. Then *"signature check ok: 8 of 8 controls rejected, 4 of 4 signatures verify"*, each signed range ending where the original did (`approval.pdf`: byte 19370 of 20660). **The warning half is T8's**, with the surface that runs a page command.
 
-**A-28 · Recovery replays every Stage 7 command kind** ☐ *T2; extended by every task that adds a command*
+**A-28 · Recovery replays every Stage 7 command kind** ✅ *2026-10-30, T2 for the three page commands; extended by every task that adds a command*
 **Steps** `ctest -R "platform.recovery.kill" -V` with each Stage 7 command in its rotation.
 **Expect** After `TerminateProcess`, the replay against the file as opened gives a document whose every page shows the identity it showed before the kill and whose references grade as §3.2; an insert replays **with its source deleted** (D7-6). Where each kill landed is printed. **If it fails** S1.
+**Result** `platform.recovery.kill_pages`: the kill probe's new `pages` mode runs `tests/platform/killprobe/PageSteps.h`'s cycle over `refs-every-kind.pdf` -- a move, a duplicate, a delete, a move of a set, each key a function of the step -- and twenty `TerminateProcess` kills land *"between apply and the flush: 11; inside the flush: 9"*, up to 9 steps replayed. Each replay is graded against the SAME steps run in-process on a pristine copy: the model's hash equal, and the update a save would write **byte-identical** (SHA-256) -- the page tree, the labels and every repaired reference -- whose rightness is A-19's and A-20's. **Bound:** the replay is graded by the composed bytes, not by PDFium; an insert's replay without its source is T5's. **Control:** P11 (a duplicate's copies named afresh each run) red, 36 assertions.
 
 ### 5.5 How a moved page reaches the screen — A2 at Stage 7 (T3)
 

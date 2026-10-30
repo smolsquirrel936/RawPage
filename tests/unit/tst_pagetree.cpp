@@ -15,9 +15,13 @@
 
 #include "core/doc/Page.h"
 #include "core/doc/PageTree.h"
+#include "core/doc/AnnotationStore.h"
+#include "core/doc/PageMap.h"
 #include "core/render/RenderRequest.h"
 
 #include <QString>
+
+#include <optional>
 
 #include <unordered_set>
 #include <utility>
@@ -340,4 +344,201 @@ TEST_CASE("render request carries no pointer, so its key is by value", "[core][r
     RenderRequest copy = validRequest();
     copy.tile.x = 99;
     CHECK(validRequest().tile.x == 0);
+}
+
+// ==========================================================================================
+// Stage 7 T2 -- insert, move, remove and duplicate, as one operation over a PageMap (D7-3), guide A-17
+// ==========================================================================================
+//
+// The PAGE TREE and the ANNOTATION STORE's listings are the two parts of the model a page command changes
+// besides the per-page refusals; each is rebuilt by the same `PageMap`, and each is undone by the map's
+// inverse with what the first took away. Graded by NAME -- each page carries its label as a name -- so a
+// case reads "the page called c is now third", never "the index arithmetic agreed with itself".
+
+namespace {
+
+PageTree namedTree(int count)
+{
+    std::vector<Page> pages;
+    for (int index = 0; index < count; ++index) {
+        Page page(index, index % 2 == 0 ? kLetter : kA4);
+        page.setLabel(QString(QChar(QLatin1Char('a').unicode() + index)));
+        page.setRotation(index % 4 * 90);
+        pages.push_back(page);
+    }
+    return PageTree(std::move(pages));
+}
+
+QString namesOf(const PageTree& tree)
+{
+    QString out;
+    for (const Page& page : tree.pages()) out += page.label();
+    return out;
+}
+
+bool indicesAgree(const PageTree& tree)
+{
+    for (int index = 0; index < tree.count(); ++index) {
+        if (tree.at(index)->index() != index) return false;
+    }
+    return true;
+}
+
+} // namespace
+
+TEST_CASE("pagetree a move of a single page or a range at the start middle and end", "[core][doc][pagetree][A-17]")
+{
+    const struct {
+        std::vector<int> pages;
+        int to;
+        const char* expected;
+    } rows[] = {
+        {{0}, 5, "bcdefa"}, {{5}, 0, "fabcde"}, {{2}, 3, "abdcef"},
+        {{0, 1}, 2, "cdabef"}, {{3, 4, 5}, 0, "defabc"}, {{1, 4}, 3, "acdbef"},
+    };
+    for (const auto& row : rows) {
+        PageTree tree = namedTree(6);
+        const auto map = rawpage::core::PageMap::move(6, row.pages, row.to);
+        REQUIRE(map);
+        INFO("expected " << row.expected);
+        REQUIRE(tree.apply(*map));
+        CHECK(namesOf(tree) == QString::fromLatin1(row.expected));
+        CHECK(indicesAgree(tree));
+        // A moved page carries everything it is: its boxes, rotation and label went with it.
+        const int b = tree.indexOfLabel(QStringLiteral("b"));
+        CHECK(tree.at(b)->mediaBox() == kA4);
+        CHECK(tree.at(b)->rotation() == PageRotation::Clockwise90);
+        // And the inverse map puts it back.
+        REQUIRE(tree.apply(map->inverse()));
+        CHECK(namesOf(tree) == QStringLiteral("abcdef"));
+    }
+}
+
+TEST_CASE("pagetree a removal and a duplication with their reverts", "[core][doc][pagetree][A-17]")
+{
+    PageTree tree = namedTree(6);
+    const auto removal = rawpage::core::PageMap::removal(6, {0, 3, 5});
+    REQUIRE(removal);
+    const std::vector<Page> removed = tree.removedBy(*removal);
+    REQUIRE(removed.size() == 3);
+    REQUIRE(tree.apply(*removal));
+    CHECK(namesOf(tree) == QStringLiteral("bce"));
+    CHECK(indicesAgree(tree));
+    REQUIRE(tree.apply(removal->inverse(), removed));
+    CHECK(namesOf(tree) == QStringLiteral("abcdef"));
+    CHECK(indicesAgree(tree));
+
+    const auto duplication = rawpage::core::PageMap::duplication(6, {1, 5});
+    REQUIRE(duplication);
+    Page copyOfB = *tree.at(1);
+    copyOfB.setLabel(QStringLiteral("B"));
+    Page copyOfF = *tree.at(5);
+    copyOfF.setLabel(QStringLiteral("F"));
+    REQUIRE(tree.apply(*duplication, {copyOfB, copyOfF}));
+    CHECK(namesOf(tree) == QStringLiteral("abBcdefF"));
+    CHECK(indicesAgree(tree));
+    REQUIRE(tree.apply(duplication->inverse(), {}));
+    CHECK(namesOf(tree) == QStringLiteral("abcdef"));
+}
+
+TEST_CASE("pagetree refuses a removal of every page a wrong count and a wrong number of inserted pages", "[core][doc][pagetree][A-17]")
+{
+    // D7-21: a document with no pages is not a document. Each refusal changes NOTHING.
+    PageTree tree = namedTree(3);
+    CHECK_FALSE(tree.apply(*rawpage::core::PageMap::removal(3, {0, 1, 2})));
+    CHECK_FALSE(tree.apply(rawpage::core::PageMap::identity(4)));
+    CHECK_FALSE(tree.apply(*rawpage::core::PageMap::duplication(3, {1})));                 // no copy given
+    CHECK_FALSE(tree.apply(*rawpage::core::PageMap::duplication(3, {1}), {Page(), Page()})); // two given
+    CHECK(namesOf(tree) == QStringLiteral("abc"));
+    CHECK(indicesAgree(tree));
+    // THE CONTROL: the same calls with the right arguments are accepted.
+    CHECK(tree.apply(*rawpage::core::PageMap::removal(3, {0, 1})));
+    CHECK(namesOf(tree) == QStringLiteral("c"));
+}
+
+TEST_CASE("pagetree the annotation store's listings follow their pages and an undo is exact", "[core][doc][pagetree][annotations][A-17]")
+{
+    using rawpage::core::Annotation;
+    using rawpage::core::AnnotationId;
+    using rawpage::core::AnnotationListingEntry;
+    using rawpage::core::AnnotationStore;
+    using rawpage::core::PageMap;
+    // Four pages: page 0 owns obj 10; page 1 owns obj 11 and a direct dictionary; page 2 lists obj 10 a SECOND
+    // time (an annotation two pages list -- its owner is page 0); page 3 owns obj 13 and an entry that is no
+    // dictionary at all.
+    AnnotationStore::Reading reading;
+    const auto make = [](AnnotationId id, int page) {
+        Annotation a;
+        a.id = id;
+        a.page = page;
+        a.subtype = rawpage::core::AnnotationSubtype::Square;
+        return a;
+    };
+    reading.annotations = {make(AnnotationId::ofObject(10), 0), make(AnnotationId::ofObject(11), 1),
+                           make(AnnotationId::ofDirect(1, 1), 1), make(AnnotationId::ofObject(13), 3)};
+    const auto entry = [](std::optional<std::size_t> index) {
+        AnnotationListingEntry e;
+        e.fact.dictionary = index.has_value();
+        e.annotation = index;
+        return e;
+    };
+    reading.pages = {{entry(0)}, {entry(1), entry(2)}, {entry(0)}, {entry(3), entry(std::nullopt)}};
+    AnnotationStore store = AnnotationStore::fromReading(reading);
+    const auto ownerOf = [&store](AnnotationId id) { return store.at(*store.find(id)).page; };
+    const QByteArray d10 = store.annotationDigest(*store.find(AnnotationId::ofObject(10)));
+
+    SECTION("a move renumbers each owner and keeps every listing whole")
+    {
+        const PageMap map = *PageMap::move(4, {0}, 3);   // b c d a
+        REQUIRE(store.applyPageMap(map));
+        CHECK(ownerOf(AnnotationId::ofObject(10)) == 3);
+        CHECK(ownerOf(AnnotationId::ofObject(11)) == 0);
+        CHECK(ownerOf(AnnotationId::ofObject(13)) == 2);
+        CHECK(store.listing(2).size() == 2);               // the old page 3, its non-dictionary entry with it
+        CHECK_FALSE(store.listing(2)[1].annotation);
+        // A direct dictionary keeps the NAME it was given at open (D6-4) -- names do not move.
+        CHECK(store.find(AnnotationId::ofDirect(1, 1)));
+        CHECK(store.annotationDigest(*store.find(AnnotationId::ofObject(10))) != d10);   // its page is in its digest
+        REQUIRE(store.applyPageMap(map.inverse()));
+        CHECK(ownerOf(AnnotationId::ofObject(10)) == 0);
+        CHECK(store.annotationDigest(*store.find(AnnotationId::ofObject(10))) == d10);
+    }
+    SECTION("a removal: an annotation only the page listed leaves; one listed elsewhere changes owner; undo is exact")
+    {
+        const PageMap map = *PageMap::removal(4, {0, 3});
+        std::vector<AnnotationStore::PageListing> removed = store.listingsRemovedBy(map);
+        REQUIRE(removed.size() == 2);
+        REQUIRE(store.applyPageMap(map));
+        CHECK(store.size() == 3);                          // obj 13 went with page 3
+        CHECK_FALSE(store.find(AnnotationId::ofObject(13)));
+        CHECK(ownerOf(AnnotationId::ofObject(10)) == 1);   // page 2 lists it still: the first page that does
+        REQUIRE(store.applyPageMap(map.inverse(), std::move(removed)));
+        CHECK(store.size() == 4);
+        CHECK(ownerOf(AnnotationId::ofObject(10)) == 0);   // given back to the page that came back
+        CHECK(ownerOf(AnnotationId::ofObject(13)) == 3);
+        CHECK(store.listing(3).size() == 2);
+        CHECK(store.annotationDigest(*store.find(AnnotationId::ofObject(10))) == d10);
+    }
+    SECTION("an inserted listing adds the annotations it names and the inverse drops them")
+    {
+        const PageMap map = *PageMap::duplication(4, {1});
+        AnnotationStore::PageListing copy;
+        Annotation made = make(AnnotationId::ofCreated(QStringLiteral("copy-0")), 2);
+        made.nm = QStringLiteral("copy-0");
+        copy.entries.push_back({rawpage::core::AnnotationFact{true, made.subtype, std::nullopt}, made});
+        REQUIRE(store.applyPageMap(map, {copy}));
+        CHECK(store.size() == 5);
+        CHECK(ownerOf(AnnotationId::ofCreated(QStringLiteral("copy-0"))) == 2);
+        CHECK(ownerOf(AnnotationId::ofObject(13)) == 4);
+        REQUIRE(store.applyPageMap(map.inverse()));
+        CHECK(store.size() == 4);
+        CHECK_FALSE(store.find(AnnotationId::ofCreated(QStringLiteral("copy-0"))));
+    }
+    SECTION("refused unchanged for a wrong count or a wrong number of listings")
+    {
+        CHECK_FALSE(store.applyPageMap(PageMap::identity(5)));
+        CHECK_FALSE(store.applyPageMap(*PageMap::duplication(4, {0})));
+        CHECK(store.pageCount() == 4);
+        CHECK(store.size() == 4);
+    }
 }

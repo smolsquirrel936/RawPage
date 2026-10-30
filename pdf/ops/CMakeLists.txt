@@ -27,6 +27,11 @@ add_library(rawpage_ops STATIC
     RevisionWriter.h
     RevisionWriter.cpp
 
+    # S7 T2 (D7-2): what names a page, and what a page command does to it -- the deleted page's references
+    # cleared, removed or unlinked, the by-index ones reported, and the ledger that makes an undo after a save exact.
+    ReferenceRepair.h
+    ReferenceRepair.cpp
+
     # S4 T10 (D4-12). A READER in a directory named for operations, and the reason is that /Trans
     # is document semantics rather than object model: PageOps sits on the same line. It exists at
     # all because PDFium's C API exposes page transitions nowhere, which makes it the first read

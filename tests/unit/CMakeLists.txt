@@ -125,7 +125,11 @@ add_executable(rawpage_tests
     tst_xreftable.cpp             # Stage 2 T7  -- guide case A-20
     tst_xrefrepair.cpp            # Stage 2 T8  -- guide cases A-21 and A-22, the exit criterion
     tst_docvocabulary.cpp         # Stage 2 T8  -- core/doc/Revision and Scope (D2-5)
-    tst_pagetree.cpp              # Stage 2 T9  -- core/doc/Page, PageTree, RenderRequest
+    tst_pagetree.cpp              # Stage 2 T9  -- core/doc/Page, PageTree, RenderRequest; Stage 7 T2 the page-order
+                                  #   set operations on the tree and the annotation store (S7 guide A-17)
+    tst_pagemap.cpp               # Stage 7 T2  -- core/doc/PageMap and the map beside a Scope (D7-3, S7 guide A-18)
+    tst_reference_repair.cpp      # Stage 7 T2  -- the headless half of the page commands: what an update holds (A-24),
+                                  #   what is refused by key (A-26), and the by-index references left alone (A-22)
     tst_dpipolicy.cpp             # Stage 2 T10 -- guide cases A-28, A-29, A-30
     tst_tilegrid.cpp              # Stage 2 T10 -- guide case A-31
     tst_presentation.cpp          # Stage 2 T10 -- guide cases A-32, A-33, A-34

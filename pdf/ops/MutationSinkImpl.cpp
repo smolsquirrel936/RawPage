@@ -274,6 +274,10 @@ MutationSinkImpl::MutationSinkImpl(std::string_view bytes, cos::XrefTable table,
     disk_ = readListings(table_, walk_);
     countArrayUsers(disk_, arrayUsers_);
     diskFiles_ = readFiles(table_);
+    // S7 T2: the order on disk, the pages it lists, and their labels.
+    diskWalk_ = walk_;
+    for (const PageEntry& page : walk_.pages) knownPages_.insert(page.number);
+    labels_ = PageOps::readLabels(table_, pageCount());
 }
 
 core::Result<std::unique_ptr<MutationSinkImpl>> MutationSinkImpl::open(std::string_view bytes)
@@ -319,9 +323,25 @@ core::Result<cos::ObjectDelta> MutationSinkImpl::delta()
 {
     cos::ObjectDelta delta(table_);
     // A page dictionary is written ONCE, carrying every change to it: its rotation and, from Stage 6
-    // T3, its /Annots -- `ObjectDelta` refuses one object replaced twice.
+    // T3, its /Annots -- `ObjectDelta` refuses one object replaced twice. Since Stage 7 T2 every object
+    // two parts of a compose may both change -- a page's /Parent and its /Annots, the catalog's
+    // /PageLabels, /OpenAction and /Names -- is gathered here and written once at the end.
     std::map<long long, cos::CosObject> pageDictionaries;
+
+    // S7 T2: the page order first -- the tree, each moved or new page's /Parent and rotation -- so a new
+    // page has a number and a dictionary before its annotations are listed on it; then the labels and
+    // the repair of what names a page the document no longer has.
+    std::set<int> handled;
+    bool orderChanged = walk_.pages.size() != diskWalk_.pages.size();
+    for (std::size_t at = 0; !orderChanged && at < walk_.pages.size(); ++at)
+        orderChanged = walk_.pages[at].number != diskWalk_.pages[at].number;
+    if (orderChanged) {
+        if (core::Status order = composePageOrder(delta, pageDictionaries, handled); !order) return order.error();
+    } else {
+        composeNumbers_.clear();
+    }
     for (const auto& [pageIndex, degrees] : desired_) {
+        if (handled.count(pageIndex) != 0) continue;   // composed with its new parent above
         const PageEntry& page = walk_.pages[static_cast<std::size_t>(pageIndex)];
         auto dictionary = PageOps::rotatedPage(table_, page, degrees);
         if (!dictionary)
@@ -329,12 +349,27 @@ core::Result<cos::ObjectDelta> MutationSinkImpl::delta()
         if (dictionary.value())
             pageDictionaries.emplace(page.number, std::move(*dictionary.value()));
     }
+    if (core::Status labels = composeLabels(pageDictionaries); !labels) return labels.error();
+    if (core::Status repairs = composeRepairs(pageDictionaries); !repairs) return repairs.error();
     if (core::Status annotations = composeAnnotations(delta, pageDictionaries); !annotations)
         return annotations.error();
-    if (core::Status files = composeFiles(delta); !files)   // Stage 6 T11
+    if (core::Status files = composeFiles(delta, pageDictionaries); !files)   // Stage 6 T11
         return files.error();
 
+    std::set<long long> reserved;   // S7 T2: a new page is DEFINED at the number its compose reserved
+    for (const auto& [negative, given] : composeNumbers_) reserved.insert(given);
     for (auto& [number, dictionary] : pageDictionaries) {
+        if (reserved.count(number) != 0) {
+            if (dictionary.isStream()) {
+                const cos::CosStreamData& data = dictionary.streamData();
+                std::string payload(bytes_.substr(data.dataOffset, data.dataLength));
+                if (!delta.define(number, std::move(dictionary), std::move(payload)))
+                    return sinkError(core::ErrorCode::Corrupted, "error.pdf.pageTreeChanged", number);
+            } else if (!delta.define(number, std::move(dictionary))) {
+                return sinkError(core::ErrorCode::Corrupted, "error.pdf.pageTreeChanged", number);
+            }
+            continue;
+        }
         if (dictionary.isStream()) {
             // A page dictionary is a stream here only when its data lies in this buffer (issue I-12).
             const cos::CosStreamData& data = dictionary.streamData();
@@ -511,6 +546,9 @@ core::Status MutationSinkImpl::insertAnnotations(const std::vector<core::Annotat
             if (const auto saved = createdOnDisk_.find(annotation.id.nm); saved != createdOnDisk_.end()) {
                 entry.kind = ListedEntry::Kind::Reference;  // created, and since saved: list that object
                 entry.reference = saved->second;
+            } else if (copies_.count(annotation.id.nm) != 0) {
+                entry.kind = ListedEntry::Kind::Created;    // S7 T2: a copy, written from its source again
+                entry.nm = annotation.id.nm;
             } else {
                 // Written new -- so it must be a kind this build can draw (D6-6), asked now, not at save.
                 if (core::Status writable = canCreate(annotation); !writable) return writable;
@@ -593,6 +631,11 @@ core::Status MutationSinkImpl::replaceAnnotations(const std::vector<core::Annota
         if (!(was.id == now.id) || was.subtype != now.subtype || !now.id.isValid())
             return sinkError(core::ErrorCode::InvalidArgument, "error.pdf.annotationUnknown", where);
 
+        // S7 T2: a COPY on a duplicated page is written from its source's dictionary, and editing one before
+        // the duplicate is saved is refused by key -- after the save it is an annotation the file holds.
+        if (now.id.kind == core::AnnotationId::Kind::Created && copies_.count(now.id.nm) != 0
+            && createdOnDisk_.count(now.id.nm) == 0)
+            return sinkError(core::ErrorCode::Unsupported, "error.edit.copyNotSaved", where);
         // A created annotation not yet saved is drawn anew from the model at compose: the change is the model's.
         if (now.id.kind == core::AnnotationId::Kind::Created && created_.count(now.id.nm) != 0) {
             if (!AppearanceStreamBuilder::drawsNothing(now)) {
@@ -780,8 +823,8 @@ core::Status MutationSinkImpl::composeAnnotations(cos::ObjectDelta& delta,
 
     for (const int page : rewrite) {
         const std::vector<ListedEntry>& listing = desiredListing(page);
-        const PageEntry& pageEntry = walk_.pages[static_cast<std::size_t>(page)];
-        const cos::CosRef pageRef{pageEntry.number, generationOf(table_, pageEntry.number)};
+        const long long pageNumber = objectOf(page);   // S7 T2: a new page's number in this compose
+        const cos::CosRef pageRef{pageNumber, generationOf(table_, pageNumber)};
 
         std::vector<cos::CosObject> items;
         items.reserve(listing.size());
@@ -810,7 +853,14 @@ core::Status MutationSinkImpl::composeAnnotations(cos::ObjectDelta& delta,
                 const auto number = written.find(entry.nm);
                 if (number == written.end())
                     return sinkError(core::ErrorCode::NotFound, "error.pdf.annotationUnknown", page);
-                if (defined.insert(entry.nm).second) {
+                const bool first = defined.insert(entry.nm).second;
+                if (first && copies_.count(entry.nm) != 0) {
+                    // S7 T2: a copy on a duplicated page, from its source's dictionary (D7-2).
+                    auto copied = copiedDictionary(entry.nm, pageRef, delta, written, shared);
+                    if (!copied) return copied.error();
+                    if (!delta.define(number->second, std::move(copied).value()))
+                        return sinkError(core::ErrorCode::Corrupted, "error.pdf.annotationUnknown", page);
+                } else if (first) {
                     const core::Annotation* annotation = createdAnnotation(entry.nm);
                     if (annotation == nullptr)
                         return sinkError(core::ErrorCode::NotFound, "error.pdf.annotationUnknown", page);
@@ -872,11 +922,11 @@ core::Status MutationSinkImpl::composeAnnotations(cos::ObjectDelta& delta,
             delta.replace(*disk.arrayObject, std::move(array));
             continue;
         }
-        auto base = pageDictionaries.find(pageEntry.number);
+        auto base = pageDictionaries.find(pageNumber);
         if (base == pageDictionaries.end()) {
-            auto current = currentPage(table_, pageEntry.number);
+            auto current = currentPage(table_, pageNumber);
             if (!current) return current.error();
-            base = pageDictionaries.emplace(pageEntry.number, std::move(current).value()).first;
+            base = pageDictionaries.emplace(pageNumber, std::move(current).value()).first;
         }
         base->second = empty ? AnnotationOps::withoutEntry(base->second, "Annots")
                              : AnnotationOps::withEntry(base->second, "Annots", std::move(array));
@@ -940,6 +990,22 @@ core::Result<MutationSinkImpl::Reconciled> MutationSinkImpl::reconcile(cos::Xref
             if (want.kind != ListedEntry::Kind::Created) {
                 if (!got.sameEntry(want)) return listingMismatch(page);
                 got.id = want.id;
+                continue;
+            }
+            // S7 T2: a COPY reads back as a reference to a dictionary with its /NM and its page as /P; its
+            // appearance is its source's, carried as written.
+            if (copies_.count(want.nm) != 0) {
+                if (got.kind != ListedEntry::Kind::Reference) return listingMismatch(page);
+                auto object = written.fetch(got.reference.number);
+                if (!object || object.value().object.type() != cos::CosType::Dictionary) return listingMismatch(page);
+                const cos::CosObject& d = object.value().object;
+                const cos::CosObject* nm = d.find("NM");
+                const cos::CosObject* owner = d.find("P");
+                if (nm == nullptr || !nm->isString() || EmbeddedFileReader::decodeTextString(nm->text()) != want.nm
+                    || owner == nullptr || !owner->isReference() || owner->reference().number != walk.pages[index].number)
+                    return listingMismatch(page);
+                got.id = want.id;
+                out.created.insert_or_assign(want.nm, got.reference);
                 continue;
             }
             // A created annotation: a reference to a dictionary that IS it -- its /NM, its /Subtype, its
@@ -1202,7 +1268,7 @@ cos::CosRef MutationSinkImpl::addFileSpecification(cos::ObjectDelta& delta, cons
     return cos::CosRef{delta.add(CosObject::makeDictionary(std::move(spec))), 0};
 }
 
-core::Status MutationSinkImpl::composeFiles(cos::ObjectDelta& delta)
+core::Status MutationSinkImpl::composeFiles(cos::ObjectDelta& delta, std::map<long long, cos::CosObject>& pending)
 {
     if (!desiredFiles_) return core::Status{};
     delta.reserveNumbersThrough(referenceFloor());
@@ -1235,23 +1301,35 @@ core::Status MutationSinkImpl::composeFiles(cos::ObjectDelta& delta)
     // The catalog's `/Names`: into the names dictionary's own object when it has one, else into the catalog.
     const cos::CosObject& root = table_.trailer().get("Root");
     if (!root.isReference()) return sinkError(core::ErrorCode::Corrupted, "error.pdf.objectMissing", -1);
-    auto catalog = table_.fetch(root.reference().number);
-    if (!catalog || !catalog.value().object.isDictionary())
-        return sinkError(core::ErrorCode::NotFound, "error.pdf.objectMissing", root.reference().number);
-    cos::CosObject catalogDictionary = catalog.value().object;
-    catalogDictionary.clearSpansRecursively();
+    // S7 T2: the catalog and the names dictionary through `pending` -- the page labels and the repair may
+    // already have changed them in this compose.
+    cos::CosObject catalogDictionary;
+    if (const auto held = pending.find(root.reference().number); held != pending.end()) {
+        catalogDictionary = held->second;
+    } else {
+        auto catalog = table_.fetch(root.reference().number);
+        if (!catalog || !catalog.value().object.isDictionary())
+            return sinkError(core::ErrorCode::NotFound, "error.pdf.objectMissing", root.reference().number);
+        catalogDictionary = catalog.value().object;
+        catalogDictionary.clearSpansRecursively();
+    }
     const cos::CosObject* names = catalogDictionary.find("Names");
     if (names != nullptr && names->isReference()) {
-        auto namesObject = table_.fetch(names->reference().number);
+        const long long number = names->reference().number;
+        if (const auto held = pending.find(number); held != pending.end() && held->second.isDictionary()) {
+            held->second = withTree(held->second);
+            return core::Status{};
+        }
+        auto namesObject = table_.fetch(number);
         if (namesObject && namesObject.value().object.isDictionary() && !namesObject.value().object.isStream()) {
             cos::CosObject current = namesObject.value().object;
             current.clearSpansRecursively();
-            delta.replace(names->reference().number, withTree(current));
+            pending.insert_or_assign(number, withTree(current));
             return core::Status{};
         }
     }
     const cos::CosObject current = (names != nullptr && names->isDictionary()) ? *names : cos::CosObject::makeDictionary({});
-    delta.replace(root.reference().number, AnnotationOps::withEntry(catalogDictionary, "Names", withTree(current)));
+    pending.insert_or_assign(root.reference().number, AnnotationOps::withEntry(catalogDictionary, "Names", withTree(current)));
     return core::Status{};
 }
 
@@ -1354,6 +1432,13 @@ core::Status MutationSinkImpl::adopt(std::string_view bytes)
     if (walk.value().pages.size() != walk_.pages.size())
         return sinkError(core::ErrorCode::Corrupted, "error.pdf.pageTreeChanged",
                          static_cast<long long>(walk.value().pages.size()));
+    // S7 T2: every page this sink lists is where the desired order put it -- a new page anywhere new.
+    for (std::size_t at = 0; at < walk_.pages.size(); ++at) {
+        const long long want = walk_.pages[at].number;
+        const long long got = walk.value().pages[at].number;
+        if ((want >= 0 && got != want) || (want < 0 && knownPages_.count(got) != 0))
+            return sinkError(core::ErrorCode::Corrupted, "error.pdf.pageTreeChanged", got);
+    }
 
     // The annotations: every listing this sink changed must read back as it composed it, and each
     // entry keeps the name the model gives it -- a created annotation is now the object the save put it at.
@@ -1366,7 +1451,35 @@ core::Status MutationSinkImpl::adopt(std::string_view bytes)
 
     bytes_ = bytes;
     table_ = std::move(table).value();
+    // S7 T2: the new pages are now objects the file holds; what the repair wrote joins the ledger -- an older
+    // value it holds stays, being the one before RawPage changed anything -- and a value back as it was
+    // leaves it; and the scan and the shape, read from the old revision, go.
+    for (std::size_t at = 0; at < walk_.pages.size(); ++at) {
+        if (walk_.pages[at].number < 0) newPages_.erase(walk_.pages[at].number);
+    }
+    for (auto& [number, keys] : composedLedger_) {
+        for (auto& [key, value] : keys) ledger_[number].emplace(key, std::move(value));
+    }
+    composedLedger_.clear();
+    for (auto it = ledger_.begin(); it != ledger_.end();) {
+        auto now = table_.fetch(it->first);
+        cos::CosObject current = now ? now.value().object : cos::CosObject::makeNull();
+        current.clearSpansRecursively();
+        for (auto key = it->second.begin(); key != it->second.end();) {
+            const cos::CosObject* value = key->first.empty() ? &current : current.find(key->first);
+            const bool back = key->second ? (value != nullptr && *value == *key->second) : value == nullptr;
+            key = back ? it->second.erase(key) : std::next(key);
+        }
+        it = it->second.empty() ? ledger_.erase(it) : std::next(it);
+    }
+    for (const auto& [nm, reference] : reconciled.value().created) copies_.erase(nm);
     walk_ = std::move(walk).value();
+    diskWalk_ = walk_;
+    for (const PageEntry& page : walk_.pages) knownPages_.insert(page.number);
+    if (!labels_.empty()) labels_ = PageOps::readLabels(table_, pageCount());
+    scan_.reset();
+    shape_.reset();
+    composeNumbers_.clear();
     disk_ = std::move(reconciled.value().listings);
     countArrayUsers(disk_, arrayUsers_);
     for (auto& [nm, reference] : reconciled.value().created) createdOnDisk_.insert_or_assign(nm, reference);
@@ -1384,6 +1497,486 @@ core::Status MutationSinkImpl::adopt(std::string_view bytes)
             ++it;
     }
     return core::Status{};
+}
+
+// ==========================================================================================
+// Pages (Stage 7 T2) -- the header's rule over the page order
+// ==========================================================================================
+
+namespace {
+
+core::Error pagesError(const char* key, long long detail = -1)
+{
+    return core::Error{core::ErrorCode::InvalidArgument, QLatin1String(key),
+                       detail < 0 ? QString() : QString::number(static_cast<qlonglong>(detail))};
+}
+
+// The four inheritable keys `node` passes down when it is reached through its `/Parent` chain on disk -- for a
+// page the tree no longer lists, whose old parent is known only by that chain. Bounded, visited.
+std::map<std::string, cos::CosObject> inheritedThrough(cos::XrefTable& table, const cos::CosObject& parent)
+{
+    std::vector<std::map<std::string, cos::CosObject>> chain;
+    std::set<long long> visited;
+    cos::CosObject at = parent;
+    while (at.isReference() && visited.insert(at.reference().number).second && chain.size() < 256) {
+        auto node = table.fetch(at.reference().number);
+        if (!node || !node.value().object.isDictionary()) break;
+        std::map<std::string, cos::CosObject> own;
+        for (const char* key : PageOps::kInheritable) {
+            if (const cos::CosObject* value = node.value().object.find(key)) {
+                cos::CosObject held = *value;
+                held.clearSpansRecursively();
+                own[key] = std::move(held);
+            }
+        }
+        chain.push_back(std::move(own));
+        at = node.value().object.get("Parent");
+    }
+    std::map<std::string, cos::CosObject> out;
+    for (auto level = chain.rbegin(); level != chain.rend(); ++level) {
+        for (auto& [key, value] : *level) out[key] = value;
+    }
+    return out;
+}
+
+// `/Rotate` as a page under a parent passing `inherited` must have to display at `degrees` -- PageOps'
+// `rotatedPage` rule over a dictionary in hand: set only where it differs from what the page inherits.
+cos::CosObject withRotation(const cos::CosObject& page, int inherited, int degrees)
+{
+    const cos::CosObject* own = page.find("Rotate");
+    const int effective = (own != nullptr && own->isNumber()) ? PageOps::normalizeRotate(*own) : inherited;
+    if (effective == degrees) return page;
+    cos::CosObject out = AnnotationOps::withoutEntry(page, "Rotate");
+    if (degrees != inherited) out = AnnotationOps::withEntry(out, "Rotate", cos::CosObject::makeInteger(degrees));
+    return out;
+}
+
+} // namespace
+
+core::Status MutationSinkImpl::mayRestructure() const
+{
+    if (!diskWalk_.notes.empty())
+        return core::Error{core::ErrorCode::Unsupported, QLatin1String("error.pdf.pageTreeDamaged"),
+                           QString::number(static_cast<qlonglong>(diskWalk_.notes.front().objectNumber))};
+    return core::Status{};
+}
+
+std::map<long long, int> MutationSinkImpl::indexOfPages() const
+{
+    std::map<long long, int> out;
+    for (std::size_t at = 0; at < walk_.pages.size(); ++at) {
+        if (walk_.pages[at].number >= 0) out.emplace(walk_.pages[at].number, static_cast<int>(at));
+    }
+    return out;
+}
+
+const ReferenceRepair::Scan& MutationSinkImpl::referenceScan()
+{
+    if (!scan_) {
+        const ReferenceRepair::View view(table_, ledger_);
+        scan_ = ReferenceRepair::scan(view, std::vector<long long>(knownPages_.begin(), knownPages_.end()));
+    }
+    return *scan_;
+}
+
+std::set<long long> MutationSinkImpl::gonePages() const
+{
+    std::set<long long> gone = knownPages_;
+    for (const PageEntry& page : walk_.pages) gone.erase(page.number);
+    return gone;
+}
+
+long long MutationSinkImpl::objectOf(int pageIndex) const
+{
+    const long long number = walk_.pages[static_cast<std::size_t>(pageIndex)].number;
+    if (number >= 0) return number;
+    const auto found = composeNumbers_.find(number);
+    return found == composeNumbers_.end() ? number : found->second;
+}
+
+bool MutationSinkImpl::isNewPage(int pageIndex) const
+{
+    return pageIndex >= 0 && pageIndex < pageCount() && walk_.pages[static_cast<std::size_t>(pageIndex)].number < 0;
+}
+
+QString MutationSinkImpl::pageLabel(int pageIndex) const
+{
+    if (labels_.empty() || pageIndex < 0 || pageIndex >= static_cast<int>(labels_.size())) return {};
+    return PageOps::formatLabel(labels_[static_cast<std::size_t>(pageIndex)]);
+}
+
+std::vector<MutationSinkImpl::PageSlot> MutationSinkImpl::takeSlots(const core::PageMap& map) const
+{
+    std::vector<PageSlot> out;
+    for (const int old : map.removed()) {
+        PageSlot slot;
+        slot.entry = walk_.pages[static_cast<std::size_t>(old)];
+        slot.disk = disk_[static_cast<std::size_t>(old)];
+        if (const auto found = desired_.find(old); found != desired_.end()) slot.rotation = found->second;
+        if (const auto found = desiredListings_.find(old); found != desiredListings_.end()) {
+            slot.listing = found->second;
+            for (const ListedEntry& entry : found->second) {
+                if (entry.kind != ListedEntry::Kind::Created) continue;
+                if (const auto made = created_.find(entry.nm); made != created_.end()) slot.created.emplace(made->first, made->second);
+            }
+        }
+        if (!labels_.empty()) slot.label = labels_[static_cast<std::size_t>(old)];
+        out.push_back(std::move(slot));
+    }
+    return out;
+}
+
+void MutationSinkImpl::applyOrder(const core::PageMap& map, std::vector<PageSlot> inserted)
+{
+    std::vector<PageEntry> pages;
+    std::vector<PageListing> disk;
+    std::vector<PageLabelRange> labels;
+    std::map<int, int> rotations;
+    std::map<int, std::vector<ListedEntry>> listings;
+    std::size_t next = 0;
+    for (int now = 0; now < map.newCount(); ++now) {
+        const int old = map.oldIndexOf(now);
+        if (old != core::PageMap::kNone) {
+            pages.push_back(walk_.pages[static_cast<std::size_t>(old)]);
+            disk.push_back(std::move(disk_[static_cast<std::size_t>(old)]));
+            if (!labels_.empty()) labels.push_back(labels_[static_cast<std::size_t>(old)]);
+            if (const auto found = desired_.find(old); found != desired_.end()) rotations.emplace(now, found->second);
+            if (auto found = desiredListings_.find(old); found != desiredListings_.end())
+                listings.emplace(now, std::move(found->second));
+            continue;
+        }
+        PageSlot& slot = inserted[next++];
+        pages.push_back(slot.entry);
+        disk.push_back(std::move(slot.disk));
+        if (!labels_.empty()) labels.push_back(slot.label.value_or(PageLabelRange{}));
+        if (slot.rotation) rotations.emplace(now, *slot.rotation);
+        if (slot.listing) listings.emplace(now, std::move(*slot.listing));
+        for (auto& [nm, annotation] : slot.created) created_.insert_or_assign(nm, std::move(annotation));
+    }
+    walk_.pages = std::move(pages);
+    disk_ = std::move(disk);
+    if (!labels_.empty()) labels_ = std::move(labels);
+    desired_ = std::move(rotations);
+    desiredListings_ = std::move(listings);
+}
+
+core::Result<core::PageCommandReport> MutationSinkImpl::reorderPages(const core::PageMap& map)
+{
+    if (map.oldCount() != pageCount() || !map.isPermutation())
+        return pagesError("error.pdf.pageOutOfRange", map.oldCount());
+    if (core::Status ok = mayRestructure(); !ok) return ok.error();
+    core::PageCommandReport report = ReferenceRepair::report(referenceScan(), {}, indexOfPages(), true);
+    applyOrder(map, {});
+    return report;
+}
+
+core::Result<core::PageCommandReport> MutationSinkImpl::removePages(const std::vector<int>& pages, const QString& key)
+{
+    const std::optional<core::PageMap> map = core::PageMap::removal(pageCount(), pages);
+    if (!map) return pagesError("error.pdf.pageOutOfRange", static_cast<long long>(pages.size()));
+    if (map->newCount() == 0) return pagesError("error.edit.noPagesLeft");
+    if (key.isEmpty() || stash_.count(key) != 0) return pagesError("error.command.malformed");
+    if (core::Status ok = mayRestructure(); !ok) return ok.error();
+
+    std::set<long long> gone;
+    for (const int page : pages) {
+        const long long number = walk_.pages[static_cast<std::size_t>(page)].number;
+        if (number >= 0) gone.insert(number);
+    }
+    core::PageCommandReport report = ReferenceRepair::report(referenceScan(), gone, indexOfPages(), true);
+    stash_.emplace(key, takeSlots(*map));
+    applyOrder(*map, {});
+    return report;
+}
+
+core::Status MutationSinkImpl::restorePages(const std::vector<int>& pages, const QString& key)
+{
+    const auto found = stash_.find(key);
+    if (found == stash_.end() || found->second.size() != pages.size())
+        return pagesError("error.command.malformed", static_cast<long long>(pages.size()));
+    const std::optional<core::PageMap> removal = core::PageMap::removal(pageCount() + static_cast<int>(pages.size()), pages);
+    if (!removal) return pagesError("error.pdf.pageOutOfRange", static_cast<long long>(pages.size()));
+    std::vector<PageSlot> taken = std::move(found->second);
+    stash_.erase(found);
+    applyOrder(removal->inverse(), std::move(taken));
+    return core::Status{};
+}
+
+core::Result<core::DuplicatedPages> MutationSinkImpl::duplicatePages(const std::vector<int>& pages, const QString& key,
+                                                                     const std::vector<std::vector<core::AnnotationCopy>>& copies)
+{
+    const std::optional<core::PageMap> map = core::PageMap::duplication(pageCount(), pages);
+    if (!map || copies.size() != pages.size()) return pagesError("error.pdf.pageOutOfRange", static_cast<long long>(pages.size()));
+    if (key.isEmpty()) return pagesError("error.command.malformed");
+    if (core::Status ok = mayRestructure(); !ok) return ok.error();
+
+    core::DuplicatedPages out;
+    out.report = ReferenceRepair::report(referenceScan(), {}, indexOfPages(), true);
+
+    // A duplicate undone keeps its pages under its key: a redo puts back THOSE (see the interface).
+    std::vector<PageSlot> taken;
+    if (const auto kept = stash_.find(key); kept != stash_.end()) {
+        if (kept->second.size() != pages.size()) return pagesError("error.command.malformed");
+        taken = std::move(kept->second);
+        stash_.erase(kept);
+    } else {
+        for (std::size_t at = 0; at < pages.size(); ++at) {
+            const int page = pages[at];
+            const PageEntry& source = walk_.pages[static_cast<std::size_t>(page)];
+            PageSlot slot;
+            slot.entry = source;
+            slot.entry.number = nextNewPage_--;
+            const auto origin = newPages_.find(source.number);
+            newPages_.emplace(slot.entry.number, NewPage{origin != newPages_.end() ? origin->second.source : source.number});
+            if (const auto turned = desired_.find(page); turned != desired_.end()) slot.rotation = turned->second;
+            if (!labels_.empty()) {
+                slot.label = labels_[static_cast<std::size_t>(page)];
+                ++slot.label->value;   // the next label of the range it lands in (guide A-21)
+            }
+
+            // Its annotations, each a copy written from its source's dictionary as it is now.
+            std::vector<ListedEntry> listing;
+            const std::vector<ListedEntry>& sourceListing = desiredListing(page);
+            for (const core::AnnotationCopy& copy : copies[at]) {
+                const bool listedThere = std::any_of(sourceListing.begin(), sourceListing.end(), [&](const ListedEntry& e) {
+                    return e.id && *e.id == copy.source;
+                });
+                if (!listedThere || copy.copy.id.kind != core::AnnotationId::Kind::Created || copy.copy.id.nm.isEmpty())
+                    return sinkError(core::ErrorCode::NotFound, "error.pdf.annotationUnknown", page);
+                const QString& nm = copy.copy.id.nm;
+                if (copy.source.kind == core::AnnotationId::Kind::Created && created_.count(copy.source.nm) != 0) {
+                    slot.created.emplace(nm, copy.copy);   // a copy of one not yet written is drawn as it is
+                } else if (copy.source.kind == core::AnnotationId::Kind::Created && copies_.count(copy.source.nm) != 0) {
+                    CopySource chained = copies_.at(copy.source.nm);
+                    chained.model = copy.copy;
+                    copies_.insert_or_assign(nm, std::move(chained));
+                } else {
+                    std::optional<cos::CosObject> dictionary;
+                    if (copy.source.kind == core::AnnotationId::Kind::Created) {
+                        if (const auto saved = createdOnDisk_.find(copy.source.nm); saved != createdOnDisk_.end()) {
+                            if (auto fetched = table_.fetch(saved->second.number); fetched && fetched.value().object.isDictionary()) {
+                                dictionary = fetched.value().object;
+                                dictionary->clearSpansRecursively();
+                            }
+                        }
+                    } else {
+                        dictionary = dictionaryOnDisk(copy.source);
+                    }
+                    if (!dictionary) return sinkError(core::ErrorCode::NotFound, "error.pdf.annotationUnknown", page);
+                    CopySource made{std::move(*dictionary), std::nullopt, copy.copy};
+                    if (const auto edit = edits_.find(copy.source); edit != edits_.end()) made.edit = edit->second;
+                    copies_.insert_or_assign(nm, std::move(made));
+                }
+                ListedEntry entry;
+                entry.kind = ListedEntry::Kind::Created;
+                entry.nm = nm;
+                entry.id = copy.copy.id;
+                listing.push_back(std::move(entry));
+            }
+            if (!listing.empty()) slot.listing = std::move(listing);
+            taken.push_back(std::move(slot));
+        }
+    }
+    for (const PageSlot& slot : taken) {
+        if (!labels_.empty()) out.labels.push_back(PageOps::formatLabel(slot.label.value_or(PageLabelRange{})));
+        else out.labels.emplace_back();
+    }
+    applyOrder(*map, std::move(taken));
+    return out;
+}
+
+core::Status MutationSinkImpl::composePageOrder(cos::ObjectDelta& delta, std::map<long long, cos::CosObject>& pending,
+                                                std::set<int>& handled)
+{
+    if (!shape_) {
+        auto read = PageOps::shape(table_);
+        if (!read) return read.error();
+        shape_ = std::move(read).value();
+    }
+    const PageTreeShape& shape = *shape_;
+
+    // Every new page gets its number for this compose, after the floor no reference may cross (Stage 3 I-12).
+    delta.reserveNumbersThrough(referenceFloor());
+    composeNumbers_.clear();
+    std::vector<long long> order;
+    std::set<long long> fresh;
+    order.reserve(walk_.pages.size());
+    for (const PageEntry& page : walk_.pages) {
+        long long number = page.number;
+        if (number < 0) {
+            const long long given = delta.reserve();
+            composeNumbers_.emplace(number, given);
+            number = given;
+        }
+        if (shape.parentOf.count(number) == 0) fresh.insert(number);   // new, or back after a save removed it
+        order.push_back(number);
+    }
+    const ComposedTree tree = PageOps::composeTree(shape, order, fresh);
+    const std::vector<std::map<std::string, cos::CosObject>> passed = PageOps::inheritedValues(table_, shape);
+    std::map<long long, int> nodeIndex;
+    for (std::size_t at = 0; at < shape.nodes.size(); ++at) nodeIndex.emplace(shape.nodes[at].number, static_cast<int>(at));
+
+    // The nodes whose /Kids or /Count changed.
+    std::set<long long> nodes;
+    for (const auto& [number, kids] : tree.kids) nodes.insert(number);
+    for (const auto& [number, count] : tree.counts) nodes.insert(number);
+    for (const long long number : nodes) {
+        auto base = pending.find(number);
+        if (base == pending.end()) {
+            auto current = currentPage(table_, number);
+            if (!current) return current.error();
+            base = pending.emplace(number, std::move(current).value()).first;
+        }
+        if (const auto kids = tree.kids.find(number); kids != tree.kids.end())
+            base->second = AnnotationOps::withEntry(base->second, "Kids", cos::CosObject::makeArray(kids->second));
+        if (const auto count = tree.counts.find(number); count != tree.counts.end())
+            base->second = AnnotationOps::withEntry(base->second, "Count", cos::CosObject::makeInteger(count->second));
+    }
+
+    // Each page whose node changed, and each new page: its /Parent, what it would stop inheriting made its
+    // own, and its rotation as the desired state has it.
+    for (std::size_t at = 0; at < walk_.pages.size(); ++at) {
+        const long long original = walk_.pages[at].number;
+        const long long number = order[at];
+        const auto parentFound = tree.parents.find(number);
+        if (parentFound == tree.parents.end()) return sinkError(core::ErrorCode::Corrupted, "error.pdf.pageTreeChanged", number);
+        const long long parent = parentFound->second;
+        const auto oldNode = shape.parentOf.find(number);
+        const bool isNew = original < 0;
+        if (!isNew && oldNode != shape.parentOf.end() && shape.nodes[static_cast<std::size_t>(oldNode->second)].number == parent)
+            continue;   // the same node: nothing about the page itself changed
+
+        cos::CosObject page;
+        if (isNew) {
+            const long long source = newPages_.at(original).source;
+            auto current = currentPage(table_, source);
+            if (!current) return current.error();
+            page = std::move(current).value();
+            page.clearSpansRecursively();
+            for (const char* key : {"Annots", "StructParents", "B", "Parent"}) page = AnnotationOps::withoutEntry(page, key);
+        } else if (auto base = pending.find(number); base != pending.end()) {
+            page = base->second;
+        } else {
+            auto current = currentPage(table_, number);
+            if (!current) return current.error();
+            page = std::move(current).value();
+        }
+        std::map<std::string, cos::CosObject> before;
+        if (isNew) {
+            const long long source = newPages_.at(original).source;
+            const auto sourceNode = shape.parentOf.find(source);
+            if (sourceNode != shape.parentOf.end()) before = passed[static_cast<std::size_t>(sourceNode->second)];
+            else if (auto sourcePage = table_.fetch(source); sourcePage && sourcePage.value().object.isDictionary())
+                before = inheritedThrough(table_, sourcePage.value().object.get("Parent"));
+        } else if (oldNode != shape.parentOf.end()) {
+            before = passed[static_cast<std::size_t>(oldNode->second)];
+        } else {
+            before = inheritedThrough(table_, page.get("Parent"));
+        }
+        const std::map<std::string, cos::CosObject>& after = passed[static_cast<std::size_t>(nodeIndex.at(parent))];
+        for (const char* key : PageOps::kInheritable) {
+            if (page.has(key)) continue;
+            const auto was = before.find(key);
+            const auto now = after.find(key);
+            const bool same = (was == before.end() && now == after.end())
+                              || (was != before.end() && now != after.end() && was->second == now->second);
+            if (same) continue;
+            if (was != before.end()) {
+                page = AnnotationOps::withEntry(page, key, was->second);
+            } else if (std::string(key) == "Rotate") {
+                page = AnnotationOps::withEntry(page, key, cos::CosObject::makeInteger(0));
+            } else if (std::string(key) == "CropBox") {
+                const cos::CosObject* media = page.find("MediaBox");
+                const auto inheritedMedia = before.find("MediaBox");
+                if (media != nullptr) page = AnnotationOps::withEntry(page, key, *media);
+                else if (inheritedMedia != before.end()) page = AnnotationOps::withEntry(page, key, inheritedMedia->second);
+            } else if (std::string(key) == "Resources") {
+                page = AnnotationOps::withEntry(page, key, cos::CosObject::makeDictionary({}));
+            }
+        }
+        page = AnnotationOps::withEntry(page, "Parent", cos::CosObject::makeReference(parent, 0));
+        const auto inheritedRotate = after.find("Rotate");
+        page = withRotation(page, inheritedRotate == after.end() ? 0 : PageOps::normalizeRotate(inheritedRotate->second),
+                            desiredRotation(static_cast<int>(at)));
+        pending.insert_or_assign(number, std::move(page));
+        handled.insert(static_cast<int>(at));
+    }
+    return core::Status{};
+}
+
+core::Status MutationSinkImpl::composeLabels(std::map<long long, cos::CosObject>& pending)
+{
+    if (labels_.empty()) return core::Status{};
+    if (PageOps::readLabels(table_, pageCount()) == labels_) return core::Status{};   // the disk already says it
+    const cos::CosObject& root = table_.trailer().get("Root");
+    if (!root.isReference()) return sinkError(core::ErrorCode::Corrupted, "error.pdf.objectMissing", -1);
+    const long long catalogNumber = root.reference().number;
+    cos::CosObject tree = PageOps::labelTree(labels_);
+
+    auto catalog = pending.find(catalogNumber);
+    if (catalog == pending.end()) {
+        auto current = table_.fetch(catalogNumber);
+        if (!current || !current.value().object.isDictionary())
+            return sinkError(core::ErrorCode::NotFound, "error.pdf.objectMissing", catalogNumber);
+        cos::CosObject value = current.value().object;
+        value.clearSpansRecursively();
+        catalog = pending.emplace(catalogNumber, std::move(value)).first;
+    }
+    // Into the number tree's own object when the catalog names one, else into the catalog.
+    const cos::CosObject* labels = catalog->second.find("PageLabels");
+    if (labels != nullptr && labels->isReference()) {
+        pending.insert_or_assign(labels->reference().number, std::move(tree));
+        return core::Status{};
+    }
+    catalog->second = AnnotationOps::withEntry(catalog->second, "PageLabels", std::move(tree));
+    return core::Status{};
+}
+
+core::Status MutationSinkImpl::composeRepairs(std::map<long long, cos::CosObject>& pending)
+{
+    composedLedger_.clear();
+    const std::set<long long> gone = gonePages();
+    if (gone.empty() && ledger_.empty()) return core::Status{};
+    const ReferenceRepair::View view(table_, ledger_);
+    auto touched = ReferenceRepair::compose(view, referenceScan(), gone, pending);
+    if (!touched) return touched.error();
+    composedLedger_ = std::move(touched).value();
+    return core::Status{};
+}
+
+core::Result<cos::CosObject> MutationSinkImpl::copiedDictionary(const QString& nm, const cos::CosRef& page,
+                                                                cos::ObjectDelta& delta,
+                                                                const std::map<QString, long long>& written,
+                                                                AppearanceObjects& shared)
+{
+    const CopySource& copy = copies_.at(nm);
+    cos::CosObject dictionary = copy.dictionary;
+    if (copy.edit) {
+        auto edited = editedFrom(dictionary, *copy.edit, delta, written, shared);
+        if (!edited) return edited.error();
+        dictionary = std::move(edited).value();
+    }
+    dictionary = AnnotationOps::withEntry(dictionary, "P", cos::CosObject::makeReference(page.number, page.generation));
+    dictionary = AnnotationOps::withEntry(dictionary, "NM", AnnotationOps::textString(nm));
+    dictionary = AnnotationOps::withoutEntry(dictionary, "StructParent");
+    for (const auto& [key, target] : {std::pair{"IRT", copy.model.inReplyTo}, std::pair{"Popup", copy.model.popup},
+                                      std::pair{"Parent", copy.model.parent}}) {
+        if (!dictionary.has(key)) continue;
+        const std::optional<cos::CosRef> to = target ? resolveReference(*target, written) : std::nullopt;
+        dictionary = to ? AnnotationOps::withEntry(dictionary, key, cos::CosObject::makeReference(to->number, to->generation))
+                        : AnnotationOps::withoutEntry(dictionary, key);
+    }
+    // A copied link to a page the document no longer has loses its action, as any link does (D7-2).
+    const cos::CosObject& subtype = dictionary.get("Subtype");
+    if (subtype.isName() && subtype.text() == "Link") {
+        const std::set<long long> gone = gonePages();
+        if (!gone.empty()) {
+            const ReferenceRepair::View view(table_, ledger_);
+            if (std::optional<cos::CosObject> cleared = ReferenceRepair::clearedTarget(view, dictionary, gone, referenceScan().named))
+                dictionary = std::move(*cleared);
+        }
+    }
+    return dictionary;
 }
 
 } // namespace rawpage::pdf::ops

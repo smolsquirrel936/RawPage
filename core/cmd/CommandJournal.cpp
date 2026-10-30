@@ -185,9 +185,11 @@ bool CommandJournal::undo()
         return false;
     const bool wasDirty = isDirty();
     Step& step = history_[position_ - 1];
+    // S7 T2 (D7-3): an undo moves pages back, so its scope carries the step's page map INVERTED.
+    const Scope undone = scopeOf(step).reversed();
     if (!revertStep(step))
         return false;
-    if (showHandler_ && !showHandler_(scopeOf(step))) {
+    if (showHandler_ && !showHandler_(undone)) {
         if (!applyStep(step)) {   // back where it was: the undo did not happen
             RAWPAGE_LOG_ERROR(LogSubsystem::Save) << "journal: an undo that could not be shown could not be taken back";
         }
@@ -196,7 +198,7 @@ bool CommandJournal::undo()
     --position_;
     if (recorder_ != nullptr)
         recorder_->recordUndo(step.name, commandsOf(step));
-    afterOperation(scopeOf(step), wasDirty);
+    afterOperation(undone, wasDirty);
     return true;
 }
 
@@ -252,7 +254,7 @@ bool CommandJournal::abandonOpenGroup()
         return true;                          // nothing was run inside it: nothing to take back
     groupStepOpen_ = false;
     Step& step = history_[position_ - 1];
-    const Scope scope = scopeOf(step);
+    const Scope scope = scopeOf(step).reversed();   // S7 T2: undone, so its page map inverted
     if (!revertStep(step))
         return false;
     // Shown as well (D6-2) -- but a group abandoned is a step that never happened, so a refusal here

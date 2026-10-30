@@ -1,5 +1,5 @@
-// core/doc/PageTree -- the ordered page collection. Stage 2 T9 builds the READ half; Stage 3 adds
-// insert / move / remove / duplicate (decision D2-5, and the same split `core/doc/Outline` uses).
+// core/doc/PageTree -- the ordered page collection. Stage 2 T9 builds the READ half; Stage 3 T4 the
+// rotation; Stage 7 T2 insert / move / remove / duplicate, as one operation over a `PageMap` (D7-3).
 //
 // WHY THE READ HALF IS STAGE 2's: `core/render/PagePresentation` (T10) lays pages out before
 // anything can move them, and `PagePresentation::layout(const PageTree&, …)` is a Stage 2
@@ -33,6 +33,8 @@
 #include <vector>
 
 namespace rawpage::core {
+
+class PageMap;   // core/doc/PageMap.h -- Stage 7 T2
 
 class PageTree {
 public:
@@ -75,11 +77,22 @@ public:
     // composing the difference into the render request (D3-15, T8). The only code that calls it
     // holds a mutable `Document`, which is `CommandJournal` (D3-10).
     //
-    // Insert / move / remove / duplicate are Stage 7's, with the commands that call them. They are
-    // deliberately absent rather than present-and-refusing: this class has no `Result`, an
-    // unimplemented mutation would have nowhere to report to, and a stub which silently succeeds is
-    // worse than an absent method (CLAUDE.md convention 6).
     bool setRotation(int index, int degrees) noexcept;
+
+    // INSERT, MOVE, REMOVE AND DUPLICATE -- Stage 7 T2 (D7-3), as ONE operation: the tree rebuilt as
+    // `map` says, each page the map keeps carried whole (boxes, rotation, LABEL -- a moved page keeps the
+    // label it had, D7-2) and each page it inserts taken from `inserted`, in order. A move is a
+    // permutation; a removal drops pages; a duplication inserts copies; and every one of them is undone
+    // by the INVERSE map with the pages it removed -- `removedBy(map)` -- which is why one operation
+    // serves all four and their reverts.
+    //
+    // Refused, changing nothing: a map over a different number of pages than the tree has, an `inserted`
+    // whose size is not the number of pages the map inserts, and a map that would leave NO page -- a
+    // document with no pages is not a document (D7-21, guide A-17). Every index is renumbered (the
+    // constructor's rule).
+    bool apply(const PageMap& map, std::vector<Page> inserted = {});
+    // The pages `map` removes, in ascending old order -- what its inverse inserts.
+    std::vector<Page> removedBy(const PageMap& map) const;
 
 private:
     std::vector<Page> pages_;

@@ -9,8 +9,10 @@
 #include <QFile>
 #include <QIODevice>
 
+#include <algorithm>
 #include <cstring>
 #include <mutex>
+#include <set>
 
 namespace rawpage::pdf::ops {
 namespace {
@@ -112,6 +114,25 @@ core::Status RevisionWriter::verify(std::string_view original, std::string_view 
         return saveError(core::ErrorCode::Corrupted, "error.save.verifyFailed", QStringLiteral("pages"));
     if (static_cast<int>(walk.value().pages.size()) != sink.pageCount())
         return saveError(core::ErrorCode::Corrupted, "error.save.verifyFailed", QStringLiteral("pageCount"));
+    // Stage 7 T2: every page is the OBJECT the desired order puts there -- a page the file held, by its
+    // number; a new page, a number no other page has -- so a move that landed one page short, or a copy
+    // written over its source, fails here rather than in a reader.
+    {
+        std::set<long long> listed;
+        for (int index = 0; index < sink.pageCount(); ++index) {
+            const long long got = walk.value().pages[static_cast<std::size_t>(index)].number;
+            const long long want = sink.pages().pages[static_cast<std::size_t>(index)].number;
+            if (!listed.insert(got).second || (!sink.isNewPage(index) && got != want))
+                return saveError(core::ErrorCode::Corrupted, "error.save.verifyFailed", QStringLiteral("pageOrder:%1").arg(index + 1));
+        }
+        for (int index = 0; index < sink.pageCount(); ++index) {
+            if (!sink.isNewPage(index)) continue;
+            const long long got = walk.value().pages[static_cast<std::size_t>(index)].number;
+            const auto& desired = sink.pages().pages;
+            if (std::any_of(desired.begin(), desired.end(), [got](const PageEntry& p) { return p.number == got; }))
+                return saveError(core::ErrorCode::Corrupted, "error.save.verifyFailed", QStringLiteral("pageOrder:%1").arg(index + 1));
+        }
+    }
     for (int index = 0; index < sink.pageCount(); ++index) {
         if (walk.value().pages[static_cast<std::size_t>(index)].effectiveRotate() != sink.desiredRotation(index)) {
             return saveError(core::ErrorCode::Corrupted, "error.save.verifyFailed",

@@ -69,6 +69,8 @@ public:
 
     const RepairReport& repairReport() const noexcept { return repair_; }
     const Permissions& permissions() const noexcept { return permissions_; }
+    // Stage 7 T2: a page command carries the per-page refusals with the pages it moves (D7-21).
+    Permissions& permissions() noexcept { return permissions_; }
 
     // Starts at `Revision::initial()` on hydration and only ever goes up (`Revision::next()`), so an
     // undo is a new revision -- which is why dirty is not "revision differs from the saved one"

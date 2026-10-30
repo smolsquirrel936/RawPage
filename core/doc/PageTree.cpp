@@ -1,5 +1,7 @@
 #include "core/doc/PageTree.h"
 
+#include "core/doc/PageMap.h"
+
 #include <utility>
 
 namespace rawpage::core {
@@ -50,6 +52,31 @@ bool PageTree::setRotation(int index, int degrees) noexcept
         return false;
     pages_[static_cast<std::size_t>(index)].setRotation(degrees);
     return true;
+}
+
+bool PageTree::apply(const PageMap& map, std::vector<Page> inserted)
+{
+    if (map.oldCount() != count() || map.newCount() == 0) return false;
+    if (inserted.size() != map.inserted().size()) return false;
+
+    std::vector<Page> rebuilt;
+    rebuilt.reserve(static_cast<std::size_t>(map.newCount()));
+    std::size_t next = 0;
+    for (int now = 0; now < map.newCount(); ++now) {
+        const int old = map.oldIndexOf(now);
+        rebuilt.push_back(old == PageMap::kNone ? std::move(inserted[next++]) : pages_[static_cast<std::size_t>(old)]);
+        rebuilt.back().setIndex(now);
+    }
+    pages_ = std::move(rebuilt);
+    return true;
+}
+
+std::vector<Page> PageTree::removedBy(const PageMap& map) const
+{
+    std::vector<Page> out;
+    if (map.oldCount() != count()) return out;
+    for (const int old : map.removed()) out.push_back(pages_[static_cast<std::size_t>(old)]);
+    return out;
 }
 
 PdfSize PageTree::largestDisplaySize() const noexcept

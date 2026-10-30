@@ -2802,6 +2802,22 @@
         <translation>This PDF's page structure is damaged around page %1, so changing its pages could affect the wrong page.</translation>
     </message>
     <message>
+        <source>error.edit.pageReadingsDisagree</source>
+        <translation>Page %1 of this PDF is stored in a way RawPage reads differently from how it draws it, so it cannot be moved, deleted or copied.</translation>
+    </message>
+    <message>
+        <source>error.edit.noPagesLeft</source>
+        <translation>A document must keep at least one page, so the pages were not deleted.</translation>
+    </message>
+    <message>
+        <source>error.edit.copyNotSaved</source>
+        <translation>This comment is on a copied page that has not been saved yet. Save the document, then change the comment.</translation>
+    </message>
+    <message>
+        <source>error.pdf.pageTreeDamaged</source>
+        <translation>The list of pages in this PDF is damaged, so RawPage will not change which pages it has or their order.</translation>
+    </message>
+    <message>
         <source>error.edit.annotationsDisagree</source>
         <translation>The comments on page %1 of this PDF are stored in a way RawPage reads differently from how it draws them, so they cannot be changed on that page.</translation>
     </message>
@@ -4253,6 +4269,18 @@
     <message>
         <source>command.annot.lockMany</source>
         <translation>Change the locks of %1 annotations</translation>
+    </message>
+    <message>
+        <source>command.page.move</source>
+        <translation>Move %1 page(s)</translation>
+    </message>
+    <message>
+        <source>command.page.delete</source>
+        <translation>Delete %1 page(s)</translation>
+    </message>
+    <message>
+        <source>command.page.duplicate</source>
+        <translation>Duplicate %1 page(s)</translation>
     </message>
     <message>
         <source>command.page.rotate</source>

@@ -92,6 +92,9 @@ add_executable(rawpage_render_tests
     tst_assemblylabels.cpp        # Stage 7 T1 -- guide A-15's engine half (D7-17, D7-18): every identity page of
                                   #   corpus/assembly/ shows PDFium the identity its label gives, the outline and named
                                   #   destinations land on the labelled pages, and Stage 7 guide I-01's regression
+    tst_reference_repair.cpp      # Stage 7 T2 -- guide A-19, A-20, A-21 (D7-2, D7-18): every page command over every
+                                  #   fixture with references, SAVED and reopened, each reference graded by the identity
+                                  #   PDFium extracts from the page it lands on; each page deleted in turn; the labels
     tst_migratecorpus.cpp         # Stage 6 T13 -- guide A-98, A-99 (D6-21): annots-report-v1.pdf's comments carried
                                   #   to compare/report-v2.pdf over the engine's text and Stage 5's alignment, graded on
                                   #   §3.5 against labels/annots-migration.json
@@ -116,7 +119,10 @@ target_compile_definitions(rawpage_render_tests PRIVATE
     RAWPAGE_A4_PRODUCT_DIR="${CMAKE_BINARY_DIR}/a4-product"
     # Stage 6 T3 (guide A-33): the same four files with a COMMENT added instead of a rotation -- the
     # permitted edit Stage 3 carried here (its guide's I-06) -- for OpenSSL and for M-03's Acrobat walk.
-    RAWPAGE_A4_ANNOT_DIR="${CMAKE_BINARY_DIR}/a4-product-annot")
+    RAWPAGE_A4_ANNOT_DIR="${CMAKE_BINARY_DIR}/a4-product-annot"
+    # Stage 7 T2 (S7 guide A-27): the same four files after PAGE commands -- duplicated, moved and deleted,
+    # saved after each -- for OpenSSL (D7-20: a signed document is edited, and its signed bytes keep).
+    RAWPAGE_A4_PAGES_DIR="${CMAKE_BINARY_DIR}/a4-product-pages")
 
 target_include_directories(rawpage_render_tests PRIVATE "${CMAKE_SOURCE_DIR}")
 
@@ -172,10 +178,22 @@ add_test(NAME render.a4_product.annotation.openssl
             -P "${CMAKE_CURRENT_SOURCE_DIR}/RunA4Product.cmake")
 set_tests_properties(render.a4_product.annotation.openssl PROPERTIES
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin;PATH=path_list_prepend:${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
-# Both alone under ctest -j: each re-runs a Catch2 case that ctest also runs as a test of its own, and
+# --- Stage 7 T2 (S7 guide A-27): the same runner over PAGE commands -- a duplicate, a move and a delete, each
+# saved -- on the four signed files. `-R a4_product` selects all three.
+add_test(NAME render.a4_product.pages.openssl
+    COMMAND ${CMAKE_COMMAND}
+            "-DTEST_BINARY=$<TARGET_FILE:rawpage_render_tests>"
+            "-DPRODUCT_DIR=${CMAKE_BINARY_DIR}/a4-product-pages"
+            "-DCHECKS_DIR=${CMAKE_SOURCE_DIR}/tests/gates"
+            "-DCASE=A4 product saves page commands into every signed corpus file"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/RunA4Product.cmake")
+set_tests_properties(render.a4_product.pages.openssl PROPERTIES
+    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin;PATH=path_list_prepend:${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+# All alone under ctest -j: each re-runs a Catch2 case that ctest also runs as a test of its own, and
 # the two write the same files in one directory -- one could delete or rewrite a file while OpenSSL
 # reads the other's (cmake/RawPageSerialTests.cmake).
-set_tests_properties(render.a4_product.openssl render.a4_product.annotation.openssl PROPERTIES RUN_SERIAL TRUE)
+set_tests_properties(render.a4_product.openssl render.a4_product.annotation.openssl render.a4_product.pages.openssl
+                     PROPERTIES RUN_SERIAL TRUE)
 
 include(Catch)
 catch_discover_tests(rawpage_render_tests

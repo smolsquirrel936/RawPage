@@ -40,5 +40,8 @@ RAWPAGE_COMMAND(SetAnnotationStatusCommand, "annot.setStatus", "core/cmd/command
 RAWPAGE_COMMAND(ImportAnnotationsCommand, "annot.import", "core/cmd/commands/AnnotationCommands.h")
 RAWPAGE_COMMAND(AddAttachmentCommand, "attachment.add", "core/cmd/commands/AttachmentCommands.h")
 RAWPAGE_COMMAND(DeleteAttachmentCommand, "attachment.delete", "core/cmd/commands/AttachmentCommands.h")
+RAWPAGE_COMMAND(MovePagesCommand, "page.move", "core/cmd/commands/PageCommands.h")
+RAWPAGE_COMMAND(DeletePagesCommand, "page.delete", "core/cmd/commands/PageCommands.h")
+RAWPAGE_COMMAND(DuplicatePagesCommand, "page.duplicate", "core/cmd/commands/PageCommands.h")
 
 #undef RAWPAGE_COMMAND

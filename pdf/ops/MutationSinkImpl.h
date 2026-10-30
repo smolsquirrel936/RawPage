@@ -93,6 +93,21 @@
 // creates gets its `/Sound` stream -- `/R`, `/C`, `/B`, `/E` and the samples, `/FlateDecode`d ONCE as an attached
 // file is, for the same reason -- and verify compares that stream byte for byte with what was compressed.
 //
+// PAGES -- Stage 7 T2 (D7-2, D7-3, D7-24): the same rule over the page ORDER. The sink keeps every per-page
+// fact -- the page's walk entry, its `/Annots` on disk and as desired, its rotation, its label -- in the order
+// the document should have, and a page command PERMUTES them as its `PageMap` says, so every index-keyed rule
+// above keeps comparing a page with ITSELF on disk. `delta()` lists that order in the page tree
+// (`PageOps::composeTree`: only the nodes whose `/Kids` changed, a page's `/Parent` only where its node did,
+// and each of the four inheritable keys a new parent would change made the page's own), writes `/PageLabels`
+// back so each page keeps its label (`PageOps::labelTree`), and repairs what names a page the document no
+// longer has (`ReferenceRepair`). An order put back -- a move undone, a delete restored -- equals the disk, and
+// writes nothing. A DELETED page and everything the sink held for it is KEPT under the command's key, so a
+// restore is exact before a save and after one; the values the repair changed in a saved revision are kept in
+// a LEDGER, so an undo after the save writes them back (`ReferenceRepair` says how). A DUPLICATE is a new page
+// object, numbered NEGATIVE until a compose gives it a number -- its dictionary the source's as it is now, its
+// annotations COPIES written from the sources' dictionaries (`copies_`), its label the next of its range.
+// The page tree is changed only where the walk read it without a note (`error.pdf.pageTreeDamaged`).
+//
 // WHAT IT DOES NOT DO. It refuses nothing on policy -- whether this document may be edited at all is
 // `core/doc/Permissions` (D3-7, T4) -- and it writes nothing: the update's bytes, the temporary file
 // and the replace are `IncrementalWriter`, `SaveCoordinator` and `platform::IDurableFiles`.
@@ -108,6 +123,7 @@
 #include "pdf/cos/XrefTable.h"
 #include "pdf/ops/AppearanceStreamBuilder.h"
 #include "pdf/ops/PageOps.h"
+#include "pdf/ops/ReferenceRepair.h"
 
 #include <map>
 #include <memory>
@@ -147,6 +163,17 @@ public:
 
     // The rotation page `pageIndex` will display at once the desired state is written.
     int desiredRotation(int pageIndex) const;
+
+    // --- Pages (Stage 7 T2) -- see the header ----------------------------------------------------
+    core::Result<core::PageCommandReport> reorderPages(const core::PageMap& map) override;
+    core::Result<core::PageCommandReport> removePages(const std::vector<int>& pages, const QString& key) override;
+    core::Status restorePages(const std::vector<int>& pages, const QString& key) override;
+    core::Result<core::DuplicatedPages> duplicatePages(const std::vector<int>& pages, const QString& key,
+                                                       const std::vector<std::vector<core::AnnotationCopy>>& copies) override;
+    // Whether page `pageIndex` is a NEW page no save has written yet -- verify's question.
+    bool isNewPage(int pageIndex) const;
+    // Each page's label once the desired state is written; empty for a document with no /PageLabels.
+    QString pageLabel(int pageIndex) const;
 
     // --- Annotations (Stage 6 T3) --------------------------------------------------------------
     // Whether a CREATED annotation can be written new: a kind this build draws (D6-6) or one with no appearance at
@@ -266,8 +293,55 @@ private:
 
     std::string_view bytes_;
     cos::XrefTable table_;
-    PageWalk walk_;
+    PageWalk walk_;                // S7 T2: the DESIRED order -- a new page's number negative (see the header)
     std::map<int, int> desired_;   // pageIndex -> rotation, only where it differs from the disk
+
+    // --- Pages (Stage 7 T2) ----------------------------------------------------------------------
+    // One page and everything the sink holds for it, as a page command takes it out and puts it back.
+    struct PageSlot {
+        PageEntry entry;
+        PageListing disk;
+        std::optional<int> rotation;
+        std::optional<std::vector<ListedEntry>> listing;
+        std::optional<PageLabelRange> label;
+        std::map<QString, core::Annotation> created;   // created annotations its listing names
+    };
+    std::vector<PageSlot> takeSlots(const core::PageMap& map) const;
+    void applyOrder(const core::PageMap& map, std::vector<PageSlot> inserted);
+    core::Status mayRestructure() const;   // the tree read with no note
+    std::map<long long, int> indexOfPages() const;   // page object -> index, the real pages
+    const ReferenceRepair::Scan& referenceScan();
+    std::set<long long> gonePages() const;
+    long long objectOf(int pageIndex) const;   // a new page's number in THIS compose
+    core::Status composePageOrder(cos::ObjectDelta& delta, std::map<long long, cos::CosObject>& pending,
+                                  std::set<int>& handled);
+    core::Status composeLabels(std::map<long long, cos::CosObject>& pending);
+    core::Status composeRepairs(std::map<long long, cos::CosObject>& pending);
+    core::Result<cos::CosObject> copiedDictionary(const QString& nm, const cos::CosRef& page, cos::ObjectDelta& delta,
+                                                  const std::map<QString, long long>& written, AppearanceObjects& shared);
+
+    PageWalk diskWalk_;                                   // the newest revision on disk, in its order
+    std::vector<PageLabelRange> labels_;                  // desired, by index; empty: no /PageLabels
+    struct NewPage {
+        long long source = 0;                             // the page on disk it copies
+    };
+    std::map<long long, NewPage> newPages_;               // by its negative number
+    long long nextNewPage_ = -1;
+    std::map<QString, std::vector<PageSlot>> stash_;      // what each removal took, by its command's key
+    // An annotation COPIED onto a new page: what it copies, its dictionary as it was when copied (and the
+    // edit pending on it then), and the copy as the model holds it -- its references.
+    struct CopySource {
+        cos::CosObject dictionary;
+        std::optional<Edit> edit;
+        core::Annotation model;
+    };
+    std::map<QString, CopySource> copies_;                // by the copy's /NM; kept until a save writes it
+    std::set<long long> knownPages_;                      // every page object a revision on disk listed
+    ReferenceRepair::Ledger ledger_;                      // values the repair changed in a saved revision
+    ReferenceRepair::Ledger composedLedger_;              // what the last compose's repair changed
+    std::optional<ReferenceRepair::Scan> scan_;           // through the ledger; dropped by adopt
+    std::optional<PageTreeShape> shape_;                  // of the disk; dropped by adopt
+    std::map<long long, long long> composeNumbers_;       // a new page -> the number the current compose gave it
 
     std::vector<PageListing> disk_;                              // every page's /Annots on disk
     std::map<int, std::vector<ListedEntry>> desiredListings_;   // only pages that differ from the disk
@@ -293,7 +367,7 @@ private:
     };
     static std::vector<ListedFile> readFiles(cos::XrefTable& table);
     void commitFiles(std::vector<ListedFile> files);
-    core::Status composeFiles(cos::ObjectDelta& delta);
+    core::Status composeFiles(cos::ObjectDelta& delta, std::map<long long, cos::CosObject>& pending);
     // The `/EmbeddedFile` stream and the file specification for `file`, added to `delta`; the reference to the
     // specification. `compressed` is the stream's data, `/FlateDecode`d once (`compressedFor`).
     static cos::CosRef addFileSpecification(cos::ObjectDelta& delta, const core::EmbeddedFile& file,

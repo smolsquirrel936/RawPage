@@ -37,6 +37,7 @@
 #include "core/Result.h"
 #include "core/doc/Annotation.h"
 #include "core/doc/Fdf.h"
+#include "core/doc/PageMap.h"
 #include "core/doc/Permissions.h"
 
 #include <QByteArray>
@@ -225,6 +226,29 @@ public:
     // cannot change -- the identity, the subtype, the owning page.
     Status replace(const std::vector<Annotation>& changed);
 
+    // --- Pages (Stage 7 T2, D7-3) ---------------------------------------------------------------
+    // One page's listing as a page command carries it out and back: each entry's fact, and the annotation it
+    // resolved to -- its whole value, so an undo of a delete puts back exactly what went.
+    struct PageListing {
+        struct Entry {
+            AnnotationFact fact;
+            std::optional<Annotation> annotation;
+        };
+        std::vector<Entry> entries;
+    };
+    // THE LISTINGS REBUILT AS `map` SAYS -- the store's half of a page command, as `PageTree::apply` is the
+    // tree's. Each page the map keeps carries its listing whole; each page it inserts takes `inserted`'s listing,
+    // in order, an annotation the store does not hold being added (a duplicated page's copies, D7-2) and one it
+    // does being listed again. Every annotation's owning page (`Annotation::page`) is renumbered; one whose owner
+    // went and that another page still lists is owned by the first such page, and an inserted listing that names
+    // an annotation as owned by its own page gives it back -- so an undo is exact. An annotation listed nowhere
+    // afterwards leaves the store. IDENTITIES DO NOT MOVE: a direct dictionary's `(page, position)` is the name
+    // it was given at open (D6-4), not where it is. All or nothing: refused, unchanged, for a map over another
+    // page count or an `inserted` of the wrong size. A refused store holds no listings and has nothing to move.
+    Status applyPageMap(const PageMap& map, std::vector<PageListing> inserted = {});
+    // The listings `map` removes, in ascending old order -- what its inverse inserts.
+    std::vector<PageListing> listingsRemovedBy(const PageMap& map) const;
+
     // A SHA-256 of annotation `index`'s whole JSON -- every modelled field, the form A-20 proves complete --
     // for `Document::modelHash()`. CACHED per annotation: a digest is computed once and moves with its
     // annotation through `insert` and `remove`, and `replace` -- the one way an annotation changes in
@@ -246,6 +270,8 @@ public:
 
 private:
     void reindex();
+    // Drops every annotation no page lists, renumbering the listings' indices (S6 T3's rule, shared at S7 T2).
+    void dropUnlisted();
     void buildThreads();
     std::vector<AnnotationStateChange> stateHistory(std::size_t index, const QString& model) const;
 

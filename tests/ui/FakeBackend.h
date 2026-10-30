@@ -93,6 +93,36 @@ public:
         ++calls;
         return {};
     }
+    // Stage 7 T2: the page intents, accepted and counted. A duplicate's labels are empty, as a document with
+    // no /PageLabels gives them.
+    core::Result<core::PageCommandReport> reorderPages(const core::PageMap&) override
+    {
+        ++pageCommands;
+        ++calls;
+        return core::PageCommandReport{};
+    }
+    core::Result<core::PageCommandReport> removePages(const std::vector<int>&, const QString&) override
+    {
+        ++pageCommands;
+        ++calls;
+        return core::PageCommandReport{};
+    }
+    core::Status restorePages(const std::vector<int>&, const QString&) override
+    {
+        ++pageCommands;
+        ++calls;
+        return {};
+    }
+    core::Result<core::DuplicatedPages> duplicatePages(const std::vector<int>& pages, const QString&,
+                                                       const std::vector<std::vector<core::AnnotationCopy>>&) override
+    {
+        ++pageCommands;
+        ++calls;
+        core::DuplicatedPages out;
+        out.labels.resize(pages.size());
+        return out;
+    }
+    int pageCommands = 0;
     std::vector<QString> attachmentInserts;
     std::vector<QString> attachmentRemovals;
     std::map<int, int> rotations;

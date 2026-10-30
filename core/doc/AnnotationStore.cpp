@@ -614,7 +614,13 @@ Status AnnotationStore::remove(const std::vector<AnnotationPlacement>& placement
         listing->second.erase(listing->second.begin() + at.position);
     }
     for (auto& [page, listing] : changed) pages_[static_cast<std::size_t>(page)] = std::move(listing);
+    dropUnlisted();
+    reindex();
+    return Status{};
+}
 
+void AnnotationStore::dropUnlisted()
+{
     // An annotation no page lists any more leaves the store, and every index above it moves down.
     std::vector<bool> listed(annotations_.size(), false);
     for (const std::vector<AnnotationListingEntry>& listing : pages_) {
@@ -641,6 +647,94 @@ Status AnnotationStore::remove(const std::vector<AnnotationPlacement>& placement
             if (entry.annotation) entry.annotation = renumbered[*entry.annotation];
         }
     }
+}
+
+std::vector<AnnotationStore::PageListing> AnnotationStore::listingsRemovedBy(const PageMap& map) const
+{
+    std::vector<PageListing> out;
+    if (refusal_ || map.oldCount() != pageCount()) return out;
+    for (const int old : map.removed()) {
+        PageListing listing;
+        for (const AnnotationListingEntry& entry : pages_[static_cast<std::size_t>(old)]) {
+            PageListing::Entry carried{entry.fact, std::nullopt};
+            if (entry.annotation) carried.annotation = annotations_[*entry.annotation];
+            listing.entries.push_back(std::move(carried));
+        }
+        out.push_back(std::move(listing));
+    }
+    return out;
+}
+
+Status AnnotationStore::applyPageMap(const PageMap& map, std::vector<PageListing> inserted)
+{
+    if (refusal_) return Status{};   // nothing listed, nothing to move: the page tree is the command's
+    const std::vector<int> insertedAt = map.inserted();
+    if (map.oldCount() != pageCount() || inserted.size() != insertedAt.size())
+        return Error{ErrorCode::InvalidArgument, QLatin1String("error.command.malformed"),
+                     QStringLiteral("page map %1 -> %2").arg(map.oldCount()).arg(map.newCount())};
+
+    if (digests_.size() < annotations_.size()) digests_.resize(annotations_.size());
+    const std::size_t held = annotations_.size();
+    std::vector<std::vector<AnnotationListingEntry>> rebuilt;
+    rebuilt.reserve(static_cast<std::size_t>(map.newCount()));
+    std::vector<std::pair<std::size_t, int>> givenBack;   // an inserted page that owned an annotation still held
+    std::size_t next = 0;
+    for (int now = 0; now < map.newCount(); ++now) {
+        const int old = map.oldIndexOf(now);
+        if (old != PageMap::kNone) {
+            rebuilt.push_back(std::move(pages_[static_cast<std::size_t>(old)]));
+            continue;
+        }
+        std::vector<AnnotationListingEntry> listing;
+        for (PageListing::Entry& carried : inserted[next++].entries) {
+            AnnotationListingEntry entry;
+            entry.fact = carried.fact;
+            if (carried.annotation) {
+                std::optional<std::size_t> index = find(carried.annotation->id);
+                if (!index) {
+                    index = annotations_.size();
+                    annotations_.push_back(std::move(*carried.annotation));
+                    digests_.emplace_back();
+                    if (annotations_.back().id.kind == AnnotationId::Kind::Object)
+                        byObject_.emplace(annotations_.back().id.object, *index);
+                    if (annotations_.back().id.kind == AnnotationId::Kind::Created)
+                        byCreated_.emplace(annotations_.back().id.nm, *index);
+                } else if (carried.annotation->page == now) {
+                    givenBack.emplace_back(*index, now);
+                }
+                entry.annotation = *index;
+            }
+            listing.push_back(std::move(entry));
+        }
+        rebuilt.push_back(std::move(listing));
+    }
+    pages_ = std::move(rebuilt);
+
+    // The owners: renumbered where their page moved, re-chosen where it went, given back where it returned.
+    std::vector<bool> orphaned(annotations_.size(), false);
+    for (std::size_t index = 0; index < held; ++index) {
+        Annotation& annotation = annotations_[index];
+        if (annotation.page < 0) continue;
+        const int moved = map.newIndexOf(annotation.page);
+        if (moved == annotation.page) continue;
+        if (moved == PageMap::kNone) orphaned[index] = true;
+        else annotation.page = moved;
+        digests_[index].clear();
+    }
+    for (const auto& [index, page] : givenBack) {
+        annotations_[index].page = page;
+        orphaned[index] = false;
+        digests_[index].clear();
+    }
+    for (std::size_t page = 0; page < pages_.size(); ++page) {
+        for (const AnnotationListingEntry& entry : pages_[page]) {
+            if (entry.annotation && orphaned[*entry.annotation]) {
+                annotations_[*entry.annotation].page = static_cast<int>(page);
+                orphaned[*entry.annotation] = false;
+            }
+        }
+    }
+    dropUnlisted();
     reindex();
     return Status{};
 }

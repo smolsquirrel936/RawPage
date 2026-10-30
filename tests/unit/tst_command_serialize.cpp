@@ -177,6 +177,30 @@ const std::map<std::string, std::function<std::vector<std::unique_ptr<Command>>(
                  std::vector<QString>{QStringLiteral("appendix.pdf"), QStringLiteral("readme.txt")}));
              return out;
          }},
+        // Stage 7 T2: the page-order commands -- one page, a set, and the limit of a page index; a delete and a
+        // duplicate carry the key they were made with.
+        {"page.move",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             out.push_back(std::make_unique<core::MovePagesCommand>(std::vector<int>{3}, 0));
+             out.push_back(std::make_unique<core::MovePagesCommand>(std::vector<int>{0, 2, 899}, 5));
+             out.push_back(std::make_unique<core::MovePagesCommand>(std::vector<int>{RotatePageCommand::kMaxPageIndex}, 0));
+             return out;
+         }},
+        {"page.delete",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             out.push_back(std::make_unique<core::DeletePagesCommand>(std::vector<int>{0}));
+             out.push_back(std::make_unique<core::DeletePagesCommand>(std::vector<int>{1, 4, 5, 899}, QString(32, QLatin1Char('a'))));
+             return out;
+         }},
+        {"page.duplicate",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             out.push_back(std::make_unique<core::DuplicatePagesCommand>(std::vector<int>{0}));
+             out.push_back(std::make_unique<core::DuplicatePagesCommand>(std::vector<int>{2, 3, RotatePageCommand::kMaxPageIndex}));
+             return out;
+         }},
         // Stage 6 T13 (D6-20): an import that only adds -- an exchange's names, an Acrobat-shaped one among them --
         // one that only replaces, and one that does both.
         {"annot.import",
@@ -224,7 +248,7 @@ bool catalogHas(const char* file, QLatin1String key)
 // A-42 -- the registry round-trips what it registered and refuses what it did not
 // ==========================================================================================
 
-TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][serialize][serialize:RotatePageCommand][serialize:AddAnnotationCommand][serialize:DeleteAnnotationCommand][serialize:EditAnnotationCommand][serialize:MoveAnnotationCommand][serialize:SetAnnotationAppearanceCommand][serialize:LockAnnotationCommand][serialize:ReplyToAnnotationCommand][serialize:SetAnnotationStatusCommand][serialize:AddAttachmentCommand][serialize:DeleteAttachmentCommand][serialize:ImportAnnotationsCommand]")
+TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][serialize][serialize:RotatePageCommand][serialize:AddAnnotationCommand][serialize:DeleteAnnotationCommand][serialize:EditAnnotationCommand][serialize:MoveAnnotationCommand][serialize:SetAnnotationAppearanceCommand][serialize:LockAnnotationCommand][serialize:ReplyToAnnotationCommand][serialize:SetAnnotationStatusCommand][serialize:AddAttachmentCommand][serialize:DeleteAttachmentCommand][serialize:ImportAnnotationsCommand][serialize:MovePagesCommand][serialize:DeletePagesCommand][serialize:DuplicatePagesCommand]")
 {
     const auto typeIds = CommandRegistry::typeIds();
     REQUIRE_FALSE(typeIds.empty());
@@ -259,7 +283,7 @@ TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][s
             registered = registered || typeId == QLatin1String(id.c_str());
         CHECK(registered);
     }
-    CHECK(roundTrips == 16 + 3 + 2 + 2 + 2 + 2 + 2 + 2 + 3 + 2 + 2 + 3);
+    CHECK(roundTrips == 16 + 3 + 2 + 2 + 2 + 2 + 2 + 2 + 3 + 2 + 2 + 3 + 3 + 2 + 2);
 }
 
 // Stage 6 T13 (D6-20): an import is a journal line carrying two sets -- what it adds must be what an add accepts,
@@ -398,6 +422,63 @@ TEST_CASE("every command name is a catalog key present in both shipped locales",
 // ==========================================================================================
 // A-45 -- hostile serialized commands
 // ==========================================================================================
+
+TEST_CASE("CommandRegistry refuses every malformed page-order command by Result", "[cmd][serialize][hostile][pages]")
+{
+    // Stage 7 T2: a page set is whole numbers, strictly ascending, bounded; a key is 32 lowercase hex digits; a
+    // move's target is a whole number in range. The journal is a file on disk (guide A-45's argument).
+    const QString key(32, QLatin1Char('b'));
+    const QString huge(10 * 1024 * 1024, QLatin1Char('9'));
+    QJsonArray tooMany;
+    for (int page = 0; page <= core::kMaxPagesPerCommand; ++page) tooMany.append(page);
+    const std::vector<std::pair<const char*, QJsonObject>> hostile{
+        {"move: pages missing", QJsonObject{{"type", "page.move"}, {"to", 0}}},
+        {"move: pages empty", QJsonObject{{"type", "page.move"}, {"pages", QJsonArray{}}, {"to", 0}}},
+        {"move: pages not ascending", QJsonObject{{"type", "page.move"}, {"pages", QJsonArray{3, 1}}, {"to", 0}}},
+        {"move: a page twice", QJsonObject{{"type", "page.move"}, {"pages", QJsonArray{1, 1}}, {"to", 0}}},
+        {"move: a page -1", QJsonObject{{"type", "page.move"}, {"pages", QJsonArray{-1}}, {"to", 0}}},
+        {"move: a page 1.5", QJsonObject{{"type", "page.move"}, {"pages", QJsonArray{1.5}}, {"to", 0}}},
+        {"move: a page a string", QJsonObject{{"type", "page.move"}, {"pages", QJsonArray{"1"}}, {"to", 0}}},
+        {"move: a page past the limit",
+         QJsonObject{{"type", "page.move"}, {"pages", QJsonArray{RotatePageCommand::kMaxPageIndex + 1}}, {"to", 0}}},
+        {"move: pages a 10 MB string", QJsonObject{{"type", "page.move"}, {"pages", huge}, {"to", 0}}},
+        {"move: a million and one pages", QJsonObject{{"type", "page.move"}, {"pages", tooMany}, {"to", 0}}},
+        {"move: to missing", QJsonObject{{"type", "page.move"}, {"pages", QJsonArray{1}}}},
+        {"move: to -1", QJsonObject{{"type", "page.move"}, {"pages", QJsonArray{1}}, {"to", -1}}},
+        {"move: to 0.5", QJsonObject{{"type", "page.move"}, {"pages", QJsonArray{1}}, {"to", 0.5}}},
+        {"move: to a string", QJsonObject{{"type", "page.move"}, {"pages", QJsonArray{1}}, {"to", "0"}}},
+        {"delete: key missing", QJsonObject{{"type", "page.delete"}, {"pages", QJsonArray{1}}}},
+        {"delete: key short", QJsonObject{{"type", "page.delete"}, {"pages", QJsonArray{1}}, {"key", key.left(31)}}},
+        {"delete: key upper case", QJsonObject{{"type", "page.delete"}, {"pages", QJsonArray{1}}, {"key", key.toUpper()}}},
+        {"delete: key not hex", QJsonObject{{"type", "page.delete"}, {"pages", QJsonArray{1}}, {"key", QString(32, QLatin1Char('g'))}}},
+        {"delete: key a number", QJsonObject{{"type", "page.delete"}, {"pages", QJsonArray{1}}, {"key", 7}}},
+        {"delete: pages an object", QJsonObject{{"type", "page.delete"}, {"pages", QJsonObject{}}, {"key", key}}},
+        {"duplicate: key 10 MB", QJsonObject{{"type", "page.duplicate"}, {"pages", QJsonArray{1}}, {"key", huge}}},
+        {"duplicate: pages descending", QJsonObject{{"type", "page.duplicate"}, {"pages", QJsonArray{2, 0}}, {"key", key}}},
+    };
+    for (const auto& [label, json] : hostile) {
+        INFO("input: " << label);
+        auto result = CommandRegistry::deserialize(json);
+        REQUIRE_FALSE(result);
+        CHECK(result.error().code == core::ErrorCode::ParseFailure);
+        CHECK(keyOf(result.error()) == "error.command.malformed");
+        CHECK(result.error().context.size() < 64);
+    }
+    SECTION("THE CONTROL: the boundaries themselves are accepted, and the key survives")
+    {
+        CHECK(CommandRegistry::deserialize(QJsonObject{
+            {"type", "page.move"}, {"pages", QJsonArray{0, RotatePageCommand::kMaxPageIndex}}, {"to", RotatePageCommand::kMaxPageIndex}}));
+        auto removed = CommandRegistry::deserialize(QJsonObject{{"type", "page.delete"}, {"pages", QJsonArray{0, 1.0}}, {"key", key}});
+        REQUIRE(removed);
+        const auto* command = dynamic_cast<core::DeletePagesCommand*>(removed.value().get());
+        REQUIRE(command != nullptr);
+        CHECK(command->key() == key);
+        CHECK(command->pages() == std::vector<int>{0, 1});
+        auto copied = CommandRegistry::deserialize(QJsonObject{{"type", "page.duplicate"}, {"pages", QJsonArray{4}}, {"key", key}});
+        REQUIRE(copied);
+        CHECK(dynamic_cast<core::DuplicatePagesCommand*>(copied.value().get())->copyName(2) == key + QStringLiteral("-2"));
+    }
+}
 
 TEST_CASE("CommandRegistry refuses every malformed page rotation by Result", "[cmd][serialize][hostile]")
 {

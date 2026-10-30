@@ -19,7 +19,8 @@
 //      about the file on disk -- and verify: the original is a byte-identical prefix; the file
 //      opens through its own cross-reference structures with nothing that forces a Save-As; it has
 //      the same number of pages; every page's effective rotation is the one the sink says it should
-//      have; and -- from Stage 6 T3 -- every page's `/Annots` is the listing the sink composed, each
+//      have; from Stage 7 T2, every page is the object the desired order puts there, a new page a new
+//      object; and -- from Stage 6 T3 -- every page's `/Annots` is the listing the sink composed, each
 //      created annotation a dictionary with its `/NM`, its `/Subtype`, its page and a well-formed `/AP`
 //      (`MutationSinkImpl::reconcile`). A file failing any check is REMOVED and the save fails by key before anything
 //      replaces anything (A-54).

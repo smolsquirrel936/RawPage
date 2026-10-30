@@ -27,6 +27,21 @@ Scope Scope::wholeDocument()
     return scope;
 }
 
+Scope Scope::pageCommand(PageMap map)
+{
+    Scope scope;
+    scope.kind_ = Kind::WholeDocument;
+    scope.map_ = std::move(map);
+    return scope;
+}
+
+Scope Scope::reversed() const
+{
+    Scope scope = *this;
+    if (scope.map_) scope.map_ = scope.map_->inverse();
+    return scope;
+}
+
 Scope Scope::page(int index)
 {
     return pages({index});
@@ -114,6 +129,12 @@ Scope Scope::merged(const Scope& other) const
         return other;
     if (other.kind_ == Kind::Nothing)
         return *this;
+    // S7 T2: two page commands in one step are one map, the first then the second; a map whose counts do not
+    // chain, or one merged with anything else, is dropped -- the header says why that is still correct.
+    if (map_ && other.map_) {
+        if (std::optional<PageMap> both = map_->then(*other.map_)) return pageCommand(std::move(*both));
+        return wholeDocument();
+    }
     if (kind_ == Kind::WholeDocument || other.kind_ == Kind::WholeDocument)
         return wholeDocument();
 
@@ -154,7 +175,7 @@ Scope Scope::merged(const Scope& other) const
 bool operator==(const Scope& a, const Scope& b)
 {
     return a.kind_ == b.kind_ && a.aspect_ == b.aspect_ && a.pages_ == b.pages_ && a.objects_ == b.objects_
-           && a.regions_ == b.regions_;
+           && a.regions_ == b.regions_ && a.map_ == b.map_;
 }
 
 const char* scopeKindName(Scope::Kind kind) noexcept

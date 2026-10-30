@@ -55,6 +55,7 @@
 
 namespace rawpage::core {
 
+class PageMap;
 class PageTree;
 
 // What a command may do. Stage 3 has one kind of edit; later stages add theirs as their commands
@@ -108,6 +109,22 @@ public:
     Status mayAnnotate(int page) const;
     const std::vector<int>& annotationDisagreements() const noexcept { return disagreeing_; }
 
+    // STAGE 7 T2 (D7-21): may a page command NAME `page`? The document's refusal first, then the page's -- a
+    // page whose `/Annots` the two readers read differently is refused by `error.edit.pageReadingsDisagree`,
+    // because a command that moves, deletes or copies it would carry a listing the engine draws as something
+    // else (D3-7's rule, met by a new command). The rest of the document stays editable.
+    Status mayEditPage(int page) const;
+    // And may a page command change the page TREE at all? Refused, by `error.pdf.pageTreeDamaged` with the
+    // object named, when the first-party walk noted anything about the tree -- a loop, a kid that is no
+    // reference or does not fetch, one past the depth bound: its shape would be a guess, and a rotation,
+    // which writes no node, stays allowed. Set by the backend at open (`setPageTreeDamaged`).
+    Status mayRestructurePages() const;
+    void setPageTreeDamaged(long long objectNumber) { treeDamage_ = objectNumber; }
+    // The disagreeing pages renumbered as a page command moved them -- the model's half of D7-3, so a page
+    // keeps its refusal wherever it goes. No page command can REMOVE or COPY such a page, since it may not
+    // name one; one only moves it by moving others past it, and the inverse map moves it back.
+    void applyPageMap(const PageMap& map);
+
     // Rectangles agree within this many points, or this fraction of the coordinate, whichever is
     // larger: the engine reports them through `float`, whose step at 10,000 pt is about 0.001.
     static constexpr double kRectTolerance = 0.01;
@@ -129,6 +146,7 @@ private:
     QLatin1String refusalKey_{"error.edit.notAssessed"};
     QString refusalContext_;
     std::vector<int> disagreeing_;   // 0-based pages whose /Annots the two readers read differently
+    std::optional<long long> treeDamage_;   // S7 T2: an object the page walk noted
 };
 
 } // namespace rawpage::core

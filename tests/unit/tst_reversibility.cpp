@@ -102,6 +102,38 @@ const Generators& registeredGenerators()
                  out.push_back(std::make_unique<RotatePageCommand>(page, degrees));
              return out;
          }},
+        // Stage 7 T2: the page order -- the page moved to the other end, deleted, duplicated, and the first and
+        // last pages as a SET, wherever the document has room; nothing where its tree is damaged or the page is
+        // refused (D7-21), which the pre-flight would refuse before apply.
+        {"page.move",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             const int count = document.pages().count();
+             if (count < 2 || !document.permissions().mayRestructurePages() || !document.permissions().mayEditPage(page))
+                 return out;
+             out.push_back(std::make_unique<core::MovePagesCommand>(std::vector<int>{page}, page == 0 ? count - 1 : 0));
+             if (count >= 3 && page == 0) out.push_back(std::make_unique<core::MovePagesCommand>(std::vector<int>{0, count - 1}, 1));
+             return out;
+         }},
+        {"page.delete",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             const int count = document.pages().count();
+             if (count < 2 || !document.permissions().mayRestructurePages() || !document.permissions().mayEditPage(page))
+                 return out;
+             out.push_back(std::make_unique<core::DeletePagesCommand>(std::vector<int>{page}));
+             if (count >= 3 && page == 0) out.push_back(std::make_unique<core::DeletePagesCommand>(std::vector<int>{0, count - 1}));
+             return out;
+         }},
+        {"page.duplicate",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             const int count = document.pages().count();
+             if (!document.permissions().mayRestructurePages() || !document.permissions().mayEditPage(page)) return out;
+             out.push_back(std::make_unique<core::DuplicatePagesCommand>(std::vector<int>{page}));
+             if (count >= 2 && page == 0) out.push_back(std::make_unique<core::DuplicatePagesCommand>(std::vector<int>{0, count - 1}));
+             return out;
+         }},
         // Stage 6 T3: a highlight on the page -- a set of one, and a set of two on one page.
         {"annot.add",
          [](const core::Document& document, int page) {
@@ -735,7 +767,8 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
         CHECK(missingGenerators(Generators{}) == std::vector<std::string>{"page.rotate", "annot.add", "annot.delete", "annot.edit",
                                                                           "annot.move", "annot.setAppearance", "annot.lock",
                                                                           "annot.reply", "annot.setStatus", "annot.import",
-                                                                          "attachment.add", "attachment.delete"});
+                                                                          "attachment.add", "attachment.delete", "page.move",
+                                                                          "page.delete", "page.duplicate"});
     }
 }
 
@@ -743,7 +776,7 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
 // A-43 -- reversibility over the corpus
 // ==========================================================================================
 
-TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand][revert:AddAnnotationCommand][revert:DeleteAnnotationCommand][revert:EditAnnotationCommand][revert:MoveAnnotationCommand][revert:SetAnnotationAppearanceCommand][revert:LockAnnotationCommand][revert:ReplyToAnnotationCommand][revert:SetAnnotationStatusCommand][revert:AddAttachmentCommand][revert:DeleteAttachmentCommand][revert:ImportAnnotationsCommand]")
+TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand][revert:AddAnnotationCommand][revert:DeleteAnnotationCommand][revert:EditAnnotationCommand][revert:MoveAnnotationCommand][revert:SetAnnotationAppearanceCommand][revert:LockAnnotationCommand][revert:ReplyToAnnotationCommand][revert:SetAnnotationStatusCommand][revert:AddAttachmentCommand][revert:DeleteAttachmentCommand][revert:ImportAnnotationsCommand][revert:MovePagesCommand][revert:DeletePagesCommand][revert:DuplicatePagesCommand]")
 {
     const std::vector<std::string> missing = missingGenerators(registeredGenerators());
     INFO("registered type ids with no generator: " << missing.size());

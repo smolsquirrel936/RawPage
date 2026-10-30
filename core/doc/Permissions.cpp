@@ -2,6 +2,7 @@
 
 #include "core/doc/Permissions.h"
 
+#include "core/doc/PageMap.h"
 #include "core/doc/PageTree.h"
 
 #include <algorithm>
@@ -111,6 +112,36 @@ void Permissions::assessAnnotations(const std::vector<std::vector<AnnotationFact
             same = sameEntry(theirs[entry], ours[entry]);
         if (!same) disagreeing_.push_back(static_cast<int>(page));
     }
+}
+
+Status Permissions::mayRestructurePages() const
+{
+    if (Status document = may(Operation::EditPages); !document) return document;
+    if (treeDamage_)
+        return Error{ErrorCode::Unsupported, QLatin1String("error.pdf.pageTreeDamaged"), QString::number(*treeDamage_)};
+    return Status{};
+}
+
+Status Permissions::mayEditPage(int page) const
+{
+    if (Status document = may(Operation::EditPages); !document) return document;
+    if (std::find(disagreeing_.begin(), disagreeing_.end(), page) != disagreeing_.end()) {
+        return Error{ErrorCode::PermissionDenied, QLatin1String("error.edit.pageReadingsDisagree"),
+                     QString::number(page + 1)};
+    }
+    return Status{};
+}
+
+void Permissions::applyPageMap(const PageMap& map)
+{
+    std::vector<int> moved;
+    for (const int page : disagreeing_) {
+        const int now = map.newIndexOf(page);
+        if (now != PageMap::kNone) moved.push_back(now);
+    }
+    std::sort(moved.begin(), moved.end());
+    moved.erase(std::unique(moved.begin(), moved.end()), moved.end());
+    disagreeing_ = std::move(moved);
 }
 
 Status Permissions::mayAnnotate(int page) const

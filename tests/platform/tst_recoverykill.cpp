@@ -25,6 +25,8 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "tests/platform/killprobe/AnnotationSteps.h"
+#include "tests/platform/killprobe/PageSteps.h"
+#include "pdf/ops/RevisionWriter.h"
 #include "tests/unit/CosBackend.h"
 
 #include "core/cmd/CommandJournal.h"
@@ -427,6 +429,96 @@ TEST_CASE("recovery.kill_annotations: twenty kills during annotation commands re
     CHECK(landed["inside the flush"] >= 1);
     CHECK(landed["between apply and the flush"] >= 1);
     CHECK(runsWithPayload >= 1);
+}
+
+// ==========================================================================================
+// Stage 7 T2 -- A-28: kills during PAGE commands, replayed against the file as opened (D7-24)
+// ==========================================================================================
+
+TEST_CASE("recovery.kill_pages: twenty kills during page commands recover every acknowledged one and the same file",
+          "[recovery][kill][pages][S7-A-28]")
+{
+    // The replayed document is graded twice against the SAME steps run here on a pristine copy: its model (the
+    // page tree, every page's label, the annotation listings) by `modelHash`, and the FILE a save would write by
+    // the composed update's BYTES -- the page tree, the labels, every reference repaired -- so a replay that put
+    // a page in another place, or repaired a reference differently, fails here. That those bytes are RIGHT --
+    // every reference landing on the page it named -- is `render.reference_repair`'s, which grades the same
+    // commands by what PDFium extracts from the saved pages (Stage 7 guide A-19, A-20).
+    const quint32 seed = QRandomGenerator::global()->generate();
+    QRandomGenerator random(seed);
+    std::cout << "kill_pages: seed " << seed << std::endl;
+    const QString fixture = QStringLiteral("assembly/refs-every-kind.pdf");
+
+    std::map<std::string, int> landed;
+    int mostSteps = 0;
+    for (int run = 1; run <= kRuns; ++run) {
+        INFO("run " << run << " of " << kRuns << ", seed " << seed);
+        QTemporaryDir dir;
+        REQUIRE(dir.isValid());
+        const QString document = dir.filePath(QStringLiteral("doc.pdf"));
+        REQUIRE(QFile::copy(QString::fromStdString(RAWPAGE_CORPUS_DIR "/") + fixture, document));
+        const QString root = dir.filePath(QStringLiteral("recovery"));
+
+        auto probe = startProbe({QStringLiteral("pages"), document, root, QString::number(kDwellMs)});
+        const QList<QByteArray> lines = killProbe(*probe, 20000 + static_cast<qint64>(random.bounded(380000)));
+        REQUIRE_FALSE(lines.isEmpty());
+        int acknowledged = 0;
+        for (const QByteArray& line : lines)
+            acknowledged = std::max(acknowledged, numberAfter(line, "ack"));
+        const QByteArray last = lines.last();
+        const std::string where = last.startsWith("writing") ? "between apply and the flush"
+                                  : last.startsWith("flushing") ? "inside the flush"
+                                  : last.startsWith("apply") ? "inside apply"
+                                                             : "between commands";
+        ++landed[where];
+
+        const auto candidates = core::RecoveryJournal::discover(root);
+        REQUIRE(candidates.size() == 1);
+        CHECK(candidates.front().sourceMatches);
+
+        tests::CosBackend backend;
+        auto handle = backend.open(document, nullptr);
+        REQUIRE(handle);
+        core::Document fresh;
+        REQUIRE(fresh.hydrate(backend, handle.value()));
+        core::CommandJournal journal(std::move(fresh), backend.mutationSink(handle.value()));
+        auto report = core::RecoveryJournal::replay(candidates.front().directory, journal);
+        REQUIRE(report);
+        const int steps = report.value().stepsApplied;
+        INFO("killed " << where << " after ack " << acknowledged << "; replayed " << steps);
+        CHECK_FALSE(report.value().stoppedAtStep.has_value());
+        CHECK(steps >= acknowledged);
+        CHECK(steps <= acknowledged + 1);
+        mostSteps = std::max(mostSteps, steps);
+
+        // The same steps, here, on a pristine copy.
+        const QString copy = dir.filePath(QStringLiteral("expected.pdf"));
+        REQUIRE(QFile::copy(QString::fromStdString(RAWPAGE_CORPUS_DIR "/") + fixture, copy));
+        tests::CosBackend expectedBackend;
+        auto expectedHandle = expectedBackend.open(copy, nullptr);
+        REQUIRE(expectedHandle);
+        core::Document pristine;
+        REQUIRE(pristine.hydrate(expectedBackend, expectedHandle.value()));
+        core::CommandJournal expected(std::move(pristine), expectedBackend.mutationSink(expectedHandle.value()));
+        for (int k = 1; k <= steps; ++k) REQUIRE(expected.run(tests::killsteps::pageStep(k, expected.document())));
+        CHECK(journal.document().modelHash().toHex().toStdString() == expected.document().modelHash().toHex().toStdString());
+
+        auto replayed = pdf::ops::RevisionWriter::compose(*backend.sinkFor(handle.value()), false);
+        auto planned = pdf::ops::RevisionWriter::compose(*expectedBackend.sinkFor(expectedHandle.value()), false);
+        REQUIRE(replayed);
+        REQUIRE(planned);
+        // As SHA-256 hex: CLAUDE.md's reporter trap on two QByteArrays.
+        CHECK(QCryptographicHash::hash(replayed.value().bytes, QCryptographicHash::Sha256).toHex().toStdString()
+              == QCryptographicHash::hash(planned.value().bytes, QCryptographicHash::Sha256).toHex().toStdString());
+    }
+
+    std::cout << "kill_pages: where the " << kRuns << " kills landed --";
+    for (const auto& [where, count] : landed)
+        std::cout << " " << where << ": " << count << ";";
+    std::cout << " most steps replayed: " << mostSteps << std::endl;
+    CHECK(landed["inside the flush"] >= 1);
+    CHECK(landed["between apply and the flush"] >= 1);
+    CHECK(mostSteps >= tests::killsteps::kPageCycle);   // every kind of page command was among what was recovered
 }
 
 TEST_CASE("recovery.kill_annotsaves: twenty kills during saves of annotation edits leave the target a whole revision",

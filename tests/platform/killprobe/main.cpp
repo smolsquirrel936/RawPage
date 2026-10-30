@@ -11,6 +11,9 @@
 //   rawpage_killprobe saves <document> <dwell ms>
 //       Opens <document> and saves a rotation of page 1 through SaveCoordinator and the REAL
 //       WinDurableFiles, forever.
+//   rawpage_killprobe pages <document> <recovery root> <dwell ms>
+//       `commands`, but each step is the page cycle of `PageSteps.h` -- a move, a duplicate, a delete, a move of
+//       a set. Stage 7 T2, guide A-28.
 //   rawpage_killprobe annotations <document> <recovery root> <dwell ms>
 //       `commands`, but each step is the annotation cycle of `AnnotationSteps.h` -- an ink, a highlight, a
 //       move, a delete and a 200 KiB attachment, the last a SIDE FILE (D6-23). Stage 6 T15, guide A-107.
@@ -33,6 +36,7 @@
 #include "core/cmd/CommandJournal.h"
 #include "core/cmd/RecoveryJournal.h"
 #include "core/cmd/commands/PageCommands.h"
+#include "tests/platform/killprobe/PageSteps.h"
 #include "core/doc/Document.h"
 #include "core/doc/SaveCoordinator.h"
 #include "platform/win/WinDurableFiles.h"
@@ -94,13 +98,15 @@ int main(int argc, char** argv)
     const int pages = journal.document().pages().count();
 
     const bool annotating = mode == QLatin1String("annotations") || mode == QLatin1String("annotsaves");
-    // Step `k` of what this mode edits: a rotation, or the annotation cycle (A-107).
+    const bool paging = mode == QLatin1String("pages");
+    // Step `k` of what this mode edits: a rotation, the annotation cycle (A-107), or the page cycle (S7 A-28).
     const auto stepFor = [&](int k, int rotatePage) -> std::unique_ptr<core::Command> {
         if (annotating) return tests::killsteps::step(k, journal.document());
+        if (paging) return tests::killsteps::pageStep(k, journal.document());
         return std::make_unique<core::RotatePageCommand>(rotatePage, 90);
     };
 
-    if ((mode == QLatin1String("commands") || mode == QLatin1String("annotations")) && args.size() >= 5) {
+    if ((mode == QLatin1String("commands") || mode == QLatin1String("annotations") || paging) && args.size() >= 5) {
         const int dwellMs = args.at(4).toInt();
         auto recovery = core::RecoveryJournal::open(args.at(3), documentPath, journal.document().id(), &durableFiles);
         if (!recovery->isRecoverable())
