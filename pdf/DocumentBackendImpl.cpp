@@ -24,13 +24,25 @@
 #include <QFileInfo>
 #include <QStringList>
 
+#include <atomic>
 #include <chrono>
+#include <functional>
 #include <map>
+#include <mutex>
 #include <optional>
+#include <thread>
 #include <utility>
 
 namespace rawpage::pdf {
 namespace {
+
+// D6-2's refusal: the failure's own key as the context of `error.edit.notShown`.
+core::Error notShown(const core::Error& error)
+{
+    return core::Error{error.code, QLatin1String("error.edit.notShown"),
+                       error.context.isEmpty() ? QString(error.messageKey)
+                                               : QString(error.messageKey) + QLatin1Char(':') + error.context};
+}
 
 // S6 T2 (D6-3): what the annotation reading met, said once at open. The count of each kind of note,
 // every unplaceable annotation by object number -- the case guide A-19 looks for in the log -- and
@@ -176,9 +188,35 @@ struct DocumentBackendImpl::Open {
     std::optional<core::RepairReport> savedReport;
 
     // Stage 6 T4 (D6-2): the last `showEdits`' compose and verify, timed on its caller's thread, and the
-    // verify alone.
+    // verify alone. S7 T4: the compose alone, on the caller's thread, and the verify on its own -- written there,
+    // so read whenever.
     std::chrono::nanoseconds lastCompose{0};
-    std::chrono::nanoseconds lastVerify{0};
+    std::atomic<long long> lastVerifyNs{0};
+    std::size_t lastObjectsWritten = 0;
+    std::size_t lastObjectsReused = 0;
+
+    // Stage 7 T4 (`Stage7-Assembly-Plan.md` Q4): THE VERIFY OF THE LAST `showEdits`, on a thread of its own, and what
+    // to put back if it refuses -- each engine's tree, order and readers as that show found them. Joined before
+    // anything touches the sink again (`awaitVerify`), and before the entry goes.
+    struct Replaced {
+        core::DocumentHandle target;
+        core::PageTree drawn;
+        std::vector<int> drawnFrom;
+        std::vector<bool> drawnOriginal;
+        core::Outline outline;
+        core::Destinations destinations;
+    };
+    std::thread verifying;
+    core::Status verdict;                         // the thread's, read after it is joined
+    bool unsettled = false;                       // a verdict `settleEdits` has not answered
+    std::vector<core::DocumentHandle> gated;      // every engine the show held behind its gate
+    std::vector<Replaced> replaced;
+    std::mutex settledMutex;                      // `settled` is called, and replaced, under it
+    std::function<void()> settled;
+    ~Open()
+    {
+        if (verifying.joinable()) verifying.join();
+    }
 
     // Stage 7 T3 (D7-3): WHAT THE ENGINE DRAWS, page by page -- the tree `pages()` hands out, assigned IN PLACE
     // at every `showEdits` (a view holds a pointer to it). Each page is the open tree's page it shows, so a
@@ -554,7 +592,9 @@ core::Result<QByteArray> DocumentBackendImpl::attachmentData(core::DocumentHandl
         return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.backend.unknownDocument"),
                            QString::number(static_cast<qulonglong>(document.id))};
     }
-    // With a sink, the document as it stands now -- an attachment not yet saved included.
+    // With a sink, the document as it stands now -- an attachment not yet saved included. S7 T4: once a verify reading
+    // the sink is over.
+    awaitVerify(*entry);
     if (entry->sink) return entry->sink->attachmentData(attachment);
     // Without one, the bytes it was opened from, through a table loaded for the call: the first-party reader is
     // what reads an embedded file's stream, and a document it declines (encrypted) has none to give.
@@ -577,6 +617,7 @@ core::Result<QByteArray> DocumentBackendImpl::soundSamples(core::DocumentHandle 
                            QString::number(static_cast<qulonglong>(document.id))};
     }
     if (!entry->sink) return core::Error{core::ErrorCode::NotFound, QLatin1String("error.sound.noData"), annotation.toString()};
+    awaitVerify(*entry);   // S7 T4: as `attachmentData`
     return entry->sink->soundSamples(annotation);
 }
 
@@ -671,6 +712,7 @@ core::Status DocumentBackendImpl::writeRevision(core::DocumentHandle document, c
     }
     if (entry == nullptr || !entry->sink)
         return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), temporaryPath};
+    awaitVerify(*entry);   // S7 T4: the journal settled before the save; this is the sink's own guard
     const bool complete = entry->savedReport ? entry->savedReport->requiresSaveAs()
                                              : entry->document->repairReport().requiresSaveAs();
     return ops::RevisionWriter::write(*entry->sink, complete, temporaryPath);
@@ -686,6 +728,7 @@ core::Status DocumentBackendImpl::adoptRevision(core::DocumentHandle document, c
     if (entry == nullptr || !entry->sink)
         return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), path};
 
+    awaitVerify(*entry);   // S7 T4
     // THE ORDER JUST WRITTEN, read before the sink adopts it (S7 T3): the saved revision's page i is the open
     // tree's page `written[i]`, which is what the next page command's order is read through.
     std::vector<int> written = drawnFrom(entry->sink.get(), entry->diskFrom, entry->document->pages().count());
@@ -707,14 +750,30 @@ core::Status DocumentBackendImpl::adoptRevision(core::DocumentHandle document, c
     return core::Status{};
 }
 
-// THE LOCK IS HELD ONLY TO FIND THE ENTRIES, as `writeRevision` holds it: composing and verifying a
-// large file is the UI thread's work, and `rasterizer()` is asked from the render thread under the same
-// mutex. The entries are destroyed only by `close()`, which the same thread calls.
+// THE LOCK IS HELD ONLY TO FIND THE ENTRIES, as `writeRevision` holds it: composing a large file is the UI thread's
+// work, and `rasterizer()` is asked from the render thread under the same mutex. The entries are destroyed only by
+// `close()`, which the same thread calls.
+//
+// STAGE 7 T4 (`Stage7-Assembly-Plan.md` Q4, `DW-4`'s second cause): THE VERIFY RUNS ON A THREAD OF ITS OWN. The
+// compose is Save's (`RevisionWriter::composeUpdate`) and stays here, on the caller's thread -- a compose that fails
+// is refused at once, as before -- and since T4 it costs what CHANGED (`MutationSinkImpl`'s header). The verify is
+// Save's too, over the same whole file (`RevisionWriter::verifyUpdate`), but it read every page of the document on
+// the UI thread after every edit -- 3.4 ms on `text-900.pdf` with nothing unsaved, 21 ms after 1,500 unsaved
+// highlights (measured) -- so it now runs beside it, and every engine is handed the update BEHIND A GATE that only
+// the verify opens (`render::ShowGate`): a job that needs the engine waits for it, and a verify that refuses leaves
+// every engine drawing what it drew. The sink is not touched again until the thread is joined (`awaitVerify`): the
+// journal settles before its next command (`CommandJournal::settle`), and every entry point here that reads the
+// sink joins first.
+void DocumentBackendImpl::awaitVerify(Open& entry)
+{
+    if (entry.verifying.joinable()) entry.verifying.join();
+}
+
 core::Status DocumentBackendImpl::showEdits(core::DocumentHandle document,
                                             const std::vector<core::DocumentHandle>& viewers)
 {
     Open* entry = nullptr;
-    std::vector<Open*> shown;
+    std::vector<std::pair<core::DocumentHandle, Open*>> shown;
     {
         const std::lock_guard<std::mutex> guard(mutex_);
         entry = find(document);
@@ -722,21 +781,24 @@ core::Status DocumentBackendImpl::showEdits(core::DocumentHandle document,
             return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.backend.unknownDocument"),
                                QString::number(static_cast<qulonglong>(document.id))};
         }
-        shown.push_back(entry);
+        shown.emplace_back(document, entry);
         for (const core::DocumentHandle viewer : viewers) {
             Open* other = find(viewer);
             if (other == nullptr) {
                 return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.backend.unknownDocument"),
                                    QString::number(static_cast<qulonglong>(viewer.id))};
             }
-            if (other != entry) shown.push_back(other);
+            if (other != entry) shown.emplace_back(viewer, other);
         }
     }
+    // The verify of the show before this one is over before anything reads the sink again; its verdict is kept for
+    // `settleEdits`, which the journal asks before it runs anything else.
+    awaitVerify(*entry);
 
     // NO SINK, NO UPDATE: each engine back on the bytes it opened (no work when it never left them), and so is
     // its tree (S7 T3).
     if (!entry->sink) {
-        for (Open* target : shown) {
+        for (const auto& [handle, target] : shown) {
             const std::vector<int> identity = drawnFrom(nullptr, {}, target->document->pages().count());
             if (target->drawnFrom != identity) {
                 target->drawn = target->document->pages();
@@ -751,41 +813,37 @@ core::Status DocumentBackendImpl::showEdits(core::DocumentHandle document,
         return core::Status{};
     }
 
-    // SAVE'S OWN COMPOSE AND VERIFY, so what is drawn is what Save would write and an edit Save would
-    // refuse is refused now. The composition is the WHOLE file and is transient: verify reads one
-    // contiguous file, as it does at a save. What the engines are handed is the newest revision on
-    // disk -- the buffer this entry already holds -- and the update alone.
+    // SAVE'S OWN COMPOSE, so what is drawn is what Save would write. What the engines are handed is the newest
+    // revision on disk -- the buffer this entry already holds -- and the update alone.
     const auto began = std::chrono::steady_clock::now();
     const bool complete = entry->savedReport ? entry->savedReport->requiresSaveAs()
                                              : entry->document->repairReport().requiresSaveAs();
-    const auto notShown = [](const core::Error& error) {
-        return core::Error{error.code, QLatin1String("error.edit.notShown"),
-                           error.context.isEmpty() ? QString(error.messageKey)
-                                                   : QString(error.messageKey) + QLatin1Char(':') + error.context};
-    };
-    auto composed = ops::RevisionWriter::compose(*entry->sink, complete);
+    auto composed = ops::RevisionWriter::composeUpdate(*entry->sink, complete);
     if (!composed) return notShown(composed.error());
-    const std::string_view original = entry->sink->bytes();
-    const std::string_view written(composed.value().bytes.constData(),
-                                   static_cast<std::size_t>(composed.value().bytes.size()));
-    const auto verifying = std::chrono::steady_clock::now();
-    if (const core::Status verified = ops::RevisionWriter::verify(original, written, *entry->sink); !verified)
-        return notShown(verified.error());
-    entry->lastVerify = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - verifying);
-    const QByteArray update = composed.value().bytes.mid(static_cast<qsizetype>(original.size()));
-    composed.value().bytes = QByteArray();   // the transient whole goes before the engines are told
+    const QByteArray update = std::move(composed.value().update);
     entry->lastCompose = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - began);
+    entry->lastObjectsWritten = composed.value().objectsWritten.size();
+    entry->lastObjectsReused = composed.value().objectsReused;
 
     // AND THE PAGES IN THE ORDER THE UPDATE DRAWS THEM (S7 T3, D7-3): each engine is told the order with the
     // bytes and swaps its own tree in with them; `pages()` answers it from now on, on this thread. A companion
     // opened the same file, so the order read through its own open tree is the same pages.
     // REASSIGNED ONLY WHEN THE ORDER CHANGED: an assignment moves the tree's storage, and a caller may hold a
-    // page of it across an edit that moved no page -- every annotation edit of Stage 6 is one.
+    // page of it across an edit that moved no page -- every annotation edit of Stage 6 is one. S7 T4: what each
+    // replaced is kept, to put back if the verify refuses.
     const std::vector<int> from = drawnFrom(entry->sink.get(), entry->diskFrom, entry->document->pages().count());
     const std::vector<bool> originals =
         drawnOriginals(entry->sink.get(), entry->diskOriginal, entry->document->pages().count());
-    for (Open* target : shown) {
+    std::vector<Open::Replaced> replaced;
+    std::vector<core::DocumentHandle> gated;
+    const auto gate = std::make_shared<render::ShowGate>();
+    for (const auto& [handle, target] : shown) {
         if (target->drawnFrom != from || target->drawnOriginal != originals) {
+            Open::Replaced before;
+            before.target = handle;
+            before.drawn = target->drawn;
+            before.drawnFrom = target->drawnFrom;
+            before.drawnOriginal = target->drawnOriginal;
             target->drawn = target->document->pages().reordered(from);
             target->drawnFrom = from;
             target->drawnOriginal = originals;
@@ -795,12 +853,93 @@ core::Status DocumentBackendImpl::showEdits(core::DocumentHandle document,
             core::Destinations destinations;
             carryReaders(*target->document, from, originals, outline, destinations);
             const std::lock_guard<std::mutex> guard(mutex_);
+            before.outline = std::move(target->outline);
+            before.destinations = std::move(target->destinations);
             target->outline = std::move(outline);
             target->destinations = std::move(destinations);
+            replaced.push_back(std::move(before));
         }
-        target->document->show(entry->bytes, update, from);
+        target->document->show(entry->bytes, update, from, gate);
+        gated.push_back(handle);
     }
+
+    // THE VERIFY, on its own thread: the whole file put together there, against the seam as it stands NOW.
+    entry->verdict = core::Status{};
+    entry->unsettled = true;
+    entry->gated = std::move(gated);
+    entry->replaced = std::move(replaced);
+    Open* self = entry;
+    entry->verifying = std::thread([self, gate, update, fault = ops::RevisionWriter::composeFault()] {
+        const auto verifying = std::chrono::steady_clock::now();
+        const ops::MutationSinkImpl& sink = *self->sink;
+        core::Status verified = ops::RevisionWriter::verifyUpdate(sink.bytes(), update, sink, fault);
+        self->lastVerifyNs.store(std::chrono::duration_cast<std::chrono::nanoseconds>(
+                                     std::chrono::steady_clock::now() - verifying).count());
+        self->verdict = std::move(verified);
+        gate->resolve(static_cast<bool>(self->verdict));
+        const std::lock_guard<std::mutex> guard(self->settledMutex);
+        if (self->settled) self->settled();
+    });
     return core::Status{};
+}
+
+core::Status DocumentBackendImpl::settleEdits(core::DocumentHandle document)
+{
+    Open* entry = nullptr;
+    {
+        const std::lock_guard<std::mutex> guard(mutex_);
+        entry = find(document);
+    }
+    if (entry == nullptr) return core::Status{};
+    awaitVerify(*entry);
+    if (!entry->unsettled) return core::Status{};
+    entry->unsettled = false;
+    std::vector<Open::Replaced> replaced = std::move(entry->replaced);
+    std::vector<core::DocumentHandle> gated = std::move(entry->gated);
+    entry->replaced.clear();
+    entry->gated.clear();
+    if (entry->verdict) return core::Status{};
+
+    // REFUSED: every engine kept what it drew, so its tree, its order and its readers go back to what they were, and
+    // its refusal ends -- the journal takes the operation back next, and asks again for what it shows.
+    for (Open::Replaced& before : replaced) {
+        Open* target = nullptr;
+        {
+            const std::lock_guard<std::mutex> guard(mutex_);
+            target = find(before.target);
+        }
+        if (target == nullptr) continue;
+        target->drawn = std::move(before.drawn);
+        target->drawnFrom = std::move(before.drawnFrom);
+        target->drawnOriginal = std::move(before.drawnOriginal);
+        const std::lock_guard<std::mutex> guard(mutex_);
+        target->outline = std::move(before.outline);
+        target->destinations = std::move(before.destinations);
+    }
+    for (const core::DocumentHandle handle : gated) {
+        Open* target = nullptr;
+        {
+            const std::lock_guard<std::mutex> guard(mutex_);
+            target = find(handle);
+        }
+        if (target != nullptr) target->document->clearRefusal();
+    }
+    RAWPAGE_LOG_WARNING(core::LogSubsystem::Save)
+        << "backend: handle" << static_cast<int>(document.id) << "-- the verify refused its last edit:"
+        << entry->verdict.error().messageKey << entry->verdict.error().context;
+    return notShown(entry->verdict.error());
+}
+
+void DocumentBackendImpl::setEditsSettled(core::DocumentHandle document, std::function<void()> settled)
+{
+    Open* entry = nullptr;
+    {
+        const std::lock_guard<std::mutex> guard(mutex_);
+        entry = find(document);
+    }
+    if (entry == nullptr) return;
+    const std::lock_guard<std::mutex> guard(entry->settledMutex);
+    entry->settled = std::move(settled);
 }
 
 std::optional<DocumentBackendImpl::ReloadRecord> DocumentBackendImpl::reloadRecord(core::DocumentHandle document) const
@@ -808,6 +947,8 @@ std::optional<DocumentBackendImpl::ReloadRecord> DocumentBackendImpl::reloadReco
     const render::PdfiumDocument* found = nullptr;
     std::chrono::nanoseconds compose{0};
     std::chrono::nanoseconds verify{0};
+    std::size_t written = 0;
+    std::size_t reused = 0;
     const void* onDisk = nullptr;
     {
         const std::lock_guard<std::mutex> guard(mutex_);
@@ -815,7 +956,9 @@ std::optional<DocumentBackendImpl::ReloadRecord> DocumentBackendImpl::reloadReco
         if (entry == nullptr) return std::nullopt;
         found = entry->document.get();
         compose = entry->lastCompose;
-        verify = entry->lastVerify;
+        verify = std::chrono::nanoseconds(entry->lastVerifyNs.load());
+        written = entry->lastObjectsWritten;
+        reused = entry->lastObjectsReused;
         onDisk = entry->bytes.constData();
     }
     const render::PdfiumDocument::ReloadStats stats = found->reloadStats();
@@ -829,6 +972,8 @@ std::optional<DocumentBackendImpl::ReloadRecord> DocumentBackendImpl::reloadReco
     record.shownGeneration = stats.shownGeneration;
     record.lastCompose = compose;
     record.lastVerify = verify;
+    record.lastObjectsWritten = written;
+    record.lastObjectsReused = reused;
     record.engineBase = stats.shownBase;
     record.newestOnDisk = onDisk;
     return record;

@@ -108,6 +108,24 @@
 // annotations COPIES written from the sources' dictionaries (`copies_`), its label the next of its range.
 // The page tree is changed only where the walk read it without a note (`error.pdf.pageTreeDamaged`).
 //
+// THE COMPOSE KEEPS WHAT IT COMPOSED -- Stage 7 T4 (`Stage7-Assembly-Plan.md` Q4, `DW-4`'s second cause). D6-2
+// composes the whole unsaved update after every command, so before T4 a one-page move after 1,500 unsaved
+// highlights rebuilt and re-serialized 3,701 objects (25 ms of the UI thread; verify another 21). Two rules end
+// that, and neither changes WHAT is written:
+//   * **Every new object is numbered by NAME** (`cos::NumberBook`): `annot:<NM>`, `ap:<NM>`, `page:<n>`,
+//     `shared:<key>`, ... -- kept from one compose to the next until a save, so a move renumbers nothing it did
+//     not touch. A name no compose asks for any more gives its number back (see `cos::NumberBook`).
+//   * **A UNIT whose inputs are what they were is written again as it was** (`cos::WrittenObject`, copied
+//     verbatim): a created annotation -- its model, its page, the references it resolves, the shared objects
+//     its appearance named -- an annotation edited in place, and a page's `/Annots` listing written into its
+//     own array or a page dictionary nothing else changes. The inputs are COMPARED, every compose, rather
+//     than tracked by the mutators: a comparison that is wrong rebuilds, where a missed mark would write a
+//     stale object. Everything else -- the page tree, labels, repairs, the name tree, a copy on a duplicated
+//     page -- is built again each time, as before; none of it grows with the unsaved annotations.
+// `composed()` is what `RevisionWriter::compose` tells it once the writer has written the update: the round
+// ends and each unit built in it keeps the bytes it was written as. `adopt()` drops all of it -- the next
+// revision's numbers start above what the save wrote.
+//
 // WHAT IT DOES NOT DO. It refuses nothing on policy -- whether this document may be edited at all is
 // `core/doc/Permissions` (D3-7, T4) -- and it writes nothing: the update's bytes, the temporary file
 // and the replace are `IncrementalWriter`, `SaveCoordinator` and `platform::IDurableFiles`.
@@ -125,9 +143,13 @@
 #include "pdf/ops/PageOps.h"
 #include "pdf/ops/ReferenceRepair.h"
 
+#include <cstdint>
 #include <map>
 #include <memory>
+#include <optional>
+#include <string>
 #include <string_view>
+#include <vector>
 
 namespace rawpage::pdf::ops {
 
@@ -144,8 +166,19 @@ public:
 
     // The update the desired state needs, against the newest revision on disk. Empty when nothing
     // differs. The delta is built over `table()`, which is what `IncrementalWriter` must be handed
-    // with it.
+    // with it. S7 T4: its new objects are numbered by this sink's book, which the delta points at.
     core::Result<cos::ObjectDelta> delta();
+    // S7 T4: `IncrementalWriter::protectOriginal` for `delta`, from a walk made once per revision.
+    void protect(cos::ObjectDelta& delta);
+    // S7 T4: the writer wrote `delta()`'s update as `update` -- every unit built in the compose keeps the objects it
+    // was written as (see the header); the book's round ended with `delta()`. Not called for a compose that failed.
+    void composed(const cos::WrittenUpdate& update);
+    // S7 T4: the same for a compose that wrote nothing at all.
+    void composedNothing();
+    // S7 T4's TEST SEAM (guide A-128): everything composed is forgotten -- every unit, the annotations' block -- and the
+    // book KEPT, so the next compose builds every object from nothing at the numbers it has. What it writes must be
+    // byte for byte what a compose that kept them writes.
+    void forgetComposedForTesting();
 
     // After a save: compare against `bytes` from now on. The page count must be unchanged -- nothing
     // at Stage 3 adds or removes a page -- and desired rotations now equal to the disk are dropped. Every
@@ -290,8 +323,10 @@ private:
     // T5: an edited annotation's dictionary as it will be written, from `onDisk`; its appearance added to
     // `delta` when it is redrawn.
     // T7: its appearance's shared objects (a font) through `shared`, one per compose.
+    // S7 T4: `name` prefixes the book names of the appearance objects it adds (`<name>:ap`, `<name>:ro`).
     core::Result<cos::CosObject> editedFrom(const cos::CosObject& onDisk, const Edit& edit, cos::ObjectDelta& delta,
-                                            const std::map<QString, long long>& written, AppearanceObjects& shared);
+                                            const std::map<QString, long long>& written, AppearanceObjects& shared,
+                                            const std::string& name);
     // T6: where a reference to `id` is written -- see the header. `written` is this compose's created numbers.
     std::optional<cos::CosRef> resolveReference(const core::AnnotationId& id,
                                                 const std::map<QString, long long>& written) const;
@@ -375,7 +410,8 @@ private:
     core::Status composeFiles(cos::ObjectDelta& delta, std::map<long long, cos::CosObject>& pending);
     // The `/EmbeddedFile` stream and the file specification for `file`, added to `delta`; the reference to the
     // specification. `compressed` is the stream's data, `/FlateDecode`d once (`compressedFor`).
-    static cos::CosRef addFileSpecification(cos::ObjectDelta& delta, const core::EmbeddedFile& file,
+    // S7 T4: numbered by the book as `<name>:stream` and `<name>:spec`.
+    static cos::CosRef addFileSpecification(cos::ObjectDelta& delta, const std::string& name, const core::EmbeddedFile& file,
                                             std::string compressed);
     // Null when the bytes will not compress -- which zlib does not do short of running out of memory.
     const std::string* compressedFor(const QString& cacheKey, const QByteArray& data);
@@ -390,6 +426,72 @@ private:
         std::string flate;
     };
     std::map<QString, Compressed> compressed_;
+
+    // --- The compose that keeps what it composed (Stage 7 T4) -- see the header ---------------------
+    cos::NumberBook& book();
+    const cos::Protection& protection();
+    std::optional<cos::NumberBook> book_;            // dropped by adopt
+    std::optional<cos::Protection> protection_;      // dropped by adopt
+    std::uint64_t round_ = 0;                        // the compose in progress, or the last
+    std::size_t lastWritten_ = 0;                    // objects the last compose wrote
+    using Written = std::shared_ptr<const cos::WrittenObject>;
+    // ONE UNIT's objects: their book names and numbers, the shared appearance objects it named, and -- once the
+    // writer has written them -- each object as written. `round` is the compose that last used it.
+    struct UnitObjects {
+        std::vector<std::string> names;
+        std::vector<long long> numbers;
+        std::vector<std::string> shared;
+        std::vector<Written> written;
+        std::uint64_t round = 0;
+        bool complete() const noexcept { return !numbers.empty() && written.size() == numbers.size(); }
+    };
+    // A created annotation, as the last compose that built it built it.
+    struct CreatedUnit {
+        core::Annotation annotation;
+        cos::CosRef page;
+        std::vector<std::optional<cos::CosRef>> references;   // what its references resolved to
+        UnitObjects objects;                                  // the dictionary first
+    };
+    std::map<QString, CreatedUnit> createdUnits_;            // by /NM
+    // An annotation on disk edited in place: its edit, and the references it resolved.
+    struct EditUnit {
+        Edit edit;
+        std::vector<std::optional<cos::CosRef>> references;
+        UnitObjects objects;                                  // the replaced object first
+    };
+    std::map<long long, EditUnit> editUnits_;                // by its object number
+    // A page's `/Annots` listing written into its own array object, or into a page dictionary nothing else
+    // in the compose changed: what was listed, and the object as written.
+    struct ListingUnit {
+        std::vector<cos::CosObject> items;
+        bool intoPage = false;
+        UnitObjects objects;
+    };
+    std::map<long long, ListingUnit> listingUnits_;          // by the number it is written at
+    // A shared appearance object (a font, an image): what it is, and as written.
+    struct SharedUnit {
+        cos::CosObject object;
+        std::optional<std::string> data;
+        UnitObjects objects;
+    };
+    std::map<std::string, SharedUnit> sharedUnits_;          // by key
+    // EVERY object the last compose wrote for the annotations, for a compose after which nothing about them changed
+    // -- `annotationEpoch_`, moved by each command that can change them -- to write again whole (`composeAnnotations`).
+    struct AnnotationBlock {
+        std::uint64_t epoch = 0;
+        std::uint64_t round = 0;
+        std::vector<std::string> names;      // every book name the annotations asked for
+        std::vector<long long> numbers;      // every object, ascending
+        std::vector<long long> intoPages;    // the page dictionaries among them, which carry nothing but a listing
+        std::vector<Written> written;
+        bool complete() const noexcept { return !numbers.empty() && written.size() == numbers.size(); }
+    };
+    AnnotationBlock block_;
+    std::uint64_t annotationEpoch_ = 0;
+    class DeltaObjects;                                      // the compose's `AppearanceObjects`
+    // Re-lists `objects` in `delta` as written, marking each name used; false -- the unit is to be built
+    // again -- when one is not written, its name now has another number, or a shared object cannot follow.
+    bool reuseUnit(UnitObjects& objects, cos::ObjectDelta& delta, DeltaObjects& shared);
 };
 
 } // namespace rawpage::pdf::ops

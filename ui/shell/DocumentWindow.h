@@ -391,7 +391,8 @@ signals:
 
     // S6 T5 -- an annotation change was refused (a lock, a page that cannot be edited, a kind this build
     // cannot draw), in the person's words; the selection or the properties bar changed, so the chrome
-    // re-asks the commands that depend on them.
+    // re-asks the commands that depend on them. S7 T4: and ANY edit taken back after it returned, because the
+    // verify off the UI thread refused it (`CommandJournal::settle`).
     void annotationRefused(const QString& reason);
     // S6 T12 (D6-14): a measurement made in any pane, reading `reading` (the history has it already); a distance
     // measured to CALIBRATE, `points` long -- the shell asks what it is and sets the scale; and something the

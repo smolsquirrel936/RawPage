@@ -322,16 +322,46 @@ public:
         const auto notShown = [](const core::Error& error) {
             return core::Error{error.code, QLatin1String("error.edit.notShown"), QString(error.messageKey)};
         };
-        auto composed = pdf::ops::RevisionWriter::compose(*entry->sink, entry->repair.requiresSaveAs());
+        // S7 T4: the shipped backend's split -- the update composed here, the verify of it against the seam as it
+        // stands now -- with the verify run at once, or (`deferVerifies`) only when `settleEdits` asks, which is the
+        // shipped backend's order with no thread: the headless way to reach a refusal that comes after the run.
+        auto composed = pdf::ops::RevisionWriter::composeUpdate(*entry->sink, entry->repair.requiresSaveAs());
         if (!composed) return notShown(composed.error());
-        const std::string_view original = entry->sink->bytes();
-        const std::string_view written(composed.value().bytes.constData(),
-                                       static_cast<std::size_t>(composed.value().bytes.size()));
-        if (const core::Status verified = pdf::ops::RevisionWriter::verify(original, written, *entry->sink); !verified)
+        auto verify = [sink = entry->sink.get(), update = composed.value().update,
+                       fault = pdf::ops::RevisionWriter::composeFault()] {
+            return pdf::ops::RevisionWriter::verifyUpdate(sink->bytes(), update, *sink, fault);
+        };
+        if (deferVerifies_) {
+            entry->pending = std::move(verify);
+            entry->pendingUpdate = composed.value().update;
+            return {};
+        }
+        if (const core::Status verified = verify(); !verified)
             return notShown(verified.error());
-        entry->shown = composed.value().bytes.mid(static_cast<qsizetype>(original.size()));
+        entry->shown = composed.value().update;
         return {};
     }
+    core::Status settleEdits(core::DocumentHandle handle) override
+    {
+        auto* entry = findMutable(handle);
+        if (entry == nullptr || !entry->pending) return {};
+        ++settles_;
+        const core::Status verified = entry->pending();
+        entry->pending = {};
+        if (!verified)
+            return core::Error{verified.error().code, QLatin1String("error.edit.notShown"), QString(verified.error().messageKey)};
+        entry->shown = entry->pendingUpdate;
+        return {};
+    }
+    void setEditsSettled(core::DocumentHandle, std::function<void()>) override {}
+    // S7 T4: whether a verify waits for `settleEdits` -- and whether one does now.
+    void deferVerifies(bool defer) { deferVerifies_ = defer; }
+    bool verifyPending(core::DocumentHandle handle) const
+    {
+        const auto* entry = find(handle);
+        return entry != nullptr && static_cast<bool>(entry->pending);
+    }
+    int settles() const { return settles_; }
     QByteArray shownUpdate(core::DocumentHandle handle) const
     {
         const auto* entry = find(handle);
@@ -372,6 +402,8 @@ private:
         core::DocumentId id;
         std::unique_ptr<pdf::ops::MutationSinkImpl> sink;
         QByteArray shown;                      // S6 T4: the update the last `showEdits` composed
+        std::function<core::Status()> pending; // S7 T4: a verify `settleEdits` has not run yet
+        QByteArray pendingUpdate;              // ... and the update it would show
     };
     Entry* findMutable(core::DocumentHandle handle)
     {
@@ -391,6 +423,8 @@ private:
     bool failAdopt_ = false;
     int adoptions_ = 0;
     int shows_ = 0;
+    int settles_ = 0;
+    bool deferVerifies_ = false;
 };
 
 } // namespace rawpage::tests

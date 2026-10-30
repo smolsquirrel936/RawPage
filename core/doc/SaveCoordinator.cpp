@@ -95,6 +95,9 @@ QString SaveCoordinator::temporaryPathFor(const QString& target, qint64 processI
 
 Result<SaveOutcome> SaveCoordinator::save(CommandJournal& journal, const QString& path)
 {
+    // S7 T4: the last edit's verify first -- a save writes the composition that VERIFIED, and an edit refused after
+    // it returned is taken back, and told to whoever listens for refusals, before anything is written.
+    journal.settle();
     if (durableFiles_ == nullptr)
         return Error{ErrorCode::Unavailable, QLatin1String("error.save.noDurableFiles"), path};
     if (!journal.isDirty())
@@ -111,6 +114,7 @@ Result<SaveOutcome> SaveCoordinator::save(CommandJournal& journal, const QString
 
 Result<SaveOutcome> SaveCoordinator::saveAs(CommandJournal& journal, const QString& target)
 {
+    journal.settle();   // S7 T4: as `save`
     if (durableFiles_ == nullptr)
         return Error{ErrorCode::Unavailable, QLatin1String("error.save.noDurableFiles"), target};
     // The document's own file goes through every check a Save makes -- or a repaired document could

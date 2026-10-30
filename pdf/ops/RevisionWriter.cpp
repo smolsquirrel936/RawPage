@@ -57,40 +57,75 @@ void removeQuietly(const QString& path)
 
 } // namespace
 
-core::Result<ComposedRevision> RevisionWriter::compose(MutationSinkImpl& sink, bool complete)
+core::Result<ComposedUpdate> RevisionWriter::composeUpdate(MutationSinkImpl& sink, bool complete)
 {
     auto delta = sink.delta();
     if (!delta)
         return delta.error();
 
     const std::string_view original = sink.bytes();
-    ComposedRevision composed;
+    ComposedUpdate composed;
     composed.complete = complete;
 
     // Whenever anything will follow the original, the delta must not let it change what the original
     // MEANS -- an object that runs to the end of the file, a number referenced and never defined
-    // (Stage 3 guide issue I-12; `IncrementalWriter::protectOriginal` says how).
+    // (Stage 3 guide issue I-12; `IncrementalWriter::protectOriginal` says how). S7 T4: from the walk the
+    // sink made once for this revision.
     if (complete || !delta.value().isEmpty())
-        cos::IncrementalWriter::protectOriginal(sink.table(), delta.value());
+        sink.protect(delta.value());
 
     if (!complete && delta.value().isEmpty()) {
         // Nothing to append and no table to complete: the next revision IS the newest one on disk.
-        composed.bytes = QByteArray(original.data(), static_cast<qsizetype>(original.size()));
-    } else {
-        auto update = complete ? cos::IncrementalWriter::appendComplete(original, sink.table(), delta.value())
-                               : cos::IncrementalWriter::append(original, sink.table(), delta.value());
-        if (!update)
-            return update.error();
-        composed.bytes.reserve(static_cast<qsizetype>(original.size() + update.value().bytes.size()));
-        composed.bytes.append(original.data(), static_cast<qsizetype>(original.size()));
-        composed.bytes.append(update.value().bytes.data(), static_cast<qsizetype>(update.value().bytes.size()));
-        composed.objectsWritten = update.value().objectsWritten;
+        sink.composedNothing();
+        return composed;
     }
+    auto update = complete ? cos::IncrementalWriter::appendComplete(original, sink.table(), delta.value())
+                           : cos::IncrementalWriter::append(original, sink.table(), delta.value());
+    if (!update)
+        return update.error();
+    sink.composed(update.value());   // S7 T4: the round ends; what was written is kept
+    composed.update = QByteArray(update.value().bytes.data(), static_cast<qsizetype>(update.value().bytes.size()));
+    composed.objectsWritten = std::move(update.value().objectsWritten);
+    composed.objectsReused = update.value().objectsReused;
+    return composed;
+}
+
+core::Result<ComposedRevision> RevisionWriter::compose(MutationSinkImpl& sink, bool complete)
+{
+    auto update = composeUpdate(sink, complete);
+    if (!update)
+        return update.error();
+    const std::string_view original = sink.bytes();
+    ComposedRevision composed;
+    composed.complete = complete;
+    composed.bytes.reserve(static_cast<qsizetype>(original.size()) + update.value().update.size());
+    composed.bytes.append(original.data(), static_cast<qsizetype>(original.size()));
+    composed.bytes.append(update.value().update);
+    composed.objectsWritten = std::move(update.value().objectsWritten);
 
     std::lock_guard<std::mutex> lock(faultMutex());
     if (fault())
         fault()(composed.bytes);
     return composed;
+}
+
+RevisionWriter::ComposeFault RevisionWriter::composeFault()
+{
+    std::lock_guard<std::mutex> lock(faultMutex());
+    return fault();
+}
+
+core::Status RevisionWriter::verifyUpdate(std::string_view original, const QByteArray& update,
+                                          const MutationSinkImpl& sink, const ComposeFault& fault)
+{
+    // The whole file, as `compose` would hand it over -- built here, on the verifying thread, so the caller
+    // never copies the original to show an edit.
+    QByteArray whole;
+    whole.reserve(static_cast<qsizetype>(original.size()) + update.size());
+    whole.append(original.data(), static_cast<qsizetype>(original.size()));
+    whole.append(update);
+    if (fault) fault(whole);
+    return verify(original, viewOf(whole), sink);
 }
 
 core::Status RevisionWriter::verify(std::string_view original, std::string_view written, const MutationSinkImpl& sink)

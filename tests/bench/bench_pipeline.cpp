@@ -1449,8 +1449,9 @@ int runStage5Workload(core::IDocumentBackend& backend, const OpenFn& open, const
 //     scope page that covers the new annotation, at the edit's revision or later, WITH ITS PIXELS
 //     CHANGED from that tile's previous delivery (rule 1: a tile that arrived unchanged is counted and is
 //     not a sample of anything).
-//   * `run` (the journal's whole call, compose and verify inside it), compose and verify alone, and the
-//     reload under the engine lock -- reported, not graded.
+//   * `run` (the journal's whole call: since Stage 7 T4 the compose inside it and the verify on a thread of its own,
+//     waited for by the next command's settle), the compose and the verify apart, and the reload under the engine lock
+//     -- reported, not graded. The verify read after a run is the one before it: its own may still be running.
 //
 // **THE EDIT IS §3.1's: AN INK STROKE OF 200 SAMPLES** (Stage 6 T15). At T4 the sink wrote Highlight alone,
 // so the edit was a highlight of 50 quadrilaterals -- 400 coordinates, as 200 samples are -- and the guide's
@@ -1562,7 +1563,8 @@ Stage6Outcome runStage6Column(const QString& relative, int scopePage, const Reso
     }
     core::CommandJournal journal(std::move(document), backend.mutationSink(handle));
     // THE PRODUCT'S SHOW STEP, as `ui/shell/DocumentWindow` sets it.
-    journal.setShowHandler([&](const core::Scope&) { return backend.showEdits(handle, {}); });
+    journal.setShowHandler([&](const core::Scope&) { return backend.showEdits(handle, {}); },
+                           [&] { return backend.settleEdits(handle); });
 
     ServiceLog log;
     {
@@ -1847,8 +1849,8 @@ int runStage6Workload(const Resolution& a2)
         report("+ edits VIEWPORT", edited.viewport, edited.wallMs);
         reportDistribution("edit->pixels", edited.editToPixels);
         reportDistribution("journal.run", edited.runMs);
-        reportDistribution("compose+verify", edited.composeMs);
-        reportDistribution("  the verify", edited.verifyMs);
+        reportDistribution("compose (UI thread)", edited.composeMs);
+        reportDistribution("verify (own thread)", edited.verifyMs);
         reportDistribution("reload", edited.reloadMs);
         reportDistribution("path geometry", edited.geometryMs);
         std::printf("      path geometry: %zu page(s) read, %lld segment(s), %lld refused\n", edited.geometryMs.size(),
@@ -1924,7 +1926,7 @@ int runStage6Workload(const Resolution& a2)
 //     equal to the same tile of the same page captured before the first command. A tile of that index with
 //     other pixels is counted as WRONG and is not a sample -- one would be another page's picture under this
 //     page's key, the S1 D7-3 exists to prevent.
-//   * `journal.run`, the compose and verify inside it, the REMAP (the cache's and the queue's, timed around
+//   * `journal.run` (the compose inside it; since Stage 7 T4 the verify on its own thread), the REMAP (the cache's and the queue's, timed around
 //     `documentChanged`) and the reload under the engine lock -- reported, not graded (§3.7 grades `run`).
 //
 // **THE INSERT IS A STAND-IN, and says so.** §3.1's workload ends with one `InsertPages` of 100 pages from
@@ -1978,7 +1980,8 @@ Stage7Outcome runStage7Column(const QString& relative, const Resolution& view, b
         return outcome;
     }
     core::CommandJournal journal(std::move(document), backend.mutationSink(handle));
-    journal.setShowHandler([&](const core::Scope&) { return backend.showEdits(handle, {}); });
+    journal.setShowHandler([&](const core::Scope&) { return backend.showEdits(handle, {}); },
+                           [&] { return backend.settleEdits(handle); });
 
     ServiceLog log;
     {
@@ -2253,8 +2256,8 @@ int runStage7Workload(const Resolution& a2)
         report("+ moves VIEWPORT", moved.viewport, moved.wallMs);
         reportDistribution("command->pixels", moved.commandToPixels);
         reportDistribution("journal.run", moved.runMs);
-        reportDistribution("compose+verify", moved.composeMs);
-        reportDistribution("  the verify", moved.verifyMs);
+        reportDistribution("compose (UI thread)", moved.composeMs);
+        reportDistribution("verify (own thread)", moved.verifyMs);
         reportDistribution("remap", moved.remapMs);
         reportDistribution("reload", moved.reloadMs);
         std::printf("      insert (stand-in) journal.run %.3f ms, to the pixels %s\n", moved.insertRunMs,

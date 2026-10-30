@@ -36,7 +36,7 @@ takes it.
 | **DW-1** | **Substitute page colours** — the second half of `Features.md` §1.2's *"invert / substitute page colors for high-contrast reading"* | `Stage4-ViewingSurface-Testing-Guide.md` §8 **I-07** (S4), Stage 4 T8, 2026-09-21 | ⚪ **Deferred** by the user, 2026-09-27 | **Unassigned** — no stage's plan names it |
 | **DW-2** | **A vector snapshot** — `Features.md` §8's `S` (*"copy a dragged region as an image"*) as a vector metafile that stays sharp when scaled, rather than a bitmap | `Stage5-TextSearch-Plan.md` §0 **Q3** and **D5-10**, written 2026-09-29 before any Stage 5 code | ⚪ **Deferred** by the user, 2026-09-29 (option B of three) | **Unassigned** — no stage's plan names it |
 | **DW-3** | **Typed comments in scripts outside WinAnsi and the four CJK collections** — `Features.md` §4.1's text box, callout, typewriter and dynamic stamp showing Cyrillic, Greek, Hebrew, Arabic, Thai, Devanagari and every other script a font must be embedded for — **and, since 2026-10-29, the text Stage 7 draws on pages**: headers, footers, watermarks, Bates prefixes and suffixes, the table-of-contents page (`Stage7-Assembly-Plan.md` §0 **Q5(e)**) | `Stage6-Annotations-Plan.md` §0 **Q3** and **D6-7**, written 2026-10-04 before any Stage 6 code | ⚪ **Deferred** by the user, 2026-10-04 (Q3 approved as proposed) | **Unassigned** — no stage's plan names it |
-| **DW-4** | **An annotation burst inside A2's frame budget** -- `Stage6-Annotations-Testing-Guide.md` §3.1's scale for *A2 at Stage 6*, which neither T4's bench nor T15's product reading met | `Stage6-Annotations-Plan.md` **D6-24**, Stage 6 T4 (2026-10-05) and T15 (guide **A-104**), 2026-10-20 | ⚪ **Deferred** by the user, 2026-10-20 (the first of three options); **split 2026-10-29** | **Cause (2), the show step: taken by Stage 7** -- `Stage7-Assembly-Plan.md` §0 **Q4**, task **T4** (approved by the user 2026-10-29). **Cause (1), the annotated page's tile: unassigned** -- no stage's plan names it |
+| **DW-4** | **An annotation burst inside A2's frame budget** -- `Stage6-Annotations-Testing-Guide.md` §3.1's scale for *A2 at Stage 6*, which neither T4's bench nor T15's product reading met | `Stage6-Annotations-Plan.md` **D6-24**, Stage 6 T4 (2026-10-05) and T15 (guide **A-104**), 2026-10-20 | ⚪ **Deferred** by the user, 2026-10-20 (the first of three options); **split 2026-10-29** | **Cause (2), the show step: taken by Stage 7** -- `Stage7-Assembly-Plan.md` §0 **Q4**, task **T4** (approved by the user 2026-10-29); **BUILT at T4, 2026-10-31** (D7-26, D7-27), its verdict -- `Stage7-Assembly-Testing-Guide.md` §3.7 -- read at T5 and T11 by the user's choice. **Cause (1), the annotated page's tile: unassigned** -- no stage's plan names it |
 
 ---
 
@@ -214,5 +214,14 @@ of drawing rather than §3.1's burst. The stage that takes this decides how.
 (`Stage7-Assembly-Plan.md` §0 **Q4**, approved by the user 2026-10-29; graded by
 `Stage7-Assembly-Testing-Guide.md` §3.7). Stage 7 took it because its commands make the unsaved update large in
 one gesture -- an insert of copied pages, a header on every page -- where Stage 6 needed hundreds of strokes.
-**Cause (1), a tile of a page carrying hundreds of annotations: unassigned.** The entry stays open until both
-are done.
+**Built at Stage 7 T4, 2026-10-31** (`Stage7-Assembly-Plan.md` D7-26, D7-27): the compose writes again, as it
+wrote them, the objects whose inputs are what they were, numbered by name across composes; and the verify runs on
+a thread of its own, the engine waiting for it. **Measured there on a STAND-IN** -- unsaved highlights on
+`text-900.pdf`, not §3.7's copied pages: what a one-page move and a rotation build is 2 objects at 0, 300 and 3,000
+unsaved objects (guide A-35); `journal.run`'s p95 for the move fell from 49.8 ms after 3,701 unsaved objects (a
+probe before the change; 5.95 ms with none) to 7.55–9.34 ms after 3,000 (2.32–2.82 with none), the verify's
+19–20 ms now off the UI thread. **That is still +5–6.5 ms of growth, past §3.7's 2 ms bar on the stand-in** --
+writing what is reused, the block's names, the copy to the engine -- and A-35 says so.
+**§3.7's verdict is read at T5 (inserts) and T11 (a bookmark rename)**, the user's choice of 2026-10-31: until then
+cause (2) is built, not done. **Cause (1), a tile of a page carrying hundreds of annotations: unassigned.** The
+entry stays open until both are done.

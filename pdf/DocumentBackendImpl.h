@@ -140,6 +140,9 @@ public:
     // Stage 6 T4 (D6-2): `RevisionWriter::compose` and `verify` -- Save's own -- then each engine's
     // `PdfiumDocument::show`.
     core::Status showEdits(core::DocumentHandle document, const std::vector<core::DocumentHandle>& viewers) override;
+    // Stage 7 T4: the verify `showEdits` started, waited for and answered -- see the definition.
+    core::Status settleEdits(core::DocumentHandle document) override;
+    void setEditsSettled(core::DocumentHandle document, std::function<void()> settled) override;
 
     // D6-2's record, for the cases and the bench that grade it (guide A-37, A-38): the reloads the
     // engine of `document` has made. Not on the interface -- a diagnostic of this engine, as
@@ -152,8 +155,10 @@ public:
         std::thread::id lastThread;
         std::uint64_t pendingGeneration = 0;
         std::uint64_t shownGeneration = 0;
-        std::chrono::nanoseconds lastCompose{0};   // the last `showEdits`: compose and verify, on its caller
-        std::chrono::nanoseconds lastVerify{0};    // ...of which the verify
+        std::chrono::nanoseconds lastCompose{0};   // the last `showEdits`: its compose, on its caller (S7 T4)
+        std::chrono::nanoseconds lastVerify{0};    // ...and its verify, on a thread of its own (S7 T4)
+        std::size_t lastObjectsWritten = 0;        // S7 T4: the objects the last update holds...
+        std::size_t lastObjectsReused = 0;         // ...of which written again as the compose before wrote them
         const void* engineBase = nullptr;          // the data the engine reads the original from...
         const void* newestOnDisk = nullptr;        // ...and the backend's own buffer: equal when nothing was copied
     };
@@ -171,6 +176,8 @@ private:
     struct Opening;
 
     Open* find(core::DocumentHandle document);
+    // S7 T4: the verify of `entry`'s last `showEdits`, finished -- before anything reads the sink again.
+    static void awaitVerify(Open& entry);
     const Open* find(core::DocumentHandle document) const;
     // The last piece: everything `open()` did after the engine opened the bytes, and the registration.
     core::Result<core::DocumentHandle> assemble(Opening& opening);

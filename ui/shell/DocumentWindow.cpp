@@ -531,7 +531,21 @@ void DocumentWindow::build(const Recovery* recovery)
             // composed, verified and handed to the engine before it counts -- one Save could not write
             // is refused when it is made. Set after the replay, which runs with no window to show; a
             // replayed session is then shown once, whole.
-            journal_->setShowHandler([this](const core::Scope&) { return showEdits(); });
+            journal_->setShowHandler([this](const core::Scope&) { return showEdits(); },
+                                     [this] { return services_.backend.settleEdits(handle_); });
+            // STAGE 7 T4 (`Stage7-Assembly-Plan.md` Q4): AND VERIFIED OFF THIS THREAD. The journal waits for the verify
+            // before its next operation and before a save, and takes back an edit Save could not write
+            // (`CommandJournal::settle`). The backend says when a verify has finished -- on ITS thread, so this window
+            // posts itself the settle -- and a refusal is then taken back at once rather than at the next command, and
+            // said where a refused annotation change is. The destructor clears the call before the handle goes.
+            journal_->subscribeRefused([this](const core::Error& error) {
+                emit annotationRefused(catalog::translateError(QString(error.messageKey), error.context));
+            });
+            services_.backend.setEditsSettled(handle_, [this] {
+                QMetaObject::invokeMethod(this, [this] {
+                    if (journal_) journal_->settle();
+                }, Qt::QueuedConnection);
+            });
             if (journal_->position() > 0) {
                 if (const core::Status shown = showEdits(); !shown) {
                     RAWPAGE_LOG_WARNING(LogSubsystem::Render)
@@ -1039,6 +1053,9 @@ DocumentWindow::~DocumentWindow()
     // subscription left behind is a call into a destroyed widget on the next preference change --
     // convention 10, in the form where the caller is a settings store rather than a signal.
     if (settingsSubscription_ != 0) services_.settings.unsubscribe(settingsSubscription_);
+    // S7 T4: and the backend's call when a verify finishes, which posts to this object -- cleared under the backend's
+    // own lock, so no verify thread is inside it once this returns.
+    if (journal_ && handle_.isValid()) services_.backend.setEditsSettled(handle_, {});
 
     // EVERY SECOND VIEW OF THIS DOCUMENT IS CUT LOOSE FIRST (S4 T11). A companion lays out from
     // THIS tab's page tree, which `journal_` owns and which is destroyed at the end of this body --

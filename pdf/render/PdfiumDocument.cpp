@@ -414,14 +414,76 @@ PdfiumDocument::~PdfiumDocument()
 void* PdfiumDocument::engineHandle() const noexcept
 {
     adoptPendingLocked();
+    if (refused_.load()) return nullptr;   // S7 T4: the last gate failed -- see `show`
     return engine_ ? static_cast<void*>(engine_->document) : nullptr;
+}
+
+// =============================================================================================
+// THE GATE -- Stage 7 T4 (the header's `ShowGate` and `show`)
+// =============================================================================================
+
+void ShowGate::resolve(bool passed)
+{
+    {
+        const std::lock_guard<std::mutex> guard(mutex_);
+        if (passed_) return;
+        passed_ = passed;
+    }
+    resolved_.notify_all();
+}
+
+bool ShowGate::wait() const
+{
+    std::unique_lock<std::mutex> lock(mutex_);
+    resolved_.wait(lock, [this] { return passed_.has_value(); });
+    return *passed_;
+}
+
+std::optional<bool> ShowGate::verdict() const
+{
+    const std::lock_guard<std::mutex> guard(mutex_);
+    return passed_;
+}
+
+void PdfiumDocument::decideGatedLocked() const
+{
+    if (!gated_) return;
+    const std::optional<bool> verdict = gated_->gate->verdict();
+    if (!verdict) return;
+    if (*verdict) {
+        if (pending_) ++reloadStats_.coalesced;   // the revision queued before it is never drawn
+        pending_ = std::move(gated_);
+        pending_->gate.reset();
+    } else {
+        // DROPPED: the engine keeps what it draws, and nothing is queued for the refused revision.
+        refused_.store(true);
+        reloadStats_.pendingGeneration = pending_ ? pending_->generation : reloadStats_.shownGeneration;
+    }
+    gated_.reset();
+}
+
+void PdfiumDocument::awaitShown() const
+{
+    std::shared_ptr<ShowGate> gate;
+    {
+        const std::lock_guard<std::mutex> guard(pendingMutex_);
+        if (gated_) gate = gated_->gate;
+    }
+    if (gate) gate->wait();
+}
+
+void PdfiumDocument::clearRefusal()
+{
+    const std::lock_guard<std::mutex> guard(pendingMutex_);
+    decideGatedLocked();
+    refused_.store(false);
 }
 
 // =============================================================================================
 // THE RELOAD -- Stage 6 T4, D6-2 (the header's `show`)
 // =============================================================================================
 
-void PdfiumDocument::show(QByteArray base, QByteArray update, std::vector<int> from)
+void PdfiumDocument::show(QByteArray base, QByteArray update, std::vector<int> from, std::shared_ptr<ShowGate> gate)
 {
     // THE IDENTITY IS SPELLED EMPTY, so a document no page command touched compares as it always did.
     bool identity = static_cast<int>(from.size()) == pages_.count();
@@ -429,6 +491,12 @@ void PdfiumDocument::show(QByteArray base, QByteArray update, std::vector<int> f
     if (identity) from.clear();
 
     const std::lock_guard<std::mutex> guard(pendingMutex_);
+    // S7 T4: a gate decided since the last show first -- its revision pending, or dropped -- and a new show ends a
+    // refusal. One still undecided is superseded by this show (the backend waits for its verify before showing
+    // again, so only a revision put back on the file's own bytes meets one).
+    decideGatedLocked();
+    gated_.reset();
+    refused_.store(false);
     // Built here, on the caller's thread, so the swap under the engine lock only moves a pointer -- and only for
     // an order not already queued or drawn: an annotation edit after a move keeps the move's tree.
     std::shared_ptr<const core::PageTree> tree;
@@ -452,6 +520,19 @@ void PdfiumDocument::show(QByteArray base, QByteArray update, std::vector<int> f
     const bool drawnNow = shownBase_.isNull() ? same(bytes_, QByteArray(), shownFrom_)
                                               : same(shownBase_, shownUpdate_, shownFrom_);
     if (pending_ ? same(pending_->base, pending_->update, pending_->from) : drawnNow) return;
+    if (gate) {
+        // S7 T4: BEHIND ITS GATE. A revision already pending stays pending until the gate decides between them.
+        Pending next;
+        next.base = std::move(base);
+        next.update = std::move(update);
+        next.from = std::move(from);
+        next.pages = std::move(tree);
+        next.generation = ++nextGeneration_;
+        next.gate = std::move(gate);
+        reloadStats_.pendingGeneration = next.generation;
+        gated_ = std::move(next);
+        return;
+    }
     if (pending_) {
         ++reloadStats_.coalesced;
         if (drawnNow) {
@@ -484,9 +565,18 @@ PdfiumDocument::ReloadStats PdfiumDocument::reloadStats() const
 
 void PdfiumDocument::adoptPendingLocked() const
 {
+    // S7 T4: a gated revision's verdict first. Waited for HERE, under the engine lock, only by a caller that did not
+    // `awaitShown()` before taking it; the verify takes no engine lock, so the wait always ends.
+    std::shared_ptr<ShowGate> gate;
+    {
+        const std::lock_guard<std::mutex> guard(pendingMutex_);
+        if (gated_) gate = gated_->gate;
+    }
+    if (gate) gate->wait();
     std::optional<Pending> next;
     {
         const std::lock_guard<std::mutex> guard(pendingMutex_);
+        decideGatedLocked();
         if (!pending_) return;
         next.swap(pending_);
     }

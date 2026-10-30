@@ -58,7 +58,9 @@
 #include <QByteArray>
 #include <QString>
 
+#include <atomic>
 #include <chrono>
+#include <condition_variable>
 #include <cstdint>
 #include <map>
 #include <memory>
@@ -69,6 +71,22 @@
 #include <vector>
 
 namespace rawpage::pdf::render {
+
+// THE VERDICT A QUEUED REVISION WAITS FOR -- Stage 7 T4 (`Stage7-Assembly-Plan.md` Q4). `IDocumentBackend::showEdits`
+// verifies its composition on a thread of its own and hands every engine the update GATED on that verify: the
+// engine swaps it in only once the gate has PASSED, and a job that needs the engine before then waits for it.
+// Resolved once, by the verifying thread; read by any.
+class ShowGate {
+public:
+    void resolve(bool passed);
+    bool wait() const;                 // blocks until resolved; whether it passed
+    std::optional<bool> verdict() const;
+
+private:
+    mutable std::mutex mutex_;
+    mutable std::condition_variable resolved_;
+    std::optional<bool> passed_;
+};
 
 class PdfiumDocument {
 public:
@@ -259,7 +277,19 @@ public:
     // **A RELOAD THAT FAILS changes nothing**: the engine keeps the document it had and keeps drawing
     // it, and the failure is counted and logged. `show(bytes(), {})` puts the document back on the
     // bytes it opened, and is no work at all when it never left them.
-    void show(QByteArray base, QByteArray update, std::vector<int> from = {});
+    //
+    // **GATED -- Stage 7 T4.** With a `gate`, the revision is queued BEHIND it: swapped in once the gate passes, as a
+    // revision queued without one is; DROPPED when it fails, the engine keeping what it drew -- and until the next
+    // `show` or `clearRefusal()` every job of this document then finds no engine (`engineHandle()` null, so a tile
+    // fails rather than draw the old pages at the indices the refused revision gave them). A job that would swap
+    // waits for the gate first: `awaitShown()` before it takes the engine lock, and the swap itself under the lock if
+    // a caller did not. A revision queued ungated before a gated one is kept until the gate decides.
+    void show(QByteArray base, QByteArray update, std::vector<int> from = {}, std::shared_ptr<ShowGate> gate = {});
+    // Waits, holding no lock, until no gated revision is waiting -- what a job calls before the engine lock.
+    void awaitShown() const;
+    // A gated revision whose gate failed is dropped now, and the refusal ends (S7 T4): the backend, once it has put
+    // back what the refused show replaced.
+    void clearRefusal();
 
     // What the ENGINE draws, page by page -- `pages()` through the last swapped `from`. **CALL IT WITH THE
     // ENGINE LOCK HELD and after `engineHandle()`**, which swaps a queued revision in first: then the tree and
@@ -315,8 +345,13 @@ private:
         std::vector<int> from;                           // S7 T3: empty is the identity
         std::shared_ptr<const core::PageTree> pages;     // ... and `pages_` read through it; null for the identity
         std::uint64_t generation = 0;
+        std::shared_ptr<ShowGate> gate;                  // S7 T4: null for a revision nothing gates
     };
     void adoptPendingLocked() const;
+    // S7 T4: under `pendingMutex_` -- a gated revision whose gate has decided becomes the pending one, or is dropped.
+    void decideGatedLocked() const;
+    mutable std::optional<Pending> gated_;               // S7 T4: behind its gate, under `pendingMutex_`
+    mutable std::atomic<bool> refused_{false};           // S7 T4: the last gate failed (see `show`)
     mutable std::mutex pendingMutex_;
     mutable std::optional<Pending> pending_;
     std::uint64_t nextGeneration_ = 0;           // under `pendingMutex_`

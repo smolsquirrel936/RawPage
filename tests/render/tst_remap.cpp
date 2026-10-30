@@ -75,7 +75,8 @@ std::unique_ptr<Live> openLive(const std::string& relative)
     REQUIRE(document.hydrate(live->backend, live->handle));
     live->journal = std::make_unique<core::CommandJournal>(std::move(document), live->backend.mutationSink(live->handle));
     Live* self = live.get();
-    live->journal->setShowHandler([self](const core::Scope&) { return self->backend.showEdits(self->handle, {}); });
+    live->journal->setShowHandler([self](const core::Scope&) { return self->backend.showEdits(self->handle, {}); },
+                                  [self] { return self->backend.settleEdits(self->handle); });
     live->coordinator = std::make_unique<core::SaveCoordinator>(live->backend, &live->durableFiles);
     return live;
 }

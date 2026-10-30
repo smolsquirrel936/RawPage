@@ -139,33 +139,6 @@ bool sameSize(const core::PdfRect& a, const core::PdfRect& b)
     return std::abs(a.size.width - b.size.width) <= 1e-9 && std::abs(a.size.height - b.size.height) <= 1e-9;
 }
 
-// Stage 6 T7: the objects appearances share -- a font, and since T10 an image -- written into THIS update, once per key however many
-// appearances name them. One per compose: a font written by an earlier save is not reused, so an update is
-// read whole without its predecessor's objects being assumed (a later save could be of a file that lost it).
-class DeltaAppearanceObjects final : public AppearanceObjects {
-public:
-    explicit DeltaAppearanceObjects(cos::ObjectDelta& delta) : delta_(delta) {}
-    cos::CosRef shared(const std::string& key, cos::CosObject object) override
-    {
-        if (const auto found = written_.find(key); found != written_.end()) return found->second;
-        const cos::CosRef at{delta_.add(std::move(object)), 0};
-        written_.emplace(key, at);
-        return at;
-    }
-    // Stage 6 T10: an image stamp's picture and its mask -- one object per image however many stamps paint it.
-    cos::CosRef sharedStream(const std::string& key, cos::CosObject dictionary, std::string data) override
-    {
-        if (const auto found = written_.find(key); found != written_.end()) return found->second;
-        const cos::CosRef at{delta_.add(std::move(dictionary), std::move(data)), 0};
-        written_.emplace(key, at);
-        return at;
-    }
-
-private:
-    cos::ObjectDelta& delta_;
-    std::map<std::string, cos::CosRef> written_;
-};
-
 // Stage 6 T8: whether a dictionary on disk DRAWS something the model does not hold, so that our builder -- which
 // draws from the model -- would lose it. Such an annotation is never redrawn: an edit that would need it redrawn is
 // refused by key, and a move carries its producer's appearance. **Since T12 (D6-14) the model holds a Line's leaders
@@ -268,6 +241,180 @@ cos::CosObject asciiFileName(const QString& name)
 
 } // namespace
 
+// Stage 6 T7: the objects appearances share -- a font, and since T10 an image -- written into THIS update, once per
+// key however many appearances name them. One per compose: a font written by an earlier save is not reused, so an
+// update is read whole without its predecessor's objects being assumed (a later save could be of a file that lost
+// it). S7 T4: numbered by the book as `shared:<key>`, written again as it was when the object asked for is the one
+// the last compose wrote, and every key asked for RECORDED -- the unit being built names them, so writing that unit
+// again later can bring them with it (`reuseUnit`).
+class MutationSinkImpl::DeltaObjects final : public AppearanceObjects {
+public:
+    DeltaObjects(MutationSinkImpl& sink, cos::ObjectDelta& delta) : sink_(sink), delta_(delta) {}
+    cos::CosRef shared(const std::string& key, cos::CosObject object) override { return put(key, std::move(object), std::nullopt); }
+    // Stage 6 T10: an image stamp's picture and its mask -- one object per image however many stamps paint it.
+    cos::CosRef sharedStream(const std::string& key, cos::CosObject dictionary, std::string data) override
+    {
+        return put(key, std::move(dictionary), std::move(data));
+    }
+
+    void startRecording() { recorded_.clear(); }
+    const std::vector<std::string>& recorded() const noexcept { return recorded_; }
+    // `key`'s object in this compose without its value: false when no compose has written it at its number.
+    bool reuse(const std::string& key)
+    {
+        if (written_.count(key) != 0) return true;
+        const auto found = sink_.sharedUnits_.find(key);
+        if (found == sink_.sharedUnits_.end() || !found->second.objects.complete()) return false;
+        const long long number = delta_.reserve("shared:" + key);
+        if (number != found->second.objects.numbers.front() || !delta_.reuse(found->second.objects.written.front()))
+            return false;
+        found->second.objects.round = sink_.round_;
+        written_.emplace(key, cos::CosRef{number, 0});
+        return true;
+    }
+
+private:
+    cos::CosRef put(const std::string& key, cos::CosObject object, std::optional<std::string> data)
+    {
+        if (std::find(recorded_.begin(), recorded_.end(), key) == recorded_.end()) recorded_.push_back(key);
+        if (const auto found = written_.find(key); found != written_.end()) return found->second;
+        const long long number = delta_.reserve("shared:" + key);
+        SharedUnit& unit = sink_.sharedUnits_[key];
+        const bool same = unit.objects.complete() && unit.objects.numbers.front() == number && unit.object == object
+                          && unit.data == data;
+        if (!same || !delta_.reuse(unit.objects.written.front())) {
+            unit.object = object;
+            unit.data = data;
+            unit.objects = UnitObjects{};
+            unit.objects.names = {"shared:" + key};
+            unit.objects.numbers = {number};
+            delta_.define(number, std::move(object), std::move(data));
+        }
+        unit.objects.round = sink_.round_;
+        const cos::CosRef at{number, 0};
+        written_.emplace(key, at);
+        return at;
+    }
+
+    MutationSinkImpl& sink_;
+    cos::ObjectDelta& delta_;
+    std::map<std::string, cos::CosRef> written_;
+    std::vector<std::string> recorded_;
+};
+
+namespace {
+
+// S7 T4: a book name for an annotation identity, stable for the life of the revision.
+std::string nameOf(const core::AnnotationId& id)
+{
+    switch (id.kind) {
+    case core::AnnotationId::Kind::Object: return "o" + std::to_string(id.object);
+    case core::AnnotationId::Kind::Created: return "c" + id.nm.toStdString();
+    case core::AnnotationId::Kind::Direct: return "d" + std::to_string(id.page) + "." + std::to_string(id.position);
+    }
+    return "?";
+}
+
+} // namespace
+
+cos::NumberBook& MutationSinkImpl::book()
+{
+    // Above every number the file defines, and every one it REFERENCES (Stage 3 guide I-12) -- the floor
+    // `reserveNumbersThrough` used to raise in each compose, raised once.
+    if (!book_)
+        book_.emplace(std::max(cos::ObjectAllocator::forTable(table_).nextNumber(), protection().largestReferenced + 1));
+    return *book_;
+}
+
+const cos::Protection& MutationSinkImpl::protection()
+{
+    if (!protection_) protection_ = cos::IncrementalWriter::protection(table_);
+    return *protection_;
+}
+
+void MutationSinkImpl::protect(cos::ObjectDelta& delta)
+{
+    cos::IncrementalWriter::protect(protection(), delta);
+}
+
+bool MutationSinkImpl::reuseUnit(UnitObjects& objects, cos::ObjectDelta& delta, DeltaObjects& shared)
+{
+    if (!objects.complete()) return false;
+    for (std::size_t at = 0; at < objects.names.size(); ++at) {
+        // An empty name is an object the file has, replaced: it has no number to keep.
+        if (!objects.names[at].empty() && delta.reserve(objects.names[at]) != objects.numbers[at]) return false;
+        if (delta.touches(objects.numbers[at])) return false;
+    }
+    for (const std::string& key : objects.shared) {
+        if (!shared.reuse(key)) return false;
+    }
+    for (const Written& written : objects.written) delta.reuse(written);
+    objects.round = round_;
+    return true;
+}
+
+void MutationSinkImpl::composed(const cos::WrittenUpdate& update)
+{
+    // The writer lists its objects in number order.
+    const auto writtenAt = [&update](long long number) -> const Written* {
+        const auto found = std::lower_bound(update.objects.begin(), update.objects.end(), number,
+                                            [](const Written& w, long long n) { return w->number < n; });
+        return found != update.objects.end() && (*found)->number == number ? &*found : nullptr;
+    };
+    // Each unit used this round keeps its objects as written -- the ones built anew get them now -- and a
+    // unit no compose used this round goes, its names already given back by the book.
+    const auto keep = [&](UnitObjects& objects) {
+        if (objects.round != round_) return false;
+        if (!objects.complete()) {
+            objects.written.clear();
+            for (const long long number : objects.numbers) {
+                const Written* found = writtenAt(number);
+                if (found == nullptr) {
+                    objects.written.clear();
+                    return true;   // kept, but built again next time
+                }
+                objects.written.push_back(*found);
+            }
+        }
+        return true;
+    };
+    for (auto it = createdUnits_.begin(); it != createdUnits_.end();)
+        it = keep(it->second.objects) ? std::next(it) : createdUnits_.erase(it);
+    for (auto it = editUnits_.begin(); it != editUnits_.end();)
+        it = keep(it->second.objects) ? std::next(it) : editUnits_.erase(it);
+    for (auto it = listingUnits_.begin(); it != listingUnits_.end();)
+        it = keep(it->second.objects) ? std::next(it) : listingUnits_.erase(it);
+    for (auto it = sharedUnits_.begin(); it != sharedUnits_.end();)
+        it = keep(it->second.objects) ? std::next(it) : sharedUnits_.erase(it);
+    // And the annotations' block, when this round composed it anew.
+    if (block_.round == round_ && !block_.complete()) {
+        block_.written.clear();
+        for (const long long number : block_.numbers) {
+            const Written* found = writtenAt(number);
+            if (found == nullptr) {
+                block_ = AnnotationBlock{};
+                break;
+            }
+            block_.written.push_back(*found);
+        }
+    }
+    lastWritten_ = update.objects.size();
+}
+
+void MutationSinkImpl::composedNothing()
+{
+    composed(cos::WrittenUpdate{});
+}
+
+void MutationSinkImpl::forgetComposedForTesting()
+{
+    createdUnits_.clear();
+    editUnits_.clear();
+    listingUnits_.clear();
+    sharedUnits_.clear();
+    block_ = AnnotationBlock{};
+}
+
 MutationSinkImpl::MutationSinkImpl(std::string_view bytes, cos::XrefTable table, PageWalk walk)
     : bytes_(bytes), table_(std::move(table)), walk_(std::move(walk))
 {
@@ -321,7 +468,11 @@ int MutationSinkImpl::desiredRotation(int pageIndex) const
 
 core::Result<cos::ObjectDelta> MutationSinkImpl::delta()
 {
-    cos::ObjectDelta delta(table_);
+    // S7 T4: one round of the book -- every name this compose asks for keeps its number (see the header).
+    ++round_;
+    book().beginRound();
+    cos::ObjectDelta delta(table_, book());
+    delta.reserveChanges(lastWritten_ + 16);
     // A page dictionary is written ONCE, carrying every change to it: its rotation and, from Stage 6
     // T3, its /Annots -- `ObjectDelta` refuses one object replaced twice. Since Stage 7 T2 every object
     // two parts of a compose may both change -- a page's /Parent and its /Annots, the catalog's
@@ -379,6 +530,11 @@ core::Result<cos::ObjectDelta> MutationSinkImpl::delta()
             delta.replace(number, std::move(dictionary));
         }
     }
+    // S7 T4: the round ends HERE, before anything is written -- a name this compose did not ask for gives its number
+    // back now, so the update's `/Size` and its free rows are the ones the next compose of the same state writes
+    // (found by guide A-128: ended after the write, a deleted annotation's numbers were still counted by the update
+    // the screen was shown, and given back for the save's).
+    book().endRound();
     return delta;
 }
 
@@ -516,6 +672,7 @@ core::Status MutationSinkImpl::canCreate(const core::Annotation& annotation)
 core::Status MutationSinkImpl::insertAnnotations(const std::vector<core::AnnotationPlacement>& at,
                                                  const std::vector<core::Annotation>& annotations)
 {
+    ++annotationEpoch_;   // S7 T4: what the annotations compose to may change (`composeAnnotations`)
     if (at.empty() || at.size() != annotations.size())
         return sinkError(core::ErrorCode::InvalidArgument, "error.pdf.annotationPlacement",
                          static_cast<long long>(annotations.size()));
@@ -570,6 +727,7 @@ core::Status MutationSinkImpl::insertAnnotations(const std::vector<core::Annotat
 
 core::Status MutationSinkImpl::removeAnnotations(const std::vector<core::AnnotationPlacement>& at)
 {
+    ++annotationEpoch_;   // S7 T4: what the annotations compose to may change (`composeAnnotations`)
     if (at.empty()) return sinkError(core::ErrorCode::InvalidArgument, "error.pdf.annotationPlacement", 0);
     std::map<int, std::vector<ListedEntry>> scratch;
     std::vector<std::pair<core::AnnotationId, ListedEntry>> removed;
@@ -617,6 +775,7 @@ std::optional<cos::CosObject> MutationSinkImpl::dictionaryOnDisk(const core::Ann
 core::Status MutationSinkImpl::replaceAnnotations(const std::vector<core::Annotation>& before,
                                                   const std::vector<core::Annotation>& after)
 {
+    ++annotationEpoch_;   // S7 T4: what the annotations compose to may change (`composeAnnotations`)
     if (before.empty() || before.size() != after.size())
         return sinkError(core::ErrorCode::InvalidArgument, "error.pdf.annotationUnknown",
                          static_cast<long long>(after.size()));
@@ -764,7 +923,7 @@ std::optional<cos::CosRef> MutationSinkImpl::resolveReference(const core::Annota
 core::Result<cos::CosObject> MutationSinkImpl::editedFrom(const cos::CosObject& onDisk, const Edit& edit,
                                                           cos::ObjectDelta& delta,
                                                           const std::map<QString, long long>& written,
-                                                          AppearanceObjects& shared)
+                                                          AppearanceObjects& shared, const std::string& name)
 {
     if (!onDisk.isDictionary())
         return sinkError(core::ErrorCode::NotFound, "error.pdf.annotationUnknown", edit.now.page);
@@ -775,7 +934,7 @@ core::Result<cos::CosObject> MutationSinkImpl::editedFrom(const cos::CosObject& 
         auto appearance = AppearanceStreamBuilder::normal(edit.now, shared);
         if (!appearance) return appearance.error();
         const long long number =
-            delta.add(std::move(appearance.value().dictionary), std::move(appearance.value().data));
+            delta.add(name + ":ap", std::move(appearance.value().dictionary), std::move(appearance.value().data));
         edited = AnnotationOps::withEntry(edited, "AP",
                                           cos::CosObject::makeDictionary({{"N", cos::CosObject::makeReference(number, 0)}}));
         // T14: a redaction mark redrawn has its `/RO` drawn again too -- the overlay text, the fill and the repeat are
@@ -783,7 +942,7 @@ core::Result<cos::CosObject> MutationSinkImpl::editedFrom(const cos::CosObject& 
         if (edit.now.subtype == core::AnnotationSubtype::Redact) {
             auto overlay = AppearanceStreamBuilder::redactionOverlay(edit.now, shared);
             if (!overlay) return overlay.error();
-            const long long ro = delta.add(std::move(overlay.value().dictionary), std::move(overlay.value().data));
+            const long long ro = delta.add(name + ":ro", std::move(overlay.value().dictionary), std::move(overlay.value().data));
             edited = AnnotationOps::withEntry(edited, "RO", cos::CosObject::makeReference(ro, 0));
         }
     }
@@ -792,9 +951,18 @@ core::Result<cos::CosObject> MutationSinkImpl::editedFrom(const cos::CosObject& 
 
 long long MutationSinkImpl::referenceFloor()
 {
-    if (!referenceFloor_) referenceFloor_ = cos::IncrementalWriter::largestReference(table_);
-    return *referenceFloor_;
+    // S7 T4: the same walk as `protection()`'s, made once per revision for both.
+    return protection().largestReferenced;
 }
+
+namespace {
+
+bool sameEdit(const MutationSinkImpl::Edit& a, const MutationSinkImpl::Edit& b)
+{
+    return a.redraw == b.redraw && a.disk == b.disk && a.now == b.now && a.restore == b.restore;
+}
+
+} // namespace
 
 core::Status MutationSinkImpl::composeAnnotations(cos::ObjectDelta& delta,
                                                   std::map<long long, cos::CosObject>& pageDictionaries)
@@ -803,23 +971,66 @@ core::Status MutationSinkImpl::composeAnnotations(cos::ObjectDelta& delta,
     if (rewrite.empty() && edits_.empty()) return core::Status{};
     // Before the first number is handed out: a number the file references without defining must not
     // be given a meaning by an annotation (Stage 3 guide issue I-12 -- `protectOriginal` raises the same
-    // floor, but only after the delta is built, which is too late for the objects added here).
+    // floor, but only after the delta is built, which is too late for the objects added here). S7 T4: the
+    // book starts above it already; this keeps a delta without one honest.
     delta.reserveNumbersThrough(referenceFloor());
 
+    // S7 T4: NOTHING ABOUT THE ANNOTATIONS CHANGED since the last compose -- no annotation command and no page removed,
+    // restored or duplicated (each moves `annotationEpoch_`) -- so every object it wrote for them is written again as it
+    // was, without visiting a unit: the visit was 1.3 microseconds an annotation (3.4 ms for 1,500, measured), and a held
+    // `Alt+Down` pays it on every press. The page ORDER and a rotation leave them as they were, because what each one
+    // writes is keyed by page OBJECT, not by index -- except a page whose dictionary this compose changes for another
+    // reason, which its listing joins: then the units are visited, as they are after any failed compose.
+    if (block_.complete() && block_.epoch == annotationEpoch_ && block_.round + 1 == round_) {
+        // Nothing this compose already writes, or will write from `pageDictionaries`, is one of them.
+        bool clear = true;
+        for (const auto& [number, dictionary] : pageDictionaries)
+            clear = clear && !std::binary_search(block_.numbers.begin(), block_.numbers.end(), number);
+        for (std::size_t at = 0; clear && at < block_.numbers.size(); ++at) clear = !delta.touches(block_.numbers[at]);
+        if (clear) {
+            for (const std::string& name : block_.names) delta.reserve(name);
+            for (const Written& object : block_.written) delta.reuse(object);
+            for (auto& [nm, unit] : createdUnits_) unit.objects.round = round_;
+            for (auto& [number, unit] : editUnits_) unit.objects.round = round_;
+            for (auto& [number, unit] : listingUnits_) unit.objects.round = round_;
+            for (auto& [key, unit] : sharedUnits_) unit.objects.round = round_;
+            block_.round = round_;
+            return core::Status{};
+        }
+    }
+    block_ = AnnotationBlock{};
+    AnnotationBlock block;
+    block.epoch = annotationEpoch_;
+    block.round = round_;
+    bool blockable = true;
+    const std::size_t firstChange = delta.changes().size();
+    struct Tracing {
+        cos::NumberBook& book;
+        ~Tracing() { book.trace(nullptr); }
+    } tracing{book()};
+    book().trace(&block.names);
+
     std::map<QString, long long> written;   // nm -> the number this delta gave it
-    DeltaAppearanceObjects shared(delta);   // T7: fonts, once each
+    DeltaObjects shared(*this, delta);      // T7: fonts, once each -- S7 T4: and as they were written
     std::map<core::AnnotationId, long long> promoted;   // T5: a direct dictionary edited -> its new object
 
     // T6: EVERY created annotation's number first, so two that name each other can both be written -- each
-    // defined below, in the loop that lists it, or the compose fails and the delta is discarded.
+    // defined below, in the loop that lists it, or the compose fails and the delta is discarded. S7 T4: by
+    // name, so the number is the one the last compose gave it.
     for (const int page : rewrite) {
         for (const ListedEntry& entry : desiredListing(page)) {
             if (entry.kind == ListedEntry::Kind::Created && written.count(entry.nm) == 0)
-                written.emplace(entry.nm, delta.reserve());
+                written.emplace(entry.nm, delta.reserve("annot:" + entry.nm.toStdString()));
         }
     }
     const ReferenceResolver resolve = [this, &written](const core::AnnotationId& id) { return resolveReference(id, written); };
-    std::set<QString> defined;
+    // S7 T4: what a dictionary's three reference fields resolve to -- an input of it like the model itself.
+    const auto referencesOf = [&resolve](const core::Annotation& a) {
+        const auto one = [&resolve](const std::optional<core::AnnotationId>& id) {
+            return id ? resolve(*id) : std::optional<cos::CosRef>{};
+        };
+        return std::vector<std::optional<cos::CosRef>>{one(a.popup), one(a.parent), one(a.inReplyTo)};
+    };
 
     for (const int page : rewrite) {
         const std::vector<ListedEntry>& listing = desiredListing(page);
@@ -842,9 +1053,10 @@ core::Status MutationSinkImpl::composeAnnotations(cos::ObjectDelta& delta,
                 // A direct dictionary first edited becomes an object (D6-4), and the page lists that.
                 auto number = promoted.find(*entry.id);
                 if (number == promoted.end()) {
-                    auto dictionary = editedFrom(entry.value, edit->second, delta, written, shared);
+                    const std::string name = "promoted:" + nameOf(*entry.id);
+                    auto dictionary = editedFrom(entry.value, edit->second, delta, written, shared, name);
                     if (!dictionary) return dictionary.error();
-                    number = promoted.emplace(*entry.id, delta.add(std::move(dictionary).value())).first;
+                    number = promoted.emplace(*entry.id, delta.add(name, std::move(dictionary).value())).first;
                 }
                 items.push_back(cos::CosObject::makeReference(number->second, 0));
                 break;
@@ -853,7 +1065,8 @@ core::Status MutationSinkImpl::composeAnnotations(cos::ObjectDelta& delta,
                 const auto number = written.find(entry.nm);
                 if (number == written.end())
                     return sinkError(core::ErrorCode::NotFound, "error.pdf.annotationUnknown", page);
-                const bool first = defined.insert(entry.nm).second;
+                // Its first listing writes it -- defined, or written again as it was -- and a second lists it.
+                const bool first = !delta.touches(number->second);
                 if (first && copies_.count(entry.nm) != 0) {
                     // S7 T2: a copy on a duplicated page, from its source's dictionary (D7-2).
                     auto copied = copiedDictionary(entry.nm, pageRef, delta, written, shared);
@@ -864,12 +1077,27 @@ core::Status MutationSinkImpl::composeAnnotations(cos::ObjectDelta& delta,
                     const core::Annotation* annotation = createdAnnotation(entry.nm);
                     if (annotation == nullptr)
                         return sinkError(core::ErrorCode::NotFound, "error.pdf.annotationUnknown", page);
+                    // S7 T4: WRITTEN AGAIN AS IT WAS when nothing it is built from changed (see the header).
+                    std::vector<std::optional<cos::CosRef>> references = referencesOf(*annotation);
+                    CreatedUnit& unit = createdUnits_[entry.nm];
+                    if (unit.page == pageRef && unit.references == references && unit.annotation == *annotation
+                        && reuseUnit(unit.objects, delta, shared)) {
+                        items.push_back(cos::CosObject::makeReference(number->second, 0));
+                        break;
+                    }
+                    const std::string base = entry.nm.toStdString();
+                    UnitObjects objects;
+                    objects.names.push_back("annot:" + base);
+                    objects.numbers.push_back(number->second);
+                    shared.startRecording();
                     std::optional<cos::CosRef> appearanceRef;
                     if (!AppearanceStreamBuilder::drawsNothing(*annotation)) {
                         auto appearance = AppearanceStreamBuilder::normal(*annotation, shared);
                         if (!appearance) return appearance.error();
-                        appearanceRef = cos::CosRef{
-                            delta.add(std::move(appearance.value().dictionary), std::move(appearance.value().data)), 0};
+                        appearanceRef = cos::CosRef{delta.add("ap:" + base, std::move(appearance.value().dictionary),
+                                                              std::move(appearance.value().data)), 0};
+                        objects.names.push_back("ap:" + base);
+                        objects.numbers.push_back(appearanceRef->number);
                     }
                     auto dictionary = AnnotationOps::createdDictionary(*annotation, pageRef, appearanceRef, resolve);
                     if (!dictionary) return dictionary.error();
@@ -878,22 +1106,29 @@ core::Status MutationSinkImpl::composeAnnotations(cos::ObjectDelta& delta,
                         && annotation->attachment->carried) {
                         const std::string* flate = compressedFor(QStringLiteral("nm:") + entry.nm, annotation->attachment->data);
                         if (flate == nullptr) return sinkError(core::ErrorCode::Corrupted, "error.attachment.undecodable", page);
-                        const cos::CosRef spec = addFileSpecification(delta, *annotation->attachment, *flate);
+                        const cos::CosRef spec = addFileSpecification(delta, "nm:" + base, *annotation->attachment, *flate);
                         dictionary = AnnotationOps::withEntry(dictionary.value(), "FS",
                                                               cos::CosObject::makeReference(spec.number, spec.generation));
+                        for (const char* part : {":stream", ":spec"}) {
+                            objects.names.push_back("nm:" + base + part);
+                            objects.numbers.push_back(delta.reserve("nm:" + base + part));
+                        }
                     }
                     // T14: a redaction mark's /RO, and a sound's samples as its /Sound stream -- compressed once.
                     if (annotation->subtype == core::AnnotationSubtype::Redact) {
                         auto overlay = AppearanceStreamBuilder::redactionOverlay(*annotation, shared);
                         if (!overlay) return overlay.error();
-                        const long long ro = delta.add(std::move(overlay.value().dictionary), std::move(overlay.value().data));
+                        const long long ro = delta.add("ro:" + base, std::move(overlay.value().dictionary),
+                                                       std::move(overlay.value().data));
                         dictionary = AnnotationOps::withEntry(dictionary.value(), "RO", cos::CosObject::makeReference(ro, 0));
+                        objects.names.push_back("ro:" + base);
+                        objects.numbers.push_back(ro);
                     }
                     if (annotation->subtype == core::AnnotationSubtype::Sound && annotation->sound && annotation->sound->carried) {
                         const core::SoundData& sound = *annotation->sound;
                         const std::string* flate = compressedFor(QStringLiteral("sound:") + entry.nm, sound.samples);
                         if (flate == nullptr) return sinkError(core::ErrorCode::Corrupted, "error.sound.undecodable", page);
-                        const long long at = delta.add(cos::CosObject::makeStream({
+                        const long long at = delta.add("sound:" + base, cos::CosObject::makeStream({
                             {"Type", cos::CosObject::makeName("Sound")},
                             {"R", cos::CosObject::makeInteger(sound.rate)},
                             {"C", cos::CosObject::makeInteger(sound.channels)},
@@ -902,9 +1137,17 @@ core::Status MutationSinkImpl::composeAnnotations(cos::ObjectDelta& delta,
                             {"Filter", cos::CosObject::makeName("FlateDecode")},
                         }, cos::CosStreamData{}), *flate);
                         dictionary = AnnotationOps::withEntry(dictionary.value(), "Sound", cos::CosObject::makeReference(at, 0));
+                        objects.names.push_back("sound:" + base);
+                        objects.numbers.push_back(at);
                     }
                     if (!delta.define(number->second, std::move(dictionary).value()))
                         return sinkError(core::ErrorCode::Corrupted, "error.pdf.annotationUnknown", page);
+                    objects.shared = shared.recorded();
+                    objects.round = round_;
+                    unit.annotation = *annotation;
+                    unit.page = pageRef;
+                    unit.references = std::move(references);
+                    unit.objects = std::move(objects);
                 }
                 items.push_back(cos::CosObject::makeReference(number->second, 0));
                 break;
@@ -912,13 +1155,34 @@ core::Status MutationSinkImpl::composeAnnotations(cos::ObjectDelta& delta,
             }
         }
         const bool empty = items.empty();
-        cos::CosObject array = cos::CosObject::makeArray(std::move(items));
 
         // Into the page's own indirect array when it has one nobody else lists; else into the page. A
         // page left with NOTHING listed loses the key -- the value a page with no annotation had before
         // one was added and saved, and the one every reader reads an empty array as anyway (guide A-25).
         const PageListing& disk = disk_[static_cast<std::size_t>(page)];
-        if (!empty && disk.arrayObject && arrayUsers_[*disk.arrayObject] == 1) {
+        const bool ownArray = !empty && disk.arrayObject && arrayUsers_[*disk.arrayObject] == 1;
+        // S7 T4: a listing WRITTEN AGAIN AS IT WAS when it lists what it listed -- into its own array, or into a
+        // page dictionary nothing else in this compose changes (the order, a rotation and the labels come first).
+        const long long target = ownArray ? *disk.arrayObject : pageNumber;
+        const bool alone = ownArray || (pageDictionaries.count(pageNumber) == 0 && !delta.isNew(pageNumber));
+        if (!alone) blockable = false;
+        else if (!ownArray) block.intoPages.push_back(pageNumber);
+        if (alone) {
+            ListingUnit& unit = listingUnits_[target];
+            if (unit.intoPage == !ownArray && unit.objects.complete() && unit.items == items
+                && delta.reuse(unit.objects.written.front())) {
+                unit.objects.round = round_;
+                continue;
+            }
+            unit.items = items;
+            unit.intoPage = !ownArray;
+            unit.objects = UnitObjects{};
+            unit.objects.numbers = {target};
+            unit.objects.names = {std::string()};   // an object the file has: no book name
+            unit.objects.round = round_;
+        }
+        cos::CosObject array = cos::CosObject::makeArray(std::move(items));
+        if (ownArray) {
             delta.replace(*disk.arrayObject, std::move(array));
             continue;
         }
@@ -940,16 +1204,63 @@ core::Status MutationSinkImpl::composeAnnotations(cos::ObjectDelta& delta,
             if (entry.kind != ListedEntry::Kind::Reference || !entry.id) continue;
             const auto edit = edits_.find(*entry.id);
             if (edit == edits_.end() || !done.insert(*entry.id).second) continue;
-            auto onDisk = table_.fetch(entry.reference.number);
+            const long long target = entry.reference.number;
+            const std::string name = "edit:" + nameOf(*entry.id);
+            // S7 T4, guide I-03: ALREADY REWRITTEN BY THE REPAIR in this compose -- a link moved, then the page it
+            // targets deleted (D7-2) -- so the edit is made ON the repaired dictionary and goes back where the repair
+            // put it: one object, written once. A version the file held is not restored over a repair (it would
+            // take the repair back); the edit is made from the model instead.
+            if (const auto repaired = pageDictionaries.find(target); repaired != pageDictionaries.end()) {
+                Edit onRepaired = edit->second;
+                onRepaired.restore.reset();
+                auto dictionary = editedFrom(repaired->second, onRepaired, delta, written, shared, name);
+                if (!dictionary) return dictionary.error();
+                repaired->second = std::move(dictionary).value();
+                blockable = false;
+                continue;
+            }
+            // S7 T4: written again as it was when the edit and what its references resolve to are the same.
+            std::vector<std::optional<cos::CosRef>> references = referencesOf(edit->second.disk);
+            for (std::optional<cos::CosRef>& now : referencesOf(edit->second.now)) references.push_back(now);
+            EditUnit& unit = editUnits_[target];
+            if (unit.references == references && sameEdit(unit.edit, edit->second) && reuseUnit(unit.objects, delta, shared))
+                continue;
+            auto onDisk = table_.fetch(target);
             if (!onDisk) return onDisk.error();
-            auto dictionary = editedFrom(onDisk.value().object, edit->second, delta, written, shared);
+            shared.startRecording();
+            auto dictionary = editedFrom(onDisk.value().object, edit->second, delta, written, shared, name);
             if (!dictionary) return dictionary.error();
-            delta.replace(entry.reference.number, std::move(dictionary).value());
+            delta.replace(target, std::move(dictionary).value());
+            UnitObjects objects;
+            objects.names = {std::string()};
+            objects.numbers = {target};
+            if (!edit->second.restore && edit->second.redraw) {
+                objects.names.push_back(name + ":ap");
+                objects.numbers.push_back(delta.reserve(name + ":ap"));
+                if (edit->second.now.subtype == core::AnnotationSubtype::Redact) {
+                    objects.names.push_back(name + ":ro");
+                    objects.numbers.push_back(delta.reserve(name + ":ro"));
+                }
+            }
+            objects.shared = shared.recorded();
+            objects.round = round_;
+            unit.edit = edit->second;
+            unit.references = std::move(references);
+            unit.objects = std::move(objects);
         }
     }
     // Every number reserved is defined: a created annotation is listed on a page this compose rewrote.
-    if (defined.size() != written.size())
-        return sinkError(core::ErrorCode::Corrupted, "error.pdf.annotationUnknown", static_cast<long long>(written.size()));
+    for (const auto& [nm, number] : written) {
+        if (!delta.touches(number))
+            return sinkError(core::ErrorCode::Corrupted, "error.pdf.annotationUnknown", static_cast<long long>(written.size()));
+    }
+    // S7 T4: what to write again whole next time -- `composed()` gives it the bytes.
+    if (blockable) {
+        for (std::size_t at = firstChange; at < delta.changes().size(); ++at) block.numbers.push_back(delta.changes()[at].number);
+        for (const long long page : block.intoPages) block.numbers.push_back(page);
+        std::sort(block.numbers.begin(), block.numbers.end());
+        block_ = std::move(block);
+    }
     return core::Status{};
 }
 
@@ -1239,8 +1550,8 @@ const std::string* MutationSinkImpl::compressedFor(const QString& cacheKey, cons
     return &compressed_.insert_or_assign(cacheKey, std::move(entry)).first->second.flate;
 }
 
-cos::CosRef MutationSinkImpl::addFileSpecification(cos::ObjectDelta& delta, const core::EmbeddedFile& file,
-                                                   std::string compressed)
+cos::CosRef MutationSinkImpl::addFileSpecification(cos::ObjectDelta& delta, const std::string& name,
+                                                   const core::EmbeddedFile& file, std::string compressed)
 {
     using cos::CosObject;
     std::vector<CosObject::Entry> params;
@@ -1255,7 +1566,8 @@ cos::CosRef MutationSinkImpl::addFileSpecification(cos::ObjectDelta& delta, cons
     if (!file.mime.isEmpty()) stream.push_back({"Subtype", CosObject::makeName(file.mime.toStdString())});
     stream.push_back({"Params", CosObject::makeDictionary(std::move(params))});
     stream.push_back({"Filter", CosObject::makeName("FlateDecode")});
-    const long long streamNumber = delta.add(CosObject::makeStream(std::move(stream), cos::CosStreamData{}), std::move(compressed));
+    const long long streamNumber =
+        delta.add(name + ":stream", CosObject::makeStream(std::move(stream), cos::CosStreamData{}), std::move(compressed));
 
     std::vector<CosObject::Entry> spec{
         {"Type", CosObject::makeName("Filespec")},
@@ -1265,7 +1577,7 @@ cos::CosRef MutationSinkImpl::addFileSpecification(cos::ObjectDelta& delta, cons
     if (!file.description.isEmpty()) spec.push_back({"Desc", AnnotationOps::textString(file.description)});
     spec.push_back({"EF", CosObject::makeDictionary({{"F", CosObject::makeReference(streamNumber, 0)},
                                                      {"UF", CosObject::makeReference(streamNumber, 0)}})});
-    return cos::CosRef{delta.add(CosObject::makeDictionary(std::move(spec))), 0};
+    return cos::CosRef{delta.add(name + ":spec", CosObject::makeDictionary(std::move(spec))), 0};
 }
 
 core::Status MutationSinkImpl::composeFiles(cos::ObjectDelta& delta, std::map<long long, cos::CosObject>& pending)
@@ -1285,13 +1597,14 @@ core::Status MutationSinkImpl::composeFiles(cos::ObjectDelta& delta, std::map<lo
         }
         const std::string* flate = compressedFor(QStringLiteral("key:") + file.key, file.created.file.data);
         if (flate == nullptr) return sinkError(core::ErrorCode::Corrupted, "error.attachment.undecodable", -1);
-        const cos::CosRef spec = addFileSpecification(delta, file.created.file, *flate);
+        const cos::CosRef spec = addFileSpecification(delta, "key:" + file.key.toStdString(), file.created.file, *flate);
         pairs.push_back(keyString(file.key));
         pairs.push_back(cos::CosObject::makeReference(spec.number, spec.generation));
     }
     std::optional<cos::CosObject> tree;
     if (!pairs.empty()) {
-        const long long number = delta.add(cos::CosObject::makeDictionary({{"Names", cos::CosObject::makeArray(std::move(pairs))}}));
+        const long long number =
+            delta.add("names:EmbeddedFiles", cos::CosObject::makeDictionary({{"Names", cos::CosObject::makeArray(std::move(pairs))}}));
         tree = cos::CosObject::makeReference(number, 0);
     }
     const auto withTree = [&tree](const cos::CosObject& names) {
@@ -1487,6 +1800,15 @@ core::Status MutationSinkImpl::adopt(std::string_view bytes)
     created_.clear();
     edits_.clear();
     referenceFloor_.reset();
+    // S7 T4: the next revision's numbers start above what this save wrote, and nothing composed against the
+    // old one is written again.
+    book_.reset();
+    protection_.reset();
+    createdUnits_.clear();
+    editUnits_.clear();
+    listingUnits_.clear();
+    sharedUnits_.clear();
+    block_ = AnnotationBlock{};
     diskFiles_ = std::move(files).value();
     desiredFiles_.reset();
     compressed_.clear();   // every carried file is now the file's: its bytes are read from the stream
@@ -1691,6 +2013,7 @@ core::Result<core::PageCommandReport> MutationSinkImpl::reorderPages(const core:
 
 core::Result<core::PageCommandReport> MutationSinkImpl::removePages(const std::vector<int>& pages, const QString& key)
 {
+    ++annotationEpoch_;   // S7 T4: what the annotations compose to may change (`composeAnnotations`)
     const std::optional<core::PageMap> map = core::PageMap::removal(pageCount(), pages);
     if (!map) return pagesError("error.pdf.pageOutOfRange", static_cast<long long>(pages.size()));
     if (map->newCount() == 0) return pagesError("error.edit.noPagesLeft");
@@ -1710,6 +2033,7 @@ core::Result<core::PageCommandReport> MutationSinkImpl::removePages(const std::v
 
 core::Status MutationSinkImpl::restorePages(const std::vector<int>& pages, const QString& key)
 {
+    ++annotationEpoch_;   // S7 T4: what the annotations compose to may change (`composeAnnotations`)
     const auto found = stash_.find(key);
     if (found == stash_.end() || found->second.size() != pages.size())
         return pagesError("error.command.malformed", static_cast<long long>(pages.size()));
@@ -1724,6 +2048,7 @@ core::Status MutationSinkImpl::restorePages(const std::vector<int>& pages, const
 core::Result<core::DuplicatedPages> MutationSinkImpl::duplicatePages(const std::vector<int>& pages, const QString& key,
                                                                      const std::vector<std::vector<core::AnnotationCopy>>& copies)
 {
+    ++annotationEpoch_;   // S7 T4: what the annotations compose to may change (`composeAnnotations`)
     const std::optional<core::PageMap> map = core::PageMap::duplication(pageCount(), pages);
     if (!map || copies.size() != pages.size()) return pagesError("error.pdf.pageOutOfRange", static_cast<long long>(pages.size()));
     if (key.isEmpty()) return pagesError("error.command.malformed");
@@ -1823,7 +2148,7 @@ core::Status MutationSinkImpl::composePageOrder(cos::ObjectDelta& delta, std::ma
     for (const PageEntry& page : walk_.pages) {
         long long number = page.number;
         if (number < 0) {
-            const long long given = delta.reserve();
+            const long long given = delta.reserve("page:" + std::to_string(-number));   // S7 T4: by name
             composeNumbers_.emplace(number, given);
             number = given;
         }
@@ -1971,7 +2296,7 @@ core::Result<cos::CosObject> MutationSinkImpl::copiedDictionary(const QString& n
     const CopySource& copy = copies_.at(nm);
     cos::CosObject dictionary = copy.dictionary;
     if (copy.edit) {
-        auto edited = editedFrom(dictionary, *copy.edit, delta, written, shared);
+        auto edited = editedFrom(dictionary, *copy.edit, delta, written, shared, "copy:" + nm.toStdString());
         if (!edited) return edited.error();
         dictionary = std::move(edited).value();
     }

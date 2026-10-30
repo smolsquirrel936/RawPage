@@ -34,6 +34,10 @@ namespace rawpage::pdf::cos::filters {
 // LZW share exactly the same code path.
 core::Result<Bytes> flateDecode(std::string_view input);
 core::Result<Bytes> flateEncode(std::string_view input);
+// S7 T4: the same at zlib's FASTEST level -- for a cross-reference stream, written after every command since D6-2
+// composes then, whose regular rows compress nearly as well at it (its default level cost 1.1 ms of a 3,700-object
+// update's compose, measured).
+core::Result<Bytes> flateEncodeFast(std::string_view input);
 
 } // namespace rawpage::pdf::cos::filters
 

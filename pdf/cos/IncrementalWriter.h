@@ -63,6 +63,25 @@
 // against the buffer it was parsed from, and a page dictionary unpacked from an object stream was
 // parsed from a decompressed payload that no longer exists (issue I-04). A changed object is written
 // whole from its values, which is byte identity's actual subject -- an object not in the update.
+//
+// -------------------------------------------------------------------------------------------
+// AN UPDATE COMPOSED AGAIN AND AGAIN -- Stage 7 T4 (`Stage7-Assembly-Plan.md` Q4, `DW-4`'s second cause)
+// -------------------------------------------------------------------------------------------
+// D6-2 composes the whole unsaved update after EVERY command, and until T4 each compose numbered its new
+// objects from the allocator in the order it met them and serialized every one -- so a one-page move after
+// 1,500 unsaved highlights renumbered and re-wrote 3,701 objects (25 ms of the UI thread, measured). Three
+// things here let a caller pay only for what changed:
+//
+//   * **`NumberBook`** -- a new object's number by a NAME the caller gives it (`"annot:<NM>"`), kept from one
+//     compose to the next until the caller drops the book (at a save). A move no longer renumbers what it
+//     did not touch. A name no compose asks for any more gives its number back: the highest is simply
+//     un-given, and one below it is an UNUSED number, which the section writes as a FREE row -- so every
+//     number under `/Size` has a row (the user's choice, 2026-10-31). The update's numbering therefore
+//     depends on the order things were made in; what it MEANS does not.
+//   * **`WrittenObject`** -- an object as this writer wrote it, envelope included, with the MD5 of its bytes.
+//     A change carrying one is copied verbatim; the caller keeps them from the last compose. And the
+//     `/ID`'s second element is hashed over each object's DIGEST rather than over every byte again.
+//   * **`Protection`** -- `protectOriginal`'s walk, made ONCE per revision and applied to every delta.
 
 #ifndef RAWPAGE_PDF_COS_INCREMENTALWRITER_H
 #define RAWPAGE_PDF_COS_INCREMENTALWRITER_H
@@ -72,22 +91,74 @@
 #include "pdf/cos/ObjectAllocator.h"
 
 #include <cstddef>
+#include <cstdint>
+#include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace rawpage::pdf::cos {
 
 class XrefTable;
 
+// One indirect object as `IncrementalWriter` wrote it -- `N G obj ... endobj` and the line end after it --
+// and the MD5 of exactly those bytes (16 bytes). Stage 7 T4; see the header.
+struct WrittenObject {
+    long long number = 0;
+    std::string bytes;
+    std::string digest;
+};
+
 // One object the update writes. `streamData` is the ENCODED payload and is required when `object`
 // is a Stream: a stream parsed from a file describes its data by offsets into that file, and a
 // constructed one has none at all, so the writer is never left to guess where the bytes are.
+// S7 T4: a change with `written` set is that object as an earlier compose wrote it, copied verbatim;
+// `object` and `streamData` are then empty.
 struct ObjectChange {
     long long number = 0;
     CosObject object;
     std::optional<std::string> streamData;
+    std::shared_ptr<const WrittenObject> written;
+};
+
+// NUMBERS BY NAME, ACROSS COMPOSES (Stage 7 T4) -- see the header. A ROUND is one compose: `beginRound`,
+// any number of `numberFor`, then `endRound` once every name is asked and BEFORE the update is written,
+// which gives back every name the round did not ask for -- so `/Size` and the free rows are the ones the
+// next compose of the same state writes (guide A-128 found them otherwise). A round that fails is simply
+// begun again; what it named is kept until a round that ends does not ask for it. Numbers start at `first` -- above every number the file defines or
+// references, which the caller works out once per revision -- and an unused number is given to the next
+// new name before anything higher is.
+class NumberBook {
+public:
+    explicit NumberBook(long long first) noexcept : first_(first), next_(first) {}
+
+    void beginRound() noexcept { ++round_; }
+    long long numberFor(const std::string& name);
+    void endRound();
+    // Every name asked for while `into` is set is appended to it -- for a caller that writes the same objects again
+    // later and must ask for the same names then. Null stops it.
+    void trace(std::vector<std::string>* into) noexcept { trace_ = into; }
+
+    long long firstNumber() const noexcept { return first_; }
+    long long nextNumber() const noexcept { return next_; }
+    bool gave(long long number) const noexcept { return number >= first_ && number < next_; }
+    // Below `nextNumber()` and given to no name: each is written as a free row.
+    const std::set<long long>& unused() const noexcept { return unused_; }
+
+private:
+    struct Given {
+        long long number = 0;
+        std::uint64_t round = 0;
+    };
+    long long first_;
+    long long next_;
+    std::uint64_t round_ = 0;
+    std::unordered_map<std::string, Given> names_;
+    std::set<long long> unused_;
+    std::vector<std::string>* trace_ = nullptr;
 };
 
 // What an update will contain, built against the table of the file it will be appended to.
@@ -96,12 +167,17 @@ struct ObjectChange {
 class ObjectDelta {
 public:
     explicit ObjectDelta(const XrefTable& table) noexcept;
+    // S7 T4: new objects numbered by `book`, by name -- which must outlive the delta and must already be above
+    // every number the file references (`Protection::largestReferenced`).
+    ObjectDelta(const XrefTable& table, NumberBook& book) noexcept;
 
     // An existing object's new value. Its number must name an object the table has.
     void replace(long long number, CosObject object, std::optional<std::string> streamData = {});
 
     // A new object, numbered by the allocator. Returns the number, so a caller can reference it.
     long long add(CosObject object, std::optional<std::string> streamData = {});
+    // S7 T4: a new object numbered by the book under `name` -- the allocator's next without a book.
+    long long add(const std::string& name, CosObject object, std::optional<std::string> streamData = {});
 
     // A NEW OBJECT'S NUMBER BEFORE ITS VALUE (Stage 6 T6): two new objects that name EACH OTHER -- a
     // note and its pop-up, `/Popup` one way and `/Parent` the other -- cannot both be added first. A
@@ -109,22 +185,40 @@ public:
     // reserved and never defined is a caller's defect, and `IncrementalWriter` would write no row for
     // it; the one caller (`MutationSinkImpl`) defines every number it reserves or discards the delta.
     long long reserve() noexcept { return allocator_.allocate(); }
+    long long reserve(const std::string& name);   // S7 T4: by the book, as `add(name, ...)`
     // False -- nothing recorded -- for a number this delta did not reserve, or one already defined.
     bool define(long long number, CosObject object, std::optional<std::string> streamData = {});
+
+    // S7 T4: an object an earlier compose wrote, again -- a new one (its number the book's) or a replaced one.
+    // False, nothing recorded, for a number this delta already writes.
+    bool reuse(std::shared_ptr<const WrittenObject> written);
 
     // True when `number` is already replaced or added by this delta.
     bool touches(long long number) const noexcept;
 
-    // See `ObjectAllocator::reserveThrough`. Called by `IncrementalWriter::protectOriginal`.
+    // See `ObjectAllocator::reserveThrough`. Called by `IncrementalWriter::protectOriginal`. With a book it
+    // changes nothing: the book starts above every reference already.
     void reserveNumbersThrough(long long number) noexcept { allocator_.reserveThrough(number); }
 
     const std::vector<ObjectChange>& changes() const noexcept { return changes_; }
+    void reserveChanges(std::size_t count) { changes_.reserve(count); }   // S7 T4: a caller that knows roughly
     bool isEmpty() const noexcept { return changes_.empty(); }
     const ObjectAllocator& allocator() const noexcept { return allocator_; }
+    // A number this delta's allocator or book gave out -- a NEW object, not one the file has.
+    bool isNew(long long number) const noexcept;
+    // The first number nothing here has given out: the `/Size` the update must declare at least.
+    long long nextNumber() const noexcept;
+    const NumberBook* book() const noexcept { return book_; }
 
 private:
     ObjectAllocator allocator_;
+    NumberBook* book_ = nullptr;
     std::vector<ObjectChange> changes_;
+    // Which numbers this delta writes: a bit per number for the numbers a file has (S7 T4 -- a node per change
+    // was most of the cost of a delta of thousands), a set past them.
+    void mark(long long number);
+    std::vector<bool> touchedBits_;
+    std::set<long long> touchedFar_;
 };
 
 enum class SectionKind { Classic, Stream };
@@ -136,6 +230,16 @@ struct WrittenUpdate {
     long long size = 0;            // the `/Size` the new trailer declares
     long long xrefStreamNumber = -1;
     std::vector<long long> objectsWritten;   // ascending; excludes the xref stream's own number
+    // S7 T4: each of them as written, in the same order -- the ones a change carried, the same pointers.
+    std::vector<std::shared_ptr<const WrittenObject>> objects;
+    std::size_t objectsReused = 0;   // S7 T4: how many of them a change carried as written
+};
+
+// `protectOriginal`'s walk, once (Stage 7 T4): the objects it would re-write and the largest number any
+// object references. Pure data about one revision; `apply` puts it into a delta.
+struct Protection {
+    std::vector<ObjectChange> rewrites;
+    long long largestReferenced = -1;
 };
 
 class IncrementalWriter {
@@ -174,6 +278,10 @@ public:
     // which `rawpage_bench_save` measures. It never fails: an object that will not fetch is one no
     // reader resolves either, and is left where it is. Not const, because `XrefTable::fetch` caches.
     static void protectOriginal(XrefTable& table, ObjectDelta& delta);
+    // The same in two halves (Stage 7 T4): the walk, which a caller composing after every command makes
+    // once per revision, and its result put into one delta -- `protectOriginal` is exactly the two.
+    static Protection protection(XrefTable& table);
+    static void protect(const Protection& protection, ObjectDelta& delta);
 
     // The largest object number any object `table` places REFERENCES -- defined or not; -1 for none.
     // The second half of `protectOriginal`, alone, for a caller that ADDS objects to a delta and so must

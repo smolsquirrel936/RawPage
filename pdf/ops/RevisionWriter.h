@@ -59,6 +59,15 @@ struct ComposedRevision {
     std::vector<long long> objectsWritten;  // ascending; empty when nothing was appended
 };
 
+// S7 T4: the update alone -- what follows the newest revision on disk -- for a caller that hands the engine the
+// two buffers apart and verifies elsewhere (`IDocumentBackend::showEdits`). Empty when nothing is appended.
+struct ComposedUpdate {
+    QByteArray update;
+    bool complete = false;
+    std::vector<long long> objectsWritten;
+    std::size_t objectsReused = 0;   // of them, written again as an earlier compose wrote them
+};
+
 struct AdoptedRevision {
     QByteArray bytes;             // the file now at the target; the sink holds views into it
     core::RepairReport report;    // of that file -- empty after a correct write
@@ -69,10 +78,18 @@ public:
     // `complete`: write D3-6's complete section rather than a /Prev-chained update. The backend
     // passes `true` for a document whose opening needed a repair that `requiresSaveAs()`.
     static core::Result<ComposedRevision> compose(MutationSinkImpl& sink, bool complete);
+    // S7 T4: step 1 without the copy of the original -- `compose` is this followed by the copy and the seam.
+    static core::Result<ComposedUpdate> composeUpdate(MutationSinkImpl& sink, bool complete);
 
     // Checks `written` against `original` and the sink, as step 3 above. Pure: it reads no file.
     static core::Status verify(std::string_view original, std::string_view written,
                                const MutationSinkImpl& sink);
+    // S7 T4: `verify` of `original` followed by `update`, the whole put together HERE with `fault` applied to it
+    // -- the seam as it stood when the update was composed (`composeFault()`), so a verify that runs on another
+    // thread, after a test has cleared the seam, still checks what that test planted. It reads `sink` and
+    // changes nothing in it: the caller keeps the sink unchanged until it returns (`showEdits`).
+    static core::Status verifyUpdate(std::string_view original, const QByteArray& update, const MutationSinkImpl& sink,
+                                     const std::function<void(QByteArray&)>& fault);
 
     // Steps 1-3. On failure the temporary file does not exist.
     static core::Status write(MutationSinkImpl& sink, bool complete, const QString& temporaryPath);
@@ -83,6 +100,7 @@ public:
     // The test seam; see the header. An empty function restores the product's behaviour.
     using ComposeFault = std::function<void(QByteArray& bytes)>;
     static void setComposeFaultForTesting(ComposeFault fault);
+    static ComposeFault composeFault();   // S7 T4: the seam as it stands, for `verifyUpdate`
 };
 
 } // namespace rawpage::pdf::ops

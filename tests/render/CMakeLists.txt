@@ -99,7 +99,11 @@ add_executable(rawpage_render_tests
                                   #   served wholly from the cache at their new indices, the engine never entered for
                                   #   one, each graded by its text and the saved file's pixels; an unsaved rotation
                                   #   turned once through a move and each undo
-    tst_migratecorpus.cpp         # Stage 6 T13 -- guide A-98, A-99 (D6-21): annots-report-v1.pdf's comments carried
+    tst_composegrowth.cpp         # Stage 7 T4 -- guide A-35, A-36, A-37 (Q4, DW-4's second cause): what a page command
+                                  #   builds after 3,000 unsaved objects is what it changed; a move its verify refuses
+                                  #   after the run returned is taken back and never drawn; commands, a tile and a save
+                                  #   wait for a verify in flight
+    tst_migratecorpus.cpp        # Stage 6 T13 -- guide A-98, A-99 (D6-21): annots-report-v1.pdf's comments carried
                                   #   to compare/report-v2.pdf over the engine's text and Stage 5's alignment, graded on
                                   #   §3.5 against labels/annots-migration.json
     # The appearance cases' spec and page builder (tests/golden/AppearanceCases), compiled in -- the golden

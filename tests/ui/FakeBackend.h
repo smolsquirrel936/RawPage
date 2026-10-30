@@ -589,6 +589,9 @@ public:
         shows.push_back(std::move(call));
         return {};
     }
+    // S7 T4: this backend verifies nothing, so nothing is ever pending.
+    core::Status settleEdits(core::DocumentHandle) override { return {}; }
+    void setEditsSettled(core::DocumentHandle, std::function<void()>) override {}
 
     core::IPageRasterizer* rasterizer(core::DocumentHandle) override { return nullptr; }
     core::ITextExtractor* textExtractor(core::DocumentHandle) override { return nullptr; }

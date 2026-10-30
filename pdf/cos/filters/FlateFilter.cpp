@@ -67,10 +67,12 @@ core::Result<Bytes> flateDecode(std::string_view input)
     return failed("flate: the stream produced no output under either window setting");
 }
 
-core::Result<Bytes> flateEncode(std::string_view input)
+namespace {
+
+core::Result<Bytes> flateEncodeAt(std::string_view input, int level)
 {
     z_stream stream{};
-    if (deflateInit(&stream, Z_DEFAULT_COMPRESSION) != Z_OK)
+    if (deflateInit(&stream, level) != Z_OK)
         return failed("flate: deflateInit failed");
 
     stream.next_in = reinterpret_cast<Bytef*>(const_cast<char*>(input.data()));
@@ -96,6 +98,18 @@ core::Result<Bytes> flateEncode(std::string_view input)
 
     deflateEnd(&stream);
     return out;
+}
+
+} // namespace
+
+core::Result<Bytes> flateEncode(std::string_view input)
+{
+    return flateEncodeAt(input, Z_DEFAULT_COMPRESSION);
+}
+
+core::Result<Bytes> flateEncodeFast(std::string_view input)
+{
+    return flateEncodeAt(input, Z_BEST_SPEED);
 }
 
 } // namespace rawpage::pdf::cos::filters

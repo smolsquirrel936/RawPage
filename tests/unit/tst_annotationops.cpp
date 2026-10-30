@@ -844,7 +844,8 @@ namespace {
 void showLikeTheProduct(tests::SaveSession& session)
 {
     tests::SaveSession* self = &session;
-    session.journal->setShowHandler([self](const core::Scope&) { return self->backend.showEdits(self->handle, {}); });
+    session.journal->setShowHandler([self](const core::Scope&) { return self->backend.showEdits(self->handle, {}); },
+                                  [self] { return self->backend.settleEdits(self->handle); });
 }
 
 } // namespace

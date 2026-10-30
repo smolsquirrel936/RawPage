@@ -61,6 +61,27 @@
 // run's result, and undo and redo answer false. So an edit Save could not write is refused when it is
 // made, and the screen never shows a model the file could not hold. Unset (every headless caller and
 // a replay before its window exists), nothing is asked and nothing changes.
+//
+// -------------------------------------------------------------------------------------------
+// SHOWN NOW, VERIFIED SOON -- Stage 7 T4 (`Stage7-Assembly-Plan.md` Q4, `DW-4`'s second cause)
+// -------------------------------------------------------------------------------------------
+// The show handler COMPOSES and hands the engine the update; the VERIFY runs on another thread, and the
+// engine swaps the update in only once it passes (`IDocumentBackend::settleEdits`). So a run, an undo or a
+// redo returns before anyone knows whether Save could write its result, and the SETTLE handler is how the
+// journal finds out: it waits for that verify and answers it. `settle()` asks it -- at the top of the next
+// run, undo or redo, before a save (`SaveCoordinator`), and whenever the window is told the verify finished
+// -- and on a refusal TAKES THE OPERATION BACK: a run's step reverted and removed, an undo re-applied, a
+// redo reverted; the revision moves, `mutated` fires with `WholeDocument` (whatever was drawn for the
+// refused revision is dropped), and each `refused` handler is told the error, `error.edit.notShown`. The
+// operation that called `settle()` is then refused with the same error: it was asked for on a state the
+// file never had. D6-2 holds throughout: the engine never drew the refused composition.
+//
+// TWO PLACES SETTLE AT ONCE instead, because a late take-back there has no meaning: a command run INSIDE A
+// GROUP (one undo step of many commands -- taking one of them back is not something the history can say)
+// and an abandoned group. The recovery journal was told of the operation when it returned (D3-11); a take-back
+// is told it as the inverse -- an undo of a run's step, a redo of an undo -- so a replay after a crash ends
+// where the live document did, with the refused step one redo away (redone, it is refused again: the verify
+// is deterministic).
 
 #ifndef RAWPAGE_CORE_CMD_COMMANDJOURNAL_H
 #define RAWPAGE_CORE_CMD_COMMANDJOURNAL_H
@@ -135,9 +156,23 @@ public:
     std::size_t historySize() const noexcept { return history_.size(); }
 
     // Stage 6 T4 (D6-2): see the header. One handler; setting another replaces it, an empty one clears it.
+    // Stage 7 T4: WITH the settle handler, which blocks until the last show is verified and answers it -- set in the
+    // same call because a show whose verify runs on another thread, with nothing to wait for it, lets the next
+    // command change the sink that verify is reading. An empty settle handler says the show verifies before it
+    // returns (a backend that does, or a test's handler).
     using ShowHandler = std::function<Status(const Scope&)>;
-    void setShowHandler(ShowHandler handler) { showHandler_ = std::move(handler); }
+    using SettleHandler = std::function<Status()>;
+    void setShowHandler(ShowHandler show, SettleHandler settle)
+    {
+        showHandler_ = std::move(show);
+        settleHandler_ = std::move(settle);
+    }
     bool hasShowHandler() const noexcept { return static_cast<bool>(showHandler_); }
+    // Settles the operation shown last -- success, or its refusal after taking it back. Success when none waits.
+    Status settle();
+    bool isUnsettled() const noexcept { return unsettled_.has_value(); }
+    using RefusedHandler = std::function<void(const Error&)>;
+    int subscribeRefused(RefusedHandler handler);
 
     using MutatedHandler = std::function<void(const Scope&)>;
     using DirtyHandler = std::function<void(bool)>;
@@ -166,6 +201,12 @@ private:
     MutationSink* sink_ = nullptr;
     OperationRecorder* recorder_ = nullptr;
     ShowHandler showHandler_;
+    SettleHandler settleHandler_;
+    // S7 T4: the operation shown last, while its verify has not been settled.
+    enum class Unsettled { Run, Undo, Redo };
+    std::optional<Unsettled> unsettled_;
+    void takeBack(Unsettled operation, const Error& why);
+    std::map<int, RefusedHandler> refusedHandlers_;
 
     std::vector<Step> history_;
     std::size_t position_ = 0;

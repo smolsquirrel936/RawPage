@@ -16,14 +16,16 @@
 > T6, which renumbered T6 … T18 as T7 … T19 throughout, added §3.9, A-122 … A-127 and M-13's Save As steps; Q4
 > ANSWERED the same day, approved — §3.7 and A-35 … A-37 stand, their *struck if declined* clauses removed; Q5
 > ANSWERED the same day, all five parts approved — §1's five out-of-scope rows, A-80, A-96 and §6's note stand
-> as written.** **T1 done 2026-10-29, T2 and T3 2026-10-30: A-13 … A-34 carry a result, all ✅ but A-27 (A-25
-> from CI run 40995950997's log; A-33 is §3.1's verdict, `go, with named custom work`, the user's choice); A-03 and
-> A-27 carry their T2 halves (🟡); A-08 … A-10 carry T3's readings; no other case has one.** T1 raised **I-01 (S2),
-> closed inside T1** — the engine facade showed a page that inherits its boxes at US Letter, uncropped, and refused
-> its document for editing (§8); T2 and T3 raised none. **P-3, a duplex printer for M-04, is open.** **Cases
-> written against a §0 proposal name it in their heading or row** (Q*n* ✅); none was declined, so none moved
-> or was struck. **127
-> automated** (A-01 … A-127) and **14 manual** (M-01 … M-14).
+> as written.** **T1 done 2026-10-29, T2 and T3 2026-10-30, T4 2026-10-31: A-13 … A-34, A-36, A-37 and A-128 carry a
+> result, all ✅ but A-27 (A-25 from CI run 40995950997's log; A-33 is §3.1's verdict, `go, with named custom work`,
+> the user's choice); A-35 carries T4's half (🟡) -- the mechanism graded, §3.7's verdict read at T5 and T11 by the
+> user's choice of 2026-10-31; A-03 and A-27 carry their T2 halves (🟡); A-08 … A-10 carry T4's readings; no other
+> case has one.** T1 raised **I-01 (S2), closed inside T1** — the engine facade showed a page that inherits its
+> boxes at US Letter, uncropped, and refused its document for editing; T4's A-128 raised **I-03 (S2), closed inside
+> T4** — a moved link whose target page is then deleted refused the delete (§8); T2 and T3 raised none. **P-3, a
+> duplex printer for M-04, is open.** **Cases written against a §0 proposal name it in their heading or row**
+> (Q*n* ✅); none was declined, so none moved or was struck. **128 automated** (A-01 … A-128, A-128 added at T4)
+> and **14 manual** (M-01 … M-14).
 >
 > **Two halves, per [`CLAUDE.md`](../CLAUDE.md): [§5 Automated](#5-automated-verification--i-run-this)**
 > — I run it and report the actual output — and **[§6 Manual](#6-manual-verification--you-run-this)** —
@@ -312,6 +314,12 @@ S2.**
 | **taken** | **p95 ≤ 16.667 ms at every size**, and the p95 at 3,000 within **2 ms** of the p95 at 0 — the compose no longer grows with the unsaved update — **and** A-36's refusal still fires |
 | **not taken** | Either bound missed: recorded with its figures, and `DW-4` is not split |
 
+**READ AT T5 AND T11, not at T4** -- the user's choice, 2026-10-31: the workload above needs inserts from
+`text-900.pdf` (T5's `InsertPages`) and a bookmark rename (T11's), and neither exists at T4, so the verdict is not
+read on a stand-in. **What T4 grades instead is the mechanism** (A-35): what a one-page move and a rotation BUILD,
+counted, after 0, 300 and 3,000 unsaved objects of highlights -- and reports `journal.run`'s times beside it, figures
+that are not this verdict.
+
 
 ### 3.8 A decoration is removed exactly (D7-7)
 
@@ -354,7 +362,7 @@ For **every editable corpus file**, after a page command and an annotation, **Sa
 | D7-5 — new documents (Q1 ✅) | A-47 … A-51 |
 | D7-20 — a signed document | A-27, M-13 |
 | D7-25 — Save As that rewrites; the bookmark and tag-tree exports | A-122 … A-127, A-81, §3.9, M-13 |
-| Q4 ✅ — `DW-4`'s second cause | A-35 … A-37, §3.7 |
+| Q4 ✅ — `DW-4`'s second cause | A-35 … A-37, A-128, §3.7 |
 | The roadmap's *"reversibility and round-trip for all commands"* | A-23, A-120, A-121 |
 | No regression | A-01 … A-12, A-115 … A-119 |
 
@@ -408,17 +416,17 @@ by a later task says so in its result.
 **Goal** D7-1's mechanical proof.
 **Steps** `cmake --build --preset x64-release --target checks`; `mutation-lint.exe --root . --explain`.
 **Expect** Exit 0; four gates; `mutation-lint` names **exactly** the twelve commands of Stage 6's sign-off and plan §4's — **43** — re-derived from the plan's §4 after Q1 and Q2 (2026-10-29), and again if a later answer moves a command — each with its `Commands.def` row and its `[serialize:]` and `[revert:]` cases listed by `--explain`. **No `CreateLink`, `EditLink`, `DeleteLink`** (D7-12), and no `ExtractPages` or `MergeDocuments` (Q1 ✅). **If it fails** S1 for an unlisted command; S2 for a missing test.
-**T3 (2026-10-30)** `checks` clean, *"mutation-lint: clean -- 15 command(s)"* -- T3 adds no command. **T2 (2026-10-30)** `checks` clean; *"mutation-lint: clean -- 15 command(s)"* -- Stage 6's twelve and `MovePagesCommand`, `DeletePagesCommand`, `DuplicatePagesCommand`, each with its row and both tags; `gates.mutation_lint.clean_tree`'s roster updated to the fifteen. The gate first refused a shared `PageSetCommand` base (*row-without-class*), since it reads derivation from `Command` as text -- the three now derive from `Command` directly.
+**T4 (2026-10-31)** `checks` clean, *"mutation-lint: clean -- 15 command(s)"* -- T4 adds no command. **T3 (2026-10-30)** `checks` clean, *"mutation-lint: clean -- 15 command(s)"* -- T3 adds no command. **T2 (2026-10-30)** `checks` clean; *"mutation-lint: clean -- 15 command(s)"* -- Stage 6's twelve and `MovePagesCommand`, `DeletePagesCommand`, `DuplicatePagesCommand`, each with its row and both tags; `gates.mutation_lint.clean_tree`'s roster updated to the fifteen. The gate first refused a shared `PageSetCommand` base (*row-without-class*), since it reads derivation from `Command` as text -- the three now derive from `Command` directly.
 
 **A-09 · `layer-lint`: no new waiver, no new edge** ☐ *every task; whole at T19*
 **Steps** `layer-lint.exe --root . --explain`.
 **Expect** Clean; **15 escapes**, the same fifteen; the extract, split, export and import paths write through `pdf/` (D7-5, D7-10). **The control:** a planted `QFile::open(WriteOnly)` in `ui/dialogs/PageOpsDialogs.cpp` is refused. **If it fails** S1 for an unwaived write; S2 for a new waiver.
-**T3 (2026-10-30)** *"layer-lint: clean -- 682 files, 7022 includes"*, the same fifteen escapes. **T2 (2026-10-30)** *"layer-lint: clean -- 679 files, 6939 includes"*, `--explain`'s census the same fifteen escapes. The control waits for `PageOpsDialogs` (T7).
+**T4 (2026-10-31)** *"layer-lint: clean -- 684 files, 7081 includes"*, `--explain`'s census the same fifteen escapes -- the two files more are T4's test files; the verify's thread and the gate add no edge. **T3 (2026-10-30)** *"layer-lint: clean -- 682 files, 7022 includes"*, the same fifteen escapes. **T2 (2026-10-30)** *"layer-lint: clean -- 679 files, 6939 includes"*, `--explain`'s census the same fifteen escapes. The control waits for `PageOpsDialogs` (T7).
 
 **A-10 · `i18n-lint`: six new families, each a context of its own** ☐ *every task; whole at T19*
 **Steps** `i18n-lint.exe --root . --explain`; `checks`.
 **Expect** Clean, **0 literal waivers**; the families `pages`, `bookmarks`, `layers`, `tags`, `decorate`, `links` each in `en` and `zh-TW`; **`wrong-context` clean** — and no family spelled like a command or action id (Stage 5's I-08). **If it fails** S2.
-**T3 (2026-10-30)** *"i18n-lint: clean -- 424 files, 2 catalog(s), 0 waiver(s)"*; T3 adds no key. **T2 (2026-10-30)** *"i18n-lint: clean -- 424 files, 2 catalog(s), 0 waiver(s)"*. T2 has no surface, so it adds no new family: seven keys in the existing `command.` and `error.` families, in both locales (`command.page.move`, `.delete`, `.duplicate`; `error.edit.noPagesLeft`, `.pageReadingsDisagree`, `.copyNotSaved`; `error.pdf.pageTreeDamaged`), and `unit.every command name is a catalog key present in both shipped locales` covers the three names.
+**T4 (2026-10-31)** *"i18n-lint: clean -- 424 files, 2 catalog(s), 0 waiver(s)"*; T4 adds no key -- an edit taken back after it returned is said by Stage 6's `shell.status.annotationRefused` with `error.edit.notShown`. **T3 (2026-10-30)** *"i18n-lint: clean -- 424 files, 2 catalog(s), 0 waiver(s)"*; T3 adds no key. **T2 (2026-10-30)** *"i18n-lint: clean -- 424 files, 2 catalog(s), 0 waiver(s)"*. T2 has no surface, so it adds no new family: seven keys in the existing `command.` and `error.` families, in both locales (`command.page.move`, `.delete`, `.duplicate`; `error.edit.noPagesLeft`, `.pageReadingsDisagree`, `.copyNotSaved`; `error.pdf.pageTreeDamaged`), and `unit.every command name is a catalog key present in both shipped locales` covers the three names.
 
 **A-11 · `license-audit` unchanged** ☐ *T19*
 **Steps** `checks`' `license-audit` line.
@@ -547,17 +555,25 @@ by a later task says so in its result.
 
 ### 5.6 The compose stops growing (T4) — Q4 ✅
 
-**A-35 · `journal.run` does not grow with the unsaved update** ☐ *T4* — §3.7
-**Steps** `ctest -R "journal.compose_growth" -V` (`[run-serial]`, convention 25).
-**Expect** §3.7's bars at 0, 300 and 3,000 unsaved copied objects, for a one-page move and a bookmark rename. **If it fails** S2, and §3.7 records *not taken*.
+**A-35 · `journal.run` does not grow with the unsaved update** 🟡 *T4's half 2026-10-31; §3.7's verdict at T5 and T11* — §3.7
+**Steps** `ctest -R "builds only what it changed" -V` (`[run-serial]`, convention 25); at T5 and T11 the same over §3.7's real workload.
+**Expect** §3.7's bars at 0, 300 and 3,000 unsaved copied objects, for a one-page move and a bookmark rename. **At T4** (the user's choice, 2026-10-31, §3.7): the objects a one-page move and a rotation BUILD -- written anew rather than as the last compose wrote them -- the same at every size, and the times reported. **If it fails** S2, and §3.7 records *not taken*.
+**Result (T4)** `tests/render/tst_composegrowth.cpp`, the shipped backend shown and settled as `DocumentWindow` does, `text-900.pdf` with **0, 300 and 3,000** unsaved objects (100 and 1,100 highlights, one a page from page 101 -- a stand-in for T5's copied pages), ten one-page moves and ten rotations each, settled untimed before each: **a move builds 2 objects and a rotation 2 at every size**. *Reported, not graded* (§3.7 is T5's and T11's): three runs, nothing else running: `journal.run` p95 for the move **2.32–2.82 / 2.35–3.03 / 7.55–9.34 ms** at 0 / 300 / 3,000 unsaved objects, max 3.86–5.06 / 4.69–5.04 / 15.66–17.16; for the rotation **1.74–1.85 / 2.01–2.17 / 4.69–5.47**; the verify, off the thread, p95 **4.35–4.93 / 5.33–6.35 / 19.04–20.11 ms** -- against, before T4 (a throwaway probe of the same workload at 1,500 highlights, 3,701 objects), **5.95 ms with nothing unsaved and 49.8 ms after**: 25 ms of compose and 21 of verify, both on the UI thread. **What still grows is not small:** +5.2–6.5 ms for the move at 3,000 objects over none, +2.9–3.6 for the rotation -- the writing of what is reused (the writer about 0.35 µs an object), the block's names asked again, the update copied for the engine. **On this stand-in, §3.7's 2 ms bar would NOT be met**; whether T5's copied pages, one unit per insert, meet it is that task's reading, and the remaining cost is named here so it is not rediscovered. **Control:** P12 (every unit forgotten before each compose) red -- T4's row in `Implementation-Plan.md` §4 lists the plants.
 
-**A-36 · A composition Save could not write is still refused** ☐ *T4*
-**Steps** `ctest -R "journal.compose_refused"`: a planted compose whose verify fails.
+**A-36 · A composition Save could not write is still refused** ✅ *2026-10-31, T4*
+**Steps** `ctest -R "verify refuses"`: a planted compose whose verify fails -- refused, since T4, AFTER the run returned.
 **Expect** The command refused with `error.edit.notShown`, the model untouched, nothing queued to the engine — D6-2's rule unchanged by the verify moving off the UI thread. **If it fails** S1.
+**Result** Five cases. **The journal** (`tests/unit/tst_journal.cpp`, the settle handler the case's own): a run refused at its settle is taken back -- the rotation reverted, the step removed, `mutated` once more with `WholeDocument`, the refusal told once, the recovery recorder told `run` then `undo` -- and the run that settled it is refused with the same error; an undo refused is re-applied, a redo refused reverted; a command inside a group is settled before it returns, as before T4. **Through a real sink** (`tests/unit/tst_composememo.cpp`, `CosBackend` with its verify deferred to the settle): Stage 6 guide A-30's `/Annots` fault planted at the compose and CLEARED before the settle -- the verify checks the seam as it stood when the update was composed -- refused by `error.save.verifyFailed`, the model as opened, nothing shown, the sink's delta empty; the control, the same edit unfaulted, made and shown. **Through the shipped backend** (`tests/render/tst_composegrowth.cpp`, `pages-900.pdf`): a move of page 1 to the end with `/Kids` renamed in its update -- the run returns, the window's call is made when the verify ends, and BETWEEN that refusal and the settle a tile at the refused index finds no engine; settled, the refusal by key, the model and the history as they were, **no reload made and nothing pending**, `page 1 of 900` extracted at index 0 and its pixels as before; the same move unfaulted made and drawn. `refs-every-kind.pdf`: the bookmarks the refused move had re-pointed are back on their pages. And Stage 6's own case (`render.an edit whose composition fails verify is refused by key and the page keeps drawing`, that guide's A-39) now takes its refusal from the settle. **Controls, each red:** P6 (no gate), P7 (no take-back), P9 (the readers not put back), P10 (the old engine left to draw).
 
-**A-37 · Commands and saves wait for a verify in flight** ☐ *T4*
-**Steps** `ctest -R "journal.verify_order"`: three commands and a save issued while a verify runs.
+**A-37 · Commands and saves wait for a verify in flight** ✅ *2026-10-31, T4*
+**Steps** `ctest -R "wait for the verify in flight"` (`[run-serial]`): three commands, a tile and a save issued while a verify runs.
 **Expect** Shown and saved in issue order; the save writes the composition that verified; no command shown before the one issued earlier. **If it fails** S1.
+**Result** `tests/render/tst_composegrowth.cpp`, `pages-900.pdf`, every verify slowed to 150 ms by the seam (which corrupts nothing and keeps what it was handed): a move RETURNS in under 100 ms with its verify still running; a tile of the moved page asked for then, through the shipped scheduler, is drawn on the render thread only after that verify ended, and shows the moved page (page 1's pixels); the next command waits for it, and the one after waits **150 ms or more**; the log reads **show, verified, show, verified, show, verified** -- none shown ahead of the verify before it; the save waits for the last verify and **writes exactly the file the third show verified**, byte for byte. **Control:** P8 (the verify joined on the caller's thread) red. *Found while writing it:* the tile first came from a bare `std::thread`, which drew index 10 after the NEXT command had swapped in -- the scheduler drops such a job, a bare thread does not -- and the failing pixel `CHECK` on two `QByteArray`s crashed Catch2's reporter (`CLAUDE.md` -> Traps); the case asks the scheduler, and compares digests.
+
+**A-128 · The compose that keeps what it composed writes what a compose from nothing writes** ✅ *2026-10-31, T4* *(added at T4, D7-26)*
+**Steps** `ctest -R "writes what a compose from nothing writes"`.
+**Expect** Over every editable corpus file, after each operation of a script -- two highlights, a typed comment (a FONT, the shared object), a created annotation moved, one of the file's moved twice, a rotation, a move, a duplicate, a delete, the first annotation deleted, every undo, three redos, a save and three operations after it -- the update the show composed, a second compose and a compose with everything composed FORGOTTEN (the book kept, so at the same numbers) are the same bytes; and no step is refused by its verify. **If it fails** S1 -- a stale object is a page or a comment drawn as it was.
+**Result** `tests/unit/tst_composememo.cpp`, headless over `CosBackend` (so under `portable-asan` too): **2,854 operations over 121 editable corpus files; 0 differ**. **It found two defects before it was green:** T4's own first draft ended the book's round AFTER the writer had chosen `/Size` and the free rows, so after a deletion the update shown was not the next compose's -- the round now ends with `delta()` (P4 plants it back: 497 differ); and **I-03** (§8), older than T4. **Controls, each red:** P1 (the epoch not moved by a deletion), P2 (a listing reused uncompared), P3 (a created annotation reused uncompared), P4 (the round ended after the write), P5 (an edit reused uncompared -- green until the script moved one of the file's annotations twice, so that its edit changed while its unit was held). P1 and P2 were first REFUSED by the verify rather than compared by the case -- the safety net working -- so the case now counts a refusal by `error.edit.notShown` as a failure.
 
 ### 5.7 Pages from another document (T5)
 
@@ -1159,6 +1175,7 @@ missed it, and the control that was run red before the fix — the shape every e
 |---|---|---|---|
 | **I-01** | S2 | A page that inherits its `/MediaBox` or `/CropBox` from a `/Pages` node was shown at US Letter, uncropped, and its whole document refused for editing | **Closed** at T1, 2026-10-29 |
 | **I-02** | S3 | The fuzz soak built nothing: `ubuntu-latest` moved it to Ubuntu 26.04, whose Clang 21 refuses an unused field in `core/text/FolderSearch.h` under `-Werror` | **Closed** 2026-10-29, soak 40875917394 read from its log |
+| **I-03** | S2 | Move a link the file holds, then delete the page it points at: the delete was refused (`error.edit.notShown`), because its compose wrote that link twice | **Closed** at T4, 2026-10-31 |
 
 **I-01 (S2) — the engine facade read a page's boxes from the page dictionary alone.** *Found* at T1 by
 the first scratch render of `assembly/inherit-resources.pdf`, whose pages inherit both boxes: an A4 page
@@ -1211,6 +1228,23 @@ with Clang 18 again, so **Clang 21's verdict on the fix is not measured by CI**.
 2,857,939 runs, `fuzz_cos_parser` 1,623,517, `fuzz_text_pipeline` 34,687, `fuzz_annot_pipeline` 15,569,
 `fuzz_cos_roundtrip` 12,402 (611 s); and CI run **40875904825**, all five jobs green on `ubuntu-24.04`
 for the Linux four.
+
+**I-03 (S2) — an annotation the file holds, edited and then repaired, was written twice.** *Found* at T4 by A-128's
+first green-going run, on `assembly/merge-a.pdf`: after its link -- the label's *"a link to its last page"* -- was
+moved, deleting a page was refused by `error.edit.notShown`, context `error.pdf.writeDuplicateObject`. *Mechanism:*
+two writers, one object. `ReferenceRepair` (T2, D7-2) clears the action of a link whose target page a command
+removes, into the compose's pending map, written at the end; `composeAnnotations`' edit loop (Stage 6 T5) rewrites
+an annotation edited in place straight into the delta. A link both moved and repaired got both, and the writer
+refuses an object written twice -- so the verify refused the delete, which no person could then make. *Why no suite
+saw it:* T2's reference cases (A-19 … A-21) run each page command over fixtures with references, and Stage 6's edit
+cases edit -- **no case ever edited an annotation the repair then had to change**; A-128's script happened to do both,
+on the one fixture with a link to a page it deletes. *Fix* (the user's choice, 2026-10-31, inside T4): an annotation
+the repair has rewritten in this compose is edited ON the repaired dictionary and goes back where the repair put it
+-- one object, written once; and a version the file held is not restored over a repair, the edit then made from the
+model instead (`MutationSinkImpl::composeAnnotations`). *Regression:* `unit.a moved link whose target page is
+deleted is written once` (`tests/unit/tst_composememo.cpp`): the link moved, its page deleted, saved, and the link
+read back where it was moved to with no `/Dest` and no `/A`; and A-128 itself. *Control:* the fix reverted alone
+(P11), the regression red by `error.pdf.writeDuplicateObject`; restored, green.
 
 ---
 

@@ -14,6 +14,7 @@
 
 #include "CosBackend.h"
 #include "core/cmd/CommandJournal.h"
+#include "core/cmd/OperationRecorder.h"
 #include "core/cmd/commands/PageCommands.h"
 #include "core/doc/Document.h"
 
@@ -420,7 +421,7 @@ TEST_CASE("journal asks the show step after every run undo and redo and before a
     journal.setShowHandler([&](const Scope& scope) {
         order.push_back("show " + std::to_string(scope.pageIndices().empty() ? -1 : scope.pageIndices().front()));
         return core::Status{};
-    });
+    }, {});
     journal.subscribeMutated([&](const Scope&) { order.push_back("mutated"); });
 
     REQUIRE(journal.run(rotate(2)));
@@ -434,7 +435,7 @@ TEST_CASE("journal asks the show step after every run undo and redo and before a
     CHECK(order.empty());
 
     // UNSET, nothing is asked -- every headless caller, and a replay before its window exists.
-    journal.setShowHandler({});
+    journal.setShowHandler({}, {});
     CHECK_FALSE(journal.hasShowHandler());
     REQUIRE(journal.run(rotate(1)));
     CHECK(order == std::vector<std::string>{"mutated"});
@@ -450,7 +451,7 @@ TEST_CASE("journal takes back a run undo or redo the show step refuses and leave
     journal.setShowHandler([&](const Scope&) -> core::Status {
         if (refuse) return core::Error{core::ErrorCode::Corrupted, QLatin1String("error.edit.notShown"), QStringLiteral("test")};
         return {};
-    });
+    }, {});
 
     // A RUN: refused by the show step's key, the model, the sink, the revision and the history untouched.
     const QByteArray hash = session->document().modelHash();
@@ -486,4 +487,148 @@ TEST_CASE("journal takes back a run undo or redo the show step refuses and leave
     CHECK(journal.canRedo());
     CHECK(deltaIsEmpty(session->sink()));
     CHECK(mutated == 2);   // the run and the undo that were shown; nothing for the refusals
+}
+
+
+// ==========================================================================================
+// Stage 7 T4 (`Stage7-Assembly-Plan.md` Q4) -- shown now, verified soon: the take-back (guide A-36's journal half)
+// ==========================================================================================
+// The settle handler here is the case's: it answers what `verdict` says, as `IDocumentBackend::settleEdits` answers
+// what its verify found. The shipped backend's half -- a verify that really runs on another thread and an engine that
+// really waits for it -- is `tests/render/tst_composegrowth.cpp`.
+
+namespace {
+
+struct Told final : core::OperationRecorder {
+    std::vector<std::string> lines;
+    void recordRun(const core::Command& command, const std::optional<CatalogText>&) override
+    {
+        lines.push_back("run " + std::string(command.typeId().data(), static_cast<std::size_t>(command.typeId().size())));
+    }
+    void recordGroupEnd() override { lines.push_back("group end"); }
+    void recordUndo(const CatalogText&, const std::vector<const core::Command*>& step) override
+    {
+        lines.push_back("undo " + std::to_string(step.size()));
+    }
+    void recordRedo(const CatalogText&, const std::vector<const core::Command*>& step) override
+    {
+        lines.push_back("redo " + std::to_string(step.size()));
+    }
+    void recordSaved(const core::Document&, const QString&) override { lines.push_back("saved"); }
+};
+
+core::Error refusal()
+{
+    return core::Error{core::ErrorCode::Corrupted, QLatin1String("error.edit.notShown"), QStringLiteral("error.save.verifyFailed:test")};
+}
+
+} // namespace
+
+TEST_CASE("journal takes back a run the verify refuses after it returned and refuses the next with it", "[cmd][journal][A-36]")
+{
+    auto session = openSession("ordinary/text-a4.pdf");
+    CommandJournal& journal = *session->journal;
+    Told told;
+    journal.setRecorder(&told);
+    std::optional<core::Error> verdict;   // what the next settle answers
+    int settles = 0;
+    journal.setShowHandler([](const Scope&) { return core::Status{}; }, [&]() -> core::Status {
+        ++settles;
+        if (verdict) return *verdict;
+        return {};
+    });
+    std::vector<Scope::Kind> scopes;
+    journal.subscribeMutated([&](const Scope& scope) { scopes.push_back(scope.kind()); });
+    std::vector<std::string> refusals;
+    journal.subscribeRefused([&](const core::Error& error) { refusals.push_back(std::string(error.messageKey.data())); });
+
+    const QByteArray hash = session->document().modelHash();
+    const core::Revision opened = journal.revision();
+
+    // THE RUN RETURNS -- and waits to be settled.
+    REQUIRE(journal.run(rotate(0)));
+    CHECK(journal.isUnsettled());
+    CHECK(session->rotation(0) == 90);
+    CHECK(settles == 0);
+
+    // THE NEXT RUN SETTLES IT FIRST, and the verify refused: the rotation taken back, this run refused with it.
+    verdict = refusal();
+    const core::Status next = journal.run(rotate(1));
+    REQUIRE_FALSE(next);
+    CHECK(std::string(next.error().messageKey.data()) == "error.edit.notShown");
+    CHECK(settles == 1);
+    CHECK_FALSE(journal.isUnsettled());
+    CHECK(session->document().modelHash() == hash);
+    CHECK(session->rotation(0) == 0);
+    CHECK(session->rotation(1) == 0);
+    CHECK(deltaIsEmpty(session->sink()));
+    CHECK_FALSE(journal.canUndo());
+    CHECK_FALSE(journal.canRedo());
+    CHECK_FALSE(journal.isDirty());
+    // Announced, as a change of everything; said once; the recovery journal told the inverse.
+    REQUIRE(scopes.size() == 2);
+    CHECK(scopes.back() == Scope::Kind::WholeDocument);
+    CHECK(refusals == std::vector<std::string>{"error.edit.notShown"});
+    CHECK(journal.revision() != opened);
+    CHECK(told.lines == std::vector<std::string>{"run page.rotate", "undo 1"});
+    verdict.reset();
+
+    // AN UNDO REFUSED: the step re-applied, the undo still available.
+    REQUIRE(journal.run(rotate(0)));
+    REQUIRE(journal.settle());
+    REQUIRE(journal.undo());
+    CHECK(session->rotation(0) == 0);
+    verdict = refusal();
+    CHECK_FALSE(journal.settle());
+    CHECK(session->rotation(0) == 90);
+    CHECK(journal.canUndo());
+    CHECK_FALSE(journal.canRedo());
+    CHECK_FALSE(deltaIsEmpty(session->sink()));
+    verdict.reset();
+
+    // A REDO REFUSED: the step reverted again, the redo still available.
+    REQUIRE(journal.undo());
+    REQUIRE(journal.settle());
+    REQUIRE(journal.redo());
+    verdict = refusal();
+    CHECK_FALSE(journal.undo());   // the undo settles the redo first, and is refused with it
+    CHECK(session->rotation(0) == 0);
+    CHECK(journal.canRedo());
+    CHECK(deltaIsEmpty(session->sink()));
+    verdict.reset();
+    CHECK(refusals.size() == 3);
+
+    // SETTLED, NOTHING HAPPENS: a second settle asks nothing.
+    REQUIRE(journal.run(rotate(2)));
+    const int before = settles;
+    REQUIRE(journal.settle());
+    REQUIRE(journal.settle());
+    CHECK(settles == before + 1);
+    journal.setRecorder(nullptr);
+}
+
+TEST_CASE("journal settles a command inside a group before it counts", "[cmd][journal][A-36]")
+{
+    auto session = openSession("ordinary/text-a4.pdf");
+    CommandJournal& journal = *session->journal;
+    bool refuse = false;
+    int settles = 0;
+    journal.setShowHandler([](const Scope&) { return core::Status{}; }, [&]() -> core::Status {
+        ++settles;
+        if (refuse) return refusal();
+        return {};
+    });
+    // A GROUP IS ONE STEP, so a command in it is verified before it returns -- refused there and then, as before T4.
+    journal.beginGroup({QLatin1String("command.page.rotate"), {}});
+    REQUIRE(journal.run(rotate(0)));
+    CHECK(settles == 1);
+    CHECK_FALSE(journal.isUnsettled());
+    refuse = true;
+    const core::Status refused = journal.run(rotate(1));
+    REQUIRE_FALSE(refused);
+    CHECK(std::string(refused.error().messageKey.data()) == "error.edit.notShown");
+    CHECK(session->rotation(1) == 0);
+    CHECK(session->rotation(0) == 90);   // the command before it in the group stays
+    REQUIRE(journal.endGroup());
+    CHECK(journal.canUndo());
 }

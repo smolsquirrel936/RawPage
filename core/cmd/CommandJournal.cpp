@@ -76,6 +76,11 @@ Status CommandJournal::run(std::unique_ptr<Command> command)
     if (!command)
         return Error{ErrorCode::InvalidArgument, QLatin1String("error.command.failed"), QString()};
 
+    // 0. The operation before it, settled (S7 T4): one refused after it returned is taken back, and this one,
+    // asked for on a state the file never had, is refused with it.
+    if (const Status settled = settle(); !settled)
+        return settled;
+
     // 1. The pre-flight, before the command sees anything (D3-7).
     const Status permitted = command->permitted(document_);
     if (!permitted)
@@ -97,7 +102,10 @@ Status CommandJournal::run(std::unique_ptr<Command> command)
 
     // 2b. Shown, or not done (S6 T4, D6-2): a refusal reverts the command and leaves no trace.
     if (showHandler_) {
-        const Status shown = showHandler_(command->scope());
+        Status shown = showHandler_(command->scope());
+        // S7 T4: INSIDE A GROUP, verified before it counts -- see the header.
+        if (shown && groupDepth_ > 0 && settleHandler_)
+            shown = settleHandler_();
         if (!shown) {
             if (!command->revert(document_, *sink_) || document_.modelHash() != before)
                 reportPartialApplication(*command);
@@ -131,6 +139,7 @@ Status CommandJournal::run(std::unique_ptr<Command> command)
     // 4. Durable before this returns (D3-11). A recorder that fails degrades itself; it cannot refuse.
     if (recorder_ != nullptr)
         recorder_->recordRun(recorded, opensGroup);
+    if (showHandler_ && groupDepth_ == 0) unsettled_ = Unsettled::Run;
     afterOperation(scope, wasDirty);
     return Status{};
 }
@@ -183,6 +192,8 @@ bool CommandJournal::undo()
 {
     if (!canUndo() || sink_ == nullptr)
         return false;
+    if (!settle() || !canUndo())   // S7 T4: the operation before it first
+        return false;
     const bool wasDirty = isDirty();
     Step& step = history_[position_ - 1];
     // S7 T2 (D7-3): an undo moves pages back, so its scope carries the step's page map INVERTED.
@@ -198,6 +209,7 @@ bool CommandJournal::undo()
     --position_;
     if (recorder_ != nullptr)
         recorder_->recordUndo(step.name, commandsOf(step));
+    if (showHandler_) unsettled_ = Unsettled::Undo;
     afterOperation(undone, wasDirty);
     return true;
 }
@@ -205,6 +217,8 @@ bool CommandJournal::undo()
 bool CommandJournal::redo()
 {
     if (!canRedo() || sink_ == nullptr)
+        return false;
+    if (!settle() || !canRedo())   // S7 T4: the operation before it first
         return false;
     const bool wasDirty = isDirty();
     Step& step = history_[position_];
@@ -219,6 +233,7 @@ bool CommandJournal::redo()
     ++position_;
     if (recorder_ != nullptr)
         recorder_->recordRedo(step.name, commandsOf(step));
+    if (showHandler_) unsettled_ = Unsettled::Redo;
     afterOperation(scopeOf(step), wasDirty);
     return true;
 }
@@ -248,6 +263,7 @@ bool CommandJournal::abandonOpenGroup()
 {
     if (groupDepth_ == 0)
         return false;
+    settle();   // S7 T4: whatever was shown before it -- a group's own commands settled as they ran
     const bool wasDirty = isDirty();
     groupDepth_ = 0;
     if (!groupStepOpen_)
@@ -260,7 +276,9 @@ bool CommandJournal::abandonOpenGroup()
     // Shown as well (D6-2) -- but a group abandoned is a step that never happened, so a refusal here
     // cannot keep it: it is logged, and the engine goes on drawing what it drew.
     if (showHandler_) {
-        if (const Status shown = showHandler_(scope); !shown) {
+        Status shown = showHandler_(scope);
+        if (shown && settleHandler_) shown = settleHandler_();   // S7 T4: settled at once (see the header)
+        if (!shown) {
             RAWPAGE_LOG_WARNING(LogSubsystem::Save)
                 << "journal: an abandoned group could not be shown --" << shown.error().messageKey;
         }
@@ -327,6 +345,66 @@ void CommandJournal::afterOperation(const Scope& scope, bool wasDirty)
     }
 }
 
+Status CommandJournal::settle()
+{
+    if (!unsettled_) return Status{};
+    const Unsettled operation = *unsettled_;
+    unsettled_.reset();
+    if (!settleHandler_) return Status{};
+    const Status verdict = settleHandler_();
+    if (verdict) return Status{};
+    takeBack(operation, verdict.error());
+    return verdict;
+}
+
+void CommandJournal::takeBack(Unsettled operation, const Error& why)
+{
+    const bool wasDirty = isDirty();
+    switch (operation) {
+    case Unsettled::Run: {
+        Step& step = history_[position_ - 1];
+        if (!revertStep(step)) {
+            RAWPAGE_LOG_ERROR(LogSubsystem::Save) << "journal: a refused command could not be taken back";
+        }
+        if (recorder_ != nullptr)
+            recorder_->recordUndo(step.name, commandsOf(step));
+        history_.erase(history_.begin() + static_cast<std::ptrdiff_t>(position_ - 1));
+        --position_;
+        break;
+    }
+    case Unsettled::Undo:
+        if (!applyStep(history_[position_])) {
+            RAWPAGE_LOG_ERROR(LogSubsystem::Save) << "journal: a refused undo could not be taken back";
+        }
+        if (recorder_ != nullptr)
+            recorder_->recordRedo(history_[position_].name, commandsOf(history_[position_]));
+        ++position_;
+        break;
+    case Unsettled::Redo:
+        if (!revertStep(history_[position_ - 1])) {
+            RAWPAGE_LOG_ERROR(LogSubsystem::Save) << "journal: a refused redo could not be taken back";
+        }
+        if (recorder_ != nullptr)
+            recorder_->recordUndo(history_[position_ - 1].name, commandsOf(history_[position_ - 1]));
+        --position_;
+        break;
+    }
+    RAWPAGE_LOG_WARNING(LogSubsystem::Save)
+        << "journal: an edit Save could not write was taken back --" << why.messageKey << why.context;
+    // EVERYTHING drawn for the refused revision goes: it was drawn by an engine that never had it (S7 T4).
+    afterOperation(Scope::wholeDocument(), wasDirty);
+    const auto refused = refusedHandlers_;
+    for (const auto& [token, handler] : refused)
+        if (handler) handler(why);
+}
+
+int CommandJournal::subscribeRefused(RefusedHandler handler)
+{
+    const int token = nextToken_++;
+    refusedHandlers_.emplace(token, std::move(handler));
+    return token;
+}
+
 int CommandJournal::subscribeMutated(MutatedHandler handler)
 {
     const int token = nextToken_++;
@@ -345,6 +423,7 @@ void CommandJournal::unsubscribe(int token)
 {
     mutatedHandlers_.erase(token);
     dirtyHandlers_.erase(token);
+    refusedHandlers_.erase(token);
 }
 
 } // namespace rawpage::core

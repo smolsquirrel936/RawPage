@@ -133,6 +133,9 @@ add_executable(rawpage_tests
     tst_remap.cpp                 # Stage 7 T3  -- D7-3's consumers in core/ over a fake engine with an ORDER: the
                                   #   cache, the disk tier that does not remap, the scheduler, the text index and
                                   #   its epoch, a search, a selection, the find bar's hits (S7 guide A-30, A-31, A-34)
+    tst_composememo.cpp           # Stage 7 T4  -- the compose that keeps what it composed writes what one from nothing
+                                  #   writes, over every editable corpus file (S7 guide A-128), and the late refusal
+                                  #   taken back through a real sink (A-36's headless half)
     tst_dpipolicy.cpp             # Stage 2 T10 -- guide cases A-28, A-29, A-30
     tst_tilegrid.cpp              # Stage 2 T10 -- guide case A-31
     tst_presentation.cpp          # Stage 2 T10 -- guide cases A-32, A-33, A-34

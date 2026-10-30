@@ -90,6 +90,7 @@ core::Status PdfiumTextExtractor::extractPage(core::DocumentHandle document, int
     // appears to end in the middle of a sentence.
     core::text::PageTextModel model(pageIndex);
 
+    document_.awaitShown();   // S7 T4: as the rasterizer -- a revision behind its verify, waited for with no lock held
     {
         // EVERYTHING inside the lock, as the rasterizer does -- the page load, the text page, every
         // query and both closes. PDFium's sharing is process-global (I-05), so a text query racing a

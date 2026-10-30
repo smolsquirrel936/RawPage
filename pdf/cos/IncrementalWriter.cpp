@@ -4,6 +4,7 @@
 
 #include "pdf/cos/XrefTable.h"
 #include "pdf/cos/filters/Filter.h"
+#include "pdf/cos/filters/FlateFilter.h"
 
 #include <QByteArray>
 #include <QCryptographicHash>
@@ -11,6 +12,7 @@
 #include <algorithm>
 #include <charconv>
 #include <cmath>
+#include <iterator>
 #include <map>
 #include <set>
 
@@ -298,6 +300,13 @@ QByteArray hashOf(std::string_view first, const std::string& body)
     return hash.result();
 }
 
+std::string md5Of(const std::string& bytes)
+{
+    const QByteArray digest = QCryptographicHash::hash(QByteArrayView(bytes.data(), static_cast<qsizetype>(bytes.size())),
+                                                       QCryptographicHash::Md5);
+    return std::string(digest.constData(), static_cast<std::size_t>(digest.size()));
+}
+
 enum class Mode { Chained, Complete };
 
 core::Result<WrittenUpdate> write(std::string_view original, const XrefTable& table,
@@ -338,20 +347,27 @@ core::Result<WrittenUpdate> write(std::string_view original, const XrefTable& ta
 
     // --- Validate the whole delta before producing a byte. A refusal half-way through would have
     // nothing to undo, but a caller must never see a partial update even in memory. -------------
-    const ObjectAllocator& allocator = delta.allocator();
-    std::set<long long> seen;
-    for (const ObjectChange& change : delta.changes()) {
-        if (!seen.insert(change.number).second)
+    // In number order, which is the order they are written in -- and a number twice is two neighbours (S7 T4: a
+    // sort, where a set of every number was a node per object).
+    std::vector<const ObjectChange*> ordered;
+    ordered.reserve(delta.changes().size());
+    for (const ObjectChange& change : delta.changes())
+        ordered.push_back(&change);
+    std::stable_sort(ordered.begin(), ordered.end(),
+                     [](const ObjectChange* a, const ObjectChange* b) { return a->number < b->number; });
+    for (std::size_t at = 1; at < ordered.size(); ++at) {
+        if (ordered[at]->number == ordered[at - 1]->number)
             return writeError(core::ErrorCode::InvalidArgument, "error.pdf.writeDuplicateObject",
-                              change.number);
-        const bool added = change.number >= allocator.firstNumber()
-                           && change.number < allocator.nextNumber();
-        const XrefEntry* entry = table.find(change.number);
+                              ordered[at]->number);
+    }
+    for (const ObjectChange& change : delta.changes()) {
+        const bool added = delta.isNew(change.number);
+        const XrefEntry* entry = added ? nullptr : table.find(change.number);   // S7 T4: a new number is not the file's
         const bool present = entry != nullptr && entry->type != XrefEntryType::Free;
         if (change.number <= 0 || (!added && !present))
             return writeError(core::ErrorCode::NotFound, "error.pdf.writeObjectMissing",
                               change.number);
-        if (change.object.isStream() && !change.streamData)
+        if (!change.written && change.object.isStream() && !change.streamData)
             return writeError(core::ErrorCode::InvalidArgument,
                               "error.pdf.writeStreamDataMissing", change.number);
     }
@@ -359,29 +375,50 @@ core::Result<WrittenUpdate> write(std::string_view original, const XrefTable& ta
     // --- The objects. ---------------------------------------------------------------------------
     WrittenUpdate update;
     std::string& out = update.bytes;
+    update.objectsWritten.reserve(ordered.size());
+    update.objects.reserve(ordered.size());
     const bool endsWithEol =
         !original.empty() && (original.back() == '\n' || original.back() == '\r');
     if (!endsWithEol)
         out += '\n';   // `%%EOF` then our first object on the same line would be a comment
 
-    std::vector<const ObjectChange*> ordered;
-    for (const ObjectChange& change : delta.changes())
-        ordered.push_back(&change);
-    std::sort(ordered.begin(), ordered.end(),
-              [](const ObjectChange* a, const ObjectChange* b) { return a->number < b->number; });
+    std::size_t expected = out.size();
+    for (const ObjectChange* change : ordered)
+        expected += change->written ? change->written->bytes.size() : 256;
+    out.reserve(expected + 24 * ordered.size() + 256);
 
     std::map<long long, Row> rows;
+    // S7 T4: what the `/ID` is hashed over -- each object's digest, not its bytes again (see the header).
+    std::string digests;
+    digests.reserve(ordered.size() * 16);
     for (const ObjectChange* change : ordered) {
         // A replaced object keeps its generation; one that lived in an object stream had
         // generation 0 by definition (ISO 32000-1 7.5.7), and so does a new one.
-        const XrefEntry* entry = table.find(change->number);
+        const XrefEntry* entry = delta.isNew(change->number) ? nullptr : table.find(change->number);
         const long long generation =
             entry != nullptr && entry->type == XrefEntryType::InFile ? entry->field3 : 0;
-        rows[change->number] = Row{XrefEntryType::InFile,
-                                   static_cast<long long>(original.size() + out.size()),
-                                   generation};
-        appendIndirect(out, change->number, generation, change->object, change->streamData);
+        rows.emplace_hint(rows.end(), change->number,
+                          Row{XrefEntryType::InFile, static_cast<long long>(original.size() + out.size()), generation});
+        std::shared_ptr<const WrittenObject> written = change->written;
+        if (written) ++update.objectsReused;
+        if (!written) {
+            auto fresh = std::make_shared<WrittenObject>();
+            fresh->number = change->number;
+            appendIndirect(fresh->bytes, change->number, generation, change->object, change->streamData);
+            fresh->digest = md5Of(fresh->bytes);
+            written = std::move(fresh);
+        }
+        out += written->bytes;
+        digests += written->digest;
         update.objectsWritten.push_back(change->number);
+        update.objects.push_back(std::move(written));
+    }
+    // S7 T4: a number the book gave and no object holds any more -- a FREE row, so `/Size` covers no number
+    // without one. Generation 0: the next object written at it is new, as every object the book numbers is.
+    if (const NumberBook* book = delta.book(); book != nullptr) {
+        for (const long long unused : book->unused()) {
+            if (unused < book->nextNumber() && rows.count(unused) == 0) rows[unused] = Row{XrefEntryType::Free, 0, 0};
+        }
     }
 
     // HOISTING `/XRefStm` MOVES THE STREAM AHEAD OF THE SECTION WE ARE CHAINING TO. A reader walks
@@ -405,7 +442,7 @@ core::Result<WrittenUpdate> write(std::string_view original, const XrefTable& ta
 
     // --- Which rows the section lists. ---------------------------------------------------------
     long long size = std::max({table.declaredSize(), table.largestObjectNumber() + 1,
-                               allocator.nextNumber()});
+                               delta.nextNumber()});
     if (mode == Mode::Complete) {
         // Every object the table places, at the offset it verified -- except those this update
         // replaces, whose new rows are already in `rows` and win.
@@ -450,14 +487,15 @@ core::Result<WrittenUpdate> write(std::string_view original, const XrefTable& ta
 
     if (kind == SectionKind::Classic) {
         update.sectionOffset = original.size() + out.size();
-        out += classicSection(rows);
-        const QByteArray digest = hashOf(firstId, out);
+        const std::string section = classicSection(rows);
+        out += section;
+        const QByteArray digest = hashOf(firstId, digests + section);
         out += "trailer\n";
         appendObject(out, CosObject::makeDictionary(trailerEntries(digest)));
         out += '\n';
     } else {
         // The stream lists itself, so its number and offset are rows like any other.
-        ObjectAllocator streamAllocator = allocator;
+        ObjectAllocator streamAllocator(delta.nextNumber());
         update.xrefStreamNumber = streamAllocator.allocate();
         size = std::max(size, streamAllocator.nextNumber());
         update.sectionOffset = original.size() + out.size();
@@ -475,7 +513,7 @@ core::Result<WrittenUpdate> write(std::string_view original, const XrefTable& ta
         const int width3 = std::max(2, bytesFor(widest3));
         const std::string raw = streamRows(rows, width2, width3);
 
-        auto encoded = encodeFilter(FilterKind::Flate, raw, DecodeParms{});
+        auto encoded = filters::flateEncodeFast(raw);   // S7 T4: see `flateEncodeFast`
         if (!encoded)
             return writeError(core::ErrorCode::Unknown, "error.pdf.writeEncodeFailed");
         const std::string data(encoded.value().begin(), encoded.value().end());
@@ -486,7 +524,7 @@ core::Result<WrittenUpdate> write(std::string_view original, const XrefTable& ta
             index.push_back(CosObject::makeInteger(static_cast<long long>(run.size())));
         }
 
-        const QByteArray digest = hashOf(firstId, out + raw);
+        const QByteArray digest = hashOf(firstId, digests + raw);
         std::vector<CosObject::Entry> entries;
         entries.push_back({"Type", CosObject::makeName("XRef")});
         for (CosObject::Entry& entry : trailerEntries(digest))
@@ -518,39 +556,156 @@ std::string serializeObject(const CosObject& object)
     return out;
 }
 
+// ---------------------------------------------------------------------------------------------
+// NumberBook (Stage 7 T4)
+// ---------------------------------------------------------------------------------------------
+
+long long NumberBook::numberFor(const std::string& name)
+{
+    if (trace_ != nullptr) trace_->push_back(name);
+    if (const auto found = names_.find(name); found != names_.end()) {
+        found->second.round = round_;
+        return found->second.number;
+    }
+    long long number = 0;
+    if (!unused_.empty()) {
+        number = *unused_.begin();
+        unused_.erase(unused_.begin());
+    } else {
+        number = next_++;
+    }
+    names_.emplace(name, Given{number, round_});
+    return number;
+}
+
+void NumberBook::endRound()
+{
+    for (auto it = names_.begin(); it != names_.end();) {
+        if (it->second.round == round_) {
+            ++it;
+            continue;
+        }
+        unused_.insert(it->second.number);
+        it = names_.erase(it);
+    }
+    // The highest given back is simply not given: `/Size` comes down with it, and no row is written for it.
+    while (!unused_.empty() && *unused_.rbegin() == next_ - 1) {
+        unused_.erase(std::prev(unused_.end()));
+        --next_;
+    }
+}
+
+// ---------------------------------------------------------------------------------------------
+// ObjectDelta
+// ---------------------------------------------------------------------------------------------
+
 ObjectDelta::ObjectDelta(const XrefTable& table) noexcept
     : allocator_(ObjectAllocator::forTable(table))
 {
 }
 
+ObjectDelta::ObjectDelta(const XrefTable& table, NumberBook& book) noexcept
+    : allocator_(ObjectAllocator::forTable(table)), book_(&book)
+{
+}
+
 void ObjectDelta::replace(long long number, CosObject object, std::optional<std::string> streamData)
 {
-    changes_.push_back(ObjectChange{number, std::move(object), std::move(streamData)});
+    mark(number);
+    changes_.push_back(ObjectChange{number, std::move(object), std::move(streamData), nullptr});
 }
 
 long long ObjectDelta::add(CosObject object, std::optional<std::string> streamData)
 {
-    const long long number = allocator_.allocate();
-    changes_.push_back(ObjectChange{number, std::move(object), std::move(streamData)});
+    // With a book, an unnamed object is named by its place in this delta: a number of its own in this compose,
+    // and one a later compose may give to anything. Every caller that composes repeatedly names its objects.
+    const long long number = book_ != nullptr ? book_->numberFor("#" + std::to_string(changes_.size()))
+                                              : allocator_.allocate();
+    mark(number);
+    changes_.push_back(ObjectChange{number, std::move(object), std::move(streamData), nullptr});
     return number;
+}
+
+long long ObjectDelta::add(const std::string& name, CosObject object, std::optional<std::string> streamData)
+{
+    const long long number = reserve(name);
+    mark(number);
+    changes_.push_back(ObjectChange{number, std::move(object), std::move(streamData), nullptr});
+    return number;
+}
+
+long long ObjectDelta::reserve(const std::string& name)
+{
+    return book_ != nullptr ? book_->numberFor(name) : allocator_.allocate();
 }
 
 bool ObjectDelta::define(long long number, CosObject object, std::optional<std::string> streamData)
 {
-    const bool reserved = number >= allocator_.firstNumber() && number < allocator_.nextNumber();
-    if (!reserved || touches(number)) return false;
-    changes_.push_back(ObjectChange{number, std::move(object), std::move(streamData)});
+    if (!isNew(number) || touches(number)) return false;
+    mark(number);
+    changes_.push_back(ObjectChange{number, std::move(object), std::move(streamData), nullptr});
     return true;
+}
+
+bool ObjectDelta::reuse(std::shared_ptr<const WrittenObject> written)
+{
+    if (!written || touches(written->number)) return false;
+    const long long number = written->number;
+    mark(number);
+    changes_.push_back(ObjectChange{number, CosObject(), std::nullopt, std::move(written)});
+    return true;
+}
+
+namespace {
+constexpr long long kTouchedBits = 1LL << 24;   // past ISO 32000-1 Annex C's limit on indirect objects
+} // namespace
+
+void ObjectDelta::mark(long long number)
+{
+    if (number < 0 || number >= kTouchedBits) {
+        touchedFar_.insert(number);
+        return;
+    }
+    const auto at = static_cast<std::size_t>(number);
+    if (at >= touchedBits_.size()) touchedBits_.resize(std::max(at + 1, touchedBits_.size() * 2));
+    touchedBits_[at] = true;
 }
 
 bool ObjectDelta::touches(long long number) const noexcept
 {
-    return std::any_of(changes_.begin(), changes_.end(),
-                       [number](const ObjectChange& change) { return change.number == number; });
+    if (number < 0 || number >= kTouchedBits) return touchedFar_.count(number) != 0;
+    const auto at = static_cast<std::size_t>(number);
+    return at < touchedBits_.size() && touchedBits_[at];
+}
+
+bool ObjectDelta::isNew(long long number) const noexcept
+{
+    if (book_ != nullptr && book_->gave(number)) return true;
+    return number >= allocator_.firstNumber() && number < allocator_.nextNumber();
+}
+
+long long ObjectDelta::nextNumber() const noexcept
+{
+    return book_ != nullptr ? std::max(book_->nextNumber(), allocator_.nextNumber()) : allocator_.nextNumber();
 }
 
 void IncrementalWriter::protectOriginal(XrefTable& table, ObjectDelta& delta)
 {
+    protect(protection(table), delta);
+}
+
+void IncrementalWriter::protect(const Protection& protection, ObjectDelta& delta)
+{
+    for (const ObjectChange& change : protection.rewrites) {
+        if (delta.touches(change.number)) continue;   // the delta writes it anyway: its value wins
+        delta.replace(change.number, change.object, change.streamData);
+    }
+    delta.reserveNumbersThrough(protection.largestReferenced);
+}
+
+Protection IncrementalWriter::protection(XrefTable& table)
+{
+    Protection out;
     const std::string_view source = table.source();
     const std::size_t size = source.size();
 
@@ -587,7 +742,7 @@ void IncrementalWriter::protectOriginal(XrefTable& table, ObjectDelta& delta)
 
         // Open-ended: only a loose object can be -- a packed one's span is into a decoded payload, and
         // its container is itself a loose object that this loop meets.
-        if (type != XrefEntryType::InFile || delta.touches(number))
+        if (type != XrefEntryType::InFile)
             continue;
         const CosSpan& span = indirect.span;
         const bool objectReachesEnd = span.valid && span.offset <= size && span.length >= size - span.offset;
@@ -603,18 +758,20 @@ void IncrementalWriter::protectOriginal(XrefTable& table, ObjectDelta& delta)
 
         if (indirect.object.isStream() && dataInSource) {
             const CosStreamData& data = indirect.object.streamData();
-            delta.replace(number, indirect.object, std::string(source.substr(data.dataOffset, data.dataLength)));
+            out.rewrites.push_back(ObjectChange{number, indirect.object,
+                                                std::string(source.substr(data.dataOffset, data.dataLength)), nullptr});
         } else if (indirect.object.isStream()) {
             // A stream whose data is not in this buffer has nothing a copy could carry; its dictionary
             // is what every reader of it has ever had.
             std::vector<CosObject::Entry> entries(indirect.object.entries().begin(),
                                                   indirect.object.entries().end());
-            delta.replace(number, CosObject::makeDictionary(std::move(entries)));
+            out.rewrites.push_back(ObjectChange{number, CosObject::makeDictionary(std::move(entries)), std::nullopt, nullptr});
         } else {
-            delta.replace(number, indirect.object);
+            out.rewrites.push_back(ObjectChange{number, indirect.object, std::nullopt, nullptr});
         }
     }
-    delta.reserveNumbersThrough(largestReferenced);
+    out.largestReferenced = largestReferenced;
+    return out;
 }
 
 long long IncrementalWriter::largestReference(XrefTable& table)

@@ -40,6 +40,9 @@ core::Result<core::RasterImage> PdfiumRasterizer::raster(const core::render::Ren
     // The cost is that the bitmap's size is known only under the lock; the buffer is still allocated outside it.
     core::PdfSize pageSize;
     core::PageRotation pageOwnRotation = core::PageRotation::None;
+    // S7 T4: a revision waiting for its verify is waited for HERE, holding no lock -- so other documents' jobs and
+    // the UI thread's engine calls do not wait behind it (`PdfiumDocument::show`).
+    document_.awaitShown();
     {
         const std::lock_guard<EngineMutex> guard(engineLock());
         if (document_.engineHandle() == nullptr) {

@@ -698,6 +698,23 @@ public:
     // its leader asks for its own handle.
     virtual Status showEdits(DocumentHandle document, const std::vector<DocumentHandle>& viewers) = 0;
 
+    // THE VERIFY RUNS OFF THE CALLING THREAD -- Stage 7 T4 (`Stage7-Assembly-Plan.md` Q4, `DW-4`'s second cause). A
+    // backend may compose, hand every engine the update GATED on the verify, start the verify elsewhere and return:
+    // a compose that fails is still refused at once, by the same key, and an engine swaps the update in only once
+    // the verify has passed -- a job that needs it waits -- so what the screen shows is still what Save writes.
+    //
+    // `settleEdits` WAITS for the verify of `document`'s last `showEdits` and answers it, ONCE: success, or
+    // `error.edit.notShown` with the verify's key as its context -- after which every engine, and `pages()`,
+    // `outline()` and `destinations()`, are back on what they were before that show. Success when none is pending,
+    // which is every answer of a backend that verifies before `showEdits` returns. `CommandJournal::settle` calls
+    // it, and takes the operation back on a refusal.
+    //
+    // `setEditsSettled` names what to call -- ON THE VERIFYING THREAD -- when a verify of `document` finishes, so a
+    // window can post itself a `settle` and a refusal is taken back without waiting for the next command. Never
+    // called once it returns with an empty function, or once the document is closed.
+    virtual Status settleEdits(DocumentHandle document) = 0;
+    virtual void setEditsSettled(DocumentHandle document, std::function<void()> settled) = 0;
+
     // The six, for a document this backend opened. Null when unimplemented; never a silent stub.
     virtual IPageRasterizer* rasterizer(DocumentHandle document) = 0;
     virtual ITextExtractor*  textExtractor(DocumentHandle document) = 0;

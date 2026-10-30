@@ -113,7 +113,8 @@ std::unique_ptr<Live> openLive(const QString& source, const QString& copyPath, b
     live->journal = std::make_unique<core::CommandJournal>(std::move(document), live->backend.mutationSink(live->handle));
     if (shown) {
         Live* self = live.get();
-        live->journal->setShowHandler([self](const core::Scope&) { return self->backend.showEdits(self->handle, {}); });
+        live->journal->setShowHandler([self](const core::Scope&) { return self->backend.showEdits(self->handle, {}); },
+                                  [self] { return self->backend.settleEdits(self->handle); });
     }
     live->coordinator = std::make_unique<core::SaveCoordinator>(live->backend, &live->durableFiles);
     return live;
@@ -478,8 +479,12 @@ TEST_CASE("an edit whose composition fails verify is refused by key and the page
         const qsizetype at = bytes.indexOf("/Annots", static_cast<qsizetype>(original));
         if (at >= 0) bytes[at + 1] = 'X';
     });
-    const core::Status refused = addHighlight(*live, 0);
+    // S7 T4: the verify runs off the journal's thread, so the run RETURNS and the refusal is the settle's -- which
+    // takes the edit back. Cleared before the settle on purpose: the verify checks the seam as it stood when the
+    // update was composed (`RevisionWriter::verifyUpdate`), not when the thread reaches it.
+    REQUIRE(addHighlight(*live, 0));
     pdf::ops::RevisionWriter::setComposeFaultForTesting({});
+    const core::Status refused = live->journal->settle();
 
     REQUIRE_FALSE(refused);
     CHECK(std::string(refused.error().messageKey.data()) == "error.edit.notShown");
