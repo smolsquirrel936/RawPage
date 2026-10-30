@@ -16,9 +16,9 @@
 > T6, which renumbered T6 … T18 as T7 … T19 throughout, added §3.9, A-122 … A-127 and M-13's Save As steps; Q4
 > ANSWERED the same day, approved — §3.7 and A-35 … A-37 stand, their *struck if declined* clauses removed; Q5
 > ANSWERED the same day, all five parts approved — §1's five out-of-scope rows, A-80, A-96 and §6's note stand
-> as written.** **T1 done 2026-10-29 and T2 2026-10-30: A-13 … A-24, A-26 and A-28 carry a result, all ✅;
-> A-03 and A-27 carry their T2 halves (🟡); A-08 … A-10 carry T2's readings; A-25 is wired and unread until a
-> push; no other case has one.** T1 raised **I-01 (S2), closed inside T1** — the engine facade showed a page
+> as written.** **T1 done 2026-10-29 and T2 2026-10-30: A-13 … A-26 and A-28 carry a result, all ✅
+> (A-25 from CI run 40995950997's log); A-03 and A-27 carry their T2 halves (🟡); A-08 … A-10 carry T2's
+> readings; no other case has one.** T1 raised **I-01 (S2), closed inside T1** — the engine facade showed a page
 > that inherits its boxes at US Letter, uncropped, and refused its document for editing (§8); T2 raised none. **P-3, a duplex printer for M-04, is open.** **Cases
 > written against a §0 proposal name it in their heading or row** (Q*n* ✅); none was declined, so none moved
 > or was struck. **127
@@ -492,10 +492,10 @@ by a later task says so in its result.
 **Expect** The update holds **only** the page-tree nodes whose `/Kids` changed, the label tree when it changed, and the objects D7-2 repaired; the original is a **byte-identical prefix**; **a move and its undo before a save write nothing** (rule 5). **If it fails** S1.
 **Result** Six `pageops.update` cases (`tests/unit/tst_reference_repair.cpp`), each update named from the ORIGINAL bytes read independently: `pages-900.pdf` -- a move inside one node writes **that node alone**; a move of the first page to the end writes **the two nodes and that page** (its `/Parent`), not the nodes between; a delete writes the node that lost the page and every `/Count` above it; the saved files read back in the order asked, the original a byte-identical prefix. `refs-every-kind.pdf` -- a move writes the page-tree node and the catalog (its labels), and **no reference**. A move, a delete and a duplicate undone before a save write NOTHING, the composed bytes equal to the original, on three files. A duplicate is a new page object whose annotations are new objects naming it as `/P`, its widget not copied and reported, no `/StructParents`; undone after a save it leaves the tree, and REDONE it is listed again as the SAME object. **Design fixed by this case:** the first composition filled the tree's page slots in order, so moving page 0 to the end rewrote all nine nodes of `pages-900.pdf`; it now keeps the longest run of pages already in order where they are (`PageOps::composeTree`). **Controls:** P9 (every page re-listed) red; P6 (a copied annotation's `/P` left on its source) red -- refused at the save's own verify before any file was replaced.
 
-**A-25 · `qpdf --check` over every file a page command saves** ☐ *T2; the log read at each push*
+**A-25 · `qpdf --check` over every file a page command saves** ✅ *2026-10-30, T2; the log read at each push*
 **Steps** The `portable-asan` job's `check-qpdf.py` step; **read the log** (rule 3).
 **Expect** *"No syntax or stream encoding errors found"* for every Stage 7 output, each named; the file count re-derived. **If it fails** S2.
-**Wired at T2, not yet read:** every file `tests/unit/tst_reference_repair.cpp` saves is kept as `written/pages-NN.pdf` (eight names) beside Stage 6's, which the job's existing step judges. No result until the job's log is read after a push (rule 3).
+**Result (T2)** Every file `tests/unit/tst_reference_repair.cpp` saves is kept as `written/pages-NN.pdf` beside Stage 6's, which the job's existing step judges. Run **40995950997** on `2da9e8e`, read from the job's log 2026-10-30: `pages-01.pdf` … `pages-08.pdf` each *"No syntax or stream encoding errors found"*, and *"qpdf check: 79 file(s), 0 failed; the truncated-stream control rejected"* -- the eight over run 40875904825's 71. Later tasks' outputs are read at their own pushes.
 
 **A-26 · What is refused is refused by key** ✅ *2026-10-30, T2*
 **Steps** `ctest -R "pageops.refused"`.
