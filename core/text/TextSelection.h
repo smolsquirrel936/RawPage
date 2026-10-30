@@ -45,6 +45,7 @@
 #define RAWPAGE_CORE_TEXT_TEXTSELECTION_H
 
 #include "core/Geometry.h"
+#include "core/doc/PageMap.h"
 #include "core/text/LayoutAnalyzer.h"
 #include "core/text/PageTextModel.h"
 
@@ -79,6 +80,7 @@ public:
     static std::shared_ptr<const PageReading> build(std::shared_ptr<const PageTextModel> model);
 
     const PageTextModel& model() const noexcept { return *model_; }
+    const std::shared_ptr<const PageTextModel>& sharedModel() const noexcept { return model_; }
     const PageLayout& layout() const noexcept { return layout_; }
     int pageIndex() const noexcept { return model_->pageIndex(); }
 
@@ -253,6 +255,14 @@ public:
     std::vector<int> missingPages(const DocumentText& text) const;
 
     CopiedText copy(const DocumentText& text) const;
+
+    // THE SAME SELECTION AFTER A PAGE COMMAND (Stage 7 T3, D7-3), or EMPTY where there is no honest one. A
+    // selection is a run of pages, so it survives only where its pages are still a run: every page from its
+    // first to its last kept, in order, with nothing inserted between -- each caret then moves with its page.
+    // A whole-document selection (`wholeDocument`'s first caret to its last) stays the whole document. Any
+    // other -- a page of it removed, or the run broken by a move -- is cleared rather than guessed at: what a
+    // person selected was those pages together, and no remaining set of pages is that.
+    TextSelection remapped(const PageMap& map) const;
 
 private:
     Kind kind_ = Kind::None;

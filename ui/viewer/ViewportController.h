@@ -43,7 +43,13 @@
 
 #include <QObject>
 
+#include <functional>
+#include <optional>
 #include <vector>
+
+namespace rawpage::core {
+class PageMap;   // core/doc/PageMap.h -- Stage 7 T3
+}
 
 namespace rawpage::ui {
 
@@ -127,12 +133,28 @@ public:
         int page = 0;
         core::render::Zoom zoom;
         core::DevicePoint scroll;
+        // S7 T3 (D7-3): where `scroll` stood RELATIVE TO `page`'s slot when it was recorded, so a page
+        // command that moves the page can put the view back on it rather than on whatever now stands at
+        // the old offset. `anchored` is false where no layout could say (no `setPageOrigin`).
+        core::DevicePoint withinPage;
+        bool anchored = false;
 
         friend bool operator==(const ViewState& a, const ViewState& b) noexcept
         {
             return a.page == b.page && a.zoom == b.zoom && a.scroll == b.scroll;
         }
     };
+
+    // Where page `page`'s slot starts in content space at `zoom`, or nothing when it cannot be placed. The
+    // page view supplies it; the controller knows no layout.
+    using PageOrigin = std::function<std::optional<core::DevicePoint>(int page, core::render::Zoom zoom)>;
+    void setPageOrigin(PageOrigin origin) { pageOrigin_ = std::move(origin); }
+
+    // A PAGE COMMAND MOVED PAGES (S7 T3, D7-3). Every history entry follows its page -- Back returns to the
+    // PAGE, not the index -- its scroll put back at the same place inside that page as `newOrigin`, the
+    // layout AFTER the command, places it; an entry whose page the command removed is dropped. The current
+    // page and the scroll are the page view's to move, which knows the layout they are read from.
+    void remapHistory(const core::PageMap& map, const PageOrigin& newOrigin);
 
     // Pushed by a DELIBERATE navigation -- a go-to-page, a bookmark, a link -- and never by
     // scrolling. A history that recorded every wheel notch is a Back button that goes back one
@@ -168,6 +190,7 @@ private:
 
     std::vector<ViewState> history_;
     int historyIndex_ = -1;
+    PageOrigin pageOrigin_;   // S7 T3
 
     // True while `goBack`/`goForward` is applying a state, so the apply does not record itself.
     bool navigating_ = false;

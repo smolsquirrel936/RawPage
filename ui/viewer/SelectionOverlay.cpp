@@ -136,6 +136,44 @@ void SelectionOverlay::takePage(int page)
     notifyChanged();
 }
 
+void SelectionOverlay::remapPages(const core::PageMap& map)
+{
+    // A COPY WAITING FOR PAGES is for the pages it was asked for, in the old numbering: let go, and said so --
+    // the clipboard is left as it was, as an `Esc` leaves it.
+    if (pendingCopy_) {
+        pendingCopy_ = false;
+        emit copyCancelled();
+    }
+    // A GESTURE IN THE MIDDLE OF A PAGE COMMAND -- a chord pressed during a drag -- ends where it is.
+    gestureActive_ = false;
+    gestureResolved_ = true;
+    anchor_ = focus_ = Point{};
+    anchorUnit_.reset();
+    beforeGesture_ = core::text::TextSelection{};
+    beforeAnchorUnit_.reset();
+
+    // THE SELECTION MOVES WITH ITS PAGES, or goes (`TextSelection::remapped` says when); the find bar's hits
+    // likewise. The pages read here are taken again from the index, which carried them (no extraction), and
+    // the reads still outstanding are the index's to re-send at their new indices -- this object's record of
+    // them moves with them.
+    selection_ = selection_.remapped(map);
+    currentHit_ = core::text::remapHits(hits_, currentHit_, map);
+    std::set<int> requested;
+    for (const int page : requested_)
+        if (const int to = map.newIndexOf(page); to != core::PageMap::kNone) requested.insert(to);
+    requested_ = std::move(requested);
+    // Only the pages this object had read: a reading is laid out on first use, and the other 899 were not.
+    std::vector<int> had;
+    for (int page = 0; page < text_.pageCount(); ++page)
+        if (text_.has(page))
+            if (const int to = map.newIndexOf(page); to != core::PageMap::kNone) had.push_back(to);
+    text_.reset(map.newCount());
+    for (const int page : had)
+        if (const std::shared_ptr<const core::text::IndexedPage> held = index_.page(entry_, page))
+            text_.insert(held->reading());
+    notifyChanged();
+}
+
 void SelectionOverlay::onIndexEvent(const core::text::DocumentIndex::Event& event)
 {
     if (event.entry != entry_ || entry_ == 0) return;
@@ -159,6 +197,9 @@ void SelectionOverlay::onIndexEvent(const core::text::DocumentIndex::Event& even
         return;   // the index's budget, not this selection's: the pages read here are still true
     case core::text::DocumentIndex::Event::Kind::EntryDropped:
         requested_.clear();
+        return;
+    case core::text::DocumentIndex::Event::Kind::PagesRemapped:
+        if (event.map != nullptr) remapPages(*event.map);
         return;
     case core::text::DocumentIndex::Event::Kind::UnitsArrived:
         return;   // a search's comments and fields (S5 T8) -- nothing a selection reads

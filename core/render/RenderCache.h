@@ -29,6 +29,14 @@
 // second check: after a re-key there is no entry at the old revision to find. That is the property
 // that makes Stage 3's mutations safe, and Stage 2 is where it must already be right (A-41).
 //
+// AND A PAGE COMMAND RE-KEYS THE INDEX TOO (Stage 7 T3, D7-3). Its scope is `WholeDocument` with a
+// `PageMap`: the memory tier moves each tile of a page the command kept to that page's NEW index at
+// the new revision, and drops a removed page's. A page command moves a page OBJECT -- its content, its
+// annotations, its boxes are the same object -- so its pixels are the same pixels, and re-rendering a
+// ten-page move of `pages-900.pdf` would be 490 pages' tiles for nothing (guide A-30). The DISK tier
+// does not remap: it answers the scope as the `WholeDocument` it is and drops the document's tiles,
+// which is the widening rule's slower, never-wrong half (guide A-34).
+//
 // -------------------------------------------------------------------------------------------
 // NOT THREAD-SAFE, ON PURPOSE
 // -------------------------------------------------------------------------------------------
@@ -111,6 +119,10 @@ public:
     virtual std::size_t evictionCount() const = 0;
     virtual std::size_t crossDocumentEvictionCount() const = 0;
 
+    // S7 T3 (D7-3): entries a page command's map carried to a new index. A tier that does not remap -- the
+    // disk tier, whose entries a page command drops as the `WholeDocument` its scope is -- answers 0.
+    virtual std::size_t remappedCount() const { return 0; }
+
     // ASCII, stable, non-localized: a log line and a benchmark column, never a user-facing string.
     virtual const char* tierName() const = 0;
 };
@@ -133,6 +145,7 @@ public:
     void setCapacityBytes(std::size_t bytes) override;
     std::size_t evictionCount() const override { return evictions_; }
     std::size_t crossDocumentEvictionCount() const override { return crossDocumentEvictions_; }
+    std::size_t remappedCount() const override { return remapped_; }
     const char* tierName() const override { return "memory"; }
 
     // The documents this tier currently holds tiles for. O7 again: a shared cache whose entries
@@ -156,6 +169,7 @@ private:
     std::size_t bytesHeld_ = 0;
     std::size_t evictions_ = 0;
     std::size_t crossDocumentEvictions_ = 0;
+    std::size_t remapped_ = 0;
 };
 
 // O7's instrumentation (D2-14), reported by `bench_render` at T18. Counters only -- a cache that
@@ -172,6 +186,7 @@ struct CacheStats {
 
     long long invalidations = 0;      // calls
     long long invalidatedEntries = 0; // entries the scopes actually dropped
+    long long remappedEntries = 0;    // S7 T3: entries a page command carried to their page's new index
 
     long long hits() const noexcept { return memoryHits + diskHits; }
 

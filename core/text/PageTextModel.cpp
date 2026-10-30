@@ -38,6 +38,36 @@ bool FontIdentity::isItalic() const
            || style.contains(QLatin1String("Oblique"), Qt::CaseInsensitive);
 }
 
+PageTextModel::PageTextModel(const PageTextModel& other)
+    : pageIndex_(other.pageIndex()), chars_(other.chars_), fonts_(other.fonts_), rules_(other.rules_)
+{
+}
+
+PageTextModel::PageTextModel(PageTextModel&& other) noexcept
+    : pageIndex_(other.pageIndex()), chars_(std::move(other.chars_)), fonts_(std::move(other.fonts_)),
+      rules_(std::move(other.rules_))
+{
+}
+
+PageTextModel& PageTextModel::operator=(const PageTextModel& other)
+{
+    if (this == &other) return *this;
+    movedTo(other.pageIndex());
+    chars_ = other.chars_;
+    fonts_ = other.fonts_;
+    rules_ = other.rules_;
+    return *this;
+}
+
+PageTextModel& PageTextModel::operator=(PageTextModel&& other) noexcept
+{
+    movedTo(other.pageIndex());
+    chars_ = std::move(other.chars_);
+    fonts_ = std::move(other.fonts_);
+    rules_ = std::move(other.rules_);
+    return *this;
+}
+
 int PageTextModel::addFont(const FontIdentity& font)
 {
     // A linear search: a page names a handful of fonts, and a map keyed on three fields would be

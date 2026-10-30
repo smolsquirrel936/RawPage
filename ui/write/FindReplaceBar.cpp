@@ -272,6 +272,27 @@ void FindReplaceBar::setDocument(core::text::DocumentIndex::EntryId entry, int p
     updateStatus();
 }
 
+void FindReplaceBar::remapPages(const core::PageMap& map, bool wasSearching)
+{
+    pageCount_ = map.newCount();
+    // A SEARCH STILL RUNNING WAS ENDED by the index's `PagesRemapped` (its slots were the old numbering): it is
+    // asked again, and finds every moved page's text already read. One that had finished keeps its hits, each
+    // moved with its page and put back in document order (`core::text::remapHits`), the current one with them.
+    // A BOOKMARK FOUND carries the destination it had (its unit is the index's, read before the command), so a
+    // result list holding one is asked again too -- the index reads the outline again as it names pages now.
+    const bool bookmarkFound = std::any_of(hits_.begin(), hits_.end(), [](const SearchHit& hit) {
+        return hit.contentClass() == core::text::ContentClass::Bookmarks;
+    });
+    if ((wasSearching || bookmarkFound) && !field_->text().trimmed().isEmpty()) {
+        startSearch();
+        return;
+    }
+    current_ = core::text::remapHits(hits_, current_, map);
+    if (current_ < 0 && !hits_.empty()) current_ = 0;
+    refreshButtons();
+    updateStatus();
+}
+
 // =====================================================================================================
 // The commands
 // =====================================================================================================

@@ -558,6 +558,29 @@ bool TextSelection::isEmpty() const noexcept
     return true;
 }
 
+TextSelection TextSelection::remapped(const PageMap& map) const
+{
+    if (isEmpty()) return {};
+    if (kind_ == Kind::Column) {
+        const int to = map.newIndexOf(columnPage_);
+        return to == PageMap::kNone ? TextSelection{} : column(to, columnRect_);
+    }
+    // `Ctrl+A`'s selection is the document's, whatever its pages now are.
+    const bool whole = start_ == TextPosition{0, 0} && end_.page == map.oldCount() - 1
+                       && end_.caret == TextPosition::kEndOfPage;
+    if (whole) return wholeDocument(map.newCount());
+
+    const int first = map.newIndexOf(start_.page);
+    if (first == PageMap::kNone) return {};
+    for (int page = start_.page + 1; page <= end_.page; ++page) {
+        if (map.newIndexOf(page) != first + (page - start_.page)) return {};
+    }
+    TextSelection moved = *this;
+    moved.start_.page = first;
+    moved.end_.page = first + (end_.page - start_.page);
+    return moved;
+}
+
 int TextSelection::firstPage() const noexcept
 {
     if (isEmpty()) return -1;

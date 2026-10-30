@@ -1,5 +1,7 @@
 #include "ui/viewer/ViewportController.h"
 
+#include "core/doc/PageMap.h"
+
 #include <algorithm>
 #include <cmath>
 
@@ -185,7 +187,35 @@ void ViewportController::clampScroll()
 
 ViewportController::ViewState ViewportController::currentView() const
 {
-    return ViewState{currentPage_, zoom_, scroll_};
+    ViewState state{currentPage_, zoom_, scroll_, core::DevicePoint{}, false};
+    if (pageOrigin_) {
+        if (const std::optional<core::DevicePoint> origin = pageOrigin_(currentPage_, zoom_)) {
+            state.withinPage = core::DevicePoint{scroll_.x - origin->x, scroll_.y - origin->y};
+            state.anchored = true;
+        }
+    }
+    return state;
+}
+
+void ViewportController::remapHistory(const core::PageMap& map, const PageOrigin& newOrigin)
+{
+    std::vector<ViewState> kept;
+    int index = -1;
+    for (std::size_t i = 0; i < history_.size(); ++i) {
+        ViewState state = history_[i];
+        const int to = map.newIndexOf(state.page);
+        if (to == core::PageMap::kNone) continue;   // a page the command removed: nowhere to go back to
+        state.page = to;
+        if (state.anchored && newOrigin) {
+            if (const std::optional<core::DevicePoint> origin = newOrigin(to, state.zoom))
+                state.scroll = core::DevicePoint{origin->x + state.withinPage.x, origin->y + state.withinPage.y};
+        }
+        // THE POSITION FOLLOWS the entry it pointed at, or the last kept entry before it.
+        if (static_cast<int>(i) <= historyIndex_) index = static_cast<int>(kept.size());
+        kept.push_back(state);
+    }
+    history_ = std::move(kept);
+    historyIndex_ = history_.empty() ? -1 : std::max(index, 0);
 }
 
 void ViewportController::recordView()

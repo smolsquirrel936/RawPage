@@ -208,8 +208,10 @@ public:
     //     beyond `search-classes.pdf`'s one-page attachment (guide A-78).
     //
     // The engine lock is taken per page, never across a part; every engine call is inside it.
+    // `outline` (S7 T3): the outline to read the bookmarks from, as it names pages NOW -- a page command moves
+    // them -- or null for the one read at open.
     core::Status searchUnits(int part, const std::vector<std::pair<QString, QString>>& descriptions,
-                             std::vector<core::text::SearchUnit>& into) const;
+                             std::vector<core::text::SearchUnit>& into, const core::Outline* outline = nullptr) const;
 
     // ONE PAGE'S PATHS -- Stage 6 T12, decision **D6-14** (`core/backend.h` says what is read and why it is bounded).
     // Every path object the page draws -- stroked or filled; a path that does neither is clipping, and is not a
@@ -241,15 +243,29 @@ public:
     // engine holds a reference to the bytes the backend already holds, plus the update.
     //
     // **WHAT IS NOT RE-READ:** the page tree, the labels, the outline and the other readers above.
-    // No command of Stage 6 changes a page's size or the document's structure, and `pages()` must stay
-    // the tree a caller already holds a pointer to. A rotation the update carries is drawn right
-    // anyway: the rasterizer takes each page's `/Rotate` from the loaded page and corrects for its
-    // difference from `pages()`, which is what a request's unsaved-rotation delta is relative to.
+    // `pages()` stays the tree read at open, the one a caller already holds a pointer to. A rotation the
+    // update carries is drawn right anyway: the rasterizer takes each page's `/Rotate` from the loaded
+    // page and corrects for its difference from the tree, which is what a request's unsaved-rotation
+    // delta is relative to.
+    //
+    // **BUT A PAGE COMMAND REORDERS WHAT IS DRAWN** (Stage 7 T3, D7-3): `from[i]` is the index IN
+    // `pages()` of the page the update draws at index `i` -- itself, moved, or the page a duplicate
+    // copies -- and empty means the identity. The engine's own tree (`drawnPagesLocked`) is `pages()`
+    // read through it, built here and swapped in WITH the engine document, under the engine lock, so a
+    // job never reads one tree's page and the other document's index. Each page carries its boxes and
+    // its rotation as read at open, which keeps D3-15's delta and the rasterizer's correction reading
+    // the same rotation for the same page.
     //
     // **A RELOAD THAT FAILS changes nothing**: the engine keeps the document it had and keeps drawing
     // it, and the failure is counted and logged. `show(bytes(), {})` puts the document back on the
     // bytes it opened, and is no work at all when it never left them.
-    void show(QByteArray base, QByteArray update);
+    void show(QByteArray base, QByteArray update, std::vector<int> from = {});
+
+    // What the ENGINE draws, page by page -- `pages()` through the last swapped `from`. **CALL IT WITH THE
+    // ENGINE LOCK HELD and after `engineHandle()`**, which swaps a queued revision in first: then the tree and
+    // the document it describes are the same revision's. Every index this class's engine readers are asked
+    // about is an index of THIS tree.
+    const core::PageTree& drawnPagesLocked() const noexcept { return drawn_ ? *drawn_ : pages_; }
 
     // What the reloads have done, for the cases and the bench that grade D6-2 (guide A-37, A-38).
     struct ReloadStats {
@@ -296,6 +312,8 @@ private:
     struct Pending {
         QByteArray base;
         QByteArray update;
+        std::vector<int> from;                           // S7 T3: empty is the identity
+        std::shared_ptr<const core::PageTree> pages;     // ... and `pages_` read through it; null for the identity
         std::uint64_t generation = 0;
     };
     void adoptPendingLocked() const;
@@ -306,7 +324,10 @@ private:
     // and takes this one inside it -- never the other order): a `show` of exactly this is no work.
     mutable QByteArray shownBase_;
     mutable QByteArray shownUpdate_;
+    mutable std::vector<int> shownFrom_;   // S7 T3, beside the two above
     mutable ReloadStats reloadStats_;
+    // S7 T3: the engine's tree when it is not `pages_`; written at a swap, under the engine lock.
+    mutable std::shared_ptr<const core::PageTree> drawn_;
 
     QByteArray bytes_;      // PDFium points INTO this; it must outlive `engine_`
     QString path_;

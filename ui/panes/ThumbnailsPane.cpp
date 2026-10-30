@@ -2,6 +2,7 @@
 
 #include "core/Log.h"
 #include "core/doc/Page.h"
+#include "core/doc/PageMap.h"
 #include "core/doc/PageTree.h"
 #include "ui/shell/Catalog.h"
 #include "ui/shell/ShortcutBinder.h"
@@ -134,6 +135,22 @@ void ThumbnailsPane::modelChanged(core::Revision revision)
     rebuildSlots();
     requestVisible();
     viewport()->update();
+}
+
+void ThumbnailsPane::remapPages(const core::PageMap& map)
+{
+    // THE SELECTION FOLLOWS ITS PAGE (S7 T3, D7-3); a page the command removed hands it to the page that took
+    // its place. The thumbnails themselves are dropped by the `modelChanged` that follows and asked for again,
+    // and the cache, which moved what it held, answers them.
+    const int to = map.newIndexOf(currentPage_);
+    if (to != core::PageMap::kNone) {
+        currentPage_ = to;
+        return;
+    }
+    int kept = 0;
+    for (int before = 0; before < currentPage_ && before < map.oldCount(); ++before)
+        if (map.newIndexOf(before) != core::PageMap::kNone) ++kept;
+    currentPage_ = std::clamp(kept, 0, std::max(0, map.newCount() - 1));
 }
 
 void ThumbnailsPane::setCurrentPage(int pageIndex)

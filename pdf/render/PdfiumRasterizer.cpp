@@ -33,10 +33,26 @@ core::Result<core::RasterImage> PdfiumRasterizer::raster(const core::render::Ren
                            QString::number(request.pageIndex));
     }
 
-    const core::Page* page = document_.pages().at(request.pageIndex);
-    if (page == nullptr) {
-        return rasterError(core::ErrorCode::NotFound, "error.render.noSuchPage",
-                           QString::number(request.pageIndex));
+    // THE PAGE IS READ FROM THE TREE THE ENGINE DRAWS, UNDER THE LOCK, AFTER THE SWAP (Stage 7 T3, D7-3). A page
+    // command reloads the engine with the pages in a new order, and the swap happens at the top of the first
+    // engine call after it -- so the page read before taking the lock could be the old order's page at this
+    // index, sized and turned for another page. Read inside, it is always the page the engine is about to draw.
+    // The cost is that the bitmap's size is known only under the lock; the buffer is still allocated outside it.
+    core::PdfSize pageSize;
+    core::PageRotation pageOwnRotation = core::PageRotation::None;
+    {
+        const std::lock_guard<EngineMutex> guard(engineLock());
+        if (document_.engineHandle() == nullptr) {
+            return rasterError(core::ErrorCode::Corrupted, "error.render.failed",
+                               QString::number(request.pageIndex));
+        }
+        const core::Page* page = document_.drawnPagesLocked().at(request.pageIndex);
+        if (page == nullptr) {
+            return rasterError(core::ErrorCode::NotFound, "error.render.noSuchPage",
+                               QString::number(request.pageIndex));
+        }
+        pageSize = page->displaySize();
+        pageOwnRotation = page->rotation();
     }
 
     // The page's size in device pixels, rounded UP. Rounding down loses the last row and column of
@@ -45,7 +61,6 @@ core::Result<core::RasterImage> PdfiumRasterizer::raster(const core::render::Ren
     // The page's own `/Rotate` is already in `displaySize()` AND is already applied by PDFium.
     // The VIEW rotation is ours and is passed to `FPDF_RenderPageBitmap` below as its `rotate`
     // argument, which is additive -- so here it only swaps the extent we ask for.
-    const core::PdfSize pageSize = page->displaySize();
     // Stage 3 T8 (D3-15): an unsaved page rotation arrives as a DELTA on top of the `/Rotate` PDFium
     // already applies, and composes with the view rotation exactly as a second view turn would.
     const core::PageRotation drawn = core::combine(request.viewRotation, request.pageRotationDelta);
@@ -106,6 +121,14 @@ core::Result<core::RasterImage> PdfiumRasterizer::raster(const core::render::Ren
         auto* document = static_cast<FPDF_DOCUMENT>(document_.engineHandle());
         if (document == nullptr) {
             return rasterError(core::ErrorCode::Corrupted, "error.render.failed",
+                               QString::number(request.pageIndex));
+        }
+        // ANOTHER SWAP MAY HAVE COME BETWEEN THE TWO LOCKS -- a content box asked on the UI thread enters the
+        // engine too. A page that is no longer the one this bitmap was sized for is refused, and the tile is
+        // asked for again at the next paint, rather than drawn into the other page's extent.
+        const core::Page* page = document_.drawnPagesLocked().at(request.pageIndex);
+        if (page == nullptr || page->displaySize() != pageSize || page->rotation() != pageOwnRotation) {
+            return rasterError(core::ErrorCode::Unavailable, "error.render.failed",
                                QString::number(request.pageIndex));
         }
 

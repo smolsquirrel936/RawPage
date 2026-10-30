@@ -130,6 +130,9 @@ add_executable(rawpage_tests
     tst_pagemap.cpp               # Stage 7 T2  -- core/doc/PageMap and the map beside a Scope (D7-3, S7 guide A-18)
     tst_reference_repair.cpp      # Stage 7 T2  -- the headless half of the page commands: what an update holds (A-24),
                                   #   what is refused by key (A-26), and the by-index references left alone (A-22)
+    tst_remap.cpp                 # Stage 7 T3  -- D7-3's consumers in core/ over a fake engine with an ORDER: the
+                                  #   cache, the disk tier that does not remap, the scheduler, the text index and
+                                  #   its epoch, a search, a selection, the find bar's hits (S7 guide A-30, A-31, A-34)
     tst_dpipolicy.cpp             # Stage 2 T10 -- guide cases A-28, A-29, A-30
     tst_tilegrid.cpp              # Stage 2 T10 -- guide case A-31
     tst_presentation.cpp          # Stage 2 T10 -- guide cases A-32, A-33, A-34

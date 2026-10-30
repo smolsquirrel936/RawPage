@@ -61,6 +61,77 @@ void logAnnotationReading(const QString& path, const core::AnnotationStore& stor
     }
 }
 
+// S7 T3 (D7-3): for each page the sink's desired state draws, its index in the tree read at open -- the sink's
+// order read through `diskFrom`, which places each page of the newest revision on disk in that tree. With no
+// sink, nothing has moved: the identity over the open tree.
+std::vector<int> drawnFrom(const ops::MutationSinkImpl* sink, const std::vector<int>& diskFrom, int openCount)
+{
+    std::vector<int> from;
+    if (sink == nullptr) {
+        from.resize(static_cast<std::size_t>(openCount));
+        for (std::size_t i = 0; i < from.size(); ++i) from[i] = static_cast<int>(i);
+        return from;
+    }
+    for (const int onDisk : sink->desiredDiskIndices())
+        from.push_back(onDisk >= 0 && onDisk < static_cast<int>(diskFrom.size())
+                           ? diskFrom[static_cast<std::size_t>(onDisk)] : -1);
+    return from;
+}
+
+// ... and whether each is the open page OBJECT itself: a page on disk that was one, not a copy the sink is making.
+std::vector<bool> drawnOriginals(const ops::MutationSinkImpl* sink, const std::vector<bool>& diskOriginal, int openCount)
+{
+    if (sink == nullptr) return std::vector<bool>(static_cast<std::size_t>(openCount), true);
+    std::vector<bool> originals;
+    const std::vector<int> onDisk = sink->desiredDiskIndices();
+    for (std::size_t i = 0; i < onDisk.size(); ++i) {
+        const int d = onDisk[i];
+        originals.push_back(!sink->isNewPage(static_cast<int>(i)) && d >= 0 && d < static_cast<int>(diskOriginal.size())
+                            && diskOriginal[static_cast<std::size_t>(d)]);
+    }
+    return originals;
+}
+
+// A destination read at open, carried to where its page OBJECT is drawn now; -1 -- unresolved -- for a page no
+// longer drawn, which is what `ReferenceRepair` makes of a destination to a deleted page (D7-2). A copy a
+// duplicate made shows the same page and is not what a destination names.
+core::Destination carried(core::Destination destination, const std::vector<int>& drawnIndexOf)
+{
+    if (destination.pageIndex >= 0)
+        destination.pageIndex = destination.pageIndex < static_cast<int>(drawnIndexOf.size())
+                                    ? drawnIndexOf[static_cast<std::size_t>(destination.pageIndex)] : -1;
+    return destination;
+}
+
+void carryItems(std::vector<core::OutlineItem>& items, const std::vector<int>& drawnIndexOf)
+{
+    for (core::OutlineItem& item : items) {
+        item.destination = carried(item.destination, drawnIndexOf);
+        carryItems(item.children, drawnIndexOf);
+    }
+}
+
+// The outline and the named destinations PDFium read at open, as they name pages in the order drawn now.
+void carryReaders(const render::PdfiumDocument& document, const std::vector<int>& from,
+                  const std::vector<bool>& originals, core::Outline& outline, core::Destinations& destinations)
+{
+    std::vector<int> drawnIndexOf(static_cast<std::size_t>(document.pages().count()), -1);
+    for (std::size_t i = 0; i < from.size(); ++i) {
+        const int open = from[i];
+        if (open >= 0 && open < static_cast<int>(drawnIndexOf.size()) && i < originals.size() && originals[i])
+            drawnIndexOf[static_cast<std::size_t>(open)] = static_cast<int>(i);
+    }
+    core::Outline carriedOutline = document.outline();
+    carryItems(carriedOutline.roots(), drawnIndexOf);
+    core::Destinations carriedDestinations;
+    for (core::NamedDestination entry : document.destinations().all()) {
+        entry.destination = carried(entry.destination, drawnIndexOf);
+        carriedDestinations.add(std::move(entry));
+    }
+    outline = std::move(carriedOutline);
+    destinations = std::move(carriedDestinations);
+}
+
 } // namespace
 
 // One open document and the rasterizer and text extractor that serve it. Both hold the document by
@@ -108,6 +179,28 @@ struct DocumentBackendImpl::Open {
     // verify alone.
     std::chrono::nanoseconds lastCompose{0};
     std::chrono::nanoseconds lastVerify{0};
+
+    // Stage 7 T3 (D7-3): WHAT THE ENGINE DRAWS, page by page -- the tree `pages()` hands out, assigned IN PLACE
+    // at every `showEdits` (a view holds a pointer to it). Each page is the open tree's page it shows, so a
+    // page carries its boxes and its rotation as read at open, wherever it moves. `diskFrom[i]` is the index in
+    // the tree read at open of page `i` of the NEWEST REVISION ON DISK -- the identity until a save writes an
+    // order of its own -- which is what reads the sink's order (`MutationSinkImpl::desiredDiskIndices`) back
+    // to the open tree. Read and written on the UI thread only; the rasterizer reads the engine's own copy.
+    core::PageTree drawn;
+    std::vector<int> drawnFrom;   // `drawn`'s page i is the open tree's page `drawnFrom[i]`
+    std::vector<int> diskFrom;
+    // ... and whether each is the open tree's page OBJECT itself, or a copy a duplicate made of it -- per page drawn
+    // and per page of the newest revision on disk. What names a page names the original, never its copy (D7-2).
+    std::vector<bool> drawnOriginal;
+    std::vector<bool> diskOriginal;
+
+    // THE OUTLINE AND THE NAMED DESTINATIONS AS THEY NOW NAME PAGES (S7 T3): PDFium's reading at open, each
+    // destination's page carried to where that page OBJECT is drawn now, or to *unresolved* (-1) where a command
+    // removed it -- which is what `ReferenceRepair` makes of it in the file (D7-2). `outline()` and
+    // `destinations()` hand these out; assigned under `mutex_`, because a search's engine task copies the outline
+    // from the render thread (`searchUnits`).
+    core::Outline outline;
+    core::Destinations destinations;
 };
 
 DocumentBackendImpl::DocumentBackendImpl() = default;
@@ -314,6 +407,15 @@ core::Result<core::DocumentHandle> DocumentBackendImpl::assemble(Opening& openin
     entry->fromBytes = opening.fromBytes;
     entry->document = std::move(opening.document);
     entry->rasterizer = std::make_unique<render::PdfiumRasterizer>(*entry->document);
+    // S7 T3: what the engine draws is, until a page command, what it opened.
+    entry->drawn = entry->document->pages();
+    entry->diskFrom.resize(static_cast<std::size_t>(entry->drawn.count()));
+    for (std::size_t i = 0; i < entry->diskFrom.size(); ++i) entry->diskFrom[i] = static_cast<int>(i);
+    entry->drawnFrom = entry->diskFrom;
+    entry->diskOriginal.assign(entry->diskFrom.size(), true);
+    entry->drawnOriginal = entry->diskOriginal;
+    entry->outline = entry->document->outline();
+    entry->destinations = entry->document->destinations();
 
     // --- Stage 3 T4: identity, the second reading, and the pre-flight (D3-7, D3-16) -----------------
     // The identity is taken from the bytes the ENGINE loaded, not from a second read of the file, so
@@ -584,9 +686,16 @@ core::Status DocumentBackendImpl::adoptRevision(core::DocumentHandle document, c
     if (entry == nullptr || !entry->sink)
         return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), path};
 
+    // THE ORDER JUST WRITTEN, read before the sink adopts it (S7 T3): the saved revision's page i is the open
+    // tree's page `written[i]`, which is what the next page command's order is read through.
+    std::vector<int> written = drawnFrom(entry->sink.get(), entry->diskFrom, entry->document->pages().count());
+    std::vector<bool> writtenOriginals =
+        drawnOriginals(entry->sink.get(), entry->diskOriginal, entry->document->pages().count());
     auto adopted = ops::RevisionWriter::adopt(*entry->sink, path);
     if (!adopted)
         return adopted.error();
+    entry->diskFrom = std::move(written);
+    entry->diskOriginal = std::move(writtenOriginals);
     // The sink now holds views into `adopted.bytes`; this assignment keeps that buffer and releases the
     // previous revision's (the engine keeps its own copy of the bytes it loaded).
     entry->bytes = std::move(adopted.value().bytes);
@@ -624,9 +733,21 @@ core::Status DocumentBackendImpl::showEdits(core::DocumentHandle document,
         }
     }
 
-    // NO SINK, NO UPDATE: each engine back on the bytes it opened (no work when it never left them).
+    // NO SINK, NO UPDATE: each engine back on the bytes it opened (no work when it never left them), and so is
+    // its tree (S7 T3).
     if (!entry->sink) {
-        for (Open* target : shown) target->document->show(target->document->bytes(), QByteArray());
+        for (Open* target : shown) {
+            const std::vector<int> identity = drawnFrom(nullptr, {}, target->document->pages().count());
+            if (target->drawnFrom != identity) {
+                target->drawn = target->document->pages();
+                target->drawnFrom = identity;
+                target->drawnOriginal.assign(identity.size(), true);
+                const std::lock_guard<std::mutex> guard(mutex_);
+                target->outline = target->document->outline();
+                target->destinations = target->document->destinations();
+            }
+            target->document->show(target->document->bytes(), QByteArray());
+        }
         return core::Status{};
     }
 
@@ -655,7 +776,30 @@ core::Status DocumentBackendImpl::showEdits(core::DocumentHandle document,
     composed.value().bytes = QByteArray();   // the transient whole goes before the engines are told
     entry->lastCompose = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - began);
 
-    for (Open* target : shown) target->document->show(entry->bytes, update);
+    // AND THE PAGES IN THE ORDER THE UPDATE DRAWS THEM (S7 T3, D7-3): each engine is told the order with the
+    // bytes and swaps its own tree in with them; `pages()` answers it from now on, on this thread. A companion
+    // opened the same file, so the order read through its own open tree is the same pages.
+    // REASSIGNED ONLY WHEN THE ORDER CHANGED: an assignment moves the tree's storage, and a caller may hold a
+    // page of it across an edit that moved no page -- every annotation edit of Stage 6 is one.
+    const std::vector<int> from = drawnFrom(entry->sink.get(), entry->diskFrom, entry->document->pages().count());
+    const std::vector<bool> originals =
+        drawnOriginals(entry->sink.get(), entry->diskOriginal, entry->document->pages().count());
+    for (Open* target : shown) {
+        if (target->drawnFrom != from || target->drawnOriginal != originals) {
+            target->drawn = target->document->pages().reordered(from);
+            target->drawnFrom = from;
+            target->drawnOriginal = originals;
+            // THE OUTLINE AND THE NAMED DESTINATIONS follow the pages they name (S7 T3): the bookmarks pane, the
+            // destinations pane and a bookmark found by a search open the page, not the index it had.
+            core::Outline outline;
+            core::Destinations destinations;
+            carryReaders(*target->document, from, originals, outline, destinations);
+            const std::lock_guard<std::mutex> guard(mutex_);
+            target->outline = std::move(outline);
+            target->destinations = std::move(destinations);
+        }
+        target->document->show(entry->bytes, update, from);
+    }
     return core::Status{};
 }
 
@@ -728,7 +872,7 @@ const core::PageTree* DocumentBackendImpl::pages(core::DocumentHandle document) 
 {
     const std::lock_guard<std::mutex> guard(mutex_);
     const Open* entry = find(document);
-    return entry ? &entry->document->pages() : nullptr;
+    return entry ? &entry->drawn : nullptr;   // S7 T3: what the engine draws, not what it opened
 }
 
 const core::RepairReport* DocumentBackendImpl::repairReport(core::DocumentHandle document) const
@@ -758,14 +902,14 @@ const core::Outline* DocumentBackendImpl::outline(core::DocumentHandle document)
 {
     const std::lock_guard<std::mutex> guard(mutex_);
     const Open* entry = find(document);
-    return entry ? &entry->document->outline() : nullptr;
+    return entry ? &entry->outline : nullptr;   // S7 T3: as it names pages now
 }
 
 const core::Destinations* DocumentBackendImpl::destinations(core::DocumentHandle document) const
 {
     const std::lock_guard<std::mutex> guard(mutex_);
     const Open* entry = find(document);
-    return entry ? &entry->document->destinations() : nullptr;
+    return entry ? &entry->destinations : nullptr;   // S7 T3: as they name pages now
 }
 
 const core::Metadata* DocumentBackendImpl::metadata(core::DocumentHandle document) const
@@ -812,6 +956,7 @@ core::Status DocumentBackendImpl::searchUnits(core::DocumentHandle document, int
 {
     render::PdfiumDocument* found = nullptr;
     const std::vector<std::pair<QString, QString>>* descriptions = nullptr;
+    core::Outline outline;
     {
         const std::lock_guard<std::mutex> guard(mutex_);
         Open* entry = find(document);
@@ -822,8 +967,11 @@ core::Status DocumentBackendImpl::searchUnits(core::DocumentHandle document, int
         }
         found = entry->document.get();
         descriptions = &entry->attachmentDescriptions;
+        // THE OUTLINE AS IT NAMES PAGES NOW (S7 T3), copied under the lock it is written under: a bookmark found by
+        // a search goes to the page, not to the index it had at open.
+        if (part == core::text::kOutlinePart) outline = entry->outline;
     }
-    return found->searchUnits(part, *descriptions, into);
+    return found->searchUnits(part, *descriptions, into, part == core::text::kOutlinePart ? &outline : nullptr);
 }
 
 core::Status DocumentBackendImpl::pageGeometry(core::DocumentHandle document, int pageIndex, core::PageGeometry& into)

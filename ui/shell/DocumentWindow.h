@@ -370,6 +370,9 @@ signals:
 
     // A command, an undo or a redo changed the model; the revision has moved.
     void mutated();
+    // S7 T3 (D7-3): a page command moved pages -- emitted BEFORE `mutated`, so a pane holding page indices
+    // (the thumbnails' selection) carries them before it lays out the new order. `map` is valid for the call.
+    void pagesRemapped(const core::PageMap& map);
     void dirtyChanged(bool dirty);
     // The recovery journal stopped recording -- said ONCE, the first time it is noticed (A-80).
     void recoveryUnavailable(const QString& reason);
@@ -406,6 +409,8 @@ signals:
 private:
     void build(const Recovery* recovery);
     void afterMutation();
+    // S7 T3 (D7-3): every page index this window holds, carried through a page command's map.
+    void remapPages(const core::PageMap& map, bool wasSearching);
     // Stage 6 T4 (D6-2): the journal's show step -- `IDocumentBackend::showEdits` for this tab's handle
     // and every companion's, so each engine draws the bytes Save would write.
     core::Status showEdits();

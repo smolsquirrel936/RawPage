@@ -827,6 +827,17 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
     // and moves the dirty marker; a recovery journal that stopped recording becomes a banner the document
     // keeps. Disconnected in `releaseDocument`, so a tab torn off into another window stops reaching this one.
     disconnect(document, nullptr, this, nullptr);
+    // S7 T3 (D7-3): the thumbnails' selection follows its page through a page command, before the `mutated` below
+    // lays the pane out again.
+    connect(document, &DocumentWindow::pagesRemapped, this, [this, document](const core::PageMap& map) {
+        if (document != currentDocument()) return;
+        if (thumbnails_) thumbnails_->remapPages(map);
+        // THE BOOKMARKS AND THE NAMED DESTINATIONS are handed again: the backend carried each destination to where its
+        // page now stands (`IDocumentBackend::outline`), and the panes hold copies of what they were last handed.
+        if (bookmarks_) bookmarks_->setDocument(document->handle(), services_.backend.outline(document->handle()));
+        if (destinations_)
+            destinations_->setDocument(document->handle(), services_.backend.destinations(document->handle()));
+    });
     connect(document, &DocumentWindow::mutated, this, [this, document] {
         updateDocumentTitles();
         // THE PANE IS TOLD THE NEW REVISION, not re-pointed at the document (Stage 4 T5). A

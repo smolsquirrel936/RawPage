@@ -481,14 +481,35 @@ void DocumentWindow::build(const Recovery* recovery)
                 journal_->setRecorder(recovery_.get());
             }
             journal_->subscribeMutated([this](const core::Scope& scope) {
+                const core::PageMap* moved = scope.pageMap();
                 // THE ENGINE'S TREE places an annotation's rectangle in each tile, so only the tiles it
                 // reaches are dropped (S6 T4): a request's delta is relative to that tree.
                 services_.renderScheduler.documentChanged(handle_, scope, journal_->revision(),
                                                           services_.backend.pages(handle_));
+                // A PAGE COMMAND REACHES EVERY COMPANION'S HANDLE TOO (S7 T3, D7-3): its engine was shown the
+                // new order with this one's (`showEdits`), so its cached and queued tiles move the same way.
+                std::vector<bool> searching;
+                if (moved != nullptr) {
+                    for (const DocumentWindow* companion : companions_) {
+                        if (companion->handle_.isValid())
+                            services_.renderScheduler.documentChanged(companion->handle_, scope, journal_->revision(),
+                                                                      services_.backend.pages(companion->handle_));
+                    }
+                    // Read BEFORE the index is told, which ends every search of the document (`FindReplaceBar`).
+                    searching.push_back(findBar_ != nullptr && findBar_->isSearching());
+                    for (const DocumentWindow* companion : companions_)
+                        searching.push_back(companion->findBar_ != nullptr && companion->findBar_->isSearching());
+                }
                 // THE TEXT GOES STALE WHERE IT IS KEPT (S5 T6, D5-4): the index drops the pages the scope
                 // names, for this window and every companion reading the same entry, and the next search
-                // re-extracts exactly those (guide A-64).
+                // re-extracts exactly those (guide A-64). A page command's text is MOVED, not dropped (S7 T3),
+                // and the index tells every selection over the entry where it went.
                 services_.documentIndex.invalidate(indexEntry_, scope);
+                if (moved != nullptr) {
+                    remapPages(*moved, searching.front());
+                    for (qsizetype i = 0; i < companions_.size(); ++i)
+                        companions_[i]->remapPages(*moved, searching[static_cast<std::size_t>(i) + 1]);
+                }
                 afterMutation();
             });
             journal_->subscribeDirty([this](bool dirty) { emit dirtyChanged(dirty); });
@@ -1161,6 +1182,17 @@ bool DocumentWindow::isEditable() const
 bool DocumentWindow::isDirty() const
 {
     return journal_ && journal_->isDirty();
+}
+
+void DocumentWindow::remapPages(const core::PageMap& map, bool wasSearching)
+{
+    // EVERY INDEX THIS WINDOW HOLDS, carried before the panes lay out the new order (S7 T3, D7-3): each pane's
+    // place, history and held tiles, and the find bar's hits. The text selection is the index's to carry
+    // (`PagesRemapped`), the thumbnails pane the main window's (`pagesRemapped`). Called on the leader by its
+    // journal and on each companion by the leader, before the `modelChanged` each pane is then given.
+    for (PageView* pane : split_->views()) pane->remapPages(map);
+    if (findBar_ != nullptr) findBar_->remapPages(map, wasSearching);
+    emit pagesRemapped(map);
 }
 
 void DocumentWindow::afterMutation()

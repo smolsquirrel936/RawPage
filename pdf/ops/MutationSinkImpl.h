@@ -172,6 +172,11 @@ public:
                                                        const std::vector<std::vector<core::AnnotationCopy>>& copies) override;
     // Whether page `pageIndex` is a NEW page no save has written yet -- verify's question.
     bool isNewPage(int pageIndex) const;
+    // S7 T3 (D7-3): for each page of the desired order, the index in the NEWEST REVISION ON DISK of the page
+    // it shows -- itself, or for a page a duplicate made, the page it copies; -1 for one it cannot name. What
+    // the engine draws at each index once `showEdits` hands it this state, which is what the backend's page
+    // tree follows.
+    std::vector<int> desiredDiskIndices() const;
     // Each page's label once the desired state is written; empty for a document with no /PageLabels.
     QString pageLabel(int pageIndex) const;
 

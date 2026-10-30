@@ -134,8 +134,8 @@ struct RenderRequest {
     PageRotation viewRotation = PageRotation::None;
 
     // THE UNSAVED PAGE ROTATION, as a DELTA (Stage 3 T8, decision D3-15): the model's rotation of this
-    // page minus the rotation in the ENGINE's page tree (`IDocumentBackend::pages`), which is read once at
-    // open and never changes. It is a DELTA, not the page's rotation, because PDFium already applies a
+    // page minus the rotation in the ENGINE's page tree (`IDocumentBackend::pages`), whose pages are as read
+    // at open -- in the order the engine draws them since Stage 7 T3 (D7-3), each page with ITS opened rotation. It is a DELTA, not the page's rotation, because PDFium already applies a
     // `/Rotate` itself. **Since Stage 6 T4 the engine RELOADS the composed revision after an edit**
     // (D6-2), so the `/Rotate` it holds may be a newer one than the tree's; the rasterizer corrects for
     // the difference, and the delta keeps meaning *relative to the tree*, before and after a save.

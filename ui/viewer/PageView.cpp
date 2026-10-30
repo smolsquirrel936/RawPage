@@ -3,6 +3,7 @@
 #include "core/Log.h"
 #include "core/cmd/KeyContext.h"
 #include "core/cmd/commands/AnnotationCommands.h"
+#include "core/doc/PageMap.h"
 #include "core/doc/PageTree.h"
 #include "core/doc/TypedText.h"
 #include "core/render/RenderScheduler.h"
@@ -21,6 +22,7 @@
 
 #include <QApplication>
 #include <QClipboard>
+#include <QSignalBlocker>
 #include <QContextMenuEvent>
 #include <QFocusEvent>
 #include <QInputMethod>
@@ -91,6 +93,8 @@ PageView::PageView(core::render::RenderScheduler& scheduler,
     presenter_ = std::make_unique<TilePresenter>(scheduler_, this);
 
     connect(controller_, &ViewportController::changed, this, &PageView::refresh);
+    // S7 T3: a history entry remembers where it was inside its page, so a page command can follow it.
+    controller_->setPageOrigin([this](int page, core::render::Zoom zoom) { return originAt(page, zoom); });
 
     // A tile arriving repaints and nothing else. It must NOT re-request: `requestTiles` is what
     // produced the tile, and asking again inside the delivery would be a loop that renders the
@@ -192,9 +196,86 @@ void PageView::setDocument(core::DocumentHandle document, core::Revision revisio
     refresh();
 }
 
+std::optional<core::DevicePoint> PageView::originAt(int page, core::render::Zoom zoom) const
+{
+    if (pages_ == nullptr) return std::nullopt;
+    // THIS view's layout where it is the one asked about; another zoom's laid out aside, with this view's
+    // options, so nothing on screen moves.
+    PageLayoutEngine aside;
+    const core::render::PageLayout* layout = &engine_.layout();
+    if (!(zoom == controller_->zoom()) || engine_.pageCount() != pageCount()) {
+        aside.setDocument(pages_);
+        aside.setOptions(engine_.options());
+        aside.setDpiLimits(engine_.dpiLimits());
+        aside.update(zoom, screenMetrics(), controller_->layoutMode(), page, controller_->viewRotation());
+        layout = &aside.layout();
+    }
+    const core::render::PageSlot* slot = layout->slotForPage(page);
+    if (slot == nullptr) return std::nullopt;
+    return core::DevicePoint{slot->rect.left(), slot->rect.top()};
+}
+
+void PageView::remapPages(const core::PageMap& map)
+{
+    // READ FROM THE OLD LAYOUT, which `engine_` still holds: where the view stands inside the page it shows.
+    const int was = controller_->currentPage();
+    core::DevicePoint within;
+    if (const core::render::PageSlot* slot = engine_.layout().slotForPage(was))
+        within = core::DevicePoint{controller_->scroll().x - slot->rect.left(), controller_->scroll().y - slot->rect.top()};
+
+    // The page it showed, at its new index -- or, removed, the first page after it that stayed, which now
+    // stands where it stood.
+    const auto follow = [&map](int page) {
+        const int to = map.newIndexOf(page);
+        if (to != core::PageMap::kNone) return to;
+        int kept = 0;
+        for (int before = 0; before < page && before < map.oldCount(); ++before)
+            if (map.newIndexOf(before) != core::PageMap::kNone) ++kept;
+        return std::clamp(kept, 0, std::max(0, map.newCount() - 1));
+    };
+    const int now = follow(was);
+    const bool kept = map.newIndexOf(was) != core::PageMap::kNone;
+    pendingAnchor_ = PageAnchor{now, kept ? within : core::DevicePoint{within.x, 0.0}};
+    if (fitAnchorPage_ >= 0) fitAnchorPage_ = follow(fitAnchorPage_);
+
+    // THE HISTORY, placed in the layout AFTER the command -- `pages_` is the model, already changed.
+    controller_->remapHistory(map, [this](int page, core::render::Zoom zoom) {
+        PageLayoutEngine after;
+        after.setDocument(pages_);
+        after.setOptions(engine_.options());
+        after.setDpiLimits(engine_.dpiLimits());
+        after.update(zoom, screenMetrics(), controller_->layoutMode(), page, controller_->viewRotation());
+        const core::render::PageSlot* slot = after.layout().slotForPage(page);
+        return slot != nullptr ? std::optional<core::DevicePoint>(core::DevicePoint{slot->rect.left(), slot->rect.top()})
+                               : std::nullopt;
+    });
+
+    presenter_->remapPages(map);
+    // A SNAPSHOT ON ITS WAY was asked for at the old indices: dropped, as a document change drops it.
+    if (snapshotRaster_) snapshotRaster_->clear();
+}
+
 void PageView::modelChanged(core::Revision revision)
 {
     revision_ = revision;
+    // S7 T3: after a page command the view is put back on its page BEFORE the refresh, so the refresh's
+    // dominant-page snap reads the page it was showing rather than whatever now stands at the old offset.
+    if (pendingAnchor_) {
+        const PageAnchor anchor = *pendingAnchor_;
+        pendingAnchor_.reset();
+        const QSignalBlocker quiet(controller_);   // one refresh, below, rather than one per setter
+        engine_.setDocument(pages_);
+        controller_->setPageCount(pageCount());
+        engine_.update(controller_->zoom(), screenMetrics(), controller_->layoutMode(), anchor.page,
+                       controller_->viewRotation());
+        controller_->setContentSize(engine_.layout().contentSize());
+        {
+            controller_->setCurrentPage(anchor.page);
+            if (const core::render::PageSlot* slot = engine_.layout().slotForPage(anchor.page))
+                controller_->setScroll(core::DevicePoint{slot->rect.left() + anchor.within.x,
+                                                         slot->rect.top() + anchor.within.y});
+        }
+    }
     // The tree is the same object, mutated, and `refresh()` lays out from it again -- which is what makes a
     // rotated page's display size, and every page below it, move. GEOMETRY FIRST, then tiles (Stage 1's
     // I-36). No `engine_.setDocument` here: it only forgets the cached layout, which `refresh()` rebuilds

@@ -47,6 +47,12 @@ void SnapTargets::onIndexEvent(const core::text::DocumentIndex::Event& event)
         said_.clear();
         return;
     }
+    // S7 T3 (D7-3): the pages it reads from are counted afresh; what it said about a page is said again.
+    if (event.kind == Kind::PagesRemapped) {
+        if (event.map != nullptr) pageCount_ = event.map->newCount();
+        said_.clear();
+        return;
+    }
     if (event.kind != Kind::GeometryArrived) return;
     const std::shared_ptr<const core::PageGeometry> held = index_.geometry(entry_, event.page);
     if (held && held->overLimit() && said_.insert(event.page).second)

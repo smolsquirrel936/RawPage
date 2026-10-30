@@ -116,6 +116,12 @@ struct SearchHit {
     }
 };
 
+// THE FIND BAR'S HITS AFTER A PAGE COMMAND (Stage 7 T3, D7-3): each hit moved with its page, one on a page the
+// command removed dropped, and the list put back into DOCUMENT ORDER -- page, then position -- which is the
+// order `Outcome::hits` promises and the overlay's paint bisects. Returns where `current` went: the same hit,
+// or -1 when it was dropped (or was -1).
+int remapHits(std::vector<SearchHit>& hits, int current, const PageMap& map);
+
 // A query ready to match. Built by `SearchEngine::compile`, immutable, shared by every worker of a run.
 class CompiledQuery {
 public:

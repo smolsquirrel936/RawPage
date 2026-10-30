@@ -192,6 +192,8 @@ signals:
 
 private:
     void onIndexEvent(const core::text::DocumentIndex::Event& event);
+    // S7 T3 (D7-3): the index's `PagesRemapped` -- the selection, the hits and the pages read, carried.
+    void remapPages(const core::PageMap& map);
     // A page that arrived, or was already in the index: its reading into `text_`, and whatever was waiting
     // for it -- a gesture, a pending copy -- moved on.
     void takePage(int page);

@@ -475,12 +475,14 @@ public:
     // Null for a handle this backend did not open, or has closed. The pointee is owned by the
     // backend and is valid until `close()`.
     //
-    // STAGE 7 T2: A PAGE COMMAND REORDERS WHAT THE ENGINE DRAWS, AND THIS TREE DOES NOT FOLLOW YET. The
-    // show step (D6-2) reloads the engine with the composed update, so after a move the engine's page n is
-    // the MODEL's page n -- while this tree, read at open, still describes the order the file opened in.
-    // Making it the model's, and every index-keyed consumer remap (`Scope::pageMap`), is Stage 7 T3's
-    // (`Stage7-Assembly-Plan.md` D7-3); until then no surface runs a page command (the thumbnails pane's
-    // editing is T8), and what the saved file holds is graded by `tests/render/tst_reference_repair.cpp`.
+    // SINCE STAGE 7 T3 IT IS THE TREE THE ENGINE DRAWS (`Stage7-Assembly-Plan.md` D7-3). A page command's show
+    // step (D6-2) reloads the engine with the pages in a new order, and this tree follows -- assigned IN PLACE,
+    // so a pointer to it stays valid, and only when the order changed, so a page of it stays valid across an
+    // edit that moved none. Page n is the page the engine draws at n, as it was read at OPEN: its boxes and its
+    // `/Rotate` are the opened page's wherever it moves, so a request's unsaved-rotation delta (D3-15) means
+    // what it always meant -- the model's rotation of that page against the one it opened with. After a save
+    // it is the order just written. Every index-keyed consumer of the product remaps through the command's
+    // `Scope::pageMap` at the same command.
     virtual const PageTree* pages(DocumentHandle document) const = 0;
 
     // WHAT HAD TO BE RECONSTRUCTED TO OPEN THIS FILE, or null for a handle this backend did not
@@ -526,6 +528,12 @@ public:
     // named destinations; most generated ones have no `/Info` either. A caller distinguishes *this
     // handle is not mine* (null) from *this document has none* (empty), and a pane shows its empty
     // state for the second rather than an error.
+    //
+    // **SINCE STAGE 7 T3 THE OUTLINE AND THE NAMED DESTINATIONS NAME PAGES AS THEY STAND NOW** (D7-3): read at
+    // open, each destination's page is carried to where that page OBJECT is drawn after a page command, or to
+    // unresolved (-1) where the command removed it -- what `ReferenceRepair` makes of it in the file (D7-2). A copy
+    // a duplicate made is never what a destination names. Titles, the tree and the table's entries are as read
+    // at open: editing them is Stage 7 T11's.
     virtual const Outline* outline(DocumentHandle document) const = 0;
     virtual const Destinations* destinations(DocumentHandle document) const = 0;
     virtual const Metadata* metadata(DocumentHandle document) const = 0;
@@ -670,8 +678,8 @@ public:
     // `adoptRevision`: after the replace, `path` holds the newest revision on disk. The sink compares
     // against it from now on, and `repairReport()` and `documentId()` describe it. The ENGINE is not
     // reloaded by a save: it goes on drawing what `showEdits` last handed it, which is what was just
-    // written (S6 T4, D6-2). Its PAGE TREE (`pages()`) stays the one read at open, and an unsaved
-    // rotation's render delta stays relative to that tree (D3-15).
+    // written (S6 T4, D6-2). Its PAGE TREE (`pages()`) is unchanged by the save -- the order just written,
+    // each page as read at open -- and an unsaved rotation's render delta stays relative to it (D3-15).
     virtual Status adoptRevision(DocumentHandle document, const QString& path) = 0;
 
     // WHAT THE SCREEN SHOWS IS WHAT SAVE WRITES -- Stage 6 T4, decision **D6-2**, which ends D3-15 for

@@ -23,6 +23,17 @@ const Page* PageTree::at(int index) const noexcept
     return &pages_[static_cast<std::size_t>(index)];
 }
 
+PageTree PageTree::reordered(const std::vector<int>& from) const
+{
+    std::vector<Page> pages;
+    pages.reserve(from.size());
+    for (const int index : from) {
+        const Page* page = at(index);
+        pages.push_back(page != nullptr ? *page : Page{});
+    }
+    return PageTree(std::move(pages));
+}
+
 int PageTree::indexOfLabel(const QString& label) const
 {
     if (label.isEmpty())

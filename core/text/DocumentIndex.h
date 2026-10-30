@@ -60,7 +60,11 @@
 // later stage's command WILL change a page's text, and the index is where text is kept, so the index is
 // where it goes stale (`core/render/RenderScheduler.h`'s `TextRequest` argues why the engine side cannot
 // be the place). **Since Stage 6 T4 (D6-10) a scope that changed only ANNOTATIONS keeps the text** and
-// drops the pages' search units alone: no annotation changes what a page's content says.
+// drops the pages' search units alone: no annotation changes what a page's content says. **Since Stage 7 T3
+// (D7-3) a PAGE COMMAND's scope moves the text instead of dropping it** -- every page's model to its new
+// index, nothing extracted -- re-reads only what names a page inside it (a moved page's units and paths, the
+// outline's bookmarks), and numbers every read by an EPOCH so a page read before the command, delivered after
+// it, is refused rather than filed under the number's new page (`invalidate`, `PagesRemapped`).
 //
 // **The budget evicts WHOLE documents, least recently SEARCHED first** (guide A-65). A document never
 // searched -- only selected on -- goes first. **The document a person is searching is never evicted to
@@ -148,7 +152,8 @@ class SearchablePage {
 public:
     static std::shared_ptr<const SearchablePage> build(const PageReading& reading, NormalizeOptions options);
 
-    int pageIndex() const noexcept { return pageIndex_; }
+    // Where its page stands NOW (S7 T3): the model's index, which a page command moves (`PageTextModel::movedTo`).
+    int pageIndex() const noexcept { return model_ ? model_->pageIndex() : -1; }
     NormalizeOptions options() const noexcept { return options_; }
     const std::vector<SearchableBlock>& blocks() const noexcept { return blocks_; }
     std::size_t approxBytes() const noexcept { return bytes_; }
@@ -156,7 +161,7 @@ public:
 private:
     SearchablePage() = default;
 
-    int pageIndex_ = -1;
+    std::shared_ptr<const PageTextModel> model_;
     NormalizeOptions options_;
     std::vector<SearchableBlock> blocks_;
     std::size_t bytes_ = 0;
@@ -221,11 +226,15 @@ public:
             EntryDropped,       // the last handle detached; every page and every request went with it
             UnitsArrived,       // search-unit part `page` is in the index now (possibly failed, empty)
             GeometryArrived,    // S6 T12: page `page`'s paths are in the index now (possibly failed, empty)
+            PagesRemapped,      // S7 T3 (D7-3): a page command moved pages -- `map` says where. Their text
+                                //   went WITH them and is still here; every index a consumer holds is
+                                //   in the old numbering until it carries it through `map`
         };
         Kind kind = Kind::PageArrived;
         EntryId entry = 0;
         int page = -1;
         std::vector<int> pages;
+        const PageMap* map = nullptr;   // PagesRemapped only; valid for the call
     };
     using Listener = std::function<void(const Event&)>;
 
@@ -298,6 +307,12 @@ public:
     // ---- Staleness and memory -------------------------------------------------------------------
     // Drops every stored page `scope` touches (`Scope::touchesPage`'s rule, rounded outwards) -- its
     // search units always, its text only where `Scope::touchesText` (S6 T4, D6-10).
+    //
+    // A PAGE COMMAND'S SCOPE IS REMAPPED, NOT DROPPED (S7 T3, D7-3): every page's text goes to its new index
+    // with no extraction (guide A-31), a removed page's goes, the page count becomes the map's, every read in
+    // flight is asked again at its page's new index, and `PagesRemapped` tells the listeners. A page's search
+    // units and paths are kept only where it did not move. A map whose old count is not this entry's is a scope
+    // this entry cannot place, and is answered as the `WholeDocument` it is.
     void invalidate(EntryId entry, const Scope& scope);
 
     // A search of this entry started: it is now the most recently searched (the eviction order).
@@ -319,6 +334,7 @@ public:
         long long stored = 0;              // pages that arrived and were kept
         long long failed = 0;              // ... of which the engine could not read
         long long pagesDropped = 0;        // by `invalidate`
+        long long pagesRemapped = 0;       // S7 T3: pages whose text a page command carried to a new index
         long long documentsEvicted = 0;    // by the budget
         long long overBudgetKept = 0;      // times the kept document alone was over the budget
         long long unitsRequested = 0;      // search-unit parts asked of the engine (T8)
@@ -385,6 +401,7 @@ private:
         std::map<int, std::shared_ptr<const SearchUnitPart>> units;   // by part
         std::map<int, std::shared_ptr<const PageGeometry>> geometry;  // by page (S6 T12)
         std::map<int, Pending> pending;        // by key: a page, or `unitKey(part)`
+        std::uint64_t epoch = 0;               // S7 T3: page commands seen -- every text ask carries it
         std::uint64_t lastSearched = 0;        // 0: never searched
         long long requested = 0;
         long long unitsRequested = 0;
@@ -403,6 +420,7 @@ private:
     void cancelTicket(render::RenderTicket ticket);
     void dropEntry(EntryId entry);
     void evict(Entry& entry);
+    void remap(Entry& entry, const PageMap& map);   // S7 T3: `invalidate`'s page-command half
     void notify(const Event& event);
 
     render::RenderScheduler& scheduler_;

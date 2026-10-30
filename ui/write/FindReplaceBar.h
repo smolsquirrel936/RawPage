@@ -117,6 +117,10 @@ public:
 
     // The document it searches -- its index entry, 0 for none -- and the overlay it paints through.
     void setDocument(core::text::DocumentIndex::EntryId entry, int pageCount, SelectionOverlay* overlay);
+    // S7 T3 (D7-3): a page command moved pages, and the index has already carried them -- which ended any search
+    // of this document, so `wasSearching` is `isSearching()` as it was BEFORE the index was told. A finished
+    // search's hits follow their pages; one that was running is run again.
+    void remapPages(const core::PageMap& map, bool wasSearching);
     // Which page the reader is on, so a search's current hit is the first at or after it.
     void setCurrentPageProvider(std::function<int()> provider) { currentPage_ = std::move(provider); }
     // S6 T9 (D6-11): the comments of the document as it is NOW -- its store's, unsaved ones included -- asked for

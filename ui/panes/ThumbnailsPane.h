@@ -106,6 +106,10 @@ public:
     // this keeps the selection and the scroll position: the document did not arrive, it moved.
     void modelChanged(core::Revision revision);
 
+    // S7 T3 (D7-3): a page command moved pages -- called before `modelChanged`. The current page follows its
+    // page; the pane is the second of `Stage7-Assembly-Testing-Guide.md` A-31's "both panes' selections".
+    void remapPages(const core::PageMap& map);
+
     core::DocumentHandle document() const noexcept { return document_; }
     int pageCount() const;
 

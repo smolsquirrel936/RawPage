@@ -55,6 +55,7 @@
 
 #include <QString>
 
+#include <atomic>
 #include <cstddef>
 #include <cstdint>
 #include <vector>
@@ -141,8 +142,20 @@ class PageTextModel {
 public:
     PageTextModel() = default;
     explicit PageTextModel(int pageIndex) : pageIndex_(pageIndex) {}
+    // Copies and moves carry the index as it stands; the atomic below is why they are spelled out.
+    PageTextModel(const PageTextModel& other);
+    PageTextModel(PageTextModel&& other) noexcept;
+    PageTextModel& operator=(const PageTextModel& other);
+    PageTextModel& operator=(PageTextModel&& other) noexcept;
 
-    int pageIndex() const noexcept { return pageIndex_; }
+    // WHERE THE PAGE STANDS NOW -- Stage 7 T3 (`Stage7-Assembly-Plan.md` D7-3). A page command moves a
+    // page without changing a character of it, so its text is KEPT and only this follows it:
+    // `core/text/DocumentIndex` alone calls `movedTo`, on the pumping thread, as it carries the page to
+    // its new index. Atomic because the model is shared and const -- a search worker or a selection may
+    // be reading it -- and a page's text read across a page command is answered at either index; the
+    // index ends every search of the document at that command, so none is kept (guide A-31).
+    int pageIndex() const noexcept { return pageIndex_.load(std::memory_order_relaxed); }
+    void movedTo(int pageIndex) const noexcept { pageIndex_.store(pageIndex, std::memory_order_relaxed); }
 
     // --- Building. The extractor's half; nothing else should need it. ------------------------
     // Returns the font's index, adding it only if an equal identity is not already there.
@@ -183,7 +196,7 @@ public:
     QString text(Whitespace whitespace = Whitespace::IncludeGenerated) const;
 
 private:
-    int pageIndex_ = -1;
+    mutable std::atomic<int> pageIndex_{-1};
     std::vector<TextChar> chars_;
     std::vector<FontIdentity> fonts_;
     std::vector<PdfRect> rules_;

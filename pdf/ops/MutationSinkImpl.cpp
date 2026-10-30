@@ -1599,6 +1599,25 @@ bool MutationSinkImpl::isNewPage(int pageIndex) const
     return pageIndex >= 0 && pageIndex < pageCount() && walk_.pages[static_cast<std::size_t>(pageIndex)].number < 0;
 }
 
+std::vector<int> MutationSinkImpl::desiredDiskIndices() const
+{
+    std::map<long long, int> onDisk;
+    for (std::size_t i = 0; i < diskWalk_.pages.size(); ++i)
+        onDisk.emplace(diskWalk_.pages[i].number, static_cast<int>(i));
+    std::vector<int> indices;
+    indices.reserve(walk_.pages.size());
+    for (const PageEntry& page : walk_.pages) {
+        long long number = page.number;
+        if (number < 0) {
+            const auto copy = newPages_.find(number);
+            number = copy != newPages_.end() ? copy->second.source : 0;
+        }
+        const auto found = onDisk.find(number);
+        indices.push_back(found != onDisk.end() ? found->second : -1);
+    }
+    return indices;
+}
+
 QString MutationSinkImpl::pageLabel(int pageIndex) const
 {
     if (labels_.empty() || pageIndex < 0 || pageIndex >= static_cast<int>(labels_.size())) return {};

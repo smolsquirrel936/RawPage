@@ -96,6 +96,13 @@ public:
     // How many superseded tiles are held while their replacements are on the way (for the cases).
     std::size_t staleTileCount() const noexcept { return stale_.size(); }
 
+    // A PAGE COMMAND MOVED PAGES (Stage 7 T3, D7-3) -- called before the `setDocument` of the new revision.
+    // Every tile held moves to its page's NEW index, and a removed page's go: a held tile left at its old index
+    // would be painted -- as the stale tile it is about to become -- under whatever page now stands there,
+    // which is another page's pixels on screen until the fresh tile lands. Every ticket is cancelled; the
+    // next `requestTiles` asks again at the new indices, where the cache has moved what it held.
+    void remapPages(const core::PageMap& map);
+
     core::DocumentHandle document() const noexcept { return document_; }
 
     // Asks for everything `viewport` needs and cancels everything it no longer does. `viewport` is
@@ -176,6 +183,8 @@ public:
     // the rotated view is served the upright pixels out of the cache with no error and no symptom
     // beyond a command that appears not to work (D2-12).
     std::vector<core::render::RenderRequest> heldRequests() const;
+    // ... and the superseded ones still painted while their replacements arrive (S7 T3: a page command moves them).
+    std::vector<core::render::RenderRequest> staleRequests() const;
 
     // Filled in by the most recent `paint()`. `placeholders` is the count of tiles that were asked
     // for and had not arrived -- the difference between "a page is on screen" and "the whole page

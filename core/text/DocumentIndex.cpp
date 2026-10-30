@@ -58,7 +58,7 @@ std::size_t unitPartBytes(const SearchUnitPart& part)
 std::shared_ptr<const SearchablePage> SearchablePage::build(const PageReading& reading, NormalizeOptions options)
 {
     auto page = std::shared_ptr<SearchablePage>(new SearchablePage);
-    page->pageIndex_ = reading.pageIndex();
+    page->model_ = reading.sharedModel();   // S7 T3: the index is the model's, which follows its page
     page->options_ = options;
 
     // The normalizer maps to MODEL indices (T4's contract); a hit becomes a span of READING positions, so
@@ -457,7 +457,7 @@ void DocumentIndex::send(Entry& entry, int key, Pending& pending, render::Render
         return;
     }
 
-    const render::RenderTicket ticket = scheduler_.enqueueText({through, key}, lane);
+    const render::RenderTicket ticket = scheduler_.enqueueText({through, key, entry.epoch}, lane);
     if (!ticket.isValid()) return;
     // The new ticket FIRST, then the old one cancelled: the scheduler raised the queued job to the new
     // lane, and cancelling first could remove the job before the raise reached it.
@@ -675,6 +675,8 @@ void DocumentIndex::onText(const render::TextRequest& request, const render::Tex
     if (entry == nullptr) return;
     const int page = request.pageIndex;
     if (page < 0 || page >= entry->pageCount) return;
+    // ASKED BEFORE A PAGE COMMAND (S7 T3): the number named another page then, and the read was asked again.
+    if (request.epoch != entry->epoch) return;
     const EntryId id = entry->id;
 
     // WHOEVER WAS WAITING HAS IT NOW -- whichever handle it came through.
@@ -704,10 +706,112 @@ void DocumentIndex::onText(const render::TextRequest& request, const render::Tex
     enforceBudget(id);
 }
 
+void DocumentIndex::remap(Entry& entry, const PageMap& map)
+{
+    std::vector<std::shared_ptr<const void>> released;   // freed off this thread (I-13)
+
+    // THE TEXT FOLLOWS ITS PAGE: kept, re-filed at its new index, and told where it is now -- the model's own
+    // index is what a hit, a reading and a selection name (`PageTextModel::movedTo`). A page the command
+    // removed goes; an inserted page has no text yet and is read when someone asks.
+    std::vector<std::shared_ptr<const IndexedPage>> pages(static_cast<std::size_t>(map.newCount()));
+    for (int to = 0; to < map.newCount(); ++to) {
+        const int from = map.oldIndexOf(to);
+        if (from < 0 || from >= entry.pageCount) continue;
+        std::shared_ptr<const IndexedPage>& held = entry.pages[static_cast<std::size_t>(from)];
+        if (!held) continue;
+        held->model().movedTo(to);
+        pages[static_cast<std::size_t>(to)] = std::move(held);
+        ++stats_.pagesRemapped;
+    }
+    for (std::shared_ptr<const IndexedPage>& gone : entry.pages)
+        if (gone) {
+            released.push_back(std::move(gone));
+            ++stats_.pagesDropped;
+        }
+    entry.pages = std::move(pages);
+
+    // A PAGE'S UNITS AND PATHS name their page inside them (`SearchUnit::page`, `PageGeometry`'s page), so they
+    // are kept only where the page did not move, and read again where it did -- one engine task a page, and
+    // only for a search or a measurement that asks. The attachments' part names no page; the OUTLINE's does -- each
+    // bookmark carries its destination, which a page command moves -- so it is read again too.
+    for (auto it = entry.units.begin(); it != entry.units.end();) {
+        const int part = it->first;
+        if (part == kAttachmentsPart || (part >= 0 && map.newIndexOf(part) == part)) {
+            ++it;
+            continue;
+        }
+        if (it->second) released.push_back(std::move(it->second));
+        it = entry.units.erase(it);
+    }
+    for (auto it = entry.geometry.begin(); it != entry.geometry.end();) {
+        if (map.newIndexOf(it->first) == it->first) {
+            ++it;
+            continue;
+        }
+        if (it->second) released.push_back(std::move(it->second));
+        it = entry.geometry.erase(it);
+    }
+
+    // WHAT IS STILL BEING READ is read again at the page's new index: a job already queued or running names the
+    // OLD index, and the engine it would run on may be the reloaded one, where that index is another page. Its
+    // ticket is cancelled, and a text job that ran anyway is refused when it arrives -- it carries the entry's
+    // old EPOCH (`onText`); a task cancelled here is not reported. Whoever waited keeps waiting, for the same
+    // page. A read of a page the command removed is let go -- its owners are told by `PagesRemapped`.
+    // TWO PASSES over the owners' ledger -- every old key out, then every new one in -- because two pages may
+    // trade places, and one pass would take out the key it had just put in.
+    std::map<int, Pending> moved;
+    std::vector<int> resend;
+    for (auto& [key, pending] : entry.pending) {
+        const bool geometry = isGeometryKey(key);
+        const bool unit = !geometry && isUnitKey(key);
+        const int page = geometry ? key - kGeometryBase : unit ? partOfKey(key) : key;
+        if (unit && page == kAttachmentsPart) {   // the attachments' part: no page, nothing to move
+            moved.emplace(key, std::move(pending));
+            continue;
+        }
+        if (pending.ticket.isValid()) cancelTicket(pending.ticket);
+        pending.ticket = render::RenderTicket{};
+        for (const Owner owner : pending.owners) {
+            const auto asked = owners_.find(owner);
+            if (asked == owners_.end()) continue;
+            asked->second.erase({entry.id, key});
+            if (asked->second.empty()) owners_.erase(asked);
+        }
+        // The outline's part is read again under its own key: its bookmarks name pages, the part none.
+        const int to = (unit && page == kOutlinePart) ? page : map.newIndexOf(page);
+        if (to == PageMap::kNone) continue;
+        const int newKey = geometry ? geometryKey(to) : unit ? unitKey(to) : to;
+        moved.emplace(newKey, std::move(pending));
+        resend.push_back(newKey);
+    }
+    entry.pending = std::move(moved);
+    entry.pageCount = map.newCount();
+    ++entry.epoch;   // what was asked before this command is refused when it arrives (`onText`)
+    for (const int key : resend) {
+        Pending& pending = entry.pending.at(key);
+        for (const Owner owner : pending.owners) owners_[owner].insert({entry.id, key});
+        send(entry, key, pending, pending.lane);
+    }
+
+    release(std::move(released));
+}
+
 void DocumentIndex::invalidate(EntryId entryId, const Scope& scope)
 {
     Entry* entry = find(entryId);
     if (entry == nullptr || scope.isNothing()) return;
+
+    // A PAGE COMMAND (S7 T3, D7-3): where every page went, rather than what changed on them.
+    if (const PageMap* map = scope.pageMap(); map != nullptr && map->oldCount() == entry->pageCount) {
+        remap(*entry, *map);
+        Event remapped;
+        remapped.kind = Event::Kind::PagesRemapped;
+        remapped.entry = entryId;
+        remapped.map = map;
+        notify(remapped);
+        return;
+    }
+
     Event dropped;
     dropped.kind = Event::Kind::PagesInvalidated;
     dropped.entry = entryId;

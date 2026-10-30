@@ -163,6 +163,32 @@ Result<CompiledQuery> SearchEngine::compile(const SearchQuery& query)
     return compiled;
 }
 
+int remapHits(std::vector<SearchHit>& hits, int current, const PageMap& map)
+{
+    // Tagged with where each stood, so the current hit is found again after the sort. STABLE and by page
+    // alone: inside a page the engine's order -- the text by reading position, then the page's units -- is
+    // already document order, and a page command moves pages, never what is on them.
+    std::vector<std::pair<SearchHit, int>> kept;
+    kept.reserve(hits.size());
+    for (std::size_t i = 0; i < hits.size(); ++i) {
+        // A hit on no page -- a bookmark, an attachment -- stays where it is: document order puts it before page 0.
+        const int to = hits[i].page < 0 ? hits[i].page : map.newIndexOf(hits[i].page);
+        if (to == PageMap::kNone) continue;
+        SearchHit moved = hits[i];
+        moved.page = to;
+        kept.emplace_back(std::move(moved), static_cast<int>(i));
+    }
+    std::stable_sort(kept.begin(), kept.end(),
+                     [](const auto& a, const auto& b) { return a.first.page < b.first.page; });
+    hits.clear();
+    int found = -1;
+    for (auto& [hit, was] : kept) {
+        if (was == current) found = static_cast<int>(hits.size());
+        hits.push_back(std::move(hit));
+    }
+    return found;
+}
+
 std::vector<SearchHit> SearchEngine::findOnPage(const CompiledQuery& query, const SearchablePage& page,
                                                 const PageReading& reading, int limit)
 {
@@ -472,6 +498,13 @@ void SearchEngine::onIndexEvent(const DocumentIndex::Event& event)
             break;   // S6 T12: a page's paths -- nothing a search waits for
         case DocumentIndex::Event::Kind::EntryDropped:
             // THE DOCUMENT CLOSED UNDER THE SEARCH: nobody is there to be answered.
+            ++stats_.cancelled;
+            retire(id);
+            continue;
+        case DocumentIndex::Event::Kind::PagesRemapped:
+            // A PAGE COMMAND MOVED PAGES UNDER THE SEARCH (S7 T3, D7-3): its slots, its scope and the hits it has
+            // are in the old numbering. Ended, as a closed document ends one; the caller searches again, and
+            // finds every moved page's text already in the index (guide A-31).
             ++stats_.cancelled;
             retire(id);
             continue;

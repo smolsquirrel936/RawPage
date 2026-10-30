@@ -127,6 +127,25 @@ void TilePresenter::setDocument(core::DocumentHandle document, core::Revision re
     enginePages_ = enginePages;
 }
 
+void TilePresenter::remapPages(const core::PageMap& map)
+{
+    cancelAll();
+    const auto carry = [&map](std::unordered_map<RenderRequest, HeldRaster>& held) {
+        std::unordered_map<RenderRequest, HeldRaster> moved;
+        moved.reserve(held.size());
+        for (auto& [request, raster] : held) {
+            const int to = map.newIndexOf(request.pageIndex);
+            if (to == core::PageMap::kNone) continue;
+            RenderRequest at = request;
+            at.pageIndex = to;
+            moved.insert_or_assign(at, std::move(raster));
+        }
+        held = std::move(moved);
+    };
+    carry(tiles_);
+    carry(stale_);
+}
+
 void TilePresenter::setRenderFlags(core::render::RenderFlags flags)
 {
     flags_ = flags;
@@ -159,6 +178,14 @@ std::vector<RenderRequest> TilePresenter::heldRequests() const
     std::vector<RenderRequest> out;
     out.reserve(tiles_.size());
     for (const auto& [request, held] : tiles_) out.push_back(request);
+    return out;
+}
+
+std::vector<RenderRequest> TilePresenter::staleRequests() const
+{
+    std::vector<RenderRequest> out;
+    out.reserve(stale_.size());
+    for (const auto& [request, held] : stale_) out.push_back(request);
     return out;
 }
 

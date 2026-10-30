@@ -155,6 +155,14 @@ public:
     // `setDocument`, which is a document ARRIVING and starts at page 1.
     void modelChanged(core::Revision revision);
 
+    // A PAGE COMMAND MOVED PAGES (Stage 7 T3, D7-3) -- called after the model changed and BEFORE
+    // `modelChanged`, while this view still holds the layout of the old order. The view stays on the page
+    // it was showing, at the same place inside it, wherever that page now stands (or, where the command
+    // removed it, on the page that took its place); the history follows its pages; a fit stays anchored to
+    // its page; the held tiles move with their pages, so the screen never shows a page's pixels in another
+    // page's place while the new revision's tiles arrive.
+    void remapPages(const core::PageMap& map);
+
     core::DocumentHandle document() const noexcept { return document_; }
 
     // The MODEL's page tree -- the one layout reads, whose rotations include the unsaved ones. Null
@@ -517,6 +525,14 @@ private:
     // document of mixed sizes. It is also what a reader expects, a zoom that stays put while they
     // scroll.
     int fitAnchorPage_ = -1;
+    // S7 T3: where `modelChanged` puts the view after `remapPages` -- a page and the offset inside it.
+    struct PageAnchor {
+        int page = 0;
+        core::DevicePoint within;
+    };
+    std::optional<PageAnchor> pendingAnchor_;
+    // Where page `page`'s slot starts in content space at `zoom`, in the layout of the tree this view holds.
+    std::optional<core::DevicePoint> originAt(int page, core::render::Zoom zoom) const;
 
     // WHERE THE READER IS, as the viewport centre's fraction of the current page -- I-11. Taken
     // before a command changes the zoom and put back after, because the scroll offset is device

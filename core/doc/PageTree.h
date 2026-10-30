@@ -52,6 +52,11 @@ public:
 
     const std::vector<Page>& pages() const noexcept { return pages_; }
 
+    // S7 T3 (D7-3): the tree whose page `i` is this tree's page `from[i]` -- a page moved, or the page a
+    // duplicate copies -- as it is here, boxes and rotation and label. An entry outside this tree is an empty
+    // page. What the ENGINE draws after a page command, read through the order the sink composed.
+    PageTree reordered(const std::vector<int>& from) const;
+
     // The page a LABEL names, or -1. Searches in document order and returns the FIRST match, which
     // is the right answer for the two-page-1 case above: a document's second "1" is reached by
     // index, not by asking for the label again.

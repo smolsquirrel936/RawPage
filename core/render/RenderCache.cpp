@@ -117,6 +117,34 @@ std::size_t MemoryTileStore::invalidate(DocumentHandle document, const Scope& sc
                                         Revision newRevision, const PageTree* pages)
 {
     std::size_t dropped = 0;
+
+    // A PAGE COMMAND (S7 T3, D7-3): a moved page's tiles are KEPT under its new index -- the page object is the
+    // same, so its pixels are; only where it stands changed -- and a removed page's go. The re-key is the same
+    // two passes as below, the index moving with the revision. With no valid revision to move to, the map is
+    // not used and the scope is the `WholeDocument` it is: every tile of the document goes.
+    if (const PageMap* map = scope.pageMap(); map != nullptr && newRevision.isValid()) {
+        std::vector<EntryList::iterator> gone;
+        std::vector<std::pair<EntryList::iterator, int>> moved;
+        for (auto it = lru_.begin(); it != lru_.end(); ++it) {
+            if (it->request.document != document) continue;
+            const int to = map->newIndexOf(it->request.pageIndex);
+            if (to == PageMap::kNone) gone.push_back(it);
+            else moved.emplace_back(it, to);
+        }
+        for (const auto& it : gone) {
+            eraseIterator(it);
+            ++dropped;
+        }
+        for (const auto& [it, to] : moved) index_.erase(it->request);
+        for (const auto& [it, to] : moved) {
+            it->request.pageIndex = to;
+            it->request.revision = newRevision;
+            index_.emplace(it->request, it);
+        }
+        remapped_ += moved.size();
+        return dropped;
+    }
+
     // Two passes, because a re-key changes an entry's hash and therefore its position in the index:
     // mutating keys while iterating the map they live in is the shape of bug that survives every
     // test on a small map and corrupts a large one.
@@ -271,9 +299,12 @@ void RenderCache::invalidate(DocumentHandle document, const Scope& scope, Revisi
                              const PageTree* pages)
 {
     ++stats_.invalidations;
+    const std::size_t remappedBefore = memory_->remappedCount() + (disk_ != nullptr ? disk_->remappedCount() : 0u);
     std::size_t dropped = memory_->invalidate(document, scope, newRevision, pages);
     if (disk_ != nullptr) dropped += disk_->invalidate(document, scope, newRevision, pages);
     stats_.invalidatedEntries += static_cast<long long>(dropped);
+    stats_.remappedEntries += static_cast<long long>(
+        memory_->remappedCount() + (disk_ != nullptr ? disk_->remappedCount() : 0u) - remappedBefore);
 
     if (newRevision.isValid()) revisions_[document.id] = newRevision;
 

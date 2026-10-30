@@ -100,6 +100,10 @@ add_executable(rawpage_composition_tests
     # S6 T15 -- guide A-108, the stage-wide sweep of A-34 over what no suite above compared in pixels: an erase, a
     # paste, the pushpin and a sound beside a pencil stroke, made with their tools, saved and reopened fresh.
     tst_shownsaved.cpp
+    # Stage 7 T3 -- guide A-29 (D6-2 through page commands: every page live against the saved file reopened, three
+    # views, after each of T2's commands and after every undo) and A-31's composed half: the panes, the history, the
+    # thumbnails, the selection and the find bar follow their pages through a move and a delete (D7-3).
+    tst_assemblyshown.cpp
     # Stage 6 guide I-35 -- a REAL console Ctrl+C, sent by rawpage_ctrlcprobe (below) to itself in a console of its own:
     # the windows close, a refused close leaves the process for the next one, a second while the first waits ends it.
     tst_consoleinterrupt.cpp

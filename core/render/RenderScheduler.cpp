@@ -181,7 +181,17 @@ RenderTicket RenderScheduler::enqueueText(const TextRequest& request, RenderPrio
     noteLaneLocked(stats_, priority);
     const std::uint64_t ticket = nextTicketId_++;
 
-    const auto existing = byText_.find(request);
+    // NEVER ONTO A JOB THAT IS RUNNING FOR NOBODY (S7 T3): one cancelled while inside the extractor is dropped
+    // when it ends, and a ticket that joined it would be dropped with it -- a page asked for and never
+    // delivered. The new ask is a job of its own, and the key names it from now on.
+    auto existing = byText_.find(request);
+    if (existing != byText_.end()) {
+        const auto held = jobs_.find(existing->second);
+        if (held == jobs_.end() || (held->second.started && held->second.cancelled)) {
+            byText_.erase(existing);
+            existing = byText_.end();
+        }
+    }
     if (existing != byText_.end()) {
         // COALESCED, and RAISED when the new ask is more urgent -- `enqueue`'s rule, and here it is
         // the whole of D5-3's promise to a selection: the page a person is dragging over, asked at
@@ -259,10 +269,13 @@ void RenderScheduler::forgetJobLocked(std::unordered_map<std::uint64_t, Job>::it
     // BY KIND. A text job's coalescing key is in `byText_`; erasing its default-constructed
     // `request` from `byRequest_` instead would leave the text key behind, and the next ask for that
     // page would coalesce onto a job that no longer exists. A task has no key.
+    // ONLY WHILE THE KEY STILL NAMES THIS JOB: since S7 T3 a newer ask may hold it (`enqueueText`).
     if (job->second.kind == JobKind::Text) {
-        byText_.erase(job->second.text);
+        if (const auto key = byText_.find(job->second.text); key != byText_.end() && key->second == job->first)
+            byText_.erase(key);
     } else if (job->second.kind == JobKind::Raster) {
-        byRequest_.erase(job->second.request);
+        if (const auto key = byRequest_.find(job->second.request); key != byRequest_.end() && key->second == job->first)
+            byRequest_.erase(key);
     }
     jobs_.erase(job);
 }
@@ -417,14 +430,115 @@ bool RenderScheduler::rekeyLocked(std::unordered_map<std::uint64_t, Job>::iterat
     return true;
 }
 
+void RenderScheduler::pagesRemappedLocked(DocumentHandle document, const PageMap& map, Revision newRevision)
+{
+    // QUEUED TILES MOVE WITH THEIR PAGES. Not started, so the engine will draw each from the reloaded document,
+    // where the page now stands at its new index: the request is that index at the new revision. A removed
+    // page's is cancelled; one that meets an equal request already queued joins it, as a re-key does.
+    std::vector<std::uint64_t> keep;
+    keep.reserve(pending_.size());
+    for (const std::uint64_t id : pending_) {
+        const auto found = jobs_.find(id);
+        if (found == jobs_.end()) continue;
+        Job& job = found->second;
+        if (job.kind != JobKind::Raster || job.request.document != document) {
+            keep.push_back(id);
+            continue;
+        }
+        const int to = map.newIndexOf(job.request.pageIndex);
+        if (to == PageMap::kNone) {
+            forgetJobLocked(found);
+            ++stats_.cancelledBeforeStart;
+            continue;
+        }
+        RenderRequest moved = job.request;
+        moved.pageIndex = to;
+        moved.revision = newRevision;
+        if (const auto twin = byRequest_.find(moved); twin != byRequest_.end() && twin->second != id) {
+            Job& other = jobs_[twin->second];
+            for (const std::uint64_t ticket : job.tickets) {
+                other.tickets.push_back(ticket);
+                ticketToJob_[ticket] = twin->second;
+            }
+            job.tickets.clear();
+            other.cacheable = other.cacheable || job.cacheable;
+            if (!other.started && static_cast<int>(job.priority) < static_cast<int>(other.priority))
+                other.priority = job.priority;
+            forgetJobLocked(found);
+            ++stats_.coalesced;
+            continue;
+        }
+        byRequest_.erase(job.request);
+        job.request = moved;
+        byRequest_.emplace(moved, id);
+        ++stats_.remapped;
+        keep.push_back(id);
+    }
+    pending_ = std::move(keep);
+
+    // A TILE RUNNING OR FINISHED IS DROPPED, because nothing can say which engine drew it. The reload a page
+    // command queues swaps in before the engine's NEXT call for the document (`IDocumentBackend::showEdits`), and
+    // the command shows its edit before it tells this scheduler -- so a tile started in between drew the OLD
+    // index from the NEW document: another page's pixels under this page's key. One tile a worker at most, asked
+    // for again at the new index, where the cache, remapped above, usually has it.
+    //
+    // TEXT AND TASKS ARE NOT TOUCHED. A page's text is asked for by `core/text/DocumentIndex` alone, under an
+    // EPOCH the index moves at every page command (`TextRequest::epoch`): what it asked before the command is
+    // recognized and refused when it arrives, whatever engine extracted it and in whichever order this call and
+    // the index's own are made. A task is its owner's to cancel.
+    for (auto& [id, job] : jobs_) {
+        (void)id;
+        if (job.started && job.kind == JobKind::Raster && job.request.document == document) job.superseded = true;
+    }
+    completed_.erase(std::remove_if(completed_.begin(), completed_.end(),
+                                    [&](const Completion& completion) {
+                                        if (completion.kind != JobKind::Raster || completion.request.document != document)
+                                            return false;
+                                        if (!completion.fromCache) ++stats_.droppedSuperseded;
+                                        return true;
+                                    }),
+                     completed_.end());
+}
+
 void RenderScheduler::documentChanged(DocumentHandle document, const Scope& scope,
                                       Revision newRevision, const PageTree* pages)
 {
     // The cache first, on this thread, for `RenderCache.h`'s reason.
     if (cache_ != nullptr) cache_->invalidate(document, scope, newRevision, pages);
 
-    std::lock_guard<std::mutex> lock(mutex_);
+    std::unique_lock<std::mutex> lock(mutex_);
     if (newRevision.isValid()) revisions_[document.id] = newRevision;
+
+    // A PAGE COMMAND (S7 T3, D7-3): where the pages went, not what changed on them.
+    if (const PageMap* map = scope.pageMap(); map != nullptr && newRevision.isValid()) {
+        pagesRemappedLocked(document, *map, newRevision);
+        idle_.notify_all();
+        // AND THE RELOADED DOCUMENT WARMED WHILE THE ENGINE IS IDLE -- the named work of A2 at Stage 7
+        // (`Tech-Stack-Plan.md` §3.3, guide A-33). The command's reload swaps in at the engine's NEXT call, and
+        // the first page drawn from a freshly loaded document pays PDFium's cold start -- measured up to 8.8 ms
+        // against 1.4 with no command -- which every tile queued behind it then waits out. A page command's own
+        // tiles are cache hits (the remap above), so that next call is usually the next SCROLL's first tile.
+        // This asks for one pixel of the first page the command moved, at `Background`, bypassing the cache:
+        // drawn only when nothing more urgent waits, it takes the reload and the cold start off the path of the
+        // tiles a person is waiting for. Delivered to no one -- it has no presenter -- and never cached.
+        int first = 0;
+        while (first < map->newCount() && map->oldIndexOf(first) == first) ++first;
+        if (first >= map->newCount()) first = 0;
+        RenderRequest warm;
+        warm.document = document;
+        warm.pageIndex = first;
+        warm.tile = TileRect{0, 0, 1, 1};
+        warm.deviceScale = 0.05;
+        warm.revision = newRevision;
+        warm.flags = RenderFlags::Annotations;
+        lock.unlock();
+        if (map->newCount() > 0) {
+            enqueue(warm, RenderPriority::Background, CachePolicy::Bypass);
+            const std::lock_guard<std::mutex> counted(mutex_);
+            ++stats_.warmed;
+        }
+        return;
+    }
 
     // KEPT AT THE NEW REVISION (S6 T4): a tile of this document the scope does not reach. Its pixels
     // are the same either side of the mutation -- the engine may draw it from the old document or the

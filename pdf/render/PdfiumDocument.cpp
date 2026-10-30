@@ -421,17 +421,37 @@ void* PdfiumDocument::engineHandle() const noexcept
 // THE RELOAD -- Stage 6 T4, D6-2 (the header's `show`)
 // =============================================================================================
 
-void PdfiumDocument::show(QByteArray base, QByteArray update)
+void PdfiumDocument::show(QByteArray base, QByteArray update, std::vector<int> from)
 {
+    // THE IDENTITY IS SPELLED EMPTY, so a document no page command touched compares as it always did.
+    bool identity = static_cast<int>(from.size()) == pages_.count();
+    for (std::size_t i = 0; identity && i < from.size(); ++i) identity = from[i] == static_cast<int>(i);
+    if (identity) from.clear();
+
     const std::lock_guard<std::mutex> guard(pendingMutex_);
+    // Built here, on the caller's thread, so the swap under the engine lock only moves a pointer -- and only for
+    // an order not already queued or drawn: an annotation edit after a move keeps the move's tree.
+    std::shared_ptr<const core::PageTree> tree;
+    const bool newOrder = from != (pending_ ? pending_->from : shownFrom_);
+    if (!from.empty()) {
+        if (!newOrder) tree = pending_ ? pending_->pages : drawn_;
+        if (!tree) tree = std::make_shared<const core::PageTree>(pages_.reordered(from));
+    }
+    // A NEW ORDER MAKES EVERY CONTENT BOX'S KEY ANOTHER PAGE'S (S7 T3): forgotten now, before the next ask --
+    // which comes from this thread, and computes from the reloaded document because the swap comes first.
+    if (newOrder) {
+        const std::lock_guard<std::mutex> boxes(contentBoxMutex_);
+        contentBoxes_.clear();
+    }
     // NO WORK FOR WHAT IS ALREADY DRAWN OR ALREADY QUEUED: the same buffer (by identity, which is what
-    // sharing makes cheap to ask) and the same update bytes.
-    const auto same = [&](const QByteArray& otherBase, const QByteArray& otherUpdate) {
+    // sharing makes cheap to ask), the same update bytes and the same order.
+    const auto same = [&](const QByteArray& otherBase, const QByteArray& otherUpdate, const std::vector<int>& otherFrom) {
         return otherBase.constData() == base.constData() && otherBase.size() == base.size()
-               && otherUpdate == update;
+               && otherUpdate == update && otherFrom == from;
     };
-    const bool drawnNow = shownBase_.isNull() ? same(bytes_, QByteArray()) : same(shownBase_, shownUpdate_);
-    if (pending_ ? same(pending_->base, pending_->update) : drawnNow) return;
+    const bool drawnNow = shownBase_.isNull() ? same(bytes_, QByteArray(), shownFrom_)
+                                              : same(shownBase_, shownUpdate_, shownFrom_);
+    if (pending_ ? same(pending_->base, pending_->update, pending_->from) : drawnNow) return;
     if (pending_) {
         ++reloadStats_.coalesced;
         if (drawnNow) {
@@ -445,6 +465,8 @@ void PdfiumDocument::show(QByteArray base, QByteArray update)
     Pending next;
     next.base = std::move(base);
     next.update = std::move(update);
+    next.from = std::move(from);
+    next.pages = std::move(tree);
     next.generation = ++nextGeneration_;
     reloadStats_.pendingGeneration = next.generation;
     pending_ = std::move(next);
@@ -508,6 +530,9 @@ void PdfiumDocument::adoptPendingLocked() const
     engine_ = std::move(fresh);
     shownBase_ = std::move(next->base);
     shownUpdate_ = std::move(next->update);
+    // THE TREE WITH THE DOCUMENT IT DESCRIBES (S7 T3), in the same swap under the same lock.
+    shownFrom_ = std::move(next->from);
+    drawn_ = std::move(next->pages);
     ++reloadStats_.reloads;
     reloadStats_.lastLoad = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - began);
     reloadStats_.lastThread = std::this_thread::get_id();
@@ -526,12 +551,8 @@ int PdfiumDocument::pageCount() const noexcept
 
 core::Result<core::PdfRect> PdfiumDocument::contentBox(int pageIndex) const
 {
-    const core::Page* page = pages_.at(pageIndex);
-    if (page == nullptr) {
-        return core::Error{core::ErrorCode::InvalidArgument,
-                           QLatin1String("error.render.noSuchPage"),
-                           QString::number(pageIndex)};
-    }
+    // THE PAGE IS CHECKED AGAINST THE ENGINE'S TREE, under the lock, below (S7 T3): a page command changes the
+    // count, and a cached box exists only for a page that was in range when it was computed.
 
     // THE CACHE IS CONSULTED AND WRITTEN UNDER ITS OWN LOCK, and the engine is called with that
     // lock RELEASED. Holding both across `FPDF_LoadPage` would put the map's mutex inside the
@@ -553,6 +574,7 @@ core::Result<core::PdfRect> PdfiumDocument::contentBox(int pageIndex) const
     }
 
     std::optional<core::PdfRect> computed;
+    core::PdfRect crop;
     {
         const std::lock_guard<EngineMutex> guard(engineLock());
         auto* document = static_cast<FPDF_DOCUMENT>(engineHandle());   // a queued revision first (D6-2)
@@ -560,6 +582,13 @@ core::Result<core::PdfRect> PdfiumDocument::contentBox(int pageIndex) const
             return core::Error{core::ErrorCode::Unavailable,
                                QLatin1String("error.render.documentClosed")};
         }
+        const core::Page* page = drawnPagesLocked().at(pageIndex);
+        if (page == nullptr) {
+            return core::Error{core::ErrorCode::InvalidArgument,
+                               QLatin1String("error.render.noSuchPage"),
+                               QString::number(pageIndex)};
+        }
+        crop = page->cropBox();
 
         FPDF_PAGE loaded = FPDF_LoadPage(document, pageIndex);
         if (loaded == nullptr) {
@@ -612,7 +641,7 @@ core::Result<core::PdfRect> PdfiumDocument::contentBox(int pageIndex) const
     // `corpus/ordinary/cropbox-margins.pdf` has its ink well inside, so this clause is exercised by
     // files that bleed rather than by the case that proves the feature.
     if (computed.has_value()) {
-        const core::PdfRect clipped = core::intersect(*computed, page->cropBox());
+        const core::PdfRect clipped = core::intersect(*computed, crop);
         computed = (clipped.size.width > 0.0 && clipped.size.height > 0.0)
                        ? std::optional<core::PdfRect>{clipped}
                        : std::nullopt;
@@ -751,16 +780,17 @@ void walkObjects(FPDF_PAGEOBJECT form, int count, const std::function<FPDF_PAGEO
 
 core::Status PdfiumDocument::pageGeometry(int pageIndex, core::PageGeometry& into) const
 {
-    if (pages_.at(pageIndex) == nullptr) {
-        return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.render.noSuchPage"),
-                           QString::number(pageIndex)};
-    }
     PathWalk walk;
     {
         const std::lock_guard<EngineMutex> guard(engineLock());
         auto* document = static_cast<FPDF_DOCUMENT>(engineHandle());   // a queued revision first (D6-2)
         if (document == nullptr)
             return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.render.documentClosed")};
+        // S7 T3: against the ENGINE's tree, after the swap -- a page command changes which pages there are.
+        if (drawnPagesLocked().at(pageIndex) == nullptr) {
+            return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.render.noSuchPage"),
+                               QString::number(pageIndex)};
+        }
         FPDF_PAGE page = FPDF_LoadPage(document, pageIndex);
         if (page == nullptr) {
             return core::Error{core::ErrorCode::ParseFailure, QLatin1String("error.measure.pathsUnreadable"),
@@ -843,7 +873,7 @@ void outlineUnits(const std::vector<core::OutlineItem>& items, const QString& pa
 } // namespace
 
 core::Status PdfiumDocument::searchUnits(int part, const std::vector<std::pair<QString, QString>>& descriptions,
-                                         std::vector<core::text::SearchUnit>& into) const
+                                         std::vector<core::text::SearchUnit>& into, const core::Outline* outline) const
 {
     using core::text::ContentClass;
 
@@ -851,7 +881,7 @@ core::Status PdfiumDocument::searchUnits(int part, const std::vector<std::pair<Q
     std::vector<SearchUnit> units;
 
     if (part == core::text::kOutlinePart) {
-        outlineUnits(outline_.roots(), QString(), 0, units);
+        outlineUnits((outline != nullptr ? *outline : outline_).roots(), QString(), 0, units);
         into = std::move(units);
         return {};
     }
@@ -951,17 +981,17 @@ core::Status PdfiumDocument::searchUnits(int part, const std::vector<std::pair<Q
         return {};
     }
 
-    if (pages_.at(part) == nullptr) {
-        return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.render.noSuchPage"),
-                           QString::number(part)};
-    }
-
     {
         // ONE PAGE, AND THE WHOLE OF IT UNDER THE LOCK -- the page load, each annotation and both closes.
         const std::lock_guard<EngineMutex> guard(engineLock());
         auto* document = static_cast<FPDF_DOCUMENT>(engineHandle());   // a queued revision first (D6-2)
         if (document == nullptr)
             return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.render.documentClosed")};
+        // S7 T3: against the ENGINE's tree, after the swap -- a page command changes which pages there are.
+        if (drawnPagesLocked().at(part) == nullptr) {
+            return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.render.noSuchPage"),
+                               QString::number(part)};
+        }
         FPDF_PAGE page = FPDF_LoadPage(document, part);
         if (page == nullptr) {
             return core::Error{core::ErrorCode::ParseFailure, QLatin1String("error.text.extractFailed"),

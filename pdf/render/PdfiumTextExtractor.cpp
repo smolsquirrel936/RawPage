@@ -82,9 +82,8 @@ core::Status PdfiumTextExtractor::extractPage(core::DocumentHandle document, int
     // The TREE's page count, not the engine's: `PdfiumDocument` drops a trailing run of pages the
     // engine claims and cannot load (`pages-count-wrong.pdf`'s /Count 97 over three kids), and an
     // extractor that answered for page 50 of that file would be describing a page the viewer says
-    // does not exist.
-    if (document_.pages().at(pageIndex) == nullptr)
-        return extractError(core::ErrorCode::InvalidArgument, "error.render.noSuchPage", pageIndex);
+    // does not exist. Since S7 T3 it is the tree the ENGINE draws (`drawnPagesLocked`), checked under the
+    // lock below, after the swap: a page command changes which pages there are.
 
     // BUILT ASIDE AND SWAPPED IN AT THE END, so a failure leaves `into` exactly as it was. Partial
     // application is a bug in this project (CLAUDE.md), and a half-filled model is a page that
@@ -100,6 +99,8 @@ core::Status PdfiumTextExtractor::extractPage(core::DocumentHandle document, int
         auto* engine = static_cast<FPDF_DOCUMENT>(document_.engineHandle());
         if (engine == nullptr)
             return extractError(core::ErrorCode::Unavailable, "error.render.documentClosed", pageIndex);
+        if (document_.drawnPagesLocked().at(pageIndex) == nullptr)
+            return extractError(core::ErrorCode::InvalidArgument, "error.render.noSuchPage", pageIndex);
 
         FPDF_PAGE page = FPDF_LoadPage(engine, pageIndex);
         if (page == nullptr)

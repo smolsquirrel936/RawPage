@@ -733,6 +733,62 @@ re-keying), and the two remaining causes are `DW-4`. **What this does NOT claim:
 generated corpus; a burst of 300 strokes on one page at ten a second, §3.1's scale and not a person's rate --
 whether a person's drawing feels immediate is **M-12**'s, not walked on this date -- walked 2026-10-28 and passed, the user judging 64 strokes on page 450 and three highlights immediate and smooth (`Stage6-Annotations-Testing-Guide.md` §6), A-104's figures unchanged by it.
 
+**A2 AT STAGE 7 — STAGE 7's WORKLOAD: page commands reload the engine with the pages in a new order and remap
+every index (D7-3). Measured 2026-10-30, Stage 7 task T3, `rawpage_bench_pipeline --stage7`. VERDICT: `go, with named
+custom work`** — the user's choice on 2026-10-30, from the first measurement below and its breakdown; **the named work
+was built in T3, and after it every figure is inside `Stage7-Assembly-Testing-Guide.md` §3.1** on the three graded runs.
+The scale was fixed before the run.
+
+The workload (`Stage7-Assembly-Plan.md` D7-19): on `pages-900.pdf` and `text-900.pdf`, a `MovePagesCommand` of a
+ten-page range one place down every 100 ms for 30 s -- a held `Alt+↓`, from pages 101 … 110 -- and half a period later
+a scroll to another page's 1920×1080 viewport at **288 dpi** at `Visible`; after each command the moved range's first
+page asked for at its new index, as the page view that follows its page asks. Then one INSERT of 100 pages -- **a
+stand-in**, a `DuplicatePagesCommand` of pages 601 … 700, `InsertPagesCommand` being T5's. Graded: the scroll's p95
+queued latency (D2-1's quantity) beside a no-command column over the same file, and **command-to-pixels**, from
+`CommandJournal::run` returning to the moved page's top-left tile delivered SHOWING THAT PAGE -- its pixels the same
+tile captured before the first command -- with any tile at that index showing another page counted as WRONG.
+
+**The first measurement (three runs), and what it found.** Command-to-pixels p95 **0.04 ms**, max 2.2–3.3 ms -- a
+moved page's tiles are the cache's, carried to its new index (D7-3) -- and **0 wrong-identity tiles in 1,800
+commands**. But the viewport p95 read **17.6–18.0 ms on `pages-900.pdf`** against **11.2–11.5** with no command, and
+**21.9–22.3 on `text-900.pdf`** against **17.2–17.4** -- that file's no-command baseline itself outside the budget on
+this rig that hour (Stage 6 read the same column at 13.1–17.7). A fourth run split each scrolled tile's wait: **all of
+the increase is QUEUED time**; the engine's per-tile p95 is unchanged (0.53 against 0.43 ms) and its MAXIMUM 8.8 ms
+against 1.4 -- **the first tile drawn from each freshly reloaded document pays PDFium's cold start** (the load itself,
+1.0–1.3 ms, plus the first page's parse), and the scroll's forty tiles wait it out. `journal.run` p95 8.6–9.0 ms, its
+compose and verify 7.0–7.4, the remap (cache and queue) p95 0.36–0.38 ms. An experiment that asked for one tile of
+page 1 at `Background` after each command brought `pages-900.pdf` back inside (15.3 ms) and not `text-900.pdf`
+(20.8) -- part of the cold cost is per document and part per page.
+
+**The named work, built in T3** (the user's choice): **after every page command the scheduler asks for one pixel of
+the first page the command moved, at `Background`, bypassing the cache** (`RenderScheduler::documentChanged`,
+`Stats::warmed`), so the reload and the reloaded document's cold first page are paid while the engine is idle -- a page
+command's own tiles are cache hits, so the engine usually IS idle. Two faults in the bench's own instrument were found
+in its first runs with the warm-up and fixed before the graded ones: it counted the warm-up's one pixel as a
+wrong-identity tile once, and it read the reload record (which takes the engine lock) from its delivery callback.
+
+**After it (three runs on the final code, nothing else running):**
+
+| | `pages-900.pdf` | `text-900.pdf` |
+|---|---|---|
+| viewport p95, with commands | **10.6 / 10.7 / 10.6 ms** | **14.3 / 14.3 / 14.3 ms** |
+| viewport p95, no commands | 9.2 / 9.2 / 9.2 ms | 13.1 / 13.1 / 13.1 ms |
+| command-to-pixels p95 / max | 0.04–0.05 / ≤ 0.70 ms | 0.05–0.06 / ≤ 0.78 ms |
+| wrong-identity tiles | 0 | 0 |
+| the stand-in insert, run / to the pixels | 6.4–7.1 / 4.1–5.3 ms | 6.4–7.1 / 4.0–4.5 ms |
+| `journal.run` p95 (compose + verify) | 6.5–6.6 (5.1–5.2) ms | 6.7–6.9 (5.4–5.5) ms |
+| the remap p95 / the reload p95 | 0.33–0.34 / 1.4–1.5 ms | 0.33–0.44 / 1.3–1.6 ms |
+| the engine's per-tile max, with / without | 3.5–4.2 / 0.8–1.5 ms | 3.8–4.5 / 1.3–1.6 ms |
+
+**Inside every §3.1 bound on both files.** The machine read faster that hour than the first -- its no-command columns
+9.2 / 13.1 against 11.2–12.4 / 17.2–17.5 hours earlier, with no change to the code they run -- so the comparable figure is
+what page commands ADD: **+6.1–6.7 / +4.6–5.0 ms before the warm-up, +1.4 / +1.2 after**.
+
+**What this does NOT claim.** One rig; our own generated corpus (D2-11); the bench's request pattern, not the shipped
+thumbnails pane's -- that reading is T19's `bench_surface --stage7` (guide A-114); a burst of ten moves a second, §3.1's
+scale and not a person's -- whether moving pages by hand feels immediate is M-12's; and an insert that is a duplicate,
+whose pages come from the same document, until T5 measures the insert §3.1 names.
+
 **A6, measured on the build machine (2026-08-18), Stage 0 task T12.** A prebuilt PDFium DLL
 links from `g++` and works. Pinned: **PDFium 153.0.8009.0**, `pdfium-win-x64.tgz` from release
 `chromium/8009`, SHA-256 `c78a8cd51b48ab…`, acquired by `scripts/fetch-pdfium.ps1`.

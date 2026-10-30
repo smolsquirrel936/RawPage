@@ -138,15 +138,22 @@ const char* renderPriorityName(RenderPriority priority) noexcept;
 //
 // Its equality is what coalesces two asks for one page into one extraction, as two viewports over
 // one tile share one rasterization.
+//
+// **AND AN EPOCH, since Stage 7 T3** (D7-3). A page command changes which page an index NAMES, so an ask for
+// page 5 made before a move and one made after are asks for two different pages under one number. The asker
+// -- `core/text/DocumentIndex`, the only one -- numbers its asks by the page commands it has seen, and a
+// delivery from an older epoch is refused there rather than filed under the number's new page. Part of the
+// equality, so two asks of different epochs never coalesce. Ignored by the extractor.
 struct TextRequest {
     DocumentHandle document;
     int pageIndex = 0;
+    std::uint64_t epoch = 0;
 
     bool isValid() const noexcept { return document.isValid() && pageIndex >= 0; }
 
     friend bool operator==(const TextRequest& a, const TextRequest& b) noexcept
     {
-        return a.document == b.document && a.pageIndex == b.pageIndex;
+        return a.document == b.document && a.pageIndex == b.pageIndex && a.epoch == b.epoch;
     }
     friend bool operator!=(const TextRequest& a, const TextRequest& b) noexcept { return !(a == b); }
 };
@@ -155,7 +162,8 @@ struct TextRequestHash {
     std::size_t operator()(const TextRequest& request) const noexcept
     {
         return std::hash<std::uint64_t>{}(request.document.id)
-               ^ (static_cast<std::size_t>(request.pageIndex) * 0x9e3779b97f4a7c15ULL);
+               ^ (static_cast<std::size_t>(request.pageIndex) * 0x9e3779b97f4a7c15ULL)
+               ^ (static_cast<std::size_t>(request.epoch) << 17);
     }
 };
 
@@ -327,6 +335,16 @@ public:
     // the document was cancelled by every revision, whatever page it was of, and the views asked for it
     // again at the back of the queue: under Stage 6's edits, 9,000 scrolled tiles in 30 s. A re-keyed job
     // that meets an equal request already queued at the new revision joins it.
+    //
+    // **A PAGE COMMAND'S SCOPE MOVES THE QUEUE, since Stage 7 T3** (D7-3, `Scope::pageMap`): a queued tile of
+    // a page the command kept becomes the same tile of that page at its NEW index and revision, one of a
+    // removed page is cancelled, and the cache moves what it holds the same way. A tile of the document that
+    // is RUNNING or FINISHED is dropped -- the reload the command queued swaps in before the engine's next
+    // call, so a tile that started in between drew the old index from the new document. Text and tasks are
+    // their askers': the text index refuses a page read before the command by its epoch (`TextRequest`). And one
+    // pixel of the first page the command moved is asked for at `Background`, bypassing the cache, so the reload
+    // and the reloaded document's cold first page are paid while the engine is idle (`Stats::warmed`; the named
+    // work of A2 at Stage 7, `Tech-Stack-Plan.md` §3.3).
     void documentChanged(DocumentHandle document, const Scope& scope, Revision newRevision,
                          const PageTree* pages = nullptr);
 
@@ -393,6 +411,8 @@ public:
         long long completed = 0;
         long long cancelledBeforeStart = 0;   // A-36's number: the rasterizer was never entered
         long long rekeyed = 0;                // S6 T4: a tile a mutation did not reach, kept at its new revision
+        long long remapped = 0;               // S7 T3: a queued tile a page command moved to its page's new index
+        long long warmed = 0;                 // S7 T3: page commands whose reloaded document was asked to warm
         long long droppedCancelled = 0;       // finished, but nobody wants it any more
         long long droppedSuperseded = 0;      // finished at a revision that has since moved
         long long droppedOverflow = 0;        // the queue was full and this was the lowest priority
@@ -484,6 +504,8 @@ private:
     // Requires the lock. Moves a queued or running raster job to `revision` (S6 T4). False when an equal
     // request is already a job of its own: the caller then folds this one into it, or drops its result.
     bool rekeyLocked(std::unordered_map<std::uint64_t, Job>::iterator job, Revision revision);
+    // Requires the lock. `documentChanged`'s page-command half (S7 T3, D7-3) -- see there.
+    void pagesRemappedLocked(DocumentHandle document, const PageMap& map, Revision newRevision);
 
     RasterizerFactory factory_;
     TextExtractorFactory textFactory_;

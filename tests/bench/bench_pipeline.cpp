@@ -61,6 +61,11 @@
 // and its edit column reads each page's path geometry (D6-14); the product's own reading of the same scale
 // is `bench_surface --stage6` (guide A-104), and this one is never quoted as that.
 //
+// **PHASE 8, `--stage7`** (Stage 7 T3, D7-19) is A2 AT STAGE 7: the viewport while page commands reload the engine
+// with the pages in a new order and remap every index the cache and the queue hold (D7-3), and how long a moved
+// page takes to reach the pixels SHOWING THAT PAGE -- see the phase's own header, below phase 7. Its insert is a
+// stand-in until Stage 7 T5; the product's reading is T19's `bench_surface --stage7` (guide A-114).
+//
 // **O7** -- is the render cache's disk tier shared between documents or per-document? D2-14 says
 // that is answered by MEASUREMENT over the corpus rather than by preference, and `CacheStats` plus
 // `crossDocumentEvictions()` exist in `RenderCache` for it (T11) rather than being bolted on here.
@@ -119,9 +124,11 @@
 #include "core/backend.h"
 #include "core/cmd/CommandJournal.h"
 #include "core/cmd/commands/AnnotationCommands.h"
+#include "core/cmd/commands/PageCommands.h"
 #include "core/doc/Annotation.h"
 #include "core/doc/Document.h"
 #include "core/doc/DrawnShapes.h"
+#include "core/doc/PageMap.h"
 #include "core/doc/PageTree.h"
 #include "core/doc/Revision.h"
 #include "core/render/DiskTileStore.h"
@@ -1894,6 +1901,405 @@ int runStage6Workload(const Resolution& a2)
     return 0;
 }
 
+// =============================================================================================
+// PHASE 8 -- A2 AT STAGE 7 (Stage 7 T3, D7-19), `--stage7`
+// =============================================================================================
+//
+// A page command does three things to the pipeline no earlier stage did: it RELOADS the engine with the pages
+// in a new order (D6-2's path, D7-3), it REMAPS every index the cache and the queue hold (`Scope::pageMap`), and
+// it MOVES what the person is looking at. This phase measures all three against the scale
+// `Stage7-Assembly-Testing-Guide.md` §3.1 fixed before it ran.
+//
+// THE WORKLOAD, per file (`pages-900.pdf`, `text-900.pdf`): for `g_stage7Seconds` (30 -- §3.1's figure), a
+// `MovePagesCommand` of a TEN-PAGE RANGE one place down every 100 ms -- a held `Alt+↓` -- starting at pages
+// 101 … 110; half a period after each, a SCROLL to another page's 1920x1080 viewport at A2's configuration, at
+// `Visible`, as Stage 6's phase scrolls. After each command the moved range's first page is asked for at its
+// new index, as the page view that follows its page asks (`PageView::remapPages`), and every viewport tile
+// still waiting is asked again at its page's new index -- timed from when it was FIRST asked.
+//
+//   * THE VIEWPORT -- enqueue to delivery of the scroll's tiles, D2-1's quantity; a column with no commands
+//     ("viewer") over the same file first, so the two subtract.
+//   * COMMAND-TO-PIXELS -- from `CommandJournal::run` RETURNING to the delivery of the moved range's first
+//     page's TOP-LEFT tile at the command's revision or later, SHOWING THAT PAGE (rule 1, rule 7): its pixels
+//     equal to the same tile of the same page captured before the first command. A tile of that index with
+//     other pixels is counted as WRONG and is not a sample -- one would be another page's picture under this
+//     page's key, the S1 D7-3 exists to prevent.
+//   * `journal.run`, the compose and verify inside it, the REMAP (the cache's and the queue's, timed around
+//     `documentChanged`) and the reload under the engine lock -- reported, not graded (§3.7 grades `run`).
+//
+// **THE INSERT IS A STAND-IN, and says so.** §3.1's workload ends with one `InsertPages` of 100 pages from
+// `text-900.pdf`, and `InsertPagesCommand` is Stage 7 T5's: at T3 no command brings pages from another
+// document. What T3 can run that INSERTS 100 pages whose first tiles are not in the cache is a
+// `DuplicatePagesCommand` of 100 pages -- 601 … 700 -- each copy landing after its source; its first copy's
+// top-left tile is timed to the pixels as the moves are, its identity the source's. T5 replaces it with the
+// insert §3.1 names, and the reading is taken again then.
+
+int g_stage7Seconds = 30;
+constexpr int kStage7PeriodMs = 100;
+constexpr int kStage7ViewerSeconds = 10;
+constexpr int kStage7RangeFirst = 100;    // 0-based: pages 101 ... 110
+constexpr int kStage7RangeLength = 10;
+constexpr int kStage7CopyFirst = 600;     // 0-based: pages 601 ... 700 duplicated
+constexpr int kStage7CopyLength = 100;
+
+struct Stage7Outcome {
+    std::vector<double> viewport;
+    std::vector<double> commandToPixels;
+    std::vector<double> runMs, composeMs, verifyMs, reloadMs, remapMs;
+    double insertToPixels = -1.0;
+    double insertRunMs = 0.0;
+    long long commands = 0;
+    long long refused = 0;
+    long long unseen = 0;          // a command whose moved page's tile never arrived showing that page
+    long long wrongIdentity = 0;   // a tile of the moved page's index delivered with ANOTHER page's pixels
+    long long reloads = 0, coalesced = 0, reloadFailures = 0;
+    long long reRequested = 0;
+    double wallMs = 0.0;
+    int scrolls = 0;
+    core::render::RenderScheduler::Stats schedulerStats;
+    core::render::CacheStats cacheStats;
+    // WHERE EACH SCROLLED TILE'S WAIT WENT, phase 7's account: queued until the worker took it, in the engine,
+    // and finished until the pump delivered it.
+    std::vector<double> queuedLeg, engineLeg, pumpLeg;
+};
+
+Stage7Outcome runStage7Column(const QString& relative, const Resolution& view, bool commands, int seconds)
+{
+    Stage7Outcome outcome;
+    pdf::DocumentBackendImpl backend;
+    const core::Result<core::DocumentHandle> opened =
+        backend.open(QDir(QStringLiteral(RAWPAGE_CORPUS_DIR)).filePath(relative), core::PasswordCallback{});
+    if (!opened) return outcome;
+    const core::DocumentHandle handle = opened.value();
+    const core::PageTree* pages = backend.pages(handle);
+    core::Document document;
+    if (pages == nullptr || backend.mutationSink(handle) == nullptr || !document.hydrate(backend, handle)) {
+        backend.close(handle);
+        return outcome;
+    }
+    core::CommandJournal journal(std::move(document), backend.mutationSink(handle));
+    journal.setShowHandler([&](const core::Scope&) { return backend.showEdits(handle, {}); });
+
+    ServiceLog log;
+    {
+        core::render::RenderCache cache;
+        core::render::RenderScheduler scheduler(
+            [&]() -> std::unique_ptr<core::IPageRasterizer> { return std::make_unique<TimingRasterizer>(backend, log); },
+            &cache);
+        std::map<std::string, std::pair<Clock::time_point, RenderRequest>> awaitingViewport;
+        // THE PRODUCT'S MUTATION HANDLER (`DocumentWindow`): the scheduler and the cache told, timed -- the remap --
+        // and every viewport tile still waiting asked again at its page's NEW index, as the views ask.
+        journal.subscribeMutated([&](const core::Scope& scope) {
+            const Clock::time_point began = Clock::now();
+            scheduler.documentChanged(handle, scope, journal.revision(), backend.pages(handle));
+            outcome.remapMs.push_back(millisSince(began));
+            const core::PageMap* map = scope.pageMap();
+            std::map<std::string, std::pair<Clock::time_point, RenderRequest>> moved;
+            for (auto& [key, waiting] : awaitingViewport) {
+                (void)key;
+                RenderRequest request = waiting.second;
+                if (map != nullptr) {
+                    const int to = map->newIndexOf(request.pageIndex);
+                    if (to == core::PageMap::kNone) continue;
+                    request.pageIndex = to;
+                }
+                request.revision = journal.revision();
+                scheduler.enqueue(request, RenderPriority::Visible);
+                ++outcome.reRequested;
+                moved[scaledTileKey(request)] = {waiting.first, request};
+            }
+            awaitingViewport = std::move(moved);
+        });
+
+        const TileGrid grid;
+        struct PendingCommand {
+            core::Revision revision;
+            Clock::time_point returned;
+            int page = 0;            // where the page it moved now stands
+            const QByteArray* shows = nullptr;   // the pixels that page's top-left tile must have
+        };
+        std::deque<PendingCommand> pendingCommands;
+        std::optional<PendingCommand> pendingInsert;
+        long long reloadsSeen = 0;
+        const auto takeReload = [&] {
+            const auto record = backend.reloadRecord(handle);
+            if (record && record->reloads > reloadsSeen) {
+                reloadsSeen = record->reloads;
+                outcome.reloadMs.push_back(std::chrono::duration<double, std::milli>(record->lastLoad).count());
+            }
+        };
+
+        // THE IDENTITIES, before anything moves: the top-left tile of the range's first page and of the first
+        // page the stand-in insert copies.
+        std::map<int, QByteArray> topLeft;
+        const auto topLeftOf = [&](int page) {
+            RenderRequest request = requestFor(handle, page, TileRect{0, 0, 256, 256}, view.dpi);
+            request.revision = journal.revision();
+            return request;
+        };
+
+        std::map<std::string, Clock::time_point> viewportSent;
+        std::map<std::string, Clock::time_point> viewportDelivered;
+        // WHERE THE MOVED PAGE STANDS, and since which revision: every command waits for the SAME page -- the
+        // range's first -- so a command still waiting when the next moves it waits for it at its new index.
+        int rangeAt = kStage7RangeFirst;
+        core::Revision movedSince = journal.revision();
+        const core::render::RenderScheduler::SubscriptionToken token = scheduler.subscribeReady(
+            [&](const RenderRequest& request, const core::RasterImage& image) {
+                const std::string key = scaledTileKey(request);
+                if (const auto at = awaitingViewport.find(key); at != awaitingViewport.end()) {
+                    outcome.viewport.push_back(latencySince(at->second.first));
+                    viewportDelivered[key] = Clock::now();
+                    awaitingViewport.erase(at);
+                }
+                // NOT THE WARM-UP'S ONE PIXEL (`RenderScheduler::documentChanged`, A2's named work): it is a tile at
+                // (0, 0) too, of the first page a command moved, and for the stand-in insert that is the first copy --
+                // the index this column watches. Counting it would read a 1x1 tile as another page's picture.
+                if (request.document != handle || request.tile.x != 0 || request.tile.y != 0 || request.tile.width <= 1) return;
+                // The page's index, at a revision where the page stands there: its pixels must be the page's.
+                if (!pendingCommands.empty() && request.pageIndex == rangeAt
+                    && request.revision.value() >= movedSince.value()) {
+                    if (image.pixels != topLeft[kStage7RangeFirst]) {
+                        ++outcome.wrongIdentity;
+                    } else {
+                        for (const PendingCommand& waiting : pendingCommands)
+                            outcome.commandToPixels.push_back(millisSince(waiting.returned));
+                        pendingCommands.clear();
+                    }
+                }
+                if (pendingInsert && request.pageIndex == pendingInsert->page
+                    && request.revision.value() >= pendingInsert->revision.value()) {
+                    if (image.pixels != topLeft[kStage7CopyFirst]) {
+                        ++outcome.wrongIdentity;
+                    } else {
+                        outcome.insertToPixels = millisSince(pendingInsert->returned);
+                        pendingInsert.reset();
+                    }
+                }
+            });
+
+        const auto enqueueViewport = [&](int page, bool sample) {
+            const core::Page* info = backend.pages(handle)->at(page);
+            if (info == nullptr) return;
+            const TileRect bounds = TileGrid::pageBounds(*info, view);
+            TileRect viewport = bounds;
+            viewport.width = std::min(bounds.width, kViewportWidth);
+            viewport.height = std::min(bounds.height, kViewportHeight);
+            for (const TileRect& tile : grid.tilesFor(*info, view, viewport).visible) {
+                RenderRequest request = requestFor(handle, page, tile, view.dpi);
+                request.revision = journal.revision();
+                if (sample) awaitingViewport[scaledTileKey(request)] = {Clock::now(), request};
+                scheduler.enqueue(request, RenderPriority::Visible);
+                if (sample) viewportSent[scaledTileKey(request)] = Clock::now();
+            }
+        };
+
+        if (commands) {
+            std::map<int, bool> seen;
+            const auto capture = scheduler.subscribeReady([&](const RenderRequest& request, const core::RasterImage& image) {
+                if (request.tile.x == 0 && request.tile.y == 0 && request.revision == journal.revision()) {
+                    topLeft[request.pageIndex] = image.pixels;
+                    seen[request.pageIndex] = true;
+                }
+            });
+            for (const int page : {kStage7RangeFirst, kStage7CopyFirst})
+                scheduler.enqueue(topLeftOf(page), RenderPriority::Visible);
+            for (int i = 0; i < 2000 && seen.size() < 2; ++i) {
+                scheduler.waitForIdle(5);
+                scheduler.deliverReady();
+            }
+            scheduler.unsubscribeReady(capture);
+            if (seen.size() < 2) {
+                scheduler.unsubscribeReady(token);
+                backend.close(handle);
+                return Stage7Outcome{};
+            }
+        }
+
+        const Clock::time_point start = Clock::now();
+        Clock::time_point nextCommand = start;
+        Clock::time_point nextScroll = start + std::chrono::milliseconds(kStage7PeriodMs / 2);
+        const auto end = start + std::chrono::seconds(seconds);
+        int scroll = 0;
+        const int count = backend.pages(handle)->count();
+        while (Clock::now() < end) {
+            if (Clock::now() >= nextScroll) {
+                // Another page, never one of the range: 7 is prime to 900, so a column reaches pages it did not.
+                int page = (scroll * 7 + 1) % count;
+                while (page >= rangeAt && page < rangeAt + kStage7RangeLength + 1) page = (page + kStage7RangeLength + 1) % count;
+                enqueueViewport(page, true);
+                ++scroll;
+                nextScroll += std::chrono::milliseconds(kStage7PeriodMs);
+            }
+            if (commands && Clock::now() >= nextCommand) {
+                // THE PREVIOUS COMMAND'S RELOAD, read here and not in the delivery callback: `reloadRecord` takes the
+                // engine lock, and read from the pump it waited out whatever the engine was drawing -- the warm-up --
+                // and added it to command-to-pixels (1.4-1.8 ms of p95 in the first runs with the warm-up).
+                takeReload();
+                std::vector<int> range;
+                for (int i = 0; i < kStage7RangeLength; ++i) range.push_back(rangeAt + i);
+                const Clock::time_point began = Clock::now();
+                const core::Status ran = journal.run(std::make_unique<core::MovePagesCommand>(range, rangeAt + 1));
+                const Clock::time_point returned = Clock::now();
+                ++outcome.commands;
+                outcome.runMs.push_back(std::chrono::duration<double, std::milli>(returned - began).count());
+                if (!ran) {
+                    ++outcome.refused;
+                } else {
+                    ++rangeAt;
+                    movedSince = journal.revision();
+                    if (const auto record = backend.reloadRecord(handle)) {
+                        outcome.composeMs.push_back(std::chrono::duration<double, std::milli>(record->lastCompose).count());
+                        outcome.verifyMs.push_back(std::chrono::duration<double, std::milli>(record->lastVerify).count());
+                    }
+                    pendingCommands.push_back(PendingCommand{journal.revision(), returned, rangeAt, nullptr});
+                    enqueueViewport(rangeAt, false);
+                }
+                nextCommand += std::chrono::milliseconds(kStage7PeriodMs);
+            }
+            scheduler.deliverReady();
+            std::this_thread::yield();
+        }
+
+        // THE STAND-IN INSERT: 100 pages copied, the first copy's top-left tile timed to the pixels.
+        if (commands) {
+            std::vector<int> copied;
+            for (int i = 0; i < kStage7CopyLength; ++i) copied.push_back(kStage7CopyFirst + i);
+            const Clock::time_point began = Clock::now();
+            const core::Status ran = journal.run(std::make_unique<core::DuplicatePagesCommand>(copied));
+            const Clock::time_point returned = Clock::now();
+            outcome.insertRunMs = std::chrono::duration<double, std::milli>(returned - began).count();
+            if (ran) {
+                pendingInsert = PendingCommand{journal.revision(), returned, kStage7CopyFirst + 1, &topLeft[kStage7CopyFirst]};
+                enqueueViewport(kStage7CopyFirst + 1, false);
+                const Clock::time_point until = Clock::now() + std::chrono::seconds(5);
+                while (pendingInsert && Clock::now() < until) {
+                    scheduler.deliverReady();
+                    std::this_thread::yield();
+                }
+            }
+        }
+
+        for (int i = 0; i < 2000 && (scheduler.pendingCount() > 0 || scheduler.runningCount() > 0); ++i) {
+            scheduler.deliverReady();
+            scheduler.waitForIdle(5);
+        }
+        scheduler.deliverReady();
+        takeReload();
+        outcome.wallMs = millisSince(start);
+        outcome.scrolls = scroll;
+        outcome.unseen = static_cast<long long>(pendingCommands.size()) + (pendingInsert ? 1 : 0);
+        scheduler.unsubscribeReady(token);
+        outcome.schedulerStats = scheduler.stats();
+        outcome.cacheStats = cache.stats();
+        if (const auto record = backend.reloadRecord(handle)) {
+            outcome.reloads = record->reloads;
+            outcome.coalesced = record->coalesced;
+            outcome.reloadFailures = record->failures;
+        }
+        scheduler.cancelDocument(handle);
+        scheduler.waitForIdle(30000);
+
+        const std::lock_guard<std::mutex> lock(log.mutex);
+        for (const ServiceLog::Entry& entry : log.entries) {
+            const auto sent = viewportSent.find(entry.key);
+            const auto delivered = viewportDelivered.find(entry.key);
+            if (sent == viewportSent.end() || delivered == viewportDelivered.end()) continue;
+            if (entry.start < sent->second || delivered->second < entry.start) continue;
+            const double queued = std::chrono::duration<double, std::milli>(entry.start - sent->second).count();
+            const double total = std::chrono::duration<double, std::milli>(delivered->second - sent->second).count();
+            outcome.queuedLeg.push_back(queued);
+            outcome.engineLeg.push_back(entry.ms);
+            outcome.pumpLeg.push_back(total - queued - entry.ms);
+        }
+    }
+    backend.close(handle);
+    return outcome;
+}
+
+int runStage7Workload(const Resolution& a2)
+{
+    const Resolution view = resolutionAt(a2.dpi);
+    std::printf("\n  phase 8 -- STAGE 7's WORKLOAD (D7-19): the viewport while page commands remap and reload (D7-3)\n");
+    std::printf("    viewport      at A2's configuration -> %.1f dpi, %.3f px/pt, %dx%d, at Visible\n",
+                view.dpi, view.rasterScale(), kViewportWidth, kViewportHeight);
+    std::printf("    commands      one MovePages of a %d-page range one place down every %d ms for %d s (a held Alt+Down),"
+                " from pages %d-%d;\n                  a scroll to another page half a period later; the moved range's"
+                " first page asked for at its new index after each\n",
+                kStage7RangeLength, kStage7PeriodMs, g_stage7Seconds, kStage7RangeFirst + 1,
+                kStage7RangeFirst + kStage7RangeLength);
+    std::printf("    insert        a STAND-IN: DuplicatePages of pages %d-%d (InsertPages is T5's); its first copy timed\n",
+                kStage7CopyFirst + 1, kStage7CopyFirst + kStage7CopyLength);
+    std::printf("    identity      a moved page's tile counts only when its pixels are that page's, captured before the"
+                " first command (rule 7); another page's pixels at its index are counted WRONG\n");
+
+    const char* files[] = {"ordinary/pages-900.pdf", "ordinary/text-900.pdf"};
+    struct Verdict {
+        const char* file;
+        double viewerP95, commandsP95, toPixelsP95, toPixelsMax, insert;
+        long long missing, wrong;
+    };
+    std::vector<Verdict> verdicts;
+    for (const char* file : files) {
+        std::printf("\n    %s\n", file);
+        const Stage7Outcome viewer = runStage7Column(QString::fromLatin1(file), view, false,
+                                                     std::min(kStage7ViewerSeconds, g_stage7Seconds));
+        const Stage7Outcome moved = runStage7Column(QString::fromLatin1(file), view, true, g_stage7Seconds);
+        if (viewer.viewport.empty() || moved.viewport.empty() || moved.commands == 0) {
+            std::fprintf(stderr, "A2 at Stage 7: %s delivered no viewport tile or ran no command -- no measurement\n", file);
+            return 1;
+        }
+        report("viewer VIEWPORT", viewer.viewport, viewer.wallMs);
+        report("+ moves VIEWPORT", moved.viewport, moved.wallMs);
+        reportDistribution("command->pixels", moved.commandToPixels);
+        reportDistribution("journal.run", moved.runMs);
+        reportDistribution("compose+verify", moved.composeMs);
+        reportDistribution("  the verify", moved.verifyMs);
+        reportDistribution("remap", moved.remapMs);
+        reportDistribution("reload", moved.reloadMs);
+        std::printf("      insert (stand-in) journal.run %.3f ms, to the pixels %s\n", moved.insertRunMs,
+                    moved.insertToPixels < 0.0 ? "NEVER" : QByteArray::number(moved.insertToPixels, 'f', 3).append(" ms").constData());
+        std::printf("      commands %lld (%lld refused, %lld never seen), %d scrolls; wrong-identity tiles %lld; reloads"
+                    " %lld, coalesced %lld, failed %lld; %lld waiting viewport tiles asked again\n",
+                    moved.commands, moved.refused, moved.unseen, moved.scrolls, moved.wrongIdentity, moved.reloads,
+                    moved.coalesced, moved.reloadFailures, moved.reRequested);
+        std::printf("      scheduler  enqueued %lld   started %lld   from cache %lld   remapped %lld   warmed %lld"
+                    "   droppedSuperseded %lld   cancelledBeforeStart %lld   failed %lld\n",
+                    moved.schedulerStats.enqueued, moved.schedulerStats.started, moved.schedulerStats.servedFromCache,
+                    moved.schedulerStats.remapped, moved.schedulerStats.warmed, moved.schedulerStats.droppedSuperseded,
+                    moved.schedulerStats.cancelledBeforeStart, moved.schedulerStats.failed);
+        reportDistribution("viewport queued", moved.queuedLeg);
+        reportDistribution("  in the engine", moved.engineLeg);
+        reportDistribution("  before pump", moved.pumpLeg);
+        reportDistribution("viewer queued", viewer.queuedLeg);
+        reportDistribution("  in the engine", viewer.engineLeg);
+        reportDistribution("  before pump", viewer.pumpLeg);
+        std::printf("      cache      remapped entries %lld   invalidated %lld   hits %lld of %lld lookups\n",
+                    moved.cacheStats.remappedEntries, moved.cacheStats.invalidatedEntries, moved.cacheStats.hits(),
+                    moved.cacheStats.lookups);
+        verdicts.push_back(Verdict{file, percentile(viewer.viewport, 0.95), percentile(moved.viewport, 0.95),
+                                   percentile(moved.commandToPixels, 0.95), percentile(moved.commandToPixels, 1.00),
+                                   moved.insertToPixels, moved.unseen + moved.refused, moved.wrongIdentity});
+    }
+
+    std::printf("\n    AGAINST Stage7-Assembly-Testing-Guide.md 3.1 -- viewport p95 inside %.3f ms; command->pixels"
+                " p95 <= 100 ms and max <= 250 ms:\n", kFrameBudgetMs);
+    for (const Verdict& v : verdicts) {
+        std::printf("      %-24s viewport p95 %7.3f (viewer alone %7.3f) %-7s  command->pixels p95 %7.3f %-7s"
+                    " max %7.3f %-7s  insert %s%s%s\n",
+                    v.file, v.commandsP95, v.viewerP95, v.commandsP95 < kFrameBudgetMs ? "inside" : "OUTSIDE",
+                    v.toPixelsP95, v.toPixelsP95 <= 100.0 ? "inside" : "OUTSIDE", v.toPixelsMax,
+                    v.toPixelsMax <= 250.0 ? "inside" : "OUTSIDE",
+                    v.insert < 0.0 ? "NEVER" : QByteArray::number(v.insert, 'f', 3).append(" ms").constData(),
+                    v.missing > 0 ? "   -- SOME COMMANDS NEVER REACHED THE PIXELS" : "",
+                    v.wrong > 0 ? "   -- ANOTHER PAGE'S PIXELS WERE DELIVERED UNDER A MOVED PAGE'S INDEX" : "");
+    }
+    std::printf("\n    Grade on the guide's 3.1 and record it in Tech-Stack-Plan.md 3.3, LABELLED as Stage 7's"
+                " workload. This bench never fails on speed: its exit code is about whether the measurement was"
+                " possible.\n\n");
+    return 0;
+}
+
 } // namespace
 
 int main(int argc, char** argv)
@@ -1909,6 +2315,7 @@ int main(int argc, char** argv)
     bool stage4 = false;
     bool stage5 = false;
     bool stage6 = false;
+    bool stage7 = false;
     const QStringList arguments = QCoreApplication::arguments();
     for (int at = 1; at < arguments.size(); ++at) {
         if (arguments.at(at) == QLatin1String("--whole-page")) {
@@ -1927,10 +2334,14 @@ int main(int argc, char** argv)
             stage6 = true;
             continue;
         }
+        if (arguments.at(at) == QLatin1String("--stage7")) {
+            stage7 = true;
+            continue;
+        }
         // `--seconds N`: phase 7's edit columns run N seconds instead of the guide's 30 (CTest's short run).
         if (arguments.at(at) == QLatin1String("--seconds") && at + 1 < arguments.size()) {
             const int value = arguments.at(++at).toInt();
-            if (value > 0) g_stage6Seconds = value;
+            if (value > 0) g_stage6Seconds = g_stage7Seconds = value;   // phase 8's command columns too (S7 T3)
             continue;
         }
         if (arguments.at(at) == QLatin1String("--dead-instrument")) {
@@ -2092,6 +2503,11 @@ int main(int argc, char** argv)
             // Stage 6 T4 (D6-24). Phase 0 has run; the rest is phase 7, on a backend of its own per column.
             backend->close(document->handle);
             return runStage6Workload(a2);
+        }
+        if (stage7) {
+            // Stage 7 T3 (D7-19). Phase 0 has run; the rest is phase 8, on a backend of its own per column.
+            backend->close(document->handle);
+            return runStage7Workload(a2);
         }
 
         std::printf("\n  phase 1 -- A2's configuration, the probe's subject\n");

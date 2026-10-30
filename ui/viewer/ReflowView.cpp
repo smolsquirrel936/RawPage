@@ -224,6 +224,23 @@ void ReflowView::onIndexEvent(const core::text::DocumentIndex::Event& event)
         readings_.clear();
         clear();
         return;
+    case Kind::PagesRemapped: {
+        // A PAGE COMMAND MOVED PAGES (S7 T3, D7-3): what was shown is laid out again from the page it started
+        // on, at that page's new index -- or, when the command removed it, the page that now stands there. The
+        // text is still in the index, so nothing is extracted again.
+        const bool shown = last_ >= first_;
+        int top = first_;
+        if (shown && event.map != nullptr) {
+            const int moved = event.map->newIndexOf(first_);
+            top = moved != core::PageMap::kNone ? moved : first_;
+        }
+        const int count = event.map != nullptr ? event.map->newCount() : pageCount_;
+        const core::text::DocumentIndex::EntryId entry = entry_;
+        entry_ = 0;   // so the attach is not the no-op an unchanged count would make it
+        attach(entry, count);
+        if (shown && pageCount_ > 0) showAt(std::clamp(top, 0, pageCount_ - 1), core::text::DepthBelowEdge{});
+        return;
+    }
     case Kind::PagesEvicted:   // what is shown is held here, as a selection holds its pages
     case Kind::UnitsArrived:
     case Kind::GeometryArrived:   // S6 T12: a page's paths
