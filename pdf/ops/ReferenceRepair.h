@@ -134,6 +134,11 @@ public:
     static std::optional<cos::CosObject> clearedTarget(const View& view, const cos::CosObject& holder,
                                                        const std::set<long long>& gone,
                                                        const std::map<std::string, long long>& named);
+
+    // Stage 7 T5 (D7-4): every named destination -- `/Names /Dests` and the catalog's `/Dests`, read as `scan` reads
+    // them -- as the EXPLICIT array it stands for, references and a dictionary's `/D` followed. A copied link that
+    // named one is written with the array: the name means nothing in the document the copy lands in.
+    static std::map<std::string, cos::CosObject> namedArrays(const View& view);
 };
 
 } // namespace rawpage::pdf::ops

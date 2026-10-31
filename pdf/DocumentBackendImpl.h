@@ -118,6 +118,9 @@ public:
     core::Status writeAnnotationExchange(core::DocumentHandle document, const core::Fdf& exchange,
                                          core::ExchangeFormat format, const QString& path, bool overwrite) override;
     core::Status annotationWritable(const core::Annotation& annotation) const override;
+    // Stage 7 T5 (D7-4, D7-6) -- see core/backend.h.
+    core::Result<core::CopiedPages> copyPages(const QString& path, const std::vector<int>& pages) override;
+    core::Result<core::CopiedPages> blankPages(core::PdfSize size, int count) override;
 
     // S4 T12 (D4-14). Forwards to `PdfiumDocument::contentBox`, which computes on demand and caches
     // per page -- the one reader on this interface that is not hydrated at open, and the header of

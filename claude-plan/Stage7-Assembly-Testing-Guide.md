@@ -16,15 +16,19 @@
 > T6, which renumbered T6 … T18 as T7 … T19 throughout, added §3.9, A-122 … A-127 and M-13's Save As steps; Q4
 > ANSWERED the same day, approved — §3.7 and A-35 … A-37 stand, their *struck if declined* clauses removed; Q5
 > ANSWERED the same day, all five parts approved — §1's five out-of-scope rows, A-80, A-96 and §6's note stand
-> as written.** **T1 done 2026-10-29, T2 and T3 2026-10-30, T4 2026-10-31: A-13 … A-34, A-36, A-37 and A-128 carry a
+> as written.** **T1 done 2026-10-29, T2 and T3 2026-10-30, T4 and T5 2026-10-31: A-12 … A-34, A-36 … A-44 and A-128 carry a
 > result, all ✅ but A-27 (A-25 from CI run 40995950997's log; A-33 is §3.1's verdict, `go, with named custom work`,
-> the user's choice); A-35 carries T4's half (🟡) -- the mechanism graded, §3.7's verdict read at T5 and T11 by the
-> user's choice of 2026-10-31; A-03 and A-27 carry their T2 halves (🟡); A-08 … A-10 carry T4's readings; no other
-> case has one.** T1 raised **I-01 (S2), closed inside T1** — the engine facade showed a page that inherits its
+> the user's choice, re-read at T5 with the real insert and inside); A-35 carries T4's half and T5's reading (🟡) --
+> **§3.7's move half NOT TAKEN at T5** (+20.9 … +23.8 ms after ~3,600 copied objects), the bookmark half T11's;
+> A-45 and A-46 carry T5's halves (🟡); A-03 and A-27 carry their T2 halves (🟡); A-08 … A-10 carry T5's readings; no
+> other case has one.** T1 raised **I-01 (S2), closed inside T1** — the engine facade showed a page that inherits its
 > boxes at US Letter, uncropped, and refused its document for editing; T4's A-128 raised **I-03 (S2), closed inside
 > T4** — a moved link whose target page is then deleted refused the delete; CI's fuzzer then raised **I-04 (S2),
 > closed at T4** — the compose's first new number ignored the object limit — and CI's Windows job **I-05 (S3), OPEN** —
-> a Stage 5 index case read one page more than expected, once (§8); T2 and T3 raised none. **P-3, a
+> a Stage 5 index case read one page more than expected, once; T5's A-38 raised **I-06 (S3)** — the parser read an
+> unterminated dictionary into the next object — and **I-07 (S2)** — an inserted page drew its hidden layers — both
+> **closed inside T5** by the user's choice, and its first full run **I-08 (S3), OPEN** — a Stage 5 timing bound red
+> once (§8); T2 and T3 raised none. **P-3, a
 > duplex printer for M-04, is open.** **Cases written against a §0 proposal name it in their heading or row**
 > (Q*n* ✅); none was declined, so none moved or was struck. **128 automated** (A-01 … A-128, A-128 added at T4)
 > and **14 manual** (M-01 … M-14).
@@ -322,6 +326,10 @@ read on a stand-in. **What T4 grades instead is the mechanism** (A-35): what a o
 counted, after 0, 300 and 3,000 unsaved objects of highlights -- and reports `journal.run`'s times beside it, figures
 that are not this verdict.
 
+**T5's reading (2026-10-31): the move half is NOT TAKEN** -- a one-page move's p95 is 23.5–25.8 ms after ~3,600 unsaved
+copied objects against 2.0–2.6 ms with none, past both bars; A-35 names the cause (every inserted page's dictionary built
+again by every compose). The bookmark-rename half is T11's; the verdict stays open until it is read.
+
 
 ### 3.8 A decoration is removed exactly (D7-7)
 
@@ -408,9 +416,10 @@ by a later task says so in its result.
 **Steps** The `portable-asan` job's build log.
 **Expect** Every Stage 7 `core/doc/` file listed in its build, the job green — including the bookmark import's XML reader (`QXmlStreamReader`, QtCore). **If it fails** S2.
 
-**A-07 · Every new target compiles C++20** ☐ *T5*
+**A-07 · Every new target compiles C++20** ✅ *2026-10-31, T5*
 **Steps** Configure `x64-release`, then configure it again with `-DRAWPAGE_BUILD_FUZZERS=ON`; read `rawpage_assert_language_standard`'s `targets walked` line each time.
 **Expect** Both configure; the second walks one target more than at Stage 6 — `fuzz_assembly`'s driver — and the counts are re-derived, not quoted (Stage 4's I-08). **If it fails** S2.
+**Result** `x64-release` configured into scratch trees: *"C++20 on every compiled target (35 targets walked)"* plain -- the same 35 as at T4 -- and with `-DRAWPAGE_BUILD_FUZZERS=ON` *"(41 targets walked)"*, the six drivers, one more than Stage 6's 40, the configure's own *"fuzz targets ... fuzz_assembly (6, as expected)"*. (`CLAUDE.md`'s *"that flag adds the three drivers"* was stale since Stage 5 and is corrected.)
 
 ### 5.2 The gates — and the numbers that must and must not move
 
@@ -418,25 +427,26 @@ by a later task says so in its result.
 **Goal** D7-1's mechanical proof.
 **Steps** `cmake --build --preset x64-release --target checks`; `mutation-lint.exe --root . --explain`.
 **Expect** Exit 0; four gates; `mutation-lint` names **exactly** the twelve commands of Stage 6's sign-off and plan §4's — **43** — re-derived from the plan's §4 after Q1 and Q2 (2026-10-29), and again if a later answer moves a command — each with its `Commands.def` row and its `[serialize:]` and `[revert:]` cases listed by `--explain`. **No `CreateLink`, `EditLink`, `DeleteLink`** (D7-12), and no `ExtractPages` or `MergeDocuments` (Q1 ✅). **If it fails** S1 for an unlisted command; S2 for a missing test.
-**T4 (2026-10-31)** `checks` clean, *"mutation-lint: clean -- 15 command(s)"* -- T4 adds no command. **T3 (2026-10-30)** `checks` clean, *"mutation-lint: clean -- 15 command(s)"* -- T3 adds no command. **T2 (2026-10-30)** `checks` clean; *"mutation-lint: clean -- 15 command(s)"* -- Stage 6's twelve and `MovePagesCommand`, `DeletePagesCommand`, `DuplicatePagesCommand`, each with its row and both tags; `gates.mutation_lint.clean_tree`'s roster updated to the fifteen. The gate first refused a shared `PageSetCommand` base (*row-without-class*), since it reads derivation from `Command` as text -- the three now derive from `Command` directly.
+**T5 (2026-10-31)** `checks` clean, *"mutation-lint: clean -- 17 command(s)"* -- T4's fifteen and `InsertPagesCommand`, `ReplacePagesCommand`, each with its row and both tags (`[serialize:]` in `tst_command_serialize`, `[revert:]` in `tst_reversibility` and `tst_copier`); `gates.mutation_lint.clean_tree`'s roster updated to the seventeen. **T4 (2026-10-31)** `checks` clean, *"mutation-lint: clean -- 15 command(s)"* -- T4 adds no command. **T3 (2026-10-30)** `checks` clean, *"mutation-lint: clean -- 15 command(s)"* -- T3 adds no command. **T2 (2026-10-30)** `checks` clean; *"mutation-lint: clean -- 15 command(s)"* -- Stage 6's twelve and `MovePagesCommand`, `DeletePagesCommand`, `DuplicatePagesCommand`, each with its row and both tags; `gates.mutation_lint.clean_tree`'s roster updated to the fifteen. The gate first refused a shared `PageSetCommand` base (*row-without-class*), since it reads derivation from `Command` as text -- the three now derive from `Command` directly.
 
 **A-09 · `layer-lint`: no new waiver, no new edge** ☐ *every task; whole at T19*
 **Steps** `layer-lint.exe --root . --explain`.
 **Expect** Clean; **15 escapes**, the same fifteen; the extract, split, export and import paths write through `pdf/` (D7-5, D7-10). **The control:** a planted `QFile::open(WriteOnly)` in `ui/dialogs/PageOpsDialogs.cpp` is refused. **If it fails** S1 for an unwaived write; S2 for a new waiver.
-**T4 (2026-10-31)** *"layer-lint: clean -- 684 files, 7081 includes"*, `--explain`'s census the same fifteen escapes -- the two files more are T4's test files; the verify's thread and the gate add no edge. **T3 (2026-10-30)** *"layer-lint: clean -- 682 files, 7022 includes"*, the same fifteen escapes. **T2 (2026-10-30)** *"layer-lint: clean -- 679 files, 6939 includes"*, `--explain`'s census the same fifteen escapes. The control waits for `PageOpsDialogs` (T7).
+**T5 (2026-10-31)** *"layer-lint: clean -- 691 files, 7198 includes"*, `--explain`'s census the same fifteen escapes -- the copier writes nothing (its payload is bytes in memory) and `copyPages` only reads. **T4 (2026-10-31)** *"layer-lint: clean -- 684 files, 7081 includes"*, `--explain`'s census the same fifteen escapes -- the two files more are T4's test files; the verify's thread and the gate add no edge. **T3 (2026-10-30)** *"layer-lint: clean -- 682 files, 7022 includes"*, the same fifteen escapes. **T2 (2026-10-30)** *"layer-lint: clean -- 679 files, 6939 includes"*, `--explain`'s census the same fifteen escapes. The control waits for `PageOpsDialogs` (T7).
 
 **A-10 · `i18n-lint`: six new families, each a context of its own** ☐ *every task; whole at T19*
 **Steps** `i18n-lint.exe --root . --explain`; `checks`.
 **Expect** Clean, **0 literal waivers**; the families `pages`, `bookmarks`, `layers`, `tags`, `decorate`, `links` each in `en` and `zh-TW`; **`wrong-context` clean** — and no family spelled like a command or action id (Stage 5's I-08). **If it fails** S2.
-**T4 (2026-10-31)** *"i18n-lint: clean -- 424 files, 2 catalog(s), 0 waiver(s)"*; T4 adds no key -- an edit taken back after it returned is said by Stage 6's `shell.status.annotationRefused` with `error.edit.notShown`. **T3 (2026-10-30)** *"i18n-lint: clean -- 424 files, 2 catalog(s), 0 waiver(s)"*; T3 adds no key. **T2 (2026-10-30)** *"i18n-lint: clean -- 424 files, 2 catalog(s), 0 waiver(s)"*. T2 has no surface, so it adds no new family: seven keys in the existing `command.` and `error.` families, in both locales (`command.page.move`, `.delete`, `.duplicate`; `error.edit.noPagesLeft`, `.pageReadingsDisagree`, `.copyNotSaved`; `error.pdf.pageTreeDamaged`), and `unit.every command name is a catalog key present in both shipped locales` covers the three names.
+**T5 (2026-10-31)** *"i18n-lint: clean -- 427 files, 2 catalog(s), 0 waiver(s)"*; seven keys in the existing `command.` and `error.` families, in both locales -- `command.page.insert`, `.replace`; `error.edit.pageNotSaved`, `.replaceCount`; `error.copy.tooLarge`, `.malformed`; `error.pdf.pageSizeOutOfRange` -- T5 has no surface, so no new family. **T4 (2026-10-31)** *"i18n-lint: clean -- 424 files, 2 catalog(s), 0 waiver(s)"*; T4 adds no key -- an edit taken back after it returned is said by Stage 6's `shell.status.annotationRefused` with `error.edit.notShown`. **T3 (2026-10-30)** *"i18n-lint: clean -- 424 files, 2 catalog(s), 0 waiver(s)"*; T3 adds no key. **T2 (2026-10-30)** *"i18n-lint: clean -- 424 files, 2 catalog(s), 0 waiver(s)"*. T2 has no surface, so it adds no new family: seven keys in the existing `command.` and `error.` families, in both locales (`command.page.move`, `.delete`, `.duplicate`; `error.edit.noPagesLeft`, `.pageReadingsDisagree`, `.copyNotSaved`; `error.pdf.pageTreeDamaged`), and `unit.every command name is a catalog key present in both shipped locales` covers the three names.
 
 **A-11 · `license-audit` unchanged** ☐ *T19*
 **Steps** `checks`' `license-audit` line.
 **Expect** Clean; **five** Qt modules, the same five; no new dependency in `vcpkg.json` (Stage 7 adds none). **If it fails** S1.
 
-**A-12 · The fuzz count is six, and the assertion still fires** ☐ *T5*
+**A-12 · The fuzz count is six, and the assertion still fires** ✅ *2026-10-31, T5*
 **Steps** `ctest --preset gates -R fuzz_count`.
 **Expect** Every `gates.fuzz_count.*` case green with `fuzz_assembly` counted; a **new** case where five of six fails configure, and the existing control (a helper standing in for a target) still caught. **If it fails** S2.
+**Result (T5, 2026-10-31)** `ctest --preset gates`: **139/139**, every `gates.fuzz_count.*` case green -- the two new, `six_of_six_with_a_helper` (the shipped count, the control) and `five_of_six_fails` (*"miscounted"*), beside the earlier ones and `helper_is_not_a_target`. `tests/fuzz/CMakeLists.txt` asserts **6**.
 
 ### 5.3 The corpus this stage is judged on (T1)
 
@@ -473,9 +483,10 @@ by a later task says so in its result.
 **Expect** Each command's map against hand-written tables; a map composed with its inverse is the identity; two maps compose to the map of the two commands run in order; removed and inserted indices exact. **If it fails** S1.
 **Result** Five `pagemap` cases (`tests/unit/tst_pagemap.cpp`), 75,676 assertions with `[pagetree]`. Each map against a hand-written order -- moves of a page, a range and a set, a removal, a duplication -- with its removed and inserted indices exact; refused for an empty, unsorted, repeated or out-of-range set and a block past the end. **The expectation was corrected by its first run:** a map composed with its inverse is the identity only for a MOVE -- a removal's inverse brings each removed page back as an INSERTION at its old index, since a map names pages by place and a page that went has none. So the case now asserts, over **every** map the three commands make over documents of 1 to 5 pages (280), that every page both keep is where it started, every removed page is an insertion there, and a permutation is exactly the identity; and that two maps compose to running both, checked by running them over a list of names (every pair over documents of 1 to 4 pages, more than 1,000). The page command's `Scope`: `WholeDocument` with the map, an undo's the inverse, two page commands composed, and every other scope with none.
 
-**A-19 · Every reference lands on the page it named — by what that page shows** ✅ *2026-10-30, T2; re-run at T5, T8, T9, T10, T11, T14* — §3.2
+**A-19 · Every reference lands on the page it named — by what that page shows** ✅ *2026-10-30, T2; re-run at T5, T8, T9, T10, T11, T14* — §3.2 *(T5's re-run ✅ 2026-10-31)*
 **Steps** `ctest -R "render.reference_repair"`: for each page command and each fixture with references, apply, save, reopen in a fresh engine document, resolve each labelled reference through PDFium, and extract the identity of the page it lands on.
 **Expect** **0 failures** against §3.2's table. **The control (rule 5):** a planted repair that rewrites every `/Dest` to the page now at the OLD index — the error that looks like a repair — fails the case for every moved reference; a planted no-op `/PageLabels` rewrite fails the label rows. **If it fails** S1.
+**Re-run (T5, 2026-10-31)** Two insert runs added over the six fixtures -- two blank pages at the front, one in the middle, every index after them shifted (blank, so no reference can land on one and be taken for the page it named): **406 references landed on the page showing the identity their label names** (296 at T2), 19 cleared, 0 failures; each saved, reopened, graded, then undone after the save and graded against the original.
 **Result** **0 failures.** `tests/render/tst_reference_repair.cpp`, six fixtures -- `refs-every-kind` (every kind), `merge-a`/`-b`/`-c` (outlines, links), `annots-on-pages` (links), `split-blanks` (an outline) -- each through four to six commands (the first page to the end, the last to the front, the last two to the front, a duplicate of the first and last, a delete of the second, a delete of the first and last), each SAVED through the shipped backend and `SaveCoordinator`, reopened in a fresh engine and graded; then UNDONE after the save, saved, and graded against the original. **296 references landed on the page showing the identity their label names, 19 cleared as D7-2 says.** Resolved by PDFium: the outline, the named destinations and the page labels; read first-party by the case's own reader (no code shared with `pdf/ops/ReferenceRepair`): links, structure elements, beads and `/OpenAction`, each landing page's identity extracted by PDFium; and a first-party sweep that EVERY reference in the file -- labelled or not -- names a page or nothing. The model's page labels equal the saved file's, read by PDFium, after every command. **Controls:** P1, the repair that sends every explicit destination to the page now at its OLD index, red (25 failed assertions); P2, the no-op `/PageLabels` rewrite, red in A-21 (32). **P3 STAYED GREEN** at first -- outline items to a deleted page left as they were -- because PDFium answers *unresolved* alike for a destination cleared and one pointing at a page the tree no longer lists; the grade gained the first-party dangling sweep, and P3 then went red (7). **What it does not cover:** the screen (Stage 7 T3's A-29), and which of two pages showing one identity a reference lands on after a duplicate (the headless half shows the source's annotations are not the copy's, and a move writes no reference).
 
 **A-20 · A reference to a deleted page is never left dangling** ✅ *2026-10-30, T2*
@@ -496,6 +507,7 @@ by a later task says so in its result.
 **A-23 · Serialize, revert and reversibility for every page command** ✅ *2026-10-30, T2; extended at T5, T8, T9*
 **Steps** `ctest -R "serialize:|revert:|reversibility"` for `MovePagesCommand`, `DeletePagesCommand`, `DuplicatePagesCommand` (later tasks add theirs).
 **Expect** Each command's line round-trips; apply then revert restores the structural hash **over every editable corpus file**; the journal line names pages by index (D7-24). **If it fails** S1.
+**Extended (T5, 2026-10-31)** `page.insert` and `page.replace` -- the payload as base64 in the line, the key, an insert's place and count -- round-trip (51 round trips, from 48); **12 hostile lines** refused by `error.command.malformed` (a graph missing, empty, not base64, a number, 10 MB of not-base64; `at` -1 and 1.5; a count of 0 and a million and one; a key missing; pages descending). **Reversibility:** an annotated page and an inheriting one inserted before the page and at the end, and the page replaced by each -- *"reversibility: 4469 combinations over 121 editable corpus files; 0 failures"* (3649 at T2).
 **Result** `{"type": "page.move", "pages": [...], "to": n}`, `page.delete` and `page.duplicate` with their `key` -- pages by INDEX -- round-trip through `CommandRegistry` (7 samples, the limit of a page index among them; the round-trip count now 48, from 41); a new hostile case refuses 22 malformed lines by `error.command.malformed` -- a set not ascending, repeated, out of range, a million and one pages, a 10 MB string, a key short, upper-case or not hex -- with its control accepting the boundaries and keeping the key. **Reversibility:** the generators move the page to the other end, delete it, duplicate it, and the first and last as a SET, wherever the document has room and its tree is whole -- *"reversibility: 3649 combinations over 121 editable corpus files; 0 failures"*, model hash restored and the sink's delta empty after every revert, on both presets. **Control:** P10 (a delete undone that restores the model and forgets the sink) red, *"revert left the sink with a non-empty delta"*.
 
 **A-24 · The saved update holds exactly what changed** ✅ *2026-10-30, T2*
@@ -506,7 +518,7 @@ by a later task says so in its result.
 **A-25 · `qpdf --check` over every file a page command saves** ✅ *2026-10-30, T2; the log read at each push*
 **Steps** The `portable-asan` job's `check-qpdf.py` step; **read the log** (rule 3).
 **Expect** *"No syntax or stream encoding errors found"* for every Stage 7 output, each named; the file count re-derived. **If it fails** S2.
-**Result (T2)** Every file `tests/unit/tst_reference_repair.cpp` saves is kept as `written/pages-NN.pdf` beside Stage 6's, which the job's existing step judges. Run **40995950997** on `2da9e8e`, read from the job's log 2026-10-30: `pages-01.pdf` … `pages-08.pdf` each *"No syntax or stream encoding errors found"*, and *"qpdf check: 79 file(s), 0 failed; the truncated-stream control rejected"* -- the eight over run 40875904825's 71. Later tasks' outputs are read at their own pushes.
+**Result (T2)** Every file `tests/unit/tst_reference_repair.cpp` saves is kept as `written/pages-NN.pdf` beside Stage 6's, which the job's existing step judges. Run **40995950997** on `2da9e8e`, read from the job's log 2026-10-30: `pages-01.pdf` … `pages-08.pdf` each *"No syntax or stream encoding errors found"*, and *"qpdf check: 79 file(s), 0 failed; the truncated-stream control rejected"* -- the eight over run 40875904825's 71. Later tasks' outputs are read at their own pushes. **T5 (2026-10-31):** every file `tst_copier` saves -- inserts, a replace and its undo, blank pages, the layers' union -- is kept as `written/copies-<line>.pdf`, **11 files**, read at T5's push.
 
 **A-26 · What is refused is refused by key** ✅ *2026-10-30, T2*
 **Steps** `ctest -R "pageops.refused"`.
@@ -521,6 +533,7 @@ by a later task says so in its result.
 **A-28 · Recovery replays every Stage 7 command kind** ✅ *2026-10-30, T2 for the three page commands; extended by every task that adds a command*
 **Steps** `ctest -R "platform.recovery.kill" -V` with each Stage 7 command in its rotation.
 **Expect** After `TerminateProcess`, the replay against the file as opened gives a document whose every page shows the identity it showed before the kill and whose references grade as §3.2; an insert replays **with its source deleted** (D7-6). Where each kill landed is printed. **If it fails** S1.
+**Extended (T5, 2026-10-31)** The page cycle gained a fifth step, `InsertPagesCommand` of `pages-900.pdf`'s first 300 pages at the middle, copied from a TEMPORARY COPY of the file deleted as soon as it was copied -- its line over 64 KiB, so a side file (D6-23): *"between apply and the flush: 16; inside apply: 2; inside the flush: 2; most steps replayed: 7"*, each replay's model hash and composed bytes the in-process run's. A replace is not in the cycle: a replace of a page no save has written is refused (D7-28), which a cycle of unsaved steps would meet; its undo on either side of a save is `unit.pageops replace` (A-44).
 **Result** `platform.recovery.kill_pages`: the kill probe's new `pages` mode runs `tests/platform/killprobe/PageSteps.h`'s cycle over `refs-every-kind.pdf` -- a move, a duplicate, a delete, a move of a set, each key a function of the step -- and twenty `TerminateProcess` kills land *"between apply and the flush: 11; inside the flush: 9"*, up to 9 steps replayed. Each replay is graded against the SAME steps run in-process on a pristine copy: the model's hash equal, and the update a save would write **byte-identical** (SHA-256) -- the page tree, the labels and every repaired reference -- whose rightness is A-19's and A-20's. **Bound:** the replay is graded by the composed bytes, not by PDFium; an insert's replay without its source is T5's. **Control:** P11 (a duplicate's copies named afresh each run) red, 36 assertions.
 
 ### 5.5 How a moved page reaches the screen — A2 at Stage 7 (T3)
@@ -528,6 +541,7 @@ by a later task says so in its result.
 **A-29 · Shown is saved after every page command** ✅ *2026-10-30, T3; re-run at T19 through the surfaces (A-119)* — §3.3
 **Steps** `ctest -R "composition.assembly_shown"`.
 **Expect** §3.3's bar: 0 differing pixels live against reopened, every page, 72 and 144 dpi, and under a 90° view rotation; after undo, 0 against the original. **If it fails** S1.
+**Extended (T5, 2026-10-31)** Two steps more -- three pages of `inherit-resources.pdf` inserted, and page 3 REPLACED by a page of `annots-on-pages.pdf` -- each saved and every page compared: **16 + 16 pages × 3 views, 0 differing bytes**, the undo of all six steps every page of the original, 0.
 **Result** **0 differing pixels.** `tests/composition/tst_assemblyshown.cpp`, the product composed as `main.cpp` builds it over a scratch copy of `refs-every-kind.pdf`, T2's commands run through the WINDOW's journal -- its show step, its mutation handler -- one after another: the first page to the end, the last two to the front, the first and last duplicated, the second deleted. After each, SAVED through the window and reopened in a fresh engine: every page the live engine draws, through the engine's tree and the model's rotations as the screen asks, against the same page of the saved file, at 72 dpi, 144 dpi and 72 dpi turned 90° -- **51 pages × 3 views, 0 differing bytes**, the page counts equal (12, 12, 14, 13); then all four UNDONE after the saves, and every page against the ORIGINAL corpus file, 0. **Controls:** P13 (`pages()` the tree read at open) red; P14 (the rasterizer reading the opened tree) red; P16 (the engine not told the order) red. **What it does not cover:** the commands are CONSTRUCTED, not made by a surface (none runs one before T8) -- §3.3's *through its surface* is T19's re-run; and they are T2's three: an insert, a decoration and a crop join with their tasks.
 
 **A-30 · A moved page is not drawn again** ✅ *2026-10-30, T3*
@@ -548,6 +562,7 @@ by a later task says so in its result.
 **A-33 · A2 at Stage 7, the bench** ✅ *2026-10-30, T3 — **`go, with named custom work`**, the user's choice* — a **VERDICT**, §3.1
 **Steps** `rawpage_bench_pipeline.exe --stage7 > bench-stage7.txt`, three runs; read the dpi and viewport it reports first (`CLAUDE.md` → *Traps*).
 **Expect** §3.1's table decides; the figures recorded in `Tech-Stack-Plan.md` §3.3 as *Stage 7's workload*, beside the remap and reload times. **If it fails** — a *no-go* is a result, not a failure: D7-3 changes before T4.
+**Re-read (T5, 2026-10-31), the real insert** (D7-19: the stand-in replaced): `InsertPagesCommand` of 100 pages (601 … 700, copied by `copyPages` before the clock, from the file the column runs on -- §3.1's `text-900.pdf` on that file, `pages-900.pdf` itself on the other), three runs at 288 dpi, 1920×1080, nothing else running: viewport p95 **11.17–11.30 ms on `pages-900.pdf`** (viewer alone 9.63–9.76) and **14.86–15.14 on `text-900.pdf`** (13.52–13.76), command-to-pixels p95 **0.069–0.083 ms**, max ≤ 0.19, 0 wrong-identity tiles; the insert's `journal.run` **4.5–5.1 ms**, its first page **to the pixels in 8.5–10.7 ms**. **Every §3.1 bound inside on both files** -- the verdict stands, `go, with named custom work`.
 **Result** Phase 8 of the bench (288 dpi, 4.000 px/pt, 1920×1080 at `Visible`, the dpi and viewport printed first): a held `Alt+↓` -- a `MovePagesCommand` of a ten-page range one place down every 100 ms for 30 s -- with a scroll between, then the stand-in insert. **Before the named work (three runs):** command-to-pixels p95 **0.04 ms**, max 2.2–3.3, **0 wrong-identity tiles in 1,800 commands**; but viewport p95 **17.6–18.0 ms on `pages-900.pdf`** (11.2–11.5 with no command) and **21.9–22.3 on `text-900.pdf`** (17.2–17.4 with no command -- that file's own baseline already outside on this rig today). Split by leg: the whole of it QUEUED, the engine's per-tile p95 unchanged and its MAXIMUM 8.8 ms against 1.4 -- the first tile drawn from each freshly reloaded document pays PDFium's cold start, and the scroll's tiles wait it out. **The named work, built** (the user's choice, 2026-10-30): after every page command the scheduler asks for one pixel of the first page it moved at `Background` (`RenderScheduler::documentChanged`), so the reload and the cold start are paid while the engine is idle. **After it (three runs on the final code, nothing else running): every bound inside on both files** -- viewport p95 **10.6–10.7 ms on `pages-900.pdf`** (9.2 with no command) and **14.3 on `text-900.pdf`** (13.1), command-to-pixels p95 **0.04–0.06 ms**, max ≤ 0.8, 0 wrong-identity tiles, `journal.run` p95 6.5–6.9 ms, the remap p95 0.33–0.44, the reload p95 1.3–1.6, the stand-in insert to its pixels 4.0–5.3 ms. **The machine read faster that hour** -- the no-command columns 9.2 / 13.1 against 11.2–12.4 / 17.2–17.5 earlier the same day, no code between them touching them -- so what is compared is what page commands ADD over the no-command column: **+6.1–6.7 / +4.6–5.0 ms before the warm-up, +1.4 / +1.2 after**, the engine's per-tile maximum 3.5–4.5 ms against 8.8. `Tech-Stack-Plan.md` §3.3 records it; P17 (no warm-up) red in the unit and render cases. **Found in the instrument while measuring, and fixed before the graded runs:** the warm-up's pixel is a tile at (0, 0), and the bench first counted it as a wrong-identity tile once (the duplicate's first copy, where the warm-up lands); and the bench read the reload record -- which takes the engine lock -- from its delivery callback, adding the warm-up's engine time to command-to-pixels. Neither is the product's. **Deviation:** the insert is a stand-in, a `DuplicatePagesCommand` of 100 pages (`InsertPagesCommand` is T5's), re-read at T5.
 
 **A-34 · A consumer that cannot remap redraws, never shows stale** ✅ *2026-10-30, T3*
@@ -557,9 +572,10 @@ by a later task says so in its result.
 
 ### 5.6 The compose stops growing (T4) — Q4 ✅
 
-**A-35 · `journal.run` does not grow with the unsaved update** 🟡 *T4's half 2026-10-31; §3.7's verdict at T5 and T11* — §3.7
+**A-35 · `journal.run` does not grow with the unsaved update** 🟡 *T4's half 2026-10-31; T5's reading 2026-10-31 -- NOT TAKEN; the bookmark half at T11* — §3.7
 **Steps** `ctest -R "builds only what it changed" -V` (`[run-serial]`, convention 25); at T5 and T11 the same over §3.7's real workload.
 **Expect** §3.7's bars at 0, 300 and 3,000 unsaved copied objects, for a one-page move and a bookmark rename. **At T4** (the user's choice, 2026-10-31, §3.7): the objects a one-page move and a rotation BUILD -- written anew rather than as the last compose wrote them -- the same at every size, and the times reported. **If it fails** S2, and §3.7 records *not taken*.
+**Result (T5, 2026-10-31) -- §3.7's move half: NOT TAKEN.** `render.a one-page move after thousands of unsaved copied objects -- the guide's 3.7 reading` (`[run-serial]`), `text-900.pdf` with **0, about 300 and 3,624** unsaved copied objects (one insert of its first pages -- 140 pages, 292 objects, in the first three runs; 150 pages, 312, in the fourth, the size moved past 300 -- and two inserts of all 900), ten one-page moves each, settled untimed before each. Four runs, nothing else running: `journal.run` p95 **2.01–2.63 / 3.59–5.32 / 23.52–25.78 ms**, max to 32.1; the p95 at the largest size **+20.9 … +23.8 ms** over none, against §3.7's 2 ms, and over 16.667 ms itself. **The cause, named:** a move builds every INSERTED page's dictionary again -- 1 object at 0, 143 and 153 at about 300, **1,803 at 3,624** -- because T4's units (D7-26) cover annotations, listings and shared objects, and a new page is rebuilt from its payload at every compose. The payload's own objects ARE written again as they were (one unit per insert). `Deferred-Work.md`'s `DW-4` records it; the case reports and does not fail (A-35's *not taken is a result*), asserting only that a move with nothing unsaved builds at most four.
 **Result (T4)** `tests/render/tst_composegrowth.cpp`, the shipped backend shown and settled as `DocumentWindow` does, `text-900.pdf` with **0, 300 and 3,000** unsaved objects (100 and 1,100 highlights, one a page from page 101 -- a stand-in for T5's copied pages), ten one-page moves and ten rotations each, settled untimed before each: **a move builds 2 objects and a rotation 2 at every size**. *Reported, not graded* (§3.7 is T5's and T11's): three runs, nothing else running: `journal.run` p95 for the move **2.32–2.82 / 2.35–3.03 / 7.55–9.34 ms** at 0 / 300 / 3,000 unsaved objects, max 3.86–5.06 / 4.69–5.04 / 15.66–17.16; for the rotation **1.74–1.85 / 2.01–2.17 / 4.69–5.47**; the verify, off the thread, p95 **4.35–4.93 / 5.33–6.35 / 19.04–20.11 ms** -- against, before T4 (a throwaway probe of the same workload at 1,500 highlights, 3,701 objects), **5.95 ms with nothing unsaved and 49.8 ms after**: 25 ms of compose and 21 of verify, both on the UI thread. **What still grows is not small:** +5.2–6.5 ms for the move at 3,000 objects over none, +2.9–3.6 for the rotation -- the writing of what is reused (the writer about 0.35 µs an object), the block's names asked again, the update copied for the engine. **On this stand-in, §3.7's 2 ms bar would NOT be met**; whether T5's copied pages, one unit per insert, meet it is that task's reading, and the remaining cost is named here so it is not rediscovered. **Control:** P12 (every unit forgotten before each compose) red -- T4's row in `Implementation-Plan.md` §4 lists the plants.
 
 **A-36 · A composition Save could not write is still refused** ✅ *2026-10-31, T4*
@@ -579,41 +595,50 @@ by a later task says so in its result.
 
 ### 5.7 Pages from another document (T5)
 
-**A-38 · A copied page draws as it drew** ☐ *T5* — §3.4
+**A-38 · A copied page draws as it drew** ✅ *2026-10-31, T5* — §3.4
 **Steps** `ctest -R "render.copier"`.
 **Expect** §3.4's bar over every page of every editable corpus file. **If it fails** S1.
+**Result** `tests/render/tst_copierengine.cpp`: every page of every corpus file but `encrypted/`, copied by `copyPages` and inserted after the one page of a blank target through the SHIPPED backend and journal, SAVED, reopened fresh and drawn against its source opened alone, with annotations: *"render.copier: 118 files, 3114 pages compared in 3828 renders, 13 pages with a widget skipped, 0 differ"* -- refused by key or not opening: `merge-not-a-pdf.pdf` and six damaged `malformed/` files (`pages-loop.pdf` by `error.pdf.pageTreeDamaged`). **Bounds, stated by the case (convention 19):** the 13 pages carrying a widget, which by the user's choice stay with their fields until T10 and so draw without them; at 144 dpi a file over 200 pages is drawn at every ninth page (`pages-900.pdf`, `text-900.pdf`). **It found four defects before it was green:** I-06 and I-07 (§8); and in T5's own code, an annotation listed by two copied pages listed by the first alone, and then the verify refusing that copy listed twice (its `/P` names the first page) -- both fixed. ~100 s, the longest case in the suite. *Engine half of A-42:* `render.copier a copied link lands on the copy of its page` -- a link copied with its page lands, in the saved file, on the page whose text is the source page's. **Controls:** P10 (a second listing dropped) red; P1 red in A-40's case.
 
-**A-39 · What a source shares, the copy shares** ☐ *T5*
+**A-39 · What a source shares, the copy shares** ✅ *2026-10-31, T5*
 **Steps** `ctest -R "unit.copier.shared"` over `inherit-resources.pdf` and `pages-900.pdf`.
 **Expect** Two pages sharing a font and an image, copied in one call: the font and the image written **once**, counted in the target; copying all 900 pages of `pages-900.pdf` writes no object twice. **If it fails** S2.
+**Result** `unit.copier shared: ...`: for every pair of pages a resource is the same object in the copy exactly when it is in the source -- read up the source's `/Parent` chain, the reading the copier does NOT use -- *"inherit-resources.pdf -- 5 pages, 19 objects in the copy, 17 shared resource pairs; pages-900.pdf -- 900 pages, 1815 objects in the copy, 68640 shared resource pairs"*; the copy holds no more fonts and images than the source. **Control:** P3 (every reference a new object) red.
 
-**A-40 · Inherited attributes are materialized** ☐ *T5*
+**A-40 · Inherited attributes are materialized** ✅ *2026-10-31, T5*
 **Steps** `ctest -R "copier.inherit"` over `inherit-resources.pdf` and `rotate-inherited.pdf`.
 **Expect** Each copied page carries its own `/Resources`, `/MediaBox`, `/CropBox` and `/Rotate`, equal to the source walk's resolved values, and renders as §3.4. **The control:** a planted copier that copies the page dictionary alone fails §3.4 on those pages — and passes on `pages-900.pdf`, which is why that file is not the fixture. **If it fails** S1.
+**Result** `unit.copier inherit: ...` over `inherit-resources.pdf` and `rotate-inherited.pdf`: every copied page carries `/Resources`, `/MediaBox` and `/Rotate` of its own (and `/CropBox` exactly where the walk resolved one), equal to the walk's values, its resources naming what the source's resolved up `/Parent` names; the control that these fixtures DO inherit counted. Drawn: A-38, 0 px on both. **The guide's control, P1** (the page dictionary copied alone) red.
 
-**A-41 · The copy stops at the page tree, and at its budget** ☐ *T5*
+**A-41 · The copy stops at the page tree, and at its budget** ✅ *2026-10-31, T5*
 **Steps** `ctest -R "copier.bounds"`.
 **Expect** No source page-tree node and no source catalog in the copied set; a graph past the object budget refused by key, the target untouched. **If it fails** S2.
+**Result** `unit.copier bounds: ...`: page 4 of `refs-every-kind.pdf` copied -- one catalog, one node, one page, the payload's own, no outline or structure root, fewer than a quarter of the source's objects; a page whose `/Resources` names the catalog, the tree and another page has all three NULL in its copy; ten pages of `pages-900.pdf` over a budget of five objects refused by `error.copy.tooLarge` (the control: within the default budget, copied); a set empty, descending, past the end or negative refused by `error.pdf.pageOutOfRange`. **Control:** P2 (no stop at the tree) **stayed green** against the corpus page alone -- nothing there reaches the tree but `/Parent` and links, both handled before the general rule -- so the hostile page was added, and P2 went red.
 
-**A-42 · Annotations come with their page, and only what can follow them** ☐ *T5*
+**A-42 · Annotations come with their page, and only what can follow them** ✅ *2026-10-31, T5*
 **Steps** `ctest -R "copier.annots"` over `annots-on-pages.pdf`.
 **Expect** A note and its pop-up, a reply and its parent, copied together, still name each other; a reply whose parent stayed behind loses `/IRT`; a link to a page copied in the same call points at the copy, **by the identity it shows**; a link to a page left behind keeps its rectangle with no action, and is reported; `/StructParent(s)` gone. **If it fails** S1.
+**Result** `unit.copier annots: ...` over `annots-on-pages.pdf` pages 1 and 2: each copied page lists a note, its pop-up, a reply and a link, every one an object of its own with `/P` the copy and no `/StructParent`; the note and its pop-up name each other, the reply names the note; page 1's link to page 2 points at page 2's COPY, page 2's link to page 3 (left behind) has no `/Dest` and no `/A`, its rectangle kept, and is reported (`Link`, *cleared*, source page 2); the two widgets not copied and reported (`WidgetNotCopied`, the user's choice); the control, pages 2 and 3 copied together, clears only page 3's link. By what the target page shows: A-38's link case. **Controls:** P4 (a link left behind kept) red, P5 (a widget copied) red.
 
-**A-43 · An encrypted source is refused** ☐ *T5*
+**A-43 · An encrypted source is refused** ✅ *2026-10-31, T5*
 **Steps** `ctest -R "copier.encrypted"` over `corpus/encrypted/`.
 **Expect** Refused by key, nothing copied. **If it fails** S2.
+**Result** `unit.copier encrypted: ...`: every file of `corpus/encrypted/` refused by `error.pdf.encrypted`, nothing produced.
 
-**A-44 · Insert and replace carry the copied graph, and recover without the source** ☐ *T5*
+**A-44 · Insert and replace carry the copied graph, and recover without the source** ✅ *2026-10-31, T5*
 **Steps** `ctest -R "serialize:InsertPagesCommand|revert:InsertPagesCommand|serialize:ReplacePagesCommand|revert:ReplacePagesCommand"`; the A-28 rotation with the source deleted before the replay.
 **Expect** A payload over 64 KiB is a side file named by its SHA-256 beside the journal, written by `RecoveryJournal`'s existing write (the waiver census unchanged, A-09); the replay equals the document before the kill. **If it fails** S1.
+**Result** The lines: A-23's extension. Recovery without the source: A-28's extension, a 300-page payload in a side file named by its SHA-256 written by `RecoveryJournal`'s existing whole-file write (the census 15, A-09). The undo on either side of a save: `unit.pageops insert: ...` -- an insert of two annotated pages saved, undone and saved (the pages gone), redone and saved: **the same two page objects**, their four annotations each, the link between them in the file; an insert and its undo before a save write nothing -- and `unit.pageops replace: ...` -- page 4 of `refs-every-kind.pdf` replaced: the SAME page object (D7-28), the payload page's `/MediaBox` and content, no `/StructParents`, its own annotations and the four copies; undone after the save, its dictionary **value for value the original's**; redone, the first save's again; a replace of a page no save has written refused by `error.edit.pageNotSaved`, and of two pages by a one-page payload by `error.edit.replaceCount`. **Controls:** P6 (the dictionary not written back after a save) red -- its first run found the key order differing, fixed in place; P11 (an undone insert forgetting its pages) red.
 
-**A-45 · Blank pages of a chosen size** ☐ *T5*
+**A-45 · Blank pages of a chosen size** 🟡 *the size given ✅ 2026-10-31, T5; `documents/defaultPageSize` with T8's dialog*
 **Steps** `ctest -R "pageops.blank"`.
 **Expect** Inserted at the size given, or `documents/defaultPageSize` when none is, with no content stream (an empty `/Contents` or none), shown blank. **If it fails** S3.
+**Result (T5)** `unit.pageops blank: ...`: `blankPages(595 × 842, 2)` inserted at 2 of `refs-none.pdf`, saved: two pages `/MediaBox [0 0 595 842]`, no `/Contents`, an empty `/Resources`; a side of 2 or of 14,401 points refused by `error.pdf.pageSizeOutOfRange`, a count of 0 refused. **Not yet:** `documents/defaultPageSize` -- *when none is given* is a dialog's question, and the key is declared with the surface that asks it (T8).
 
-**A-46 · `fuzz_assembly`, replayed here and run on Linux** ☐ *T5 (Windows replay, 60 s log); the soak's log at T19*
+**A-46 · `fuzz_assembly`, replayed here and run on Linux** 🟡 *Windows replay ✅ 2026-10-31, T5; the 60 s log at the push; the soak's at T19*
 **Steps** `ctest -R "fuzz.assembly_replay"` (the body over the corpus and the adversarial inputs, headless); the `portable-fuzz` job's log; the soak's.
 **Expect** No crash, no hang beyond the body's time bound; 60 s and ten minutes with no finding, read from the **logs**. **If it fails** S1 for a crash; each finding gets a regression case before it counts as fixed.
+**Result (Windows replay)** `unit.fuzz.assembly_replay: ...` -- `tests/fuzz/AssemblyFuzzBody.h`, the target's body: *"199 inputs, 123 reached the copy"* (every corpus PDF, each `assembly/` file cut at a half, a third and a fifth, and three hostile graphs -- resources naming the tree, a node listed twice, content naming itself and its page), every invariant held: refusal by key, the payload opening with no repair, one catalog and one node, every reference closed, each page its own inheritable keys, the insert and the replace composed and VERIFIED and undone to nothing. The 60-second CI log is read at the push.
 
 ### 5.8 Save As that rewrites (T6) — D7-25
 
@@ -1180,6 +1205,9 @@ missed it, and the control that was run red before the fix — the shape every e
 | **I-03** | S2 | Move a link the file holds, then delete the page it points at: the delete was refused (`error.edit.notShown`), because its compose wrote that link twice | **Closed** at T4, 2026-10-31 |
 | **I-04** | S2 | A file referencing an object number past ISO 32000-1's limit: the compose's first new number overflowed (2^63-1, UBSan) or lay past the limit (8,388,608), and an edit was refused by its verify | **Closed** at T4, 2026-10-31, after CI run 41141004141 |
 | **I-05** | S3 | `ui.a rotation drops the rotated page from the index and the next search re-reads only it` (Stage 5 guide A-64) failed once in CI: the search read 2 pages where 1 was expected | **Open** -- not reproduced locally |
+| **I-06** | S3 | A page dictionary missing its `>>` was read by the first-party parser ON INTO THE NEXT OBJECT, whose `/Contents` then won -- so a copy or a duplicate of the page drew another page | **Closed** at T5, 2026-10-31 (the user's choice: fixed in the parser) |
+| **I-07** | S2 | A page inserted from another document drew the content of its optional-content groups that the source HID: the target listed no such group, and a reader shows a group no `/OCProperties` lists | **Closed** at T5, 2026-10-31 (the user's choice: the groups united now) |
+| **I-08** | S3 | `render.a 900-page file's open never holds the engine longer than one page's extraction` (Stage 5's T9 bound, `[run-serial]`) failed once in T5's first full run: an engine piece of 5.36 ms against an extraction maximum of 3.80 | **Open** -- 5 of 5 green alone |
 
 **I-01 (S2) — the engine facade read a page's boxes from the page dictionary alone.** *Found* at T1 by
 the first scratch render of `assembly/inherit-resources.pdf`, whose pages inherit both boxes: an A4 page
@@ -1280,6 +1308,44 @@ selection and the search can each ask for page 1 again afterwards. *Mechanism:* 
 those two reads is the suspicion, and a suspicion is not a cause. *Severity S3* because what was miscounted is an
 extraction, not a result: the search found what it should. *Since:* the next run, **41148688029** on `b4d5ab5`, passed it (1904/1904) -- one
 green run says nothing about an intermittent cause. *Open*; the next CI runs are read for it.
+
+**I-06 (S3) — the parser read an unterminated dictionary on into the next object.** *Found* at T5 by **A-38**: of
+3,114 pages copied and inserted, `malformed/unbalanced-dictionary.pdf` page 1 drew differently from its source at
+both scales. *Mechanism:* the page dictionary has no `>>`; `pdf/cos/Parser` read past `endobj` into the next object's
+dictionary, keeping both `/Contents` entries -- and the LAST wins -- so our reading of page 1 was page 2's content,
+while PDFium ends the object at `endobj`. Every write that copies the dictionary as we read it carried page 2's
+content: T5's copy, and T2's duplicate before it. *Why the suite missed it:* Stage 2's tolerance case
+(`tst_cos_parser`, *"closes and reports an unterminated container"*) asserts the note, not what follows the
+dictionary; and no case before A-38 compared a written copy of a malformed page with what PDFium draws of it.
+*Fixed* (the user's choice, of logging and bounding it): an `endobj` where a key belongs ends the dictionary, said by
+the same `UnterminatedDictionary` note, and is left for `parseIndirectObject` -- PDFium's reading. *Regression:*
+`unit.cos parser ends an unterminated dictionary at endobj, as PDFium does` (`[I-06]`), and A-38's sweep, now 0 differ.
+*Control:* P9 (the stop reverted) red.
+
+**I-07 (S2) — an inserted page drew its hidden layers.** *Found* at T5 by **A-38**: `assembly/layers.pdf` page 2
+differed from its source at both scales. *Mechanism:* the page marks content with four optional-content groups, two of
+which -- `fr` and `pr` -- the source's `/OCProperties /D /OFF` turns off; the copier copied the groups as objects the
+page's `/Properties` reach, but the target's catalog listed none of them, and PDFium, like Acrobat, draws content of a
+group no `/OCProperties` lists. Content its author hid became visible -- *S2*, because hidden content is often hidden
+on purpose. *Why the suite missed it:* nothing before T5 brought pages from another document; A-38 is the first case
+to draw a copy against its source. *Fixed* (the user's choice of two -- the other was bounding it and leaving it to
+T10's merge): the copier narrows the source's `/OCProperties` to the groups it reached into the payload's catalog
+(`ObjectGraphCopier::layers`), and the sink unions them into the target's -- `/OCGs`, `/OFF`, `/ON` under a target
+`/BaseState /OFF`, `/Order`, `/Locked`, `/RBGroups`, `/AS` -- while a page draws from that payload, inserted or
+replaced, before a save and after one, and takes them out when none does (`MutationSinkImpl::composeLayers`).
+*Regression:* `unit.pageops layers: ...` (`[I-07]`) -- four groups and two hidden arrive in `refs-none.pdf`, leave
+on undo after a save, return on redo, unite with `layers.pdf`'s own eight; and A-38 now 0 differ. *Found by its own
+case while building:* the first union counted only unsaved pages as drawing from a graph, so after a save its groups
+were taken out again (the redo and the undo-before-save control both red) -- a page saved from a payload is now
+remembered (`graphOfPage_`). *Controls:* P7 (no union) and P8 (the saved page not remembered) red.
+
+**I-08 (S3) — a Stage 5 timing bound red once.** *Found* in T5's first full `x64-release` run (1918 of 1919):
+`render.a 900-page file's open never holds the engine longer than one page's extraction` (`tests/render/
+tst_foldersearch.cpp:494`), *"T9 bound: 262 engine pieces, max 5.356 ms, p95 1.168 ms; ... one page's extraction ...
+max 3.797 ms"* -- `pieceMax <= extractionMax` false. *Not reproduced:* five runs alone, max 3.14–3.49 ms against
+3.68–4.86, all green. *What is known:* the case is `[run-serial]`, so no other ctest case ran beside it; it compares
+one maximum with another, so a single slow piece decides it; T5's code is not in an open's path except the parser's
+one new keyword comparison per dictionary key. *Mechanism:* NOT ESTABLISHED. *Open*; each full run is read for it.
 
 ---
 

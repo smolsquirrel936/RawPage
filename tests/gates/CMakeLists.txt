@@ -612,11 +612,11 @@ set(ML $<TARGET_FILE:mutation-lint>)
 set(ML_FIX "${FIXTURES}/mutation-lint")
 
 # A-11, the real tree: every command, named -- and so the roster D6-1 closes is pinned here, not
-# remembered. Twelve since Stage 6 T13 -- `Stage6-Annotations-Plan.md` §4's end, the twelfth
+# remembered. Seventeen since Stage 7 T5 (`InsertPagesCommand`, `ReplacePagesCommand`), fifteen since Stage 7 T2's three page`n# commands; twelve since Stage 6 T13 -- `Stage6-Annotations-Plan.md` §4's end, the twelfth
 # `ImportAnnotationsCommand` -- eleven since T11, nine since T9, seven since T5, three since T3, one until then.
 rawpage_add_gate_test(NAME gates.mutation_lint.clean_tree
     COMMAND ${ML} --root ${CMAKE_SOURCE_DIR}
-    EXPECT_EXIT 0 EXPECT_MATCH "clean -- 15 command\\(s\\): AddAnnotationCommand DeleteAnnotationCommand EditAnnotationCommand MoveAnnotationCommand SetAnnotationAppearanceCommand LockAnnotationCommand ReplyToAnnotationCommand SetAnnotationStatusCommand ImportAnnotationsCommand AddAttachmentCommand DeleteAttachmentCommand RotatePageCommand MovePagesCommand DeletePagesCommand DuplicatePagesCommand;")
+    EXPECT_EXIT 0 EXPECT_MATCH "clean -- 17 command\\(s\\): AddAnnotationCommand DeleteAnnotationCommand EditAnnotationCommand MoveAnnotationCommand SetAnnotationAppearanceCommand LockAnnotationCommand ReplyToAnnotationCommand SetAnnotationStatusCommand ImportAnnotationsCommand AddAttachmentCommand DeleteAttachmentCommand RotatePageCommand MovePagesCommand DeletePagesCommand DuplicatePagesCommand InsertPagesCommand ReplacePagesCommand;")
 
 # A-11, THE CONTROL: three spellings of "derives from Command" (plain, qualified across two lines,
 # second of two bases), each complete -- and a CommandHistory base and an `enum class X : int`,
@@ -797,6 +797,14 @@ rawpage_add_fuzz_count_test(NAME gates.fuzz_count.five_of_five_with_a_helper
     EXPECT_EXIT 0 EXPECT_MATCH "as expected")
 rawpage_add_fuzz_count_test(NAME gates.fuzz_count.four_of_five_fails
     EXTRA "-DFIXTURE_TARGETS=4|-DFIXTURE_EXPECTED=5"
+    EXPECT_EXIT 1 EXPECT_MATCH "miscounted")
+
+# Stage 7 T5 (guide A-12): the count the stage ships, SIX -- the control -- and five of six refused.
+rawpage_add_fuzz_count_test(NAME gates.fuzz_count.six_of_six_with_a_helper
+    EXTRA "-DFIXTURE_TARGETS=6|-DFIXTURE_EXPECTED=6|-DFIXTURE_HELPER=ON"
+    EXPECT_EXIT 0 EXPECT_MATCH "as expected")
+rawpage_add_fuzz_count_test(NAME gates.fuzz_count.five_of_six_fails
+    EXTRA "-DFIXTURE_TARGETS=5|-DFIXTURE_EXPECTED=6"
     EXPECT_EXIT 1 EXPECT_MATCH "miscounted")
 
 # And the helper cannot stand in for a missing target: two targets plus a helper is still two.

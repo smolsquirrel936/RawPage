@@ -43,5 +43,7 @@ RAWPAGE_COMMAND(DeleteAttachmentCommand, "attachment.delete", "core/cmd/commands
 RAWPAGE_COMMAND(MovePagesCommand, "page.move", "core/cmd/commands/PageCommands.h")
 RAWPAGE_COMMAND(DeletePagesCommand, "page.delete", "core/cmd/commands/PageCommands.h")
 RAWPAGE_COMMAND(DuplicatePagesCommand, "page.duplicate", "core/cmd/commands/PageCommands.h")
+RAWPAGE_COMMAND(InsertPagesCommand, "page.insert", "core/cmd/commands/PageCommands.h")
+RAWPAGE_COMMAND(ReplacePagesCommand, "page.replace", "core/cmd/commands/PageCommands.h")
 
 #undef RAWPAGE_COMMAND

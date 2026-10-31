@@ -32,6 +32,11 @@ add_library(rawpage_ops STATIC
     ReferenceRepair.h
     ReferenceRepair.cpp
 
+    # S7 T5 (D7-4, D7-6): pages out of one document with everything they reach, each object once, inheritance made
+    # each page's own, the page tree left behind -- written as the payload an insert or a replace carries.
+    ObjectGraphCopier.h
+    ObjectGraphCopier.cpp
+
     # S4 T10 (D4-12). A READER in a directory named for operations, and the reason is that /Trans
     # is document semantics rather than object model: PageOps sits on the same line. It exists at
     # all because PDFium's C API exposes page transitions nowhere, which makes it the first read

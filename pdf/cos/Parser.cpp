@@ -299,6 +299,15 @@ CosObject Parser::parseDictionaryOrStream(const Token& open, int depth)
             end = look.offset + look.length;
             break;
         }
+        // `endobj` where a key belongs: the object ended with its dictionary still open. The dictionary ends HERE,
+        // reported, and the keyword is left for `parseIndirectObject` -- PDFium's reading, and the one that keeps a page
+        // whose `>>` is missing from taking the next object's keys for its own (Stage 7 guide I-06: the next page's
+        // `/Contents` won, so a copy or a duplicate of the page drew another page; until then this read on to the end).
+        if (look.isKeyword("endobj")) {
+            note(ParseNote::UnterminatedDictionary, open.offset);
+            end = look.offset;
+            break;
+        }
 
         const Token key = nextToken();
         if (key.type != TokenType::Name) {

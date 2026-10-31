@@ -36,8 +36,10 @@
 #include "core/doc/DrawnShapes.h"
 #include "core/doc/Stamps.h"
 #include "core/doc/TypedText.h"
+#include "pdf/ops/ObjectGraphCopier.h"
 #include "pdf/ops/AppearanceStreamBuilder.h"
 
+#include <QFile>
 #include <QJsonDocument>
 
 #include <algorithm>
@@ -87,6 +89,23 @@ std::vector<core::Annotation> answerable(const core::Document& document, int pag
     return out;
 }
 
+// Stage 7 T5: the pages an insert and a replace carry -- copied ONCE, here, from two corpus files: a page whose
+// annotations come with it (a note, its pop-up, a reply, a link) and a page that inherits all four inheritable keys.
+// One payload of one page each, so a replace of any one page has a payload of its size.
+const core::CopiedPages& payloadOf(const char* relative, int page)
+{
+    static std::map<std::string, core::CopiedPages> made;
+    const std::string key = std::string(relative) + "#" + std::to_string(page);
+    if (const auto found = made.find(key); found != made.end()) return found->second;
+    QFile file(QString::fromStdString(std::string(RAWPAGE_CORPUS_DIR) + "/" + relative));
+    REQUIRE(file.open(QIODevice::ReadOnly));
+    const QByteArray bytes = file.readAll();
+    auto copied = pdf::ops::ObjectGraphCopier::copyFile(std::string_view(bytes.constData(), static_cast<std::size_t>(bytes.size())),
+                                                        {page});
+    REQUIRE(copied);
+    return made.emplace(key, std::move(copied).value()).first->second;
+}
+
 // Makes the commands to try on page `page` of `document`.
 using Generator = std::function<std::vector<std::unique_ptr<Command>>(const core::Document& document, int page)>;
 using Generators = std::map<std::string, Generator>;
@@ -132,6 +151,27 @@ const Generators& registeredGenerators()
              if (!document.permissions().mayRestructurePages() || !document.permissions().mayEditPage(page)) return out;
              out.push_back(std::make_unique<core::DuplicatePagesCommand>(std::vector<int>{page}));
              if (count >= 2 && page == 0) out.push_back(std::make_unique<core::DuplicatePagesCommand>(std::vector<int>{0, count - 1}));
+             return out;
+         }},
+        // Stage 7 T5: pages from elsewhere -- an annotated page and an inheriting one inserted before the page and at the
+        // end, and the page replaced by each; nothing where the tree is damaged or the page is refused (D7-21).
+        {"page.insert",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             if (!document.permissions().mayRestructurePages()) return out;
+             out.push_back(std::make_unique<core::InsertPagesCommand>(page, payloadOf("assembly/annots-on-pages.pdf", 0)));
+             out.push_back(std::make_unique<core::InsertPagesCommand>(document.pages().count(),
+                                                                      payloadOf("assembly/inherit-resources.pdf", 2)));
+             return out;
+         }},
+        {"page.replace",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             if (!document.permissions().mayEditPage(page) || !document.permissions().mayAnnotate(page)) return out;
+             out.push_back(std::make_unique<core::ReplacePagesCommand>(std::vector<int>{page},
+                                                                       payloadOf("assembly/annots-on-pages.pdf", 1)));
+             out.push_back(std::make_unique<core::ReplacePagesCommand>(std::vector<int>{page},
+                                                                       payloadOf("assembly/inherit-resources.pdf", 0)));
              return out;
          }},
         // Stage 6 T3: a highlight on the page -- a set of one, and a set of two on one page.
@@ -768,7 +808,8 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
                                                                           "annot.move", "annot.setAppearance", "annot.lock",
                                                                           "annot.reply", "annot.setStatus", "annot.import",
                                                                           "attachment.add", "attachment.delete", "page.move",
-                                                                          "page.delete", "page.duplicate"});
+                                                                          "page.delete", "page.duplicate", "page.insert",
+                                                                          "page.replace"});
     }
 }
 
@@ -776,7 +817,7 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
 // A-43 -- reversibility over the corpus
 // ==========================================================================================
 
-TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand][revert:AddAnnotationCommand][revert:DeleteAnnotationCommand][revert:EditAnnotationCommand][revert:MoveAnnotationCommand][revert:SetAnnotationAppearanceCommand][revert:LockAnnotationCommand][revert:ReplyToAnnotationCommand][revert:SetAnnotationStatusCommand][revert:AddAttachmentCommand][revert:DeleteAttachmentCommand][revert:ImportAnnotationsCommand][revert:MovePagesCommand][revert:DeletePagesCommand][revert:DuplicatePagesCommand]")
+TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand][revert:AddAnnotationCommand][revert:DeleteAnnotationCommand][revert:EditAnnotationCommand][revert:MoveAnnotationCommand][revert:SetAnnotationAppearanceCommand][revert:LockAnnotationCommand][revert:ReplyToAnnotationCommand][revert:SetAnnotationStatusCommand][revert:AddAttachmentCommand][revert:DeleteAttachmentCommand][revert:ImportAnnotationsCommand][revert:MovePagesCommand][revert:DeletePagesCommand][revert:DuplicatePagesCommand][revert:InsertPagesCommand][revert:ReplacePagesCommand]")
 {
     const std::vector<std::string> missing = missingGenerators(registeredGenerators());
     INFO("registered type ids with no generator: " << missing.size());

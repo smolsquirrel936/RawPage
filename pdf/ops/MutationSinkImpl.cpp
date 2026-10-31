@@ -9,12 +9,14 @@
 #include "pdf/cos/ContentStreamBuilder.h"
 #include "pdf/cos/XrefRepair.h"
 #include "pdf/ops/AnnotationOps.h"
+#include "pdf/ops/AnnotationReader.h"
 #include "pdf/ops/AppearanceStreamBuilder.h"
 #include "pdf/ops/EmbeddedFileReader.h"
 #include "pdf/cos/filters/FlateFilter.h"
 #include "pdf/cos/filters/Filter.h"
 
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <set>
 
@@ -392,6 +394,12 @@ void MutationSinkImpl::composed(const cos::WrittenUpdate& update)
         it = keep(it->second.objects) ? std::next(it) : listingUnits_.erase(it);
     for (auto it = sharedUnits_.begin(); it != sharedUnits_.end();)
         it = keep(it->second.objects) ? std::next(it) : sharedUnits_.erase(it);
+    for (auto& [key, graph] : graphs_) {   // S7 T5
+        if (!keep(graph.unit)) {
+            graph.unit = UnitObjects{};
+            graph.mapping.clear();
+        }
+    }
     // And the annotations' block, when this round composed it anew.
     if (block_.round == round_ && !block_.complete()) {
         block_.written.clear();
@@ -419,6 +427,10 @@ void MutationSinkImpl::forgetComposedForTesting()
     listingUnits_.clear();
     sharedUnits_.clear();
     block_ = AnnotationBlock{};
+    for (auto& [key, graph] : graphs_) {
+        graph.unit = UnitObjects{};
+        graph.mapping.clear();
+    }
 }
 
 MutationSinkImpl::MutationSinkImpl(std::string_view bytes, cos::XrefTable table, PageWalk walk)
@@ -492,10 +504,14 @@ core::Result<cos::ObjectDelta> MutationSinkImpl::delta()
     bool orderChanged = walk_.pages.size() != diskWalk_.pages.size();
     for (std::size_t at = 0; !orderChanged && at < walk_.pages.size(); ++at)
         orderChanged = walk_.pages[at].number != diskWalk_.pages[at].number;
+    // S7 T5: every new page's number first, then the graphs pages draw from -- which point at those numbers -- and
+    // each replaced or restored page's dictionary.
+    numberNewPages(delta);
+    if (core::Status graphs = composeGraphs(delta); !graphs) return graphs.error();
+    if (core::Status replaced = composeReplacements(pageDictionaries, handled); !replaced) return replaced.error();
+    if (core::Status layers = composeLayers(pageDictionaries); !layers) return layers.error();
     if (orderChanged) {
         if (core::Status order = composePageOrder(delta, pageDictionaries, handled); !order) return order.error();
-    } else {
-        composeNumbers_.clear();
     }
     for (const auto& [pageIndex, degrees] : desired_) {
         if (handled.count(pageIndex) != 0) continue;   // composed with its new parent above
@@ -1313,6 +1329,13 @@ core::Result<MutationSinkImpl::Reconciled> MutationSinkImpl::reconcile(cos::Xref
             // appearance is its source's, carried as written.
             if (copies_.count(want.nm) != 0) {
                 if (got.kind != ListedEntry::Kind::Reference) return listingMismatch(page);
+                // S7 T5: a copy listed by a second page (its source was listed by two) is the SAME object -- its /P
+                // names the page that wrote it, which was checked there.
+                if (const auto seen = out.created.find(want.nm); seen != out.created.end()) {
+                    if (!(seen->second == got.reference)) return listingMismatch(page);
+                    got.id = want.id;
+                    continue;
+                }
                 auto object = written.fetch(got.reference.number);
                 if (!object || object.value().object.type() != cos::CosType::Dictionary) return listingMismatch(page);
                 const cos::CosObject& d = object.value().object;
@@ -1774,8 +1797,32 @@ core::Status MutationSinkImpl::adopt(std::string_view bytes)
     // value it holds stays, being the one before RawPage changed anything -- and a value back as it was
     // leaves it; and the scan and the shape, read from the old revision, go.
     for (std::size_t at = 0; at < walk_.pages.size(); ++at) {
-        if (walk_.pages[at].number < 0) newPages_.erase(walk_.pages[at].number);
+        const long long was = walk_.pages[at].number;
+        const long long now = walk.value().pages[at].number;
+        if (was < 0) {
+            if (const auto made = newPages_.find(was); made != newPages_.end() && made->second.graph)
+                graphOfPage_.insert_or_assign(now, made->second.graph->key);
+            newPages_.erase(was);
+        }
+        if (const auto replacing = replaced_.find(now); replacing != replaced_.end())
+            graphOfPage_.insert_or_assign(now, replacing->second.key);
+        // S7 T5: a page that arrived from elsewhere is drawn as it arrived, under the number the save gave it; a
+        // replaced or restored one is what the file now holds.
+        if (const auto drawn = drawnAs_.find(was); was < 0 && drawn != drawnAs_.end()) {
+            core::Page facts = drawn->second;
+            drawnAs_.erase(drawn);
+            drawnAs_.insert_or_assign(now, std::move(facts));
+        }
+        replaced_.erase(now);
+        restored_.erase(now);
     }
+    for (auto& [key, graph] : graphs_) {
+        for (const auto& [object, number] : graph.composedAt) graph.onDisk.insert_or_assign(object, number);
+        graph.composedAt.clear();
+        graph.unit = UnitObjects{};
+        graph.mapping.clear();
+    }
+    graphMaps_.clear();
     for (auto& [number, keys] : composedLedger_) {
         for (auto& [key, value] : keys) ledger_[number].emplace(key, std::move(value));
     }
@@ -2077,7 +2124,16 @@ core::Result<core::DuplicatedPages> MutationSinkImpl::duplicatePages(const std::
             slot.entry = source;
             slot.entry.number = nextNewPage_--;
             const auto origin = newPages_.find(source.number);
-            newPages_.emplace(slot.entry.number, NewPage{origin != newPages_.end() ? origin->second.source : source.number});
+            NewPage drawsFrom{source.number, std::nullopt, false};
+            if (origin != newPages_.end()) {
+                drawsFrom = origin->second;
+                drawsFrom.duplicate = drawsFrom.duplicate || drawsFrom.graph.has_value();
+            } else if (const auto replacing = replaced_.find(source.number); replacing != replaced_.end()) {
+                drawsFrom = NewPage{0, replacing->second, true};   // S7 T5: what the replaced page draws now
+            }
+            newPages_.emplace(slot.entry.number, std::move(drawsFrom));
+            if (const auto drawn = drawnAs_.find(source.number); drawn != drawnAs_.end())
+                drawnAs_.insert_or_assign(slot.entry.number, drawn->second);
             if (const auto turned = desired_.find(page); turned != desired_.end()) slot.rotation = turned->second;
             if (!labels_.empty()) {
                 slot.label = labels_[static_cast<std::size_t>(page)];
@@ -2113,7 +2169,7 @@ core::Result<core::DuplicatedPages> MutationSinkImpl::duplicatePages(const std::
                         dictionary = dictionaryOnDisk(copy.source);
                     }
                     if (!dictionary) return sinkError(core::ErrorCode::NotFound, "error.pdf.annotationUnknown", page);
-                    CopySource made{std::move(*dictionary), std::nullopt, copy.copy};
+                    CopySource made{std::move(*dictionary), std::nullopt, copy.copy, QString()};
                     if (const auto edit = edits_.find(copy.source); edit != edits_.end()) made.edit = edit->second;
                     copies_.insert_or_assign(nm, std::move(made));
                 }
@@ -2135,7 +2191,7 @@ core::Result<core::DuplicatedPages> MutationSinkImpl::duplicatePages(const std::
     return out;
 }
 
-core::Status MutationSinkImpl::composePageOrder(cos::ObjectDelta& delta, std::map<long long, cos::CosObject>& pending,
+core::Status MutationSinkImpl::composePageOrder(cos::ObjectDelta&, std::map<long long, cos::CosObject>& pending,
                                                 std::set<int>& handled)
 {
     if (!shape_) {
@@ -2145,19 +2201,13 @@ core::Status MutationSinkImpl::composePageOrder(cos::ObjectDelta& delta, std::ma
     }
     const PageTreeShape& shape = *shape_;
 
-    // Every new page gets its number for this compose, after the floor no reference may cross (Stage 3 I-12).
-    delta.reserveNumbersThrough(referenceFloor());
-    composeNumbers_.clear();
+    // Every new page has its number for this compose already (`numberNewPages`, S7 T5).
     std::vector<long long> order;
     std::set<long long> fresh;
     order.reserve(walk_.pages.size());
     for (const PageEntry& page : walk_.pages) {
         long long number = page.number;
-        if (number < 0) {
-            const long long given = delta.reserve("page:" + std::to_string(-number));   // S7 T4: by name
-            composeNumbers_.emplace(number, given);
-            number = given;
-        }
+        if (number < 0) number = composeNumbers_.at(number);
         if (shape.parentOf.count(number) == 0) fresh.insert(number);   // new, or back after a save removed it
         order.push_back(number);
     }
@@ -2197,11 +2247,22 @@ core::Status MutationSinkImpl::composePageOrder(cos::ObjectDelta& delta, std::ma
             continue;   // the same node: nothing about the page itself changed
 
         cos::CosObject page;
-        if (isNew) {
-            const long long source = newPages_.at(original).source;
-            auto current = currentPage(table_, source);
-            if (!current) return current.error();
-            page = std::move(current).value();
+        const NewPage* made = isNew ? &newPages_.at(original) : nullptr;
+        if (made != nullptr && made->graph) {
+            // S7 T5: a page from another document -- the payload's, renumbered; every inheritable key its own.
+            auto drawn = graphPage(*made->graph);
+            if (!drawn) return drawn.error();
+            page = std::move(drawn).value();
+        } else if (isNew) {
+            const long long source = made->source;
+            // A copy of a page whose replace is undone after a save copies the dictionary the undo writes back.
+            if (const auto back = restored_.find(source); back != restored_.end()) {
+                page = back->second;
+            } else {
+                auto current = currentPage(table_, source);
+                if (!current) return current.error();
+                page = std::move(current).value();
+            }
             page.clearSpansRecursively();
             for (const char* key : {"Annots", "StructParents", "B", "Parent"}) page = AnnotationOps::withoutEntry(page, key);
         } else if (auto base = pending.find(number); base != pending.end()) {
@@ -2212,8 +2273,10 @@ core::Status MutationSinkImpl::composePageOrder(cos::ObjectDelta& delta, std::ma
             page = std::move(current).value();
         }
         std::map<std::string, cos::CosObject> before;
-        if (isNew) {
-            const long long source = newPages_.at(original).source;
+        if (made != nullptr && made->graph) {
+            // Nothing: the copier made every inheritable key the page's own (D7-4).
+        } else if (isNew) {
+            const long long source = made->source;
             const auto sourceNode = shape.parentOf.find(source);
             if (sourceNode != shape.parentOf.end()) before = passed[static_cast<std::size_t>(sourceNode->second)];
             else if (auto sourcePage = table_.fetch(source); sourcePage && sourcePage.value().object.isDictionary())
@@ -2301,6 +2364,26 @@ core::Result<cos::CosObject> MutationSinkImpl::copiedDictionary(const QString& n
 {
     const CopySource& copy = copies_.at(nm);
     cos::CosObject dictionary = copy.dictionary;
+    if (!copy.graph.isEmpty()) {
+        // S7 T5: from the payload -- renumbered as this compose writes it. A link whose page no page of this
+        // document draws now (its copy deleted) keeps its rectangle and loses its action (D7-2).
+        bool dangling = false;
+        const auto map = graphMaps_.find(copy.graph);
+        const auto pageGone = [&](const cos::CosObject& destination) {
+            if (!destination.isArray() || destination.items().empty() || !destination.items().front().isReference()) return false;
+            if (map == graphMaps_.end()) return true;
+            const auto found = map->second.find(destination.items().front().reference().number);
+            return found == map->second.end() || found->second < 0;
+        };
+        if (dictionary.get("Subtype").isName() && dictionary.get("Subtype").text() == "Link") {
+            dangling = pageGone(dictionary.get("Dest")) || pageGone(dictionary.get("A").get("D"));
+        }
+        dictionary = mapped(copy.graph, dictionary);
+        if (dangling) {
+            dictionary = AnnotationOps::withoutEntry(dictionary, "Dest");
+            dictionary = AnnotationOps::withoutEntry(dictionary, "A");
+        }
+    }
     if (copy.edit) {
         auto edited = editedFrom(dictionary, *copy.edit, delta, written, shared, "copy:" + nm.toStdString());
         if (!edited) return edited.error();
@@ -2327,6 +2410,738 @@ core::Result<cos::CosObject> MutationSinkImpl::copiedDictionary(const QString& n
         }
     }
     return dictionary;
+}
+
+// ==========================================================================================
+// Pages from elsewhere (Stage 7 T5) -- the header's rule over a payload of copied pages
+// ==========================================================================================
+
+namespace {
+
+core::Error graphError(const char* what, long long detail = -1)
+{
+    return core::Error{core::ErrorCode::ParseFailure, QLatin1String("error.copy.malformed"),
+                       QLatin1String(what) + (detail < 0 ? QString() : QLatin1Char(':') + QString::number(static_cast<qlonglong>(detail)))};
+}
+
+// The keys of a page dictionary that say what it DRAWS -- what a replaced page takes from the page that replaces it.
+// Every other key is the page's own (D7-2's identity rule: a page is its object).
+constexpr std::array<const char*, 14> kDrawingKeys{"Contents", "Resources", "MediaBox", "CropBox", "BleedBox", "TrimBox",
+                                                   "ArtBox", "BoxColorInfo", "Rotate", "Group", "UserUnit", "Thumb",
+                                                   "SeparationInfo", "VP"};
+
+std::optional<core::PdfRect> boxOf(const cos::CosObject& value)
+{
+    if (!value.isArray() || value.items().size() != 4) return std::nullopt;
+    double edges[4];
+    for (std::size_t i = 0; i < 4; ++i) {
+        if (!value.items()[i].isNumber()) return std::nullopt;
+        edges[i] = value.items()[i].numberValue();
+    }
+    const double x0 = std::min(edges[0], edges[2]);
+    const double y0 = std::min(edges[1], edges[3]);
+    return core::PdfRect{core::PdfPoint{x0, y0}, core::PdfSize{std::max(edges[0], edges[2]) - x0, std::max(edges[1], edges[3]) - y0}};
+}
+
+cos::CosObject withoutSpans(cos::CosObject value)
+{
+    value.clearSpansRecursively();
+    return value;
+}
+
+} // namespace
+
+core::Result<MutationSinkImpl::Graph> MutationSinkImpl::parseGraph(const QByteArray& graph)
+{
+    if (graph.isEmpty() || graph.size() > core::kMaxCopiedGraphBytes) return graphError("size", graph.size());
+    Graph out;
+    out.bytes = graph;
+    auto table = cos::XrefTable::load(std::string_view(out.bytes.constData(), static_cast<std::size_t>(out.bytes.size())));
+    if (!table) return graphError("xref");
+    if (table.value().isEncrypted()) return graphError("encrypted");
+    if (table.value().entryCount() > 2'000'000) return graphError("objects", static_cast<long long>(table.value().entryCount()));
+    out.table = std::move(table).value();
+    auto walk = PageOps::walk(out.table);
+    if (!walk) return graphError("pages");
+    if (!walk.value().notes.empty() || walk.value().pages.empty()) return graphError("pages", static_cast<long long>(walk.value().pages.size()));
+    out.walk = std::move(walk).value();
+    auto shape = PageOps::shape(out.table);
+    if (!shape) return graphError("tree");
+    std::set<long long> frame;
+    for (const PageTreeNode& node : shape.value().nodes) frame.insert(node.number);
+    const cos::CosObject& root = out.table.trailer().get("Root");
+    if (root.isReference()) frame.insert(root.reference().number);
+    for (const PageEntry& page : out.walk.pages) {
+        auto fetched = out.table.fetch(page.number);
+        if (!fetched || !fetched.value().object.isDictionary() || !out.pageObjects.insert(page.number).second)
+            return graphError("page", page.number);
+        const cos::CosObject& annots = fetched.value().object.get("Annots");
+        if (annots.isArray()) {
+            for (const cos::CosObject& item : annots.items()) {
+                if (item.isReference()) out.annotationObjects.insert(item.reference().number);
+            }
+        }
+    }
+    for (const auto& [number, entry] : out.table.entries()) {
+        if (entry.type == cos::XrefEntryType::Free || number == 0) continue;
+        if (frame.count(number) != 0 || out.pageObjects.count(number) != 0 || out.annotationObjects.count(number) != 0) continue;
+        out.objects.push_back(number);
+    }
+    // Stage 7 guide I-07: the groups it uses, as the copier wrote them into its catalog -- each one an object it holds.
+    if (root.isReference()) {
+        if (auto catalog = out.table.fetch(root.reference().number); catalog && catalog.value().object.isDictionary()) {
+            const cos::CosObject& layers = catalog.value().object.get("OCProperties");
+            if (layers.isDictionary()) {
+                for (const cos::CosObject& group : layers.get("OCGs").items()) {
+                    if (!group.isReference() || !std::binary_search(out.objects.begin(), out.objects.end(), group.reference().number))
+                        return graphError("layers", group.isReference() ? group.reference().number : -1);
+                    out.layerGroups.insert(group.reference().number);
+                }
+                out.layers = withoutSpans(layers);
+            }
+        }
+    }
+    return out;
+}
+
+core::Result<MutationSinkImpl::Graph*> MutationSinkImpl::graphFor(const QString& key, const QByteArray& graph)
+{
+    if (const auto found = graphs_.find(key); found != graphs_.end()) {
+        // A key names one payload for the session: a replay or a redo hands the same bytes again.
+        if (found->second.bytes != graph) return graphError("key");
+        return &found->second;
+    }
+    auto parsed = parseGraph(graph);
+    if (!parsed) return parsed.error();
+    return &graphs_.emplace(key, std::move(parsed).value()).first->second;
+}
+
+core::Page MutationSinkImpl::pageFactsOf(Graph& graph, int index)
+{
+    const PageEntry& entry = graph.walk.pages[static_cast<std::size_t>(index)];
+    const core::PdfRect letter{core::PdfPoint{0.0, 0.0}, core::PdfSize{612.0, 792.0}};
+    std::optional<core::PdfRect> media;
+    if (entry.mediaBox) {
+        const std::array<double, 4>& b = *entry.mediaBox;
+        media = boxOf(cos::CosObject::makeArray({cos::CosObject::makeReal(b[0]), cos::CosObject::makeReal(b[1]),
+                                                 cos::CosObject::makeReal(b[2]), cos::CosObject::makeReal(b[3])}));
+    }
+    core::Page page(index, media.value_or(letter));
+    if (entry.cropBox) {
+        const std::array<double, 4>& b = *entry.cropBox;
+        page.setCropBox(boxOf(cos::CosObject::makeArray({cos::CosObject::makeReal(b[0]), cos::CosObject::makeReal(b[1]),
+                                                         cos::CosObject::makeReal(b[2]), cos::CosObject::makeReal(b[3])})));
+    }
+    if (auto fetched = graph.table.fetch(entry.number); fetched && fetched.value().object.isDictionary()) {
+        const cos::CosObject& dictionary = fetched.value().object;
+        page.setBleedBox(boxOf(dictionary.get("BleedBox")));
+        page.setTrimBox(boxOf(dictionary.get("TrimBox")));
+        page.setArtBox(boxOf(dictionary.get("ArtBox")));
+    }
+    page.setRotation(entry.effectiveRotate());
+    return page;
+}
+
+MutationSinkImpl::Copies MutationSinkImpl::copiesOf(const QString& key, Graph& graph, const std::vector<int>& targets) const
+{
+    Copies out;
+    const core::AnnotationStore::Reading reading = AnnotationReader::read(graph.table, graph.walk);
+    // Each annotation the payload's pages list -- by object, as the copier wrote every one -- its copy's name.
+    std::map<std::size_t, QString> names;
+    int ordinal = 0;
+    for (const std::vector<core::AnnotationListingEntry>& listing : reading.pages) {
+        for (const core::AnnotationListingEntry& entry : listing) {
+            if (!entry.annotation || names.count(*entry.annotation) != 0) continue;
+            if (reading.annotations[*entry.annotation].id.kind != core::AnnotationId::Kind::Object) continue;
+            names.emplace(*entry.annotation, key + QLatin1Char('-') + QString::number(ordinal++));
+        }
+    }
+    std::map<core::AnnotationId, core::AnnotationId> copyOf;
+    for (const auto& [index, nm] : names) copyOf.emplace(reading.annotations[index].id, core::AnnotationId::ofCreated(nm));
+
+    out.model.resize(reading.pages.size());
+    out.listings.resize(reading.pages.size());
+    std::set<QString> sourced;
+    for (std::size_t page = 0; page < reading.pages.size(); ++page) {
+        for (const core::AnnotationListingEntry& entry : reading.pages[page]) {
+            if (!entry.annotation) continue;
+            const auto name = names.find(*entry.annotation);
+            if (name == names.end()) continue;   // a direct dictionary: the copier writes none, and this payload is not its
+            const core::Annotation& source = reading.annotations[*entry.annotation];
+            core::Annotation copy = source;
+            copy.nm = name->second;
+            copy.id = core::AnnotationId::ofCreated(copy.nm);
+            const int owner = source.page >= 0 && static_cast<std::size_t>(source.page) < targets.size() ? source.page
+                                                                                                          : static_cast<int>(page);
+            copy.page = targets[static_cast<std::size_t>(owner)];
+            for (std::optional<core::AnnotationId>* link : {&copy.popup, &copy.parent, &copy.inReplyTo}) {
+                if (!*link) continue;
+                const auto target = copyOf.find(**link);
+                if (target == copyOf.end()) link->reset();
+                else *link = target->second;
+            }
+            ListedEntry listed;
+            listed.id = copy.id;
+            if (const auto saved = createdOnDisk_.find(copy.nm); saved != createdOnDisk_.end()) {
+                listed.kind = ListedEntry::Kind::Reference;   // a save wrote it: list that object
+                listed.reference = saved->second;
+            } else {
+                listed.kind = ListedEntry::Kind::Created;
+                listed.nm = copy.nm;
+                if (sourced.insert(copy.nm).second) {
+                    auto dictionary = graph.table.fetch(source.id.object);
+                    if (dictionary && dictionary.value().object.isDictionary())
+                        out.sources.emplace_back(copy.nm, CopySource{withoutSpans(dictionary.value().object), std::nullopt, copy, key});
+                }
+            }
+            core::AnnotationFact fact = entry.fact;
+            out.model[page].entries.push_back({fact, copy});
+            out.listings[page].push_back(std::move(listed));
+        }
+    }
+    return out;
+}
+
+core::Result<core::InsertedPages> MutationSinkImpl::insertPages(int at, const QString& key, const QByteArray& graph)
+{
+    ++annotationEpoch_;   // S7 T4: what the annotations compose to may change (`composeAnnotations`)
+    if (at < 0 || at > pageCount()) return pagesError("error.pdf.pageOutOfRange", at);
+    if (key.isEmpty()) return pagesError("error.command.malformed");
+    if (core::Status ok = mayRestructure(); !ok) return ok.error();
+    auto found = graphFor(key, graph);
+    if (!found) return found.error();
+    Graph& payload = *found.value();
+    const int count = static_cast<int>(payload.walk.pages.size());
+    const std::optional<core::PageMap> map = core::PageMap::insertion(pageCount(), at, count);
+    if (!map) return pagesError("error.pdf.pageOutOfRange", count);
+
+    core::InsertedPages out;
+    out.report = ReferenceRepair::report(referenceScan(), {}, indexOfPages(), true);
+    std::vector<int> targets;
+    for (int i = 0; i < count; ++i) targets.push_back(at + i);
+    Copies copies = copiesOf(key, payload, targets);
+
+    // An insert undone keeps its pages under its key: a redo puts back THOSE (see the interface).
+    std::vector<PageSlot> taken;
+    if (const auto kept = stash_.find(key); kept != stash_.end()) {
+        if (kept->second.size() != static_cast<std::size_t>(count)) return pagesError("error.command.malformed");
+        taken = std::move(kept->second);
+        stash_.erase(kept);
+    } else {
+        for (auto& [nm, source] : copies.sources) copies_.insert_or_assign(nm, std::move(source));
+        for (int i = 0; i < count; ++i) {
+            PageSlot slot;
+            slot.entry = payload.walk.pages[static_cast<std::size_t>(i)];
+            slot.entry.ownRotate = slot.entry.effectiveRotate();
+            slot.entry.inheritedRotate = 0;
+            const long long local = slot.entry.number;
+            slot.entry.number = nextNewPage_--;
+            newPages_.emplace(slot.entry.number, NewPage{0, GraphPage{key, local}, false});
+            drawnAs_.insert_or_assign(slot.entry.number, pageFactsOf(payload, i));
+            if (!copies.listings[static_cast<std::size_t>(i)].empty()) slot.listing = copies.listings[static_cast<std::size_t>(i)];
+            if (!labels_.empty()) {
+                // The next label of the range it lands in (guide A-21); at the front, the first page's range from 1.
+                PageLabelRange label = labels_[static_cast<std::size_t>(at > 0 ? at - 1 : 0)];
+                label.value = at > 0 ? label.value + 1 + i : 1 + i;
+                slot.label = label;
+            }
+            taken.push_back(std::move(slot));
+        }
+    }
+    for (int i = 0; i < count; ++i) {
+        core::Page page = pageFactsOf(payload, i);
+        const PageSlot& slot = taken[static_cast<std::size_t>(i)];
+        if (!labels_.empty()) page.setLabel(PageOps::formatLabel(slot.label.value_or(PageLabelRange{})));
+        out.pages.push_back(std::move(page));
+    }
+    out.listings = std::move(copies.model);
+    applyOrder(*map, std::move(taken));
+    return out;
+}
+
+core::Result<core::InsertedPages> MutationSinkImpl::replacePages(const std::vector<int>& pages, const QString& key,
+                                                                 const QByteArray& graph)
+{
+    ++annotationEpoch_;
+    if (!core::PageMap::isPageSet(pageCount(), pages)) return pagesError("error.pdf.pageOutOfRange", static_cast<long long>(pages.size()));
+    if (key.isEmpty() || replacedStash_.count(key) != 0) return pagesError("error.command.malformed");
+    for (const int page : pages) {
+        // A page no save has written yet is replaced by replacing what it copies -- which a later undo could not
+        // tell from the page itself; it is refused by key, as an edit to a copy not yet saved is.
+        if (walk_.pages[static_cast<std::size_t>(page)].number < 0) return pagesError("error.edit.pageNotSaved", page);
+    }
+    auto found = graphFor(key, graph);
+    if (!found) return found.error();
+    Graph& payload = *found.value();
+    if (payload.walk.pages.size() != pages.size()) return pagesError("error.edit.replaceCount", static_cast<long long>(pages.size()));
+
+    core::InsertedPages out;
+    Copies copies = copiesOf(key, payload, pages);
+    std::vector<ReplacedSlot> kept;
+    for (std::size_t i = 0; i < pages.size(); ++i) {
+        const int index = pages[i];
+        ReplacedSlot slot;
+        slot.index = index;
+        slot.number = walk_.pages[static_cast<std::size_t>(index)].number;
+        slot.entry = walk_.pages[static_cast<std::size_t>(index)];
+        slot.rotation = desiredRotation(index);
+        slot.listing = desiredListing(index);
+        if (const auto r = replaced_.find(slot.number); r != replaced_.end()) slot.replacement = r->second;
+        if (const auto r = restored_.find(slot.number); r != restored_.end()) slot.restored = r->second;
+        if (const auto d = drawnAs_.find(slot.number); d != drawnAs_.end()) slot.drawnAs = d->second;
+        if (const auto g = graphOfPage_.find(slot.number); g != graphOfPage_.end()) slot.graphOf = g->second;
+        if (auto current = table_.fetch(slot.number); current && current.value().object.isDictionary())
+            slot.onDisk = withoutSpans(current.value().object);
+        // What it drew no longer matches its structure: said, and its /StructParents dropped when it is written.
+        if (slot.onDisk && slot.onDisk->has("StructParents")) {
+            out.report.references.push_back(core::PageReference{core::PageReference::Kind::StructureElement,
+                                                                core::PageReference::Treatment::Reported, QString(),
+                                                                slot.number, index});
+        }
+        kept.push_back(std::move(slot));
+    }
+    for (auto& [nm, source] : copies.sources) copies_.insert_or_assign(nm, std::move(source));
+    for (std::size_t i = 0; i < pages.size(); ++i) {
+        const int index = pages[i];
+        PageEntry entry = payload.walk.pages[i];
+        entry.ownRotate = entry.effectiveRotate();
+        entry.inheritedRotate = 0;
+        const long long local = entry.number;
+        entry.number = kept[i].number;
+        walk_.pages[static_cast<std::size_t>(index)] = entry;
+        desired_.erase(index);   // it displays at the rotation the page replacing it has
+        replaced_.insert_or_assign(entry.number, GraphPage{key, local});
+        restored_.erase(entry.number);
+        graphOfPage_.erase(entry.number);
+        core::Page facts = pageFactsOf(payload, static_cast<int>(i));
+        drawnAs_.insert_or_assign(entry.number, facts);
+        if (!copies.listings[i].empty()) {
+            std::vector<ListedEntry> listing = desiredListing(index);
+            listing.insert(listing.end(), copies.listings[i].begin(), copies.listings[i].end());
+            desiredListings_.insert_or_assign(index, std::move(listing));
+        }
+        facts.setLabel(pageLabel(index));
+        out.pages.push_back(std::move(facts));
+    }
+    out.listings = std::move(copies.model);
+    replacedStash_.emplace(key, std::move(kept));
+    return out;
+}
+
+core::Status MutationSinkImpl::restoreReplacedPages(const std::vector<int>& pages, const QString& key)
+{
+    ++annotationEpoch_;
+    const auto found = replacedStash_.find(key);
+    if (found == replacedStash_.end() || found->second.size() != pages.size())
+        return pagesError("error.command.malformed", static_cast<long long>(pages.size()));
+    for (std::size_t i = 0; i < pages.size(); ++i) {
+        const ReplacedSlot& slot = found->second[i];
+        if (slot.index != pages[i] || pages[i] >= pageCount() || walk_.pages[static_cast<std::size_t>(pages[i])].number != slot.number)
+            return pagesError("error.command.malformed", pages[i]);
+    }
+    for (const ReplacedSlot& slot : found->second) {
+        const auto at = static_cast<std::size_t>(slot.index);
+        walk_.pages[at] = slot.entry;
+        if (slot.rotation == slot.entry.effectiveRotate()) desired_.erase(slot.index);
+        else desired_[slot.index] = slot.rotation;
+        if (sameListing(slot.listing, disk_[at].entries)) desiredListings_.erase(slot.index);
+        else desiredListings_.insert_or_assign(slot.index, slot.listing);
+        if (slot.replacement) replaced_.insert_or_assign(slot.number, *slot.replacement);
+        else replaced_.erase(slot.number);
+        // What it was before: an earlier replace not saved, a restore not saved -- or, once a save wrote the
+        // replace, the dictionary it had when it was replaced, written back (see the header).
+        std::optional<cos::CosObject> back = slot.restored;
+        if (!back && !slot.replacement && slot.onDisk) {
+            auto current = table_.fetch(slot.number);
+            if (!current || withoutSpans(current.value().object) != *slot.onDisk) back = slot.onDisk;
+        }
+        if (back) restored_.insert_or_assign(slot.number, *back);
+        else restored_.erase(slot.number);
+        if (slot.drawnAs) drawnAs_.insert_or_assign(slot.number, *slot.drawnAs);
+        else drawnAs_.erase(slot.number);
+        if (slot.graphOf) graphOfPage_.insert_or_assign(slot.number, *slot.graphOf);
+        else graphOfPage_.erase(slot.number);
+    }
+    replacedStash_.erase(found);
+    return core::Status{};
+}
+
+std::vector<std::optional<core::Page>> MutationSinkImpl::drawnFacts() const
+{
+    std::vector<std::optional<core::Page>> out;
+    out.reserve(walk_.pages.size());
+    for (const PageEntry& page : walk_.pages) {
+        const auto found = drawnAs_.find(page.number);
+        out.push_back(found != drawnAs_.end() ? std::optional<core::Page>(found->second) : std::nullopt);
+    }
+    return out;
+}
+
+std::string MutationSinkImpl::newPageName(long long number) const
+{
+    const auto found = newPages_.find(number);
+    if (found != newPages_.end() && found->second.graph && !found->second.duplicate)
+        return "g:" + found->second.graph->key.toStdString() + ":" + std::to_string(found->second.graph->local);
+    return "page:" + std::to_string(-number);
+}
+
+void MutationSinkImpl::numberNewPages(cos::ObjectDelta& delta)
+{
+    composeNumbers_.clear();
+    bool any = false;
+    for (const PageEntry& page : walk_.pages) any = any || page.number < 0;
+    if (!any) return;
+    // After the floor no reference may cross (Stage 3 I-12).
+    delta.reserveNumbersThrough(referenceFloor());
+    for (const PageEntry& page : walk_.pages) {
+        if (page.number < 0) composeNumbers_.emplace(page.number, delta.reserve(newPageName(page.number)));
+    }
+}
+
+cos::CosObject MutationSinkImpl::mapped(const QString& key, const cos::CosObject& value) const
+{
+    switch (value.type()) {
+    case cos::CosType::Reference: {
+        const auto map = graphMaps_.find(key);
+        if (map == graphMaps_.end()) return cos::CosObject::makeNull();
+        const auto found = map->second.find(value.reference().number);
+        return found != map->second.end() && found->second >= 0 ? cos::CosObject::makeReference(found->second, 0)
+                                                                 : cos::CosObject::makeNull();
+    }
+    case cos::CosType::Array: {
+        std::vector<cos::CosObject> items;
+        items.reserve(value.items().size());
+        for (const cos::CosObject& item : value.items()) items.push_back(mapped(key, item));
+        return cos::CosObject::makeArray(std::move(items));
+    }
+    case cos::CosType::Dictionary:
+    case cos::CosType::Stream: {
+        std::vector<cos::CosObject::Entry> entries;
+        entries.reserve(value.entries().size());
+        for (const cos::CosObject::Entry& entry : value.entries()) entries.push_back({entry.key, mapped(key, entry.value)});
+        return value.isStream() ? cos::CosObject::makeStream(std::move(entries), cos::CosStreamData{})
+                                : cos::CosObject::makeDictionary(std::move(entries));
+    }
+    default:
+        return withoutSpans(value);
+    }
+}
+
+core::Result<cos::CosObject> MutationSinkImpl::graphPage(const GraphPage& page) const
+{
+    const auto graph = graphs_.find(page.key);
+    if (graph == graphs_.end()) return sinkError(core::ErrorCode::NotFound, "error.pdf.objectMissing", page.local);
+    auto fetched = const_cast<Graph&>(graph->second).table.fetch(page.local);
+    if (!fetched || !fetched.value().object.isDictionary())
+        return sinkError(core::ErrorCode::NotFound, "error.pdf.objectMissing", page.local);
+    cos::CosObject dictionary = cos::CosObject::makeDictionary(
+        std::vector<cos::CosObject::Entry>(fetched.value().object.entries().begin(), fetched.value().object.entries().end()));
+    for (const char* key : {"Parent", "Annots", "StructParents", "B"}) dictionary = AnnotationOps::withoutEntry(dictionary, key);
+    return mapped(page.key, dictionary);
+}
+
+core::Status MutationSinkImpl::composeGraphs(cos::ObjectDelta& delta)
+{
+    graphMaps_.clear();
+    for (auto& [key, graph] : graphs_) graph.composedAt.clear();
+    if (graphs_.empty()) return core::Status{};
+    // Which graphs a page of the document draws from, and the page of THIS document each payload page is.
+    // A graph whose pages a save wrote is live too (`liveGraphs`): it writes nothing more, and its numbers name its
+    // layers (`composeLayers`).
+    std::map<QString, std::map<long long, long long>> targets;
+    const std::set<QString> live = liveGraphs();
+    for (const PageEntry& page : walk_.pages) {
+        if (page.number < 0) {
+            const auto made = newPages_.find(page.number);
+            if (made == newPages_.end() || !made->second.graph) continue;
+            if (!made->second.duplicate) targets[made->second.graph->key][made->second.graph->local] = composeNumbers_.at(page.number);
+        } else if (const auto replacing = replaced_.find(page.number); replacing != replaced_.end()) {
+            targets[replacing->second.key][replacing->second.local] = page.number;
+        }
+    }
+    for (const QString& key : live) {
+        Graph& graph = graphs_.at(key);
+        std::map<long long, long long>& map = graphMaps_[key];
+        std::vector<long long> mapping;
+        std::vector<std::string> names;
+        std::vector<long long> numbers;
+        mapping.reserve(graph.objects.size() + graph.pageObjects.size());
+        const std::string prefix = "g:" + key.toStdString() + ":";
+        for (const long long object : graph.objects) {
+            if (const auto saved = graph.onDisk.find(object); saved != graph.onDisk.end()) {
+                map[object] = saved->second;
+            } else {
+                names.push_back(prefix + std::to_string(object));
+                map[object] = delta.reserve(names.back());
+                numbers.push_back(map[object]);
+                graph.composedAt.emplace(object, map[object]);
+            }
+            mapping.push_back(map[object]);
+        }
+        const auto& drawn = targets[key];
+        for (const long long page : graph.pageObjects) {
+            const auto found = drawn.find(page);
+            map[page] = found != drawn.end() ? found->second : -1;
+            mapping.push_back(map[page]);
+        }
+        for (const long long annotation : graph.annotationObjects) map[annotation] = -1;
+        if (numbers.empty()) continue;   // a save wrote them all
+        // S7 T4's rule, the graph one unit: the same mapping writes the same bytes.
+        bool reused = graph.unit.complete() && graph.mapping == mapping && graph.unit.numbers == numbers;
+        for (std::size_t at = 0; reused && at < numbers.size(); ++at) reused = !delta.touches(numbers[at]);
+        if (reused) {
+            for (const Written& written : graph.unit.written) delta.reuse(written);
+            graph.unit.round = round_;
+            continue;
+        }
+        graph.mapping = std::move(mapping);
+        graph.unit = UnitObjects{};
+        graph.unit.names = names;
+        graph.unit.numbers = numbers;
+        graph.unit.round = round_;
+        for (const long long object : graph.objects) {
+            if (graph.onDisk.count(object) != 0) continue;
+            auto fetched = graph.table.fetch(object);
+            if (!fetched) {
+                if (!delta.define(map[object], cos::CosObject::makeNull())) return graphError("define", object);
+                continue;
+            }
+            const cos::CosObject& value = fetched.value().object;
+            std::optional<std::string> data;
+            if (value.isStream()) data = std::string(value.rawStreamData(graph.table.source()));
+            if (!delta.define(map[object], mapped(key, value), std::move(data))) return graphError("define", object);
+        }
+    }
+    return core::Status{};
+}
+
+std::set<QString> MutationSinkImpl::liveGraphs() const
+{
+    std::set<QString> live;
+    for (const PageEntry& page : walk_.pages) {
+        if (page.number < 0) {
+            const auto made = newPages_.find(page.number);
+            if (made != newPages_.end() && made->second.graph) live.insert(made->second.graph->key);
+        } else if (const auto replacing = replaced_.find(page.number); replacing != replaced_.end()) {
+            live.insert(replacing->second.key);
+        } else if (const auto saved = graphOfPage_.find(page.number); saved != graphOfPage_.end()) {
+            live.insert(saved->second);
+        }
+    }
+    return live;
+}
+
+namespace {
+
+bool namesAny(const cos::CosObject& item, const std::set<long long>& numbers)
+{
+    return item.isReference() && numbers.count(item.reference().number) != 0;
+}
+
+// `list` without the groups in `gone` -- nested arrays filtered too, and one left with no group dropped.
+std::optional<cos::CosObject> withoutGroups(const cos::CosObject& list, const std::set<long long>& gone, int depth = 0)
+{
+    if (!list.isArray() || depth > 32) return list;
+    std::vector<cos::CosObject> items;
+    bool group = false;
+    for (const cos::CosObject& item : list.items()) {
+        if (namesAny(item, gone)) continue;
+        if (item.isArray()) {
+            if (std::optional<cos::CosObject> inner = withoutGroups(item, gone, depth + 1)) {
+                items.push_back(std::move(*inner));
+                group = true;
+            }
+            continue;
+        }
+        group = group || item.isReference();
+        items.push_back(item);
+    }
+    if (depth > 0 && !group) return std::nullopt;
+    return cos::CosObject::makeArray(std::move(items));
+}
+
+std::set<long long> groupsIn(const cos::CosObject& list)
+{
+    std::set<long long> out;
+    for (const cos::CosObject& item : list.items()) {
+        if (item.isReference()) out.insert(item.reference().number);
+    }
+    return out;
+}
+
+} // namespace
+
+core::Status MutationSinkImpl::composeLayers(std::map<long long, cos::CosObject>& pending)
+{
+    // What each graph brings, and what each one added that the document no longer draws.
+    const std::set<QString> live = liveGraphs();
+    std::vector<cos::CosObject> added;
+    std::set<long long> gone;
+    for (const auto& [key, graph] : graphs_) {
+        if (!graph.layers) continue;
+        if (live.count(key) != 0) {
+            added.push_back(mapped(key, *graph.layers));
+        } else {
+            for (const long long group : graph.layerGroups) {
+                if (const auto saved = graph.onDisk.find(group); saved != graph.onDisk.end()) gone.insert(saved->second);
+            }
+        }
+    }
+    if (added.empty() && gone.empty()) return core::Status{};
+
+    const cos::CosObject& root = table_.trailer().get("Root");
+    if (!root.isReference()) return sinkError(core::ErrorCode::Corrupted, "error.pdf.objectMissing", -1);
+    const long long catalogNumber = root.reference().number;
+    // The catalog as this compose has it so far -- written back into `pending` only when this changes it.
+    cos::CosObject catalog;
+    if (const auto composed = pending.find(catalogNumber); composed != pending.end()) {
+        catalog = composed->second;
+    } else {
+        auto current = table_.fetch(catalogNumber);
+        if (!current || !current.value().object.isDictionary())
+            return sinkError(core::ErrorCode::NotFound, "error.pdf.objectMissing", catalogNumber);
+        catalog = withoutSpans(current.value().object);
+    }
+    const cos::CosObject* held = catalog.find("OCProperties");
+    std::optional<long long> holder;
+    cos::CosObject properties = cos::CosObject::makeDictionary({});
+    if (held != nullptr && held->isReference()) {
+        holder = held->reference().number;
+        if (auto it = pending.find(*holder); it != pending.end()) properties = it->second;
+        else if (auto fetched = table_.fetch(*holder); fetched && fetched.value().object.isDictionary()) properties = withoutSpans(fetched.value().object);
+    } else if (held != nullptr && held->isDictionary()) {
+        properties = *held;
+    }
+    const cos::CosObject before = properties;
+    const auto resolved = [this](const cos::CosObject& value) {
+        if (!value.isReference()) return value;
+        auto fetched = table_.fetch(value.reference().number);
+        return fetched ? withoutSpans(fetched.value().object) : cos::CosObject::makeNull();
+    };
+    cos::CosObject defaults = resolved(properties.get("D"));
+    if (!defaults.isDictionary()) defaults = cos::CosObject::makeDictionary({});
+
+    // Out first: every group a graph added that no page draws now, from every list that names it.
+    std::vector<cos::CosObject> groups = withoutGroups(resolved(properties.get("OCGs")), gone).value_or(cos::CosObject::makeArray({})).items();
+    const auto filtered = [&](const char* key) {
+        return withoutGroups(resolved(defaults.get(key)), gone).value_or(cos::CosObject::makeArray({})).items();
+    };
+    std::vector<cos::CosObject> order = filtered("Order");
+    std::vector<cos::CosObject> off = filtered("OFF");
+    std::vector<cos::CosObject> on = filtered("ON");
+    std::vector<cos::CosObject> locked = filtered("Locked");
+    std::vector<cos::CosObject> radios = filtered("RBGroups");
+    std::vector<cos::CosObject> usage;
+    const cos::CosObject applications = resolved(defaults.get("AS"));
+    for (const cos::CosObject& entry : applications.items()) {
+        cos::CosObject application = resolved(entry);
+        if (!application.isDictionary()) continue;
+        std::optional<cos::CosObject> members = withoutGroups(resolved(application.get("OCGs")), gone);
+        if (!members || members->items().empty()) continue;
+        usage.push_back(AnnotationOps::withEntry(application, "OCGs", std::move(*members)));
+    }
+    // Then in: each live graph's groups not listed yet, with its default states. Under `/BaseState /OFF` a group the
+    // source showed is named in `/ON`, so it shows here too.
+    const cos::CosObject& base = defaults.get("BaseState");
+    const bool baseOff = base.isName() && base.text() != "ON";
+    std::set<long long> listed = groupsIn(cos::CosObject::makeArray(groups));
+    for (const cos::CosObject& layers : added) {
+        const cos::CosObject& d = layers.get("D");
+        const std::set<long long> hidden = groupsIn(d.get("OFF"));
+        std::set<long long> fresh;
+        for (const cos::CosObject& group : layers.get("OCGs").items()) {
+            if (!group.isReference() || !listed.insert(group.reference().number).second) continue;
+            fresh.insert(group.reference().number);
+            groups.push_back(group);
+            if (hidden.count(group.reference().number) != 0) off.push_back(group);
+            else if (baseOff) on.push_back(group);
+        }
+        if (fresh.empty()) continue;
+        for (const cos::CosObject& item : d.get("Order").items()) order.push_back(item);
+        for (const cos::CosObject& item : d.get("Locked").items()) locked.push_back(item);
+        for (const cos::CosObject& item : d.get("RBGroups").items()) radios.push_back(item);
+        for (const cos::CosObject& item : d.get("AS").items()) usage.push_back(item);
+    }
+
+    // No group left -- an insert that brought the only ones, undone after a save: no optional content at all.
+    if (groups.empty()) {
+        if (held != nullptr) pending.insert_or_assign(catalogNumber, AnnotationOps::withoutEntry(catalog, "OCProperties"));
+        return core::Status{};
+    }
+    cos::CosObject newDefaults = defaults;
+    const auto put = [&newDefaults](const char* key, std::vector<cos::CosObject> items) {
+        newDefaults = items.empty() ? AnnotationOps::withoutEntry(newDefaults, key)
+                                    : AnnotationOps::withEntry(newDefaults, key, cos::CosObject::makeArray(std::move(items)));
+    };
+    put("Order", std::move(order));
+    put("OFF", std::move(off));
+    put("ON", std::move(on));
+    put("Locked", std::move(locked));
+    put("RBGroups", std::move(radios));
+    put("AS", std::move(usage));
+    cos::CosObject out = AnnotationOps::withEntry(properties, "OCGs", cos::CosObject::makeArray(std::move(groups)));
+    // `/D` written where it was: into its own object when it has one, else inline.
+    if (const cos::CosObject& d = properties.get("D"); d.isReference()) {
+        if (!(resolved(d) == newDefaults)) pending.insert_or_assign(d.reference().number, std::move(newDefaults));
+    } else {
+        out = AnnotationOps::withEntry(out, "D", std::move(newDefaults));
+    }
+    if (out == before) return core::Status{};
+    if (holder) pending.insert_or_assign(*holder, std::move(out));
+    else pending.insert_or_assign(catalogNumber, AnnotationOps::withEntry(catalog, "OCProperties", std::move(out)));
+    return core::Status{};
+}
+
+core::Status MutationSinkImpl::composeReplacements(std::map<long long, cos::CosObject>& pending, std::set<int>& handled)
+{
+    if (replaced_.empty() && restored_.empty()) return core::Status{};
+    const std::map<long long, int> indexOf = indexOfPages();
+    const auto finish = [&](long long number, int index, cos::CosObject page) -> core::Status {
+        const std::map<std::string, cos::CosObject> passed = inheritedThrough(table_, page.get("Parent"));
+        if (!page.has("CropBox") && passed.count("CropBox") != 0) {
+            if (const cos::CosObject* media = page.find("MediaBox")) page = AnnotationOps::withEntry(page, "CropBox", *media);
+        }
+        const auto rotate = passed.find("Rotate");
+        page = withRotation(page, rotate == passed.end() ? 0 : PageOps::normalizeRotate(rotate->second), desiredRotation(index));
+        auto current = currentPage(table_, number);
+        if (!current) return current.error();
+        if (withoutSpans(current.value()) == page) return core::Status{};   // the disk already says it: nothing to write
+        pending.insert_or_assign(number, std::move(page));
+        handled.insert(index);
+        return core::Status{};
+    };
+    for (const auto& [number, page] : replaced_) {
+        const auto at = indexOf.find(number);
+        if (at == indexOf.end()) continue;   // a page the document does not have now: nothing is drawn from it
+        auto base = currentPage(table_, number);
+        if (!base) return base.error();
+        cos::CosObject out = withoutSpans(base.value());
+        for (const char* key : kDrawingKeys) out = AnnotationOps::withoutEntry(out, key);
+        out = AnnotationOps::withoutEntry(out, "StructParents");
+        auto drawn = graphPage(page);
+        if (!drawn) return drawn.error();
+        for (const cos::CosObject::Entry& entry : drawn.value().entries()) {
+            for (const char* key : kDrawingKeys) {
+                if (entry.key == key) out = AnnotationOps::withEntry(out, entry.key, entry.value);
+            }
+        }
+        if (core::Status done = finish(number, at->second, std::move(out)); !done) return done;
+    }
+    for (const auto& [number, dictionary] : restored_) {
+        const auto at = indexOf.find(number);
+        if (at == indexOf.end() || replaced_.count(number) != 0) continue;
+        auto current = currentPage(table_, number);
+        if (!current) return current.error();
+        // The dictionary it had, under the parent it has now and listing what the disk lists -- the listing is the
+        // annotations' compose's, which writes it when it differs.
+        // In place, key for key: the dictionary it had is written back exactly (A-24's rule for an undo).
+        const cos::CosObject* annots = current.value().find("Annots");
+        cos::CosObject out = annots != nullptr ? AnnotationOps::withEntry(dictionary, "Annots", withoutSpans(*annots))
+                                               : AnnotationOps::withoutEntry(dictionary, "Annots");
+        out = AnnotationOps::withEntry(out, "Parent", withoutSpans(current.value().get("Parent")));
+        if (core::Status done = finish(number, at->second, std::move(out)); !done) return done;
+    }
+    return core::Status{};
 }
 
 } // namespace rawpage::pdf::ops

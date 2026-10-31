@@ -483,10 +483,14 @@ void PdfiumDocument::clearRefusal()
 // THE RELOAD -- Stage 6 T4, D6-2 (the header's `show`)
 // =============================================================================================
 
-void PdfiumDocument::show(QByteArray base, QByteArray update, std::vector<int> from, std::shared_ptr<ShowGate> gate)
+void PdfiumDocument::show(QByteArray base, QByteArray update, std::vector<int> from, std::shared_ptr<ShowGate> gate,
+                          std::vector<std::optional<core::Page>> drawn)
 {
+    // S7 T5: no page from elsewhere is spelled empty too.
+    if (std::none_of(drawn.begin(), drawn.end(), [](const std::optional<core::Page>& page) { return page.has_value(); }))
+        drawn.clear();
     // THE IDENTITY IS SPELLED EMPTY, so a document no page command touched compares as it always did.
-    bool identity = static_cast<int>(from.size()) == pages_.count();
+    bool identity = drawn.empty() && static_cast<int>(from.size()) == pages_.count();
     for (std::size_t i = 0; identity && i < from.size(); ++i) identity = from[i] == static_cast<int>(i);
     if (identity) from.clear();
 
@@ -500,10 +504,10 @@ void PdfiumDocument::show(QByteArray base, QByteArray update, std::vector<int> f
     // Built here, on the caller's thread, so the swap under the engine lock only moves a pointer -- and only for
     // an order not already queued or drawn: an annotation edit after a move keeps the move's tree.
     std::shared_ptr<const core::PageTree> tree;
-    const bool newOrder = from != (pending_ ? pending_->from : shownFrom_);
+    const bool newOrder = from != (pending_ ? pending_->from : shownFrom_) || drawn != (pending_ ? pending_->drawn : shownDrawn_);
     if (!from.empty()) {
         if (!newOrder) tree = pending_ ? pending_->pages : drawn_;
-        if (!tree) tree = std::make_shared<const core::PageTree>(pages_.reordered(from));
+        if (!tree) tree = std::make_shared<const core::PageTree>(pages_.reordered(from, drawn));
     }
     // A NEW ORDER MAKES EVERY CONTENT BOX'S KEY ANOTHER PAGE'S (S7 T3): forgotten now, before the next ask --
     // which comes from this thread, and computes from the reloaded document because the swap comes first.
@@ -513,19 +517,21 @@ void PdfiumDocument::show(QByteArray base, QByteArray update, std::vector<int> f
     }
     // NO WORK FOR WHAT IS ALREADY DRAWN OR ALREADY QUEUED: the same buffer (by identity, which is what
     // sharing makes cheap to ask), the same update bytes and the same order.
-    const auto same = [&](const QByteArray& otherBase, const QByteArray& otherUpdate, const std::vector<int>& otherFrom) {
+    const auto same = [&](const QByteArray& otherBase, const QByteArray& otherUpdate, const std::vector<int>& otherFrom,
+                          const std::vector<std::optional<core::Page>>& otherDrawn) {
         return otherBase.constData() == base.constData() && otherBase.size() == base.size()
-               && otherUpdate == update && otherFrom == from;
+               && otherUpdate == update && otherFrom == from && otherDrawn == drawn;
     };
-    const bool drawnNow = shownBase_.isNull() ? same(bytes_, QByteArray(), shownFrom_)
-                                              : same(shownBase_, shownUpdate_, shownFrom_);
-    if (pending_ ? same(pending_->base, pending_->update, pending_->from) : drawnNow) return;
+    const bool drawnNow = shownBase_.isNull() ? same(bytes_, QByteArray(), shownFrom_, shownDrawn_)
+                                              : same(shownBase_, shownUpdate_, shownFrom_, shownDrawn_);
+    if (pending_ ? same(pending_->base, pending_->update, pending_->from, pending_->drawn) : drawnNow) return;
     if (gate) {
         // S7 T4: BEHIND ITS GATE. A revision already pending stays pending until the gate decides between them.
         Pending next;
         next.base = std::move(base);
         next.update = std::move(update);
         next.from = std::move(from);
+        next.drawn = std::move(drawn);
         next.pages = std::move(tree);
         next.generation = ++nextGeneration_;
         next.gate = std::move(gate);
@@ -547,6 +553,7 @@ void PdfiumDocument::show(QByteArray base, QByteArray update, std::vector<int> f
     next.base = std::move(base);
     next.update = std::move(update);
     next.from = std::move(from);
+    next.drawn = std::move(drawn);
     next.pages = std::move(tree);
     next.generation = ++nextGeneration_;
     reloadStats_.pendingGeneration = next.generation;
@@ -622,6 +629,7 @@ void PdfiumDocument::adoptPendingLocked() const
     shownUpdate_ = std::move(next->update);
     // THE TREE WITH THE DOCUMENT IT DESCRIBES (S7 T3), in the same swap under the same lock.
     shownFrom_ = std::move(next->from);
+    shownDrawn_ = std::move(next->drawn);
     drawn_ = std::move(next->pages);
     ++reloadStats_.reloads;
     reloadStats_.lastLoad = std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::now() - began);

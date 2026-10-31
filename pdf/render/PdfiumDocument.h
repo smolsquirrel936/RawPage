@@ -274,6 +274,10 @@ public:
     // its rotation as read at open, which keeps D3-15's delta and the rasterizer's correction reading
     // the same rotation for the same page.
     //
+    // **AND A PAGE THE ENGINE NEVER OPENED** (Stage 7 T5, D7-4): `drawn[i]`, where it holds one, is the page index
+    // `i` draws -- one inserted from another document, or a page replaced by one -- taken instead of `pages()`'s. It is
+    // part of the order: a show that changes only it is a new tree.
+    //
     // **A RELOAD THAT FAILS changes nothing**: the engine keeps the document it had and keeps drawing
     // it, and the failure is counted and logged. `show(bytes(), {})` puts the document back on the
     // bytes it opened, and is no work at all when it never left them.
@@ -284,7 +288,8 @@ public:
     // fails rather than draw the old pages at the indices the refused revision gave them). A job that would swap
     // waits for the gate first: `awaitShown()` before it takes the engine lock, and the swap itself under the lock if
     // a caller did not. A revision queued ungated before a gated one is kept until the gate decides.
-    void show(QByteArray base, QByteArray update, std::vector<int> from = {}, std::shared_ptr<ShowGate> gate = {});
+    void show(QByteArray base, QByteArray update, std::vector<int> from = {}, std::shared_ptr<ShowGate> gate = {},
+              std::vector<std::optional<core::Page>> drawn = {});
     // Waits, holding no lock, until no gated revision is waiting -- what a job calls before the engine lock.
     void awaitShown() const;
     // A gated revision whose gate failed is dropped now, and the refusal ends (S7 T4): the backend, once it has put
@@ -343,6 +348,7 @@ private:
         QByteArray base;
         QByteArray update;
         std::vector<int> from;                           // S7 T3: empty is the identity
+        std::vector<std::optional<core::Page>> drawn;    // S7 T5: pages `pages_` never held; empty for none
         std::shared_ptr<const core::PageTree> pages;     // ... and `pages_` read through it; null for the identity
         std::uint64_t generation = 0;
         std::shared_ptr<ShowGate> gate;                  // S7 T4: null for a revision nothing gates
@@ -360,6 +366,7 @@ private:
     mutable QByteArray shownBase_;
     mutable QByteArray shownUpdate_;
     mutable std::vector<int> shownFrom_;   // S7 T3, beside the two above
+    mutable std::vector<std::optional<core::Page>> shownDrawn_;   // S7 T5, beside it
     mutable ReloadStats reloadStats_;
     // S7 T3: the engine's tree when it is not `pages_`; written at a swap, under the engine lock.
     mutable std::shared_ptr<const core::PageTree> drawn_;

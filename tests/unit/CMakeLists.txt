@@ -133,6 +133,8 @@ add_executable(rawpage_tests
     tst_remap.cpp                 # Stage 7 T3  -- D7-3's consumers in core/ over a fake engine with an ORDER: the
                                   #   cache, the disk tier that does not remap, the scheduler, the text index and
                                   #   its epoch, a search, a selection, the find bar's hits (S7 guide A-30, A-31, A-34)
+    tst_copier.cpp                # Stage 7 T5  -- the copier's payload against its source, read first-party, and an
+                                  #   insert and a replace saved, undone and redone (S7 guide A-39 ... A-43, A-45)
     tst_composememo.cpp           # Stage 7 T4  -- the compose that keeps what it composed writes what one from nothing
                                   #   writes, over every editable corpus file (S7 guide A-128), and the late refusal
                                   #   taken back through a real sink (A-36's headless half)

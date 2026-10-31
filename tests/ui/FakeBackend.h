@@ -22,6 +22,7 @@
 #include "core/doc/PageTransitions.h"
 #include "core/doc/XfdfCodec.h"
 #include "core/doc/Outline.h"
+#include "core/doc/CopiedPages.h"
 #include "core/backend.h"
 #include "core/doc/Page.h"
 #include "core/doc/PageTree.h"
@@ -122,6 +123,35 @@ public:
         out.labels.resize(pages.size());
         return out;
     }
+    // Stage 7 T5: an insert or a replace of `insertedCount` letter-size pages with no annotation, counted.
+    core::Result<core::InsertedPages> insertPages(int, const QString&, const QByteArray&) override
+    {
+        ++pageCommands;
+        ++calls;
+        return insertedPages();
+    }
+    core::Result<core::InsertedPages> replacePages(const std::vector<int>&, const QString&, const QByteArray&) override
+    {
+        ++pageCommands;
+        ++calls;
+        return insertedPages();
+    }
+    core::Status restoreReplacedPages(const std::vector<int>&, const QString&) override
+    {
+        ++pageCommands;
+        ++calls;
+        return {};
+    }
+    core::InsertedPages insertedPages() const
+    {
+        core::InsertedPages out;
+        for (int i = 0; i < insertedCount; ++i) {
+            out.pages.emplace_back(i, core::PdfRect{core::PdfPoint{0.0, 0.0}, core::PdfSize{612.0, 792.0}});
+            out.listings.emplace_back();
+        }
+        return out;
+    }
+    int insertedCount = 1;
     int pageCommands = 0;
     std::vector<QString> attachmentInserts;
     std::vector<QString> attachmentRemovals;
@@ -398,6 +428,14 @@ public:
     core::Status annotationWritable(const core::Annotation& annotation) const override
     {
         return writable ? writable(annotation) : core::Status{};
+    }
+    core::Result<core::CopiedPages> copyPages(const QString&, const std::vector<int>&) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "copyPages");
+    }
+    core::Result<core::CopiedPages> blankPages(core::PdfSize, int) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "blankPages");
     }
 
     // `openBytes` opens as `open()` does, under the name, read-only: the bytes are recorded, not read.

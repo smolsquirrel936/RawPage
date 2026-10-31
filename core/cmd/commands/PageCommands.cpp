@@ -8,6 +8,7 @@
 #include <QJsonArray>
 #include <QJsonValue>
 
+#include <algorithm>
 #include <cmath>
 #include <map>
 
@@ -443,6 +444,208 @@ Result<std::unique_ptr<Command>> DuplicatePagesCommand::deserialize(const QJsonO
     auto key = keyFrom(json, kTypeId);
     if (!key) return key.error();
     return std::unique_ptr<Command>(new DuplicatePagesCommand(std::move(pages).value(), std::move(key).value()));
+}
+
+// ==========================================================================================
+// Pages from elsewhere -- Stage 7 T5. See the header.
+// ==========================================================================================
+
+namespace {
+
+QString graphJson(const QByteArray& graph)
+{
+    return QString::fromLatin1(graph.toBase64());
+}
+
+// `{"graph": "<base64>"}` as an insert and a replace write it: strict base64, not empty, inside the cap.
+Result<QByteArray> graphFrom(const QJsonObject& json, QLatin1String type)
+{
+    const QJsonValue value = json.value(QStringLiteral("graph"));
+    if (!value.isString()) return badPageCommand(type, "graph");
+    const QString text = value.toString();
+    if (text.isEmpty() || text.size() > (kMaxCopiedGraphBytes / 3 + 1) * 4) return badPageCommand(type, "graph");
+    auto decoded = QByteArray::fromBase64Encoding(text.toLatin1(), QByteArray::AbortOnBase64DecodingErrors);
+    if (!decoded || decoded.decoded.isEmpty() || decoded.decoded.size() > kMaxCopiedGraphBytes) return badPageCommand(type, "graph");
+    return decoded.decoded;
+}
+
+// A whole number in [low, high], or nothing.
+std::optional<int> wholeIn(const QJsonValue& value, double low, double high)
+{
+    if (!value.isDouble()) return std::nullopt;
+    const double number = value.toDouble();
+    if (!std::isfinite(number) || std::trunc(number) != number || number < low || number > high) return std::nullopt;
+    return static_cast<int>(number);
+}
+
+} // namespace
+
+// ---- InsertPagesCommand ------------------------------------------------------------------------
+
+InsertPagesCommand::InsertPagesCommand(int at, CopiedPages pages, QString key)
+    : at_(at), pages_(std::move(pages)), key_(key.isEmpty() ? newCommandKey() : std::move(key))
+{
+}
+
+CatalogText InsertPagesCommand::name() const
+{
+    return pageCountName("command.page.insert", static_cast<std::size_t>(std::max(pages_.pageCount, 0)));
+}
+
+Scope InsertPagesCommand::scope() const
+{
+    return map_ ? Scope::pageCommand(*map_) : Scope::wholeDocument();
+}
+
+bool InsertPagesCommand::apply(Document& document, MutationSink& sink)
+{
+    refusal_.reset();
+    const int count = document.pages().count();
+    if (pages_.isEmpty() || at_ < 0 || at_ > count) return false;
+    auto inserted = sink.insertPages(at_, key_, pages_.graph);
+    if (!inserted) {
+        refusal_ = inserted.error();
+        return false;
+    }
+    // The map is the SINK's count -- what the payload holds -- so a payload whose stated count is wrong cannot make
+    // the model and the sink disagree.
+    const std::size_t made = inserted.value().pages.size();
+    const std::optional<PageMap> map = PageMap::insertion(count, at_, static_cast<int>(made));
+    if (!map || inserted.value().listings.size() != made) return false;   // the sink broke its contract
+    report_ = pages_.report;
+    report_.references.insert(report_.references.end(), inserted.value().report.references.begin(),
+                              inserted.value().report.references.end());
+    map_ = map;
+    return applyPageMapToModel(document, *map, std::move(inserted.value().pages), std::move(inserted.value().listings));
+}
+
+bool InsertPagesCommand::revert(Document& document, MutationSink& sink)
+{
+    if (!map_ || map_->newCount() != document.pages().count()) return false;
+    // The pages go, KEPT under the key: a redo puts back the same ones (the sink's contract).
+    if (!sink.removePages(map_->inserted(), key_)) return false;
+    return applyPageMapToModel(document, map_->inverse(), {}, {});
+}
+
+QJsonObject InsertPagesCommand::serialize() const
+{
+    return QJsonObject{{QStringLiteral("type"), QLatin1String(kTypeId)},
+                       {QStringLiteral("at"), at_},
+                       {QStringLiteral("key"), key_},
+                       {QStringLiteral("pages"), pages_.pageCount},
+                       {QStringLiteral("graph"), graphJson(pages_.graph)}};
+}
+
+Result<std::unique_ptr<Command>> InsertPagesCommand::deserialize(const QJsonObject& json)
+{
+    if (!typeIs(json, kTypeId)) return badPageCommand(kTypeId, "type");
+    const std::optional<int> at = wholeIn(json.value(QStringLiteral("at")), 0.0, RotatePageCommand::kMaxPageIndex);
+    if (!at) return badPageCommand(kTypeId, "at");
+    auto key = keyFrom(json, kTypeId);
+    if (!key) return key.error();
+    const std::optional<int> count = wholeIn(json.value(QStringLiteral("pages")), 1.0, kMaxPagesPerCommand);
+    if (!count) return badPageCommand(kTypeId, "pages");
+    auto graph = graphFrom(json, kTypeId);
+    if (!graph) return graph.error();
+    CopiedPages pages;
+    pages.graph = std::move(graph).value();
+    pages.pageCount = *count;
+    return std::unique_ptr<Command>(new InsertPagesCommand(*at, std::move(pages), std::move(key).value()));
+}
+
+// ---- ReplacePagesCommand -----------------------------------------------------------------------
+
+ReplacePagesCommand::ReplacePagesCommand(std::vector<int> pages, CopiedPages copied, QString key)
+    : pages_(std::move(pages)), copied_(std::move(copied)), key_(key.isEmpty() ? newCommandKey() : std::move(key))
+{
+}
+
+CatalogText ReplacePagesCommand::name() const
+{
+    return pageCountName("command.page.replace", pages_.size());
+}
+
+Status ReplacePagesCommand::permitted(const Document& document) const
+{
+    for (const int page : pages_) {
+        if (Status status = document.permissions().mayEditPage(page); !status) return status;
+        if (Status status = document.permissions().mayAnnotate(page); !status) return status;
+    }
+    return Status{};
+}
+
+bool ReplacePagesCommand::apply(Document& document, MutationSink& sink)
+{
+    refusal_.reset();
+    if (copied_.isEmpty() || !PageMap::isPageSet(document.pages().count(), pages_)) return false;
+    std::vector<Page> before;
+    for (const int page : pages_) before.push_back(*document.pages().at(page));
+
+    auto replaced = sink.replacePages(pages_, key_, copied_.graph);
+    if (!replaced) {
+        refusal_ = replaced.error();
+        return false;
+    }
+    if (replaced.value().pages.size() != pages_.size() || replaced.value().listings.size() != pages_.size())
+        return false;   // the sink broke its contract
+
+    // The model's half, which cannot refuse for a set checked above: each page's facts, and the payload page's
+    // annotations listed after the page's own.
+    std::vector<std::pair<AnnotationPlacement, Annotation>> entries;
+    std::vector<AnnotationPlacement> added;
+    for (std::size_t i = 0; i < pages_.size(); ++i) {
+        const int page = pages_[i];
+        int position = static_cast<int>(document.annotations().listing(page).size());
+        for (const AnnotationStore::PageListing::Entry& entry : replaced.value().listings[i].entries) {
+            if (!entry.annotation) continue;
+            entries.emplace_back(AnnotationPlacement{page, position}, *entry.annotation);
+            added.push_back(AnnotationPlacement{page, position++});
+        }
+    }
+    if (!entries.empty() && !document.annotations().insert(entries)) return false;
+    for (std::size_t i = 0; i < pages_.size(); ++i) document.pages().setPage(pages_[i], replaced.value().pages[i]);
+    before_ = std::move(before);
+    added_ = std::move(added);
+    report_ = copied_.report;
+    report_.references.insert(report_.references.end(), replaced.value().report.references.begin(),
+                              replaced.value().report.references.end());
+    return true;
+}
+
+bool ReplacePagesCommand::revert(Document& document, MutationSink& sink)
+{
+    if (before_.size() != pages_.size() || !PageMap::isPageSet(document.pages().count(), pages_)) return false;
+    if (!sink.restoreReplacedPages(pages_, key_)) return false;
+    // The annotations it listed, last first -- each placement then names the entry it named when it was made.
+    if (!added_.empty()) {
+        std::vector<AnnotationPlacement> removal(added_.rbegin(), added_.rend());
+        if (!document.annotations().remove(removal)) return false;
+    }
+    for (std::size_t i = 0; i < pages_.size(); ++i) document.pages().setPage(pages_[i], before_[i]);
+    return true;
+}
+
+QJsonObject ReplacePagesCommand::serialize() const
+{
+    return QJsonObject{{QStringLiteral("type"), QLatin1String(kTypeId)},
+                       {QStringLiteral("pages"), pagesJson(pages_)},
+                       {QStringLiteral("key"), key_},
+                       {QStringLiteral("graph"), graphJson(copied_.graph)}};
+}
+
+Result<std::unique_ptr<Command>> ReplacePagesCommand::deserialize(const QJsonObject& json)
+{
+    if (!typeIs(json, kTypeId)) return badPageCommand(kTypeId, "type");
+    auto pages = pagesFrom(json, kTypeId);
+    if (!pages) return pages.error();
+    auto key = keyFrom(json, kTypeId);
+    if (!key) return key.error();
+    auto graph = graphFrom(json, kTypeId);
+    if (!graph) return graph.error();
+    CopiedPages copied;
+    copied.graph = std::move(graph).value();
+    copied.pageCount = static_cast<int>(pages.value().size());
+    return std::unique_ptr<Command>(new ReplacePagesCommand(std::move(pages).value(), std::move(copied), std::move(key).value()));
 }
 
 } // namespace rawpage::core

@@ -57,14 +57,19 @@ rawpage_add_fuzz_target(fuzz_text_pipeline fuzz_text_pipeline.cpp)
 # T13 the XFDF branch to the same body.
 rawpage_add_fuzz_target(fuzz_annot_pipeline fuzz_annot_pipeline.cpp rawpage_ops)
 
+# Stage 7 T5 (D7-23): bytes -> the page walk -> pdf/ops/ObjectGraphCopier -> the payload re-read -> the sink's insert
+# and replace into a fixed target, composed and verified, under AssemblyFuzzBody.h's invariants. T7 adds the assembler,
+# T11 the outline reader and T17 the layer tree to the same body.
+rawpage_add_fuzz_target(fuzz_assembly fuzz_assembly.cpp rawpage_ops)
+
 # Guide case A-27 (Stage 2) and A-83(a) (Stage 3): "Expect exactly N fuzz targets. ZERO IS A FAILURE,
 # NOT A PASS." That case exists because A-25 and A-26 -- "no crashes in ten minutes" -- are passed
 # trivially by a target that builds nothing. The count is asserted here, at configure time, so the
 # build graph cannot quietly become empty between now and the Linux run.
 #
 # It was 1 at Stage 2 T5, 2 from T6, 3 from Stage 3 T13 with fuzz_cos_roundtrip, 4 from Stage 5 T4
-# with fuzz_text_pipeline, and 5 from Stage 6 T2 with fuzz_annot_pipeline. The next task to add or remove a target changes this number in the same commit. The assertion itself is
+# with fuzz_text_pipeline, 5 from Stage 6 T2 with fuzz_annot_pipeline, and 6 from Stage 7 T5 with fuzz_assembly. The next task to add or remove a target changes this number in the same commit. The assertion itself is
 # cmake/RawPageFuzzTargets.cmake, where the gates.fuzz_count.* cases can prove it fires.
-set(RAWPAGE_EXPECTED_FUZZ_TARGETS 5)
+set(RAWPAGE_EXPECTED_FUZZ_TARGETS 6)
 include("${CMAKE_SOURCE_DIR}/cmake/RawPageFuzzTargets.cmake")
 rawpage_assert_fuzz_target_count(${RAWPAGE_EXPECTED_FUZZ_TARGETS})

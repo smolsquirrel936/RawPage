@@ -30,6 +30,7 @@
 #include "core/doc/Metadata.h"
 #include "core/doc/PageTransitions.h"
 #include "core/doc/Outline.h"
+#include "core/doc/CopiedPages.h"
 #include "core/backend.h"
 
 #include <algorithm>
@@ -121,6 +122,14 @@ public:
     core::Status annotationWritable(const core::Annotation&) const override
     {
         return core::notImplementedError(core::BackendInterface::DocumentBackend, "annotationWritable");
+    }
+    core::Result<core::CopiedPages> copyPages(const QString&, const std::vector<int>&) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "copyPages");
+    }
+    core::Result<core::CopiedPages> blankPages(core::PdfSize, int) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "blankPages");
     }
     const core::PageTransitions* pageTransitions(core::DocumentHandle) const override
     {

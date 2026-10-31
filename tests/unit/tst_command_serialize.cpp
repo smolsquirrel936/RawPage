@@ -16,6 +16,7 @@
 #include "core/cmd/CommandRegistry.h"
 #include "core/cmd/commands/AnnotationCommands.h"
 #include "core/cmd/commands/AttachmentCommands.h"
+#include "pdf/ops/ObjectGraphCopier.h"
 #include "core/cmd/commands/PageCommands.h"
 
 #include <QFile>
@@ -201,6 +202,29 @@ const std::map<std::string, std::function<std::vector<std::unique_ptr<Command>>(
              out.push_back(std::make_unique<core::DuplicatePagesCommand>(std::vector<int>{2, 3, RotatePageCommand::kMaxPageIndex}));
              return out;
          }},
+        // Stage 7 T5 (D7-6): the payload rides in the line, as base64 -- a blank page's, and bytes of every value (the
+        // command carries the payload; reading it is the sink's).
+        {"page.insert",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             auto blank = pdf::ops::ObjectGraphCopier::blankPages(core::PdfSize{612, 792}, 2);
+             REQUIRE(blank);
+             out.push_back(std::make_unique<core::InsertPagesCommand>(0, blank.value()));
+             core::CopiedPages binary;
+             for (int b = 0; b < 256; ++b) binary.graph.append(static_cast<char>(b));
+             binary.pageCount = 3;
+             out.push_back(std::make_unique<core::InsertPagesCommand>(RotatePageCommand::kMaxPageIndex, binary,
+                                                                      QString(32, QLatin1Char('b'))));
+             return out;
+         }},
+        {"page.replace",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             auto blank = pdf::ops::ObjectGraphCopier::blankPages(core::PdfSize{595, 842}, 2);
+             REQUIRE(blank);
+             out.push_back(std::make_unique<core::ReplacePagesCommand>(std::vector<int>{1, 7}, blank.value()));
+             return out;
+         }},
         // Stage 6 T13 (D6-20): an import that only adds -- an exchange's names, an Acrobat-shaped one among them --
         // one that only replaces, and one that does both.
         {"annot.import",
@@ -248,7 +272,7 @@ bool catalogHas(const char* file, QLatin1String key)
 // A-42 -- the registry round-trips what it registered and refuses what it did not
 // ==========================================================================================
 
-TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][serialize][serialize:RotatePageCommand][serialize:AddAnnotationCommand][serialize:DeleteAnnotationCommand][serialize:EditAnnotationCommand][serialize:MoveAnnotationCommand][serialize:SetAnnotationAppearanceCommand][serialize:LockAnnotationCommand][serialize:ReplyToAnnotationCommand][serialize:SetAnnotationStatusCommand][serialize:AddAttachmentCommand][serialize:DeleteAttachmentCommand][serialize:ImportAnnotationsCommand][serialize:MovePagesCommand][serialize:DeletePagesCommand][serialize:DuplicatePagesCommand]")
+TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][serialize][serialize:RotatePageCommand][serialize:AddAnnotationCommand][serialize:DeleteAnnotationCommand][serialize:EditAnnotationCommand][serialize:MoveAnnotationCommand][serialize:SetAnnotationAppearanceCommand][serialize:LockAnnotationCommand][serialize:ReplyToAnnotationCommand][serialize:SetAnnotationStatusCommand][serialize:AddAttachmentCommand][serialize:DeleteAttachmentCommand][serialize:ImportAnnotationsCommand][serialize:MovePagesCommand][serialize:DeletePagesCommand][serialize:DuplicatePagesCommand][serialize:InsertPagesCommand][serialize:ReplacePagesCommand]")
 {
     const auto typeIds = CommandRegistry::typeIds();
     REQUIRE_FALSE(typeIds.empty());
@@ -283,7 +307,7 @@ TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][s
             registered = registered || typeId == QLatin1String(id.c_str());
         CHECK(registered);
     }
-    CHECK(roundTrips == 16 + 3 + 2 + 2 + 2 + 2 + 2 + 2 + 3 + 2 + 2 + 3 + 3 + 2 + 2);
+    CHECK(roundTrips == 16 + 3 + 2 + 2 + 2 + 2 + 2 + 2 + 3 + 2 + 2 + 3 + 3 + 2 + 2 + 2 + 1);
 }
 
 // Stage 6 T13 (D6-20): an import is a journal line carrying two sets -- what it adds must be what an add accepts,
@@ -455,6 +479,20 @@ TEST_CASE("CommandRegistry refuses every malformed page-order command by Result"
         {"delete: pages an object", QJsonObject{{"type", "page.delete"}, {"pages", QJsonObject{}}, {"key", key}}},
         {"duplicate: key 10 MB", QJsonObject{{"type", "page.duplicate"}, {"pages", QJsonArray{1}}, {"key", huge}}},
         {"duplicate: pages descending", QJsonObject{{"type", "page.duplicate"}, {"pages", QJsonArray{2, 0}}, {"key", key}}},
+        // Stage 7 T5: an insert's and a replace's payload, and an insert's place and count.
+        {"insert: graph missing", QJsonObject{{"type", "page.insert"}, {"at", 0}, {"key", key}, {"pages", 1}}},
+        {"insert: graph empty", QJsonObject{{"type", "page.insert"}, {"at", 0}, {"key", key}, {"pages", 1}, {"graph", ""}}},
+        {"insert: graph not base64", QJsonObject{{"type", "page.insert"}, {"at", 0}, {"key", key}, {"pages", 1}, {"graph", "!!!!"}}},
+        {"insert: graph a number", QJsonObject{{"type", "page.insert"}, {"at", 0}, {"key", key}, {"pages", 1}, {"graph", 7}}},
+        {"insert: at -1", QJsonObject{{"type", "page.insert"}, {"at", -1}, {"key", key}, {"pages", 1}, {"graph", "JVBERg=="}}},
+        {"insert: at 1.5", QJsonObject{{"type", "page.insert"}, {"at", 1.5}, {"key", key}, {"pages", 1}, {"graph", "JVBERg=="}}},
+        {"insert: pages 0", QJsonObject{{"type", "page.insert"}, {"at", 0}, {"key", key}, {"pages", 0}, {"graph", "JVBERg=="}}},
+        {"insert: pages a million and one",
+         QJsonObject{{"type", "page.insert"}, {"at", 0}, {"key", key}, {"pages", core::kMaxPagesPerCommand + 1}, {"graph", "JVBERg=="}}},
+        {"insert: key missing", QJsonObject{{"type", "page.insert"}, {"at", 0}, {"pages", 1}, {"graph", "JVBERg=="}}},
+        {"replace: graph missing", QJsonObject{{"type", "page.replace"}, {"pages", QJsonArray{1}}, {"key", key}}},
+        {"replace: graph 10 MB of not base64", QJsonObject{{"type", "page.replace"}, {"pages", QJsonArray{1}}, {"key", key}, {"graph", huge + QStringLiteral("!")}}},
+        {"replace: pages descending", QJsonObject{{"type", "page.replace"}, {"pages", QJsonArray{2, 0}}, {"key", key}, {"graph", "JVBERg=="}}},
     };
     for (const auto& [label, json] : hostile) {
         INFO("input: " << label);

@@ -24,6 +24,7 @@
 //     move, so it runs from 0 to `count - pages.size()`.
 //   * `removal(count, pages)` -- the pages go, the rest close up.
 //   * `duplication(count, pages)` -- each page's copy lands immediately after it.
+//   * `insertion(count, at, n)` -- Stage 7 T5: n pages from elsewhere land at `at`, the rest after them.
 // Each refuses (nullopt) a page set that is empty, unsorted, repeated or out of range. A move that
 // changes nothing returns the IDENTITY, which is how a caller knows to make no command (guide A-17).
 //
@@ -62,6 +63,10 @@ public:
     static std::optional<PageMap> move(int count, const std::vector<int>& pages, int to);
     static std::optional<PageMap> removal(int count, const std::vector<int>& pages);
     static std::optional<PageMap> duplication(int count, const std::vector<int>& pages);
+    // Stage 7 T5: `inserted` new pages landing at index `at` (0 ... `count`), every page from `at` on after them.
+    // Refused for an `at` outside that range, or a count outside 1 ... `kMaxInserted`.
+    static std::optional<PageMap> insertion(int count, int at, int inserted);
+    static constexpr int kMaxInserted = 1'000'000;
 
     // A page SET as every page command takes one: non-empty, strictly ascending, inside [0, count).
     static bool isPageSet(int count, const std::vector<int>& pages);

@@ -1,6 +1,7 @@
 // core/cmd/commands/PageCommands -- commands over pages. Stage 3 T5: `RotatePageCommand`. Stage 7 T2:
 // `MovePagesCommand`, `DeletePagesCommand` and `DuplicatePagesCommand` (`Stage7-Assembly-Plan.md` D7-1 ... D7-3);
-// insert and replace (T5), crop, resize and renumber (T9) arrive with their tasks.
+// Stage 7 T5: `InsertPagesCommand` and `ReplacePagesCommand` (D7-4, D7-6); crop, resize and renumber (T9) arrive
+// with their task.
 //
 // RotatePageCommand is the first-milestone mutation and the shape every later command copies, so the
 // choices below are made for the hundredth command as much as for this one.
@@ -23,6 +24,7 @@
 #include "core/Result.h"
 #include "core/cmd/Command.h"
 #include "core/doc/AnnotationStore.h"
+#include "core/doc/CopiedPages.h"
 #include "core/doc/Page.h"
 #include "core/doc/PageMap.h"
 
@@ -204,6 +206,94 @@ private:
     PageCommandReport report_;
     std::optional<Error> refusal_;
     std::optional<PageMap> map_;
+};
+
+// ===========================================================================================
+// PAGES FROM ELSEWHERE -- Stage 7 T5 (`Stage7-Assembly-Plan.md` D7-4, D7-6)
+// ===========================================================================================
+// Each carries the COPY, not the source file: `CopiedPages::graph`, the payload `IDocumentBackend::copyPages` or
+// `blankPages` made when the pages were picked, serialized with the command -- the recovery journal puts a payload
+// over 64 KiB in a side file named by its SHA-256 (D6-23) -- so a replay needs no source (D7-6). Each has a key, as
+// a delete has: its copies of the payload's annotations are named from it (`<key>-0`, ...), and the sink keeps what
+// an undo takes away under it, so a redo puts back THE SAME pages.
+//
+// What the copy met (`CopiedPages::report`) is not serialized: a replay reports only what the sink meets.
+
+class InsertPagesCommand final : public Command {
+public:
+    static constexpr QLatin1String kTypeId{"page.insert"};
+
+    // The payload's pages land at index `at` (0 ... the page count), in order; the page at `at` and those after it
+    // follow them. An empty `key` makes a new one.
+    InsertPagesCommand(int at, CopiedPages pages, QString key = {});
+
+    int at() const noexcept { return at_; }
+    const CopiedPages& pages() const noexcept { return pages_; }
+    const QString& key() const noexcept { return key_; }
+    // What the copy and the sink met (D7-2) -- a link whose page stayed behind, a widget, a tag tree.
+    const PageCommandReport& report() const noexcept { return report_; }
+    Operation operation() const override { return Operation::EditPages; }
+    Status permitted(const Document& document) const override { return pageCommandPermitted(document, {}); }
+
+    QLatin1String typeId() const override { return kTypeId; }
+    CatalogText name() const override;      // command.page.insert: %1 page count
+    Scope scope() const override;           // WholeDocument, with the map once applied (D7-3)
+    std::optional<Error> refusal() const override { return refusal_; }
+
+    bool apply(Document& document, MutationSink& sink) override;
+    bool revert(Document& document, MutationSink& sink) override;
+
+    // {"type": "page.insert", "at": n, "key": "<hex>", "pages": count, "graph": "<base64>"}
+    QJsonObject serialize() const override;
+    static Result<std::unique_ptr<Command>> deserialize(const QJsonObject& json);
+
+private:
+    int at_ = 0;
+    CopiedPages pages_;
+    QString key_;
+    PageCommandReport report_;
+    std::optional<Error> refusal_;
+    std::optional<PageMap> map_;
+};
+
+class ReplacePagesCommand final : public Command {
+public:
+    static constexpr QLatin1String kTypeId{"page.replace"};
+
+    // Page `pages[i]` draws the payload's page `i` -- as many pages as the payload holds. Each KEEPS ITS OBJECT (the
+    // user's choice, 2026-10-31): what points at it still lands on it, no repair needed. What it draws is the
+    // payload page's, its own annotations stay, and the payload page's are added after them. A page no save has
+    // written yet is refused (`error.edit.pageNotSaved`): it is replaced by deleting it and inserting.
+    ReplacePagesCommand(std::vector<int> pages, CopiedPages copied, QString key = {});
+
+    const std::vector<int>& pages() const noexcept { return pages_; }
+    const CopiedPages& copied() const noexcept { return copied_; }
+    const QString& key() const noexcept { return key_; }
+    const PageCommandReport& report() const noexcept { return report_; }
+    Operation operation() const override { return Operation::EditPages; }
+    // Every page it names may be edited and annotated: annotations are added to each (D7-21).
+    Status permitted(const Document& document) const override;
+
+    QLatin1String typeId() const override { return kTypeId; }
+    CatalogText name() const override;      // command.page.replace: %1 page count
+    Scope scope() const override { return Scope::pages(pages_); }
+    std::optional<Error> refusal() const override { return refusal_; }
+
+    bool apply(Document& document, MutationSink& sink) override;
+    bool revert(Document& document, MutationSink& sink) override;
+
+    // {"type": "page.replace", "pages": [...], "key": "<hex>", "graph": "<base64>"}
+    QJsonObject serialize() const override;
+    static Result<std::unique_ptr<Command>> deserialize(const QJsonObject& json);
+
+private:
+    std::vector<int> pages_;
+    CopiedPages copied_;
+    QString key_;
+    PageCommandReport report_;
+    std::optional<Error> refusal_;
+    std::vector<Page> before_;                      // what each page was, from apply
+    std::vector<AnnotationPlacement> added_;        // where apply listed the payload's annotations
 };
 
 // 128 random bits as 32 lowercase hex digits -- a page command's key.

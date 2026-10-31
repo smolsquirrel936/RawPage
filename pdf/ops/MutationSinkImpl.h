@@ -126,6 +126,24 @@
 // ends and each unit built in it keeps the bytes it was written as. `adopt()` drops all of it -- the next
 // revision's numbers start above what the save wrote.
 //
+// PAGES FROM ELSEWHERE -- Stage 7 T5 (D7-4, D7-6). An insert or a replace hands the sink a GRAPH: the payload
+// `ObjectGraphCopier` wrote, a small PDF holding the copied pages and everything they reach. The sink parses it
+// once, keeps it by the command's key (`graphs_`) and takes its objects from it at every compose -- each written
+// under the book name `g:<key>:<number>`, so a compose renumbers nothing it did not touch, and written again as
+// it was, as ONE unit, when nothing it maps to has changed. A graph is written only while a page of the document
+// draws from it, and after a save that wrote it, never again (`Graph::onDisk`): a page put back by a later undo
+// points at the objects the file now holds.
+//   * An INSERTED page is a new page, numbered negative until a compose gives it a number, as a duplicate is --
+//     its dictionary the payload page's, its annotations COPIES written from the payload's dictionaries
+//     (`copies_`, the same path a duplicate's copies take), its label the next of its range.
+//   * A REPLACED page KEEPS ITS OBJECT (the user's choice, 2026-10-31): `replaced_` says which payload page it
+//     draws, and the compose writes its dictionary with every key that DRAWS -- content, resources, the five
+//     boxes, rotation, group, user unit -- taken from it and every other key its own; the payload page's
+//     annotations are listed after its own. An undo puts back what it drew; after a save, from the dictionary
+//     it had (`restored_`), so the undo is exact on either side of one.
+// `drawnAs_` holds, per page object, the page as it was drawn when it arrived -- what the backend's page tree
+// shows for a page the engine did not open (`drawnFacts`).
+//
 // WHAT IT DOES NOT DO. It refuses nothing on policy -- whether this document may be edited at all is
 // `core/doc/Permissions` (D3-7, T4) -- and it writes nothing: the update's bytes, the temporary file
 // and the replace are `IncrementalWriter`, `SaveCoordinator` and `platform::IDurableFiles`.
@@ -137,6 +155,7 @@
 #include "core/backend.h"
 #include "core/doc/Annotation.h"
 #include "core/doc/Attachments.h"
+#include "core/doc/CopiedPages.h"
 #include "pdf/cos/IncrementalWriter.h"
 #include "pdf/cos/XrefTable.h"
 #include "pdf/ops/AppearanceStreamBuilder.h"
@@ -147,6 +166,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -212,6 +232,16 @@ public:
     std::vector<int> desiredDiskIndices() const;
     // Each page's label once the desired state is written; empty for a document with no /PageLabels.
     QString pageLabel(int pageIndex) const;
+
+    // --- Pages from elsewhere (Stage 7 T5) -- see the header ----------------------------------------
+    core::Result<core::InsertedPages> insertPages(int at, const QString& key, const QByteArray& graph) override;
+    core::Result<core::InsertedPages> replacePages(const std::vector<int>& pages, const QString& key,
+                                                   const QByteArray& graph) override;
+    core::Status restoreReplacedPages(const std::vector<int>& pages, const QString& key) override;
+    // For each page of the desired order: the page as it was DRAWN when it arrived, for a page the engine did not
+    // open -- inserted, replaced, or a duplicate of one -- and nullopt for every other. What the backend's page tree
+    // holds for it (D7-3's tree, in which a page carries the facts it was first drawn with).
+    std::vector<std::optional<core::Page>> drawnFacts() const;
 
     // --- Annotations (Stage 6 T3) --------------------------------------------------------------
     // Whether a CREATED annotation can be written new: a kind this build draws (D6-6) or one with no appearance at
@@ -362,8 +392,16 @@ private:
 
     PageWalk diskWalk_;                                   // the newest revision on disk, in its order
     std::vector<PageLabelRange> labels_;                  // desired, by index; empty: no /PageLabels
+    // S7 T5: a page of a graph -- the command's key and the page's number in the payload.
+    struct GraphPage {
+        QString key;
+        long long local = 0;
+        bool operator==(const GraphPage& other) const { return key == other.key && local == other.local; }
+    };
     struct NewPage {
-        long long source = 0;                             // the page on disk it copies
+        long long source = 0;                             // the page on disk it copies; 0 for one from a graph
+        std::optional<GraphPage> graph;                   // S7 T5: the payload page it draws
+        bool duplicate = false;                           // S7 T5: a duplicate of it, not the inserted page itself
     };
     std::map<long long, NewPage> newPages_;               // by its negative number
     long long nextNewPage_ = -1;
@@ -374,8 +412,10 @@ private:
         cos::CosObject dictionary;
         std::optional<Edit> edit;
         core::Annotation model;
+        QString graph;   // S7 T5: the payload `dictionary` is read from -- its references are the payload's; empty: the file's
     };
     std::map<QString, CopySource> copies_;                // by the copy's /NM; kept until a save writes it
+
     std::set<long long> knownPages_;                      // every page object a revision on disk listed
     ReferenceRepair::Ledger ledger_;                      // values the repair changed in a saved revision
     ReferenceRepair::Ledger composedLedger_;              // what the last compose's repair changed
@@ -492,6 +532,83 @@ private:
     // Re-lists `objects` in `delta` as written, marking each name used; false -- the unit is to be built
     // again -- when one is not written, its name now has another number, or a shared object cannot follow.
     bool reuseUnit(UnitObjects& objects, cos::ObjectDelta& delta, DeltaObjects& shared);
+
+    // --- Pages from elsewhere (Stage 7 T5) -- see the header ----------------------------------------
+    struct Graph {
+        QByteArray bytes;                                 // the payload, which `table` views
+        cos::XrefTable table;
+        PageWalk walk;
+        std::set<long long> pageObjects;                  // its pages, by their number in the payload
+        std::set<long long> annotationObjects;            // the annotations they list -- written as copies
+        std::vector<long long> objects;                   // every other object it holds, ascending
+        std::map<long long, long long> onDisk;            // after a save that wrote them: each one's number there
+        std::map<long long, long long> composedAt;        // the last compose's numbers for them
+        // ONE unit (S7 T4's rule): its objects as the last compose wrote them, and what that compose mapped
+        // every payload number to -- the same mapping writes the same bytes.
+        std::vector<long long> mapping;
+        UnitObjects unit;
+        // Stage 7 guide I-07: the optional-content groups its pages use, as the copier narrowed the source's
+        // `/OCProperties` -- payload numbers; none when it uses none.
+        std::optional<cos::CosObject> layers;
+        std::set<long long> layerGroups;
+    };
+    // The payload `graph`, parsed and checked: refused by key for one that is not a payload this sink can take.
+    static core::Result<Graph> parseGraph(const QByteArray& graph);
+    // The graph under `key` -- parsed once, kept for the session (a page put back by an undo draws from it).
+    core::Result<Graph*> graphFor(const QString& key, const QByteArray& graph);
+    // `graph`'s page `index` as it draws: its boxes and rotation, from the payload's own dictionary.
+    static core::Page pageFactsOf(Graph& graph, int index);
+    // Every annotation the payload's pages list, as COPIES named `<key>-0`, `<key>-1`, ... over the pages in order --
+    // the model's listings (page `i`'s copies owned by `targets[i]`), the sink's, and each copy's source. Changes
+    // nothing: the caller keeps what it takes. A copy a save already wrote is listed as the object it is.
+    struct Copies {
+        std::vector<core::AnnotationStore::PageListing> model;
+        std::vector<std::vector<ListedEntry>> listings;
+        std::vector<std::pair<QString, CopySource>> sources;
+    };
+    Copies copiesOf(const QString& key, Graph& graph, const std::vector<int>& targets) const;
+    // Each new page's number for this compose, by name: `g:<key>:<n>` for an inserted page, `page:<n>` for
+    // any other (S7 T4). Before anything else in the compose, so a graph can name the pages it points at.
+    void numberNewPages(cos::ObjectDelta& delta);
+    std::string newPageName(long long number) const;
+    // Every graph a page of the document draws from, written -- or written again as it was, or not at all once a
+    // save wrote it -- and `graphMaps_` filled: each payload number's number in this compose, -1 for none.
+    core::Status composeGraphs(cos::ObjectDelta& delta);
+    // A value of `key`'s payload with every reference renumbered through `graphMaps_` -- null for what this
+    // compose does not write.
+    cos::CosObject mapped(const QString& key, const cos::CosObject& value) const;
+    // A graph page's dictionary as a page of THIS document draws it: renumbered, its tree and listing keys gone.
+    core::Result<cos::CosObject> graphPage(const GraphPage& page) const;
+    // Each replaced page's dictionary, and each restored one's (see the header), into `pending`.
+    core::Status composeReplacements(std::map<long long, cos::CosObject>& pending, std::set<int>& handled);
+    // Stage 7 guide I-07: the document's `/OCProperties` as the pages it draws need it -- the disk's, every group a graph
+    // added that no page draws from now taken out, and every live graph's groups added with their default states, so a
+    // group its source hid stays hidden. Into `pending` (the catalog, or `/OCProperties`' own object).
+    core::Status composeLayers(std::map<long long, cos::CosObject>& pending);
+    std::set<QString> liveGraphs() const;
+    std::map<QString, Graph> graphs_;                     // by the command's key
+    std::map<QString, std::map<long long, long long>> graphMaps_;   // this compose's, by key
+    std::map<long long, GraphPage> replaced_;             // a page on disk -> the payload page it draws
+    std::map<long long, cos::CosObject> restored_;        // a page on disk -> the dictionary an undo writes back
+    std::map<long long, core::Page> drawnAs_;             // by page object (negative for a new one)
+    // A page ON DISK that draws a graph's page -- inserted, or replaced, and saved -- by the graph's key: what keeps that
+    // graph's layers in the document after the save (`liveGraphs`).
+    std::map<long long, QString> graphOfPage_;
+    // What a replace took, per page, so its undo puts it back.
+    struct ReplacedSlot {
+        int index = 0;
+        long long number = 0;
+        PageEntry entry;                                  // the walk's entry before
+        int rotation = 0;                                 // the rotation it displayed at before
+        std::vector<ListedEntry> listing;                 // its listing before
+        std::optional<GraphPage> replacement;             // what it drew from before, if anything
+        std::optional<NewPage> newPage;                   // a new page: what it was before
+        std::optional<cos::CosObject> restored;           // its `restored_` entry before
+        std::optional<cos::CosObject> onDisk;             // a page on disk: its dictionary when replaced
+        std::optional<core::Page> drawnAs;
+        std::optional<QString> graphOf;                   // its `graphOfPage_` entry before
+    };
+    std::map<QString, std::vector<ReplacedSlot>> replacedStash_;
 };
 
 } // namespace rawpage::pdf::ops

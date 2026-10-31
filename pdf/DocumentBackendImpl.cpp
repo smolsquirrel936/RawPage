@@ -3,6 +3,7 @@
 #include "core/Log.h"
 #include "core/doc/AnnotationStore.h"
 #include "core/doc/Attachments.h"
+#include "core/doc/CopiedPages.h"
 #include "core/doc/DocumentId.h"
 #include "core/doc/Fdf.h"
 #include "core/doc/Permissions.h"
@@ -13,6 +14,8 @@
 #include "pdf/cos/XrefRepair.h"
 #include "pdf/ops/EmbeddedFileReader.h"
 #include "pdf/ops/MutationSinkImpl.h"
+#include "pdf/ops/PageOps.h"
+#include "pdf/ops/ObjectGraphCopier.h"
 #include "pdf/ops/TransitionReader.h"
 #include "pdf/ops/RevisionWriter.h"
 #include "pdf/render/PdfiumDocument.h"
@@ -203,6 +206,7 @@ struct DocumentBackendImpl::Open {
         core::PageTree drawn;
         std::vector<int> drawnFrom;
         std::vector<bool> drawnOriginal;
+        std::vector<std::optional<core::Page>> drawnFacts;
         core::Outline outline;
         core::Destinations destinations;
     };
@@ -231,6 +235,9 @@ struct DocumentBackendImpl::Open {
     // and per page of the newest revision on disk. What names a page names the original, never its copy (D7-2).
     std::vector<bool> drawnOriginal;
     std::vector<bool> diskOriginal;
+    // S7 T5 (D7-4): per page drawn, the page as it was first drawn when the engine never opened it -- inserted from
+    // another document, or replaced by a page of one (`MutationSinkImpl::drawnFacts`); nullopt for every other.
+    std::vector<std::optional<core::Page>> drawnFacts;
 
     // THE OUTLINE AND THE NAMED DESTINATIONS AS THEY NOW NAME PAGES (S7 T3): PDFium's reading at open, each
     // destination's page carried to where that page OBJECT is drawn now, or to *unresolved* (-1) where a command
@@ -657,6 +664,29 @@ core::Status DocumentBackendImpl::annotationWritable(const core::Annotation& ann
     return ops::MutationSinkImpl::canCreate(annotation);
 }
 
+// Stage 7 T5 (D7-4, D7-6): read once, here, through the first-party reader that writes the copy -- the engine never
+// sees the source. Nothing is changed and no document is registered.
+core::Result<core::CopiedPages> DocumentBackendImpl::copyPages(const QString& path, const std::vector<int>& pages)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return core::Error{core::ErrorCode::IoFailure, QLatin1String("error.open.notFound"), path};
+    const QByteArray bytes = file.readAll();
+    file.close();
+    auto copied = ops::ObjectGraphCopier::copyFile(std::string_view(bytes.constData(), static_cast<std::size_t>(bytes.size())),
+                                                   pages);
+    if (!copied) return copied.error();
+    RAWPAGE_LOG_INFO(core::LogSubsystem::Save)
+        << "backend: copied" << copied.value().pageCount << "page(s) of" << path << "--" << copied.value().graph.size()
+        << "bytes," << static_cast<int>(copied.value().report.references.size()) << "reported";
+    return copied;
+}
+
+core::Result<core::CopiedPages> DocumentBackendImpl::blankPages(core::PdfSize size, int count)
+{
+    return ops::ObjectGraphCopier::blankPages(size, count);
+}
+
 core::Status DocumentBackendImpl::extractAttachment(core::DocumentHandle document, const core::AttachmentRef& attachment,
                                                     const QString& path, bool overwrite)
 {
@@ -800,10 +830,11 @@ core::Status DocumentBackendImpl::showEdits(core::DocumentHandle document,
     if (!entry->sink) {
         for (const auto& [handle, target] : shown) {
             const std::vector<int> identity = drawnFrom(nullptr, {}, target->document->pages().count());
-            if (target->drawnFrom != identity) {
+            if (target->drawnFrom != identity || !target->drawnFacts.empty()) {
                 target->drawn = target->document->pages();
                 target->drawnFrom = identity;
                 target->drawnOriginal.assign(identity.size(), true);
+                target->drawnFacts.clear();
                 const std::lock_guard<std::mutex> guard(mutex_);
                 target->outline = target->document->outline();
                 target->destinations = target->document->destinations();
@@ -834,19 +865,25 @@ core::Status DocumentBackendImpl::showEdits(core::DocumentHandle document,
     const std::vector<int> from = drawnFrom(entry->sink.get(), entry->diskFrom, entry->document->pages().count());
     const std::vector<bool> originals =
         drawnOriginals(entry->sink.get(), entry->diskOriginal, entry->document->pages().count());
+    // S7 T5: and each page the engine never opened, as it was first drawn.
+    std::vector<std::optional<core::Page>> facts = entry->sink->drawnFacts();
+    if (std::none_of(facts.begin(), facts.end(), [](const std::optional<core::Page>& page) { return page.has_value(); }))
+        facts.clear();
     std::vector<Open::Replaced> replaced;
     std::vector<core::DocumentHandle> gated;
     const auto gate = std::make_shared<render::ShowGate>();
     for (const auto& [handle, target] : shown) {
-        if (target->drawnFrom != from || target->drawnOriginal != originals) {
+        if (target->drawnFrom != from || target->drawnOriginal != originals || target->drawnFacts != facts) {
             Open::Replaced before;
             before.target = handle;
             before.drawn = target->drawn;
             before.drawnFrom = target->drawnFrom;
             before.drawnOriginal = target->drawnOriginal;
-            target->drawn = target->document->pages().reordered(from);
+            before.drawnFacts = target->drawnFacts;
+            target->drawn = target->document->pages().reordered(from, facts);
             target->drawnFrom = from;
             target->drawnOriginal = originals;
+            target->drawnFacts = facts;
             // THE OUTLINE AND THE NAMED DESTINATIONS follow the pages they name (S7 T3): the bookmarks pane, the
             // destinations pane and a bookmark found by a search open the page, not the index it had.
             core::Outline outline;
@@ -859,7 +896,7 @@ core::Status DocumentBackendImpl::showEdits(core::DocumentHandle document,
             target->destinations = std::move(destinations);
             replaced.push_back(std::move(before));
         }
-        target->document->show(entry->bytes, update, from, gate);
+        target->document->show(entry->bytes, update, from, gate, facts);
         gated.push_back(handle);
     }
 
@@ -912,6 +949,7 @@ core::Status DocumentBackendImpl::settleEdits(core::DocumentHandle document)
         target->drawn = std::move(before.drawn);
         target->drawnFrom = std::move(before.drawnFrom);
         target->drawnOriginal = std::move(before.drawnOriginal);
+        target->drawnFacts = std::move(before.drawnFacts);
         const std::lock_guard<std::mutex> guard(mutex_);
         target->outline = std::move(before.outline);
         target->destinations = std::move(before.destinations);

@@ -286,6 +286,44 @@ long long ReferenceRepair::View::catalogNumber() const
     return referenceNumber(table_.trailer().get("Root"));
 }
 
+// Stage 7 T5: a destination as the explicit array it is -- through references and a dictionary's `/D` -- or nullopt.
+static std::optional<CosObject> explicitArray(const ReferenceRepair::View& view, const CosObject& value, int depth = 0)
+{
+    if (depth > kMaxDepth) return std::nullopt;
+    if (value.isReference()) {
+        const std::optional<CosObject> resolved = view.resolve(value);
+        return resolved ? explicitArray(view, *resolved, depth + 1) : std::nullopt;
+    }
+    if (value.isArray()) return value;
+    if (value.isDictionary()) return explicitArray(view, value.get("D"), depth + 1);
+    return std::nullopt;
+}
+
+std::map<std::string, CosObject> ReferenceRepair::namedArrays(const View& view)
+{
+    std::map<std::string, CosObject> out;
+    const long long catalogNumber = view.catalogNumber();
+    const std::optional<CosObject> catalog = catalogNumber >= 0 ? view.object(catalogNumber) : std::nullopt;
+    if (!catalog || !catalog->isDictionary()) return out;
+    long long rootHolder = -1;
+    CosObject rootValue;
+    // The same two places, in the same order, as `scan` -- so a name both define means what it means there.
+    for (const NameNode& leaf : nameTreeLeaves(view, *catalog, &rootHolder, &rootValue)) {
+        const std::vector<CosObject>& pairs = leaf.node.get("Names").items();
+        for (std::size_t at = 0; at + 1 < pairs.size() && out.size() < kMaxReferences; at += 2) {
+            if (!pairs[at].isString()) continue;
+            if (std::optional<CosObject> array = explicitArray(view, pairs[at + 1])) out.emplace(pairs[at].text(), std::move(*array));
+        }
+    }
+    if (const std::optional<CosObject> dests = view.resolve(catalog->get("Dests")); dests && dests->isDictionary()) {
+        for (const CosObject::Entry& entry : dests->entries()) {
+            if (out.size() >= kMaxReferences) break;
+            if (std::optional<CosObject> array = explicitArray(view, entry.value)) out.emplace(entry.key, std::move(*array));
+        }
+    }
+    return out;
+}
+
 // ==========================================================================================
 // Scan
 // ==========================================================================================

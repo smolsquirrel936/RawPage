@@ -21,6 +21,7 @@
 #include "core/cmd/commands/AnnotationCommands.h"
 #include "core/cmd/commands/PageCommands.h"
 #include "core/doc/Annotation.h"
+#include "core/doc/CopiedPages.h"
 #include "core/doc/Document.h"
 #include "core/doc/Outline.h"
 #include "core/doc/SaveCoordinator.h"
@@ -28,6 +29,7 @@
 #include "core/render/RenderRequest.h"
 #include "core/render/RenderScheduler.h"
 #include "pdf/DocumentBackendImpl.h"
+#include "pdf/cos/XrefTable.h"
 #include "pdf/ops/RevisionWriter.h"
 #include "platform/win/WinDurableFiles.h"
 
@@ -221,6 +223,78 @@ TEST_CASE("a page command after thousands of unsaved objects builds only what it
     CHECK(sizes[2].rotateBuilt == sizes[0].rotateBuilt);
     CHECK(sizes[0].moveBuilt <= 4);
     CHECK(sizes[0].rotateBuilt <= 4);
+}
+
+// ==========================================================================================
+// A-35 at T5 -- §3.7's VERDICT, on its real workload: copied pages from text-900.pdf, unsaved
+// ==========================================================================================
+
+TEST_CASE("a one-page move after thousands of unsaved copied objects -- the guide's 3.7 reading", "[compose][A-35][run-serial]")
+{
+    // §3.7: `journal.run`'s p95 and maximum for a one-page move after 0, 300 and 3,000 unsaved COPIED objects -- inserts
+    // from `text-900.pdf` (T5's `InsertPagesCommand`). Its bookmark-rename half is T11's. Graded and REPORTED here, not
+    // asserted: *not taken* is a result the guide records with its figures, not a red suite (A-35's own words).
+    const QString source = rawpage::test_oracle::corpusPath("ordinary/text-900.pdf");
+    struct Size {
+        std::size_t copied = 0;      // objects the inserts' payloads hold, measured
+        std::size_t unsaved = 0;     // the unsaved update the show wrote, measured
+        std::size_t moveBuilt = 0;
+        std::vector<double> moveMs;
+    };
+    std::vector<Size> sizes;
+    // The pages copied: 0; then about 300 objects; then about 3,000 -- each inserted as ONE command, as a person's
+    // insert from a file is, at the end of the document.
+    // (pages, inserts): 900 pages of `text-900.pdf` hold fewer than 3,000 objects, so the largest size is two inserts.
+    for (const auto& [pages, inserts] : std::vector<std::pair<int, int>>{{0, 0}, {150, 1}, {900, 2}}) {
+        auto live = openLive("ordinary/text-900.pdf");
+        core::CommandJournal& journal = *live->journal;
+        Size size;
+        for (int insert = 0; insert < inserts; ++insert) {
+            std::vector<int> set;
+            for (int i = 0; i < pages; ++i) set.push_back(i);
+            auto copied = live->backend.copyPages(source, set);
+            REQUIRE(copied);
+            auto loaded = pdf::cos::XrefTable::load(std::string_view(copied.value().graph.constData(),
+                                                                     static_cast<std::size_t>(copied.value().graph.size())));
+            REQUIRE(loaded);
+            size.copied += loaded.value().entryCount() - 3;   // the payload's own catalog, node and row 0
+            REQUIRE(journal.run(std::make_unique<core::InsertPagesCommand>(journal.document().pages().count(), copied.value())));
+            REQUIRE(journal.settle());
+        }
+        size.unsaved = live->backend.reloadRecord(live->handle)->lastObjectsWritten;
+        for (int i = 0; i < 10; ++i) {
+            REQUIRE(journal.settle());   // untimed: a person's next command comes after the verify of the last (§3.7)
+            QElapsedTimer timer;
+            timer.start();
+            REQUIRE(journal.run(std::make_unique<core::MovePagesCommand>(std::vector<int>{(i % 2) ? 7 : 5}, (i % 2) ? 5 : 7)));
+            size.moveMs.push_back(static_cast<double>(timer.nsecsElapsed()) / 1e6);
+            auto record = live->backend.reloadRecord(live->handle);
+            size.moveBuilt = std::max(size.moveBuilt, record->lastObjectsWritten - record->lastObjectsReused);
+        }
+        REQUIRE(journal.settle());
+        sizes.push_back(std::move(size));
+        live->backend.close(live->handle);
+    }
+    const double atZero = percentile(sizes[0].moveMs, 0.95);
+    bool taken = true;
+    for (const Size& size : sizes) {
+        const double p95 = percentile(size.moveMs, 0.95);
+        taken = taken && p95 <= 16.667;
+        std::printf("A-35 [3.7, T5]: %zu unsaved copied objects (%zu in the update): one-page move builds %zu, journal.run "
+                    "p95 %.2f ms max %.2f\n",
+                    size.copied, size.unsaved, size.moveBuilt, p95, percentile(size.moveMs, 1.0));
+    }
+    const double growth = percentile(sizes[2].moveMs, 0.95) - atZero;
+    taken = taken && growth <= 2.0;
+    std::printf("A-35 [3.7, T5]: p95 at the largest size minus p95 at none: %+.2f ms -- the move half of 3.7 %s\n", growth,
+                taken ? "TAKEN" : "NOT TAKEN");
+    REQUIRE(sizes.size() == 3);
+    CHECK(sizes[1].copied >= 300);
+    CHECK(sizes[2].copied >= 3000);
+    // WHAT GROWS, named rather than asserted (the verdict is the guide's): a move builds every INSERTED page's dictionary
+    // again -- T4's units cover annotations, listings and shared objects, not a new page -- so what it builds is the
+    // pages inserted, not the page it moved. Printed above; the cause of *not taken*.
+    CHECK(sizes[0].moveBuilt <= 4);
 }
 
 // ==========================================================================================

@@ -34,6 +34,29 @@ PageTree PageTree::reordered(const std::vector<int>& from) const
     return PageTree(std::move(pages));
 }
 
+PageTree PageTree::reordered(const std::vector<int>& from, const std::vector<std::optional<Page>>& drawn) const
+{
+    std::vector<Page> pages;
+    pages.reserve(from.size());
+    for (std::size_t i = 0; i < from.size(); ++i) {
+        if (i < drawn.size() && drawn[i]) {
+            pages.push_back(*drawn[i]);
+            continue;
+        }
+        const Page* page = at(from[i]);
+        pages.push_back(page != nullptr ? *page : Page{});
+    }
+    return PageTree(std::move(pages));
+}
+
+bool PageTree::setPage(int index, Page page)
+{
+    if (index < 0 || index >= count()) return false;
+    page.setIndex(index);
+    pages_[static_cast<std::size_t>(index)] = std::move(page);
+    return true;
+}
+
 int PageTree::indexOfLabel(const QString& label) const
 {
     if (label.isEmpty())

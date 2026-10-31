@@ -2814,8 +2814,28 @@
         <translation>此註解位於尚未儲存的複製頁面上。請先儲存文件，再變更此註解。</translation>
     </message>
     <message>
+        <source>error.edit.pageNotSaved</source>
+        <translation>此頁面為新加入且尚未儲存。請先儲存文件再取代此頁，或刪除此頁後插入所需的頁面。</translation>
+    </message>
+    <message>
+        <source>error.edit.replaceCount</source>
+        <translation>所選用來取代的頁數與要被取代的頁數不同。</translation>
+    </message>
+    <message>
+        <source>error.copy.tooLarge</source>
+        <translation>這些頁面連同其使用的所有內容過大，無法一次複製。請一次複製較少的頁面。</translation>
+    </message>
+    <message>
+        <source>error.copy.malformed</source>
+        <translation>無法讀取已複製的頁面。這些頁面在複製後可能已被變更或損毀。</translation>
+    </message>
+    <message>
         <source>error.pdf.pageTreeDamaged</source>
         <translation>此 PDF 的頁面清單已損毀，因此 RawPage 不會變更其頁面或頁面順序。</translation>
+    </message>
+    <message>
+        <source>error.pdf.pageSizeOutOfRange</source>
+        <translation>頁面每一邊的長度必須介於 3 到 14,400 點之間。</translation>
     </message>
     <message>
         <source>error.edit.annotationsDisagree</source>
@@ -4281,6 +4301,14 @@
     <message>
         <source>command.page.duplicate</source>
         <translation>建立 %1 頁的副本</translation>
+    </message>
+    <message>
+        <source>command.page.insert</source>
+        <translation>插入 %1 頁</translation>
+    </message>
+    <message>
+        <source>command.page.replace</source>
+        <translation>取代 %1 頁</translation>
     </message>
     <message>
         <source>command.page.rotate</source>

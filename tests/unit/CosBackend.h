@@ -34,6 +34,7 @@
 #include "core/doc/Permissions.h"
 #include "core/doc/RepairReport.h"
 #include "pdf/ops/MutationSinkImpl.h"
+#include "pdf/ops/ObjectGraphCopier.h"
 #include "pdf/ops/RevisionWriter.h"
 #include "pdf/cos/XrefRepair.h"
 
@@ -200,6 +201,19 @@ public:
     core::Status annotationWritable(const core::Annotation& annotation) const override
     {
         return pdf::ops::MutationSinkImpl::canCreate(annotation);
+    }
+    // Stage 7 T5: the shipped backend's copy, over the file read here.
+    core::Result<core::CopiedPages> copyPages(const QString& path, const std::vector<int>& pages) override
+    {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly)) return core::Error{core::ErrorCode::IoFailure, QLatin1String("error.open.notFound"), path};
+        const QByteArray bytes = file.readAll();
+        return pdf::ops::ObjectGraphCopier::copyFile(std::string_view(bytes.constData(), static_cast<std::size_t>(bytes.size())),
+                                                     pages);
+    }
+    core::Result<core::CopiedPages> blankPages(core::PdfSize size, int count) override
+    {
+        return pdf::ops::ObjectGraphCopier::blankPages(size, count);
     }
     const core::PageTree* pages(core::DocumentHandle handle) const override
     {

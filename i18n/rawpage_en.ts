@@ -2814,8 +2814,28 @@
         <translation>This comment is on a copied page that has not been saved yet. Save the document, then change the comment.</translation>
     </message>
     <message>
+        <source>error.edit.pageNotSaved</source>
+        <translation>This page was added and has not been saved yet. Save the document before replacing it, or delete it and insert the pages you want.</translation>
+    </message>
+    <message>
+        <source>error.edit.replaceCount</source>
+        <translation>The pages chosen to replace them are not as many as the pages being replaced.</translation>
+    </message>
+    <message>
+        <source>error.copy.tooLarge</source>
+        <translation>These pages, with everything they use, are too large to copy in one step. Copy fewer pages at a time.</translation>
+    </message>
+    <message>
+        <source>error.copy.malformed</source>
+        <translation>The copied pages could not be read. They may have been changed or damaged since they were copied.</translation>
+    </message>
+    <message>
         <source>error.pdf.pageTreeDamaged</source>
         <translation>The list of pages in this PDF is damaged, so RawPage will not change which pages it has or their order.</translation>
+    </message>
+    <message>
+        <source>error.pdf.pageSizeOutOfRange</source>
+        <translation>A page must be between 3 and 14,400 points on each side.</translation>
     </message>
     <message>
         <source>error.edit.annotationsDisagree</source>
@@ -4281,6 +4301,14 @@
     <message>
         <source>command.page.duplicate</source>
         <translation>Duplicate %1 page(s)</translation>
+    </message>
+    <message>
+        <source>command.page.insert</source>
+        <translation>Insert %1 page(s)</translation>
+    </message>
+    <message>
+        <source>command.page.replace</source>
+        <translation>Replace %1 page(s)</translation>
     </message>
     <message>
         <source>command.page.rotate</source>

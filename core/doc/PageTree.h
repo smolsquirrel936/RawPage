@@ -30,6 +30,7 @@
 #include <QString>
 
 #include <cstddef>
+#include <optional>
 #include <vector>
 
 namespace rawpage::core {
@@ -56,6 +57,10 @@ public:
     // duplicate copies -- as it is here, boxes and rotation and label. An entry outside this tree is an empty
     // page. What the ENGINE draws after a page command, read through the order the sink composed.
     PageTree reordered(const std::vector<int>& from) const;
+    // S7 T5: the same, with each page `drawn[i]` holds taken from it instead -- a page from another document, or
+    // one replaced by one, which this tree never held (`MutationSinkImpl::drawnFacts`). `drawn` empty, or shorter
+    // than `from`, takes nothing past its end.
+    PageTree reordered(const std::vector<int>& from, const std::vector<std::optional<Page>>& drawn) const;
 
     // The page a LABEL names, or -1. Searches in document order and returns the FIRST match, which
     // is the right answer for the two-page-1 case above: a document's second "1" is reached by
@@ -83,6 +88,11 @@ public:
     // holds a mutable `Document`, which is `CommandJournal` (D3-10).
     //
     bool setRotation(int index, int degrees) noexcept;
+
+    // S7 T5: page `index` becomes `page` -- a REPLACED page, which keeps its place and takes what it draws from the page
+    // replacing it (`ReplacePagesCommand`). Its index is set here; its label is `page`'s. False, changing nothing, for
+    // an index outside the tree.
+    bool setPage(int index, Page page);
 
     // INSERT, MOVE, REMOVE AND DUPLICATE -- Stage 7 T2 (D7-3), as ONE operation: the tree rebuilt as
     // `map` says, each page the map keeps carried whole (boxes, rotation, LABEL -- a moved page keeps the

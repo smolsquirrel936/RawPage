@@ -756,6 +756,31 @@ TEST_CASE("cos parser closes and reports an unterminated container", "[cos][pars
     }
 }
 
+TEST_CASE("cos parser ends an unterminated dictionary at endobj, as PDFium does", "[cos][parser][tolerance][I-06]")
+{
+    // Stage 7 guide I-06 (`Stage7-Assembly-Testing-Guide.md` §8), found by A-38: `corpus/malformed/unbalanced-dictionary.pdf`'s
+    // first page has no `>>`, and the parser read on into the NEXT object, so its last `/Contents` -- the second page's --
+    // won. The dictionary now ends at `endobj`, said by the same note, and the next object is read as itself.
+    const std::string bytes = "7 0 obj\n<< /Type /Page /Contents 3 0 R\nendobj\n8 0 obj\n<< /Type /Page /Contents 4 0 R >>\nendobj\n";
+    Parser parser(bytes);
+    auto first = parser.parseIndirectObject();
+    REQUIRE(first);
+    CHECK(first.value().number == 7);
+    REQUIRE(first.value().object.isDictionary());
+    CHECK(first.value().object.entries().size() == 2);
+    CHECK(first.value().object.get("Contents").reference().number == 3);
+    CHECK(parser.noteCount(ParseNote::UnterminatedDictionary) == 1);
+    CHECK(parser.noteCount(ParseNote::MissingEndobj) == 0);   // the keyword was left for the object, which found it
+    auto second = parser.parseIndirectObject();
+    REQUIRE(second);
+    CHECK(second.value().number == 8);
+    CHECK(second.value().object.get("Contents").reference().number == 4);
+    // THE CONTROL: `endobj` as a VALUE is not where a key belongs, and a well-formed dictionary is untouched.
+    Parser closed("<< /A 1 >>");
+    CHECK(closed.parseObject().get("A").integerValue() == 1);
+    CHECK(closed.noteCount(ParseNote::UnterminatedDictionary) == 0);
+}
+
 TEST_CASE("cos parser skips and reports a dictionary key that is not a name", "[cos][parser][tolerance]")
 {
     Parser parser("<< 1 2 /A 3 >>");

@@ -95,6 +95,17 @@ std::optional<PageMap> PageMap::duplication(int count, const std::vector<int>& p
     return fromOrder(count, std::move(order));
 }
 
+std::optional<PageMap> PageMap::insertion(int count, int at, int inserted)
+{
+    if (count < 0 || at < 0 || at > count || inserted < 1 || inserted > kMaxInserted) return std::nullopt;
+    std::vector<int> order;
+    order.reserve(static_cast<std::size_t>(count) + static_cast<std::size_t>(inserted));
+    for (int old = 0; old < at; ++old) order.push_back(old);
+    for (int i = 0; i < inserted; ++i) order.push_back(kNone);
+    for (int old = at; old < count; ++old) order.push_back(old);
+    return fromOrder(count, std::move(order));
+}
+
 int PageMap::newIndexOf(int oldIndex) const noexcept
 {
     if (oldIndex < 0 || oldIndex >= oldCount_) return kNone;

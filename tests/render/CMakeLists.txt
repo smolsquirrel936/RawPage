@@ -95,6 +95,8 @@ add_executable(rawpage_render_tests
     tst_reference_repair.cpp      # Stage 7 T2 -- guide A-19, A-20, A-21 (D7-2, D7-18): every page command over every
                                   #   fixture with references, SAVED and reopened, each reference graded by the identity
                                   #   PDFium extracts from the page it lands on; each page deleted in turn; the labels
+    tst_copierengine.cpp          # Stage 7 T5 -- guide A-38 (D7-4): every page of every editable corpus file copied and
+                                  #   inserted, saved, reopened and drawn against its source, 0 px at 72 and 144 dpi
     tst_remap.cpp                 # Stage 7 T3 -- guide A-30, A-32 (D7-3): a move of pages-900.pdf's pages 10 ... 19
                                   #   served wholly from the cache at their new indices, the engine never entered for
                                   #   one, each graded by its text and the saved file's pixels; an unsaved rotation

@@ -101,6 +101,8 @@ class PageMap;               // core/doc/PageMap.h         -- Stage 7 T2 (D7-3)
 struct PageCommandReport;    // core/doc/PageMap.h         -- Stage 7 T2 (D7-2)
 struct DuplicatedPages;      // core/doc/PageMap.h         -- Stage 7 T2
 struct AnnotationCopy;       // core/doc/Annotation.h      -- Stage 7 T2
+struct CopiedPages;          // core/doc/CopiedPages.h     -- Stage 7 T5 (D7-4, D7-6)
+struct InsertedPages;        // core/doc/CopiedPages.h     -- Stage 7 T5
 
 namespace render {
 struct RenderRequest;        // core/render/RenderRequest.h -- Stage 2 T10
@@ -371,6 +373,25 @@ public:
     // the next label of the range it lands in (guide A-21) -- and a report.
     virtual Result<DuplicatedPages> duplicatePages(const std::vector<int>& pages, const QString& key,
                                                    const std::vector<std::vector<AnnotationCopy>>& copies) = 0;
+
+    // PAGES FROM ELSEWHERE -- Stage 7 T5 (`Stage7-Assembly-Plan.md` D7-4, D7-6). `graph` is D7-6's payload,
+    // `CopiedPages::graph` -- pages `IDocumentBackend::copyPages` or `blankPages` copied, everything they reach with
+    // them -- and the sink takes its objects from it, renumbered at every compose; the source is never read again.
+    // Each answers the pages as the model holds them and their annotations as COPIES named from `key`
+    // (`key-0`, `key-1`, ... over the pages in order), so a replay names the same ones (D6-4).
+    //
+    // `insertPages`: the pages, in order, at index `at` (0 ... the page count) -- each a NEW page object, its label
+    // the next of the range it lands in (guide A-21). Undone by `removePages` with the same key, which keeps them;
+    // a key `removePages` holds puts back THOSE pages, so an insert saved, undone and redone is the same objects.
+    virtual Result<InsertedPages> insertPages(int at, const QString& key, const QByteArray& graph) = 0;
+    // `replacePages`: page `pages[i]` draws the payload's page `i` -- the set and the payload the same size. Each
+    // replaced page KEEPS ITS OBJECT (the user's choice, 2026-10-31), so a bookmark, a link or a destination naming
+    // it still lands on it, with no repair: what it DRAWS -- content, resources, the five boxes, rotation, group --
+    // is the payload page's, every other key is its own, and the payload page's annotations are added after its own.
+    // The model's half answered as `insertPages` answers it, its labels the pages' own. `restoreReplacedPages` with
+    // the same key puts back what each page drew and listed -- before a save and after one.
+    virtual Result<InsertedPages> replacePages(const std::vector<int>& pages, const QString& key, const QByteArray& graph) = 0;
+    virtual Status restoreReplacedPages(const std::vector<int>& pages, const QString& key) = 0;
 };
 
 // =======================================================================================
@@ -611,6 +632,18 @@ public:
     // the one comment that cannot be written and keep the rest, rather than failing whole at the sink. Refused by the
     // builder's key (`error.pdf.appearanceUnsupported`, `error.edit.stampNotRedrawable` …).
     virtual Status annotationWritable(const Annotation& annotation) const = 0;
+
+    // PAGES COPIED OUT OF ANOTHER FILE -- Stage 7 T5 (`Stage7-Assembly-Plan.md` D7-4, D7-6). The pages at `pages` (a
+    // strictly ascending set of indices) of the PDF at `path`, copied with everything they reach -- each object once,
+    // inheritance made each page's own, the page tree left behind -- as the payload an `InsertPagesCommand` or a
+    // `ReplacePagesCommand` carries. Read through the first-party reader, which is what writes the copy: refused by
+    // key for an encrypted file (`error.pdf.encrypted`, D7-21), one whose page tree the walk noted anything about,
+    // a page set that is not one, and a graph past the copy's budget (`error.copy.tooLarge`). A file opened by a
+    // repair is copied as the repair read it. Never changes an open document; the file is read once, here.
+    virtual Result<CopiedPages> copyPages(const QString& path, const std::vector<int>& pages) = 0;
+    // `count` BLANK pages of `size` points -- no content stream, an empty `/Resources` -- as the same payload (guide
+    // A-45). Refused for a size outside ISO 32000-1 Annex C's 3 ... 14,400 units.
+    virtual Result<CopiedPages> blankPages(PdfSize size, int count) = 0;
 
     // THE PAGE'S CONTENT BOUNDING BOX -- the union of its objects' bounds, in PDF points, added at
     // Stage 4 T12 (**D4-14**) to close Stage 2's **I-28**. Fit Visible is defined over it

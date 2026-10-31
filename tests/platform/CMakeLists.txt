@@ -57,6 +57,8 @@ target_include_directories(rawpage_killprobe PRIVATE "${CMAKE_SOURCE_DIR}")
 target_link_libraries(rawpage_killprobe PRIVATE rawpage_core rawpage_cos rawpage_ops rawpage_platform)
 rawpage_link_qt(rawpage_killprobe Core)
 rawpage_common_flags(rawpage_killprobe)
+# Stage 7 T5: the page cycle's insert copies a corpus file (PageSteps.h).
+target_compile_definitions(rawpage_killprobe PRIVATE RAWPAGE_CORPUS_DIR="${CMAKE_SOURCE_DIR}/corpus")
 
 target_include_directories(rawpage_platform_tests PRIVATE "${CMAKE_SOURCE_DIR}")
 

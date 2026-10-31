@@ -143,6 +143,7 @@ add_library(rawpage_core STATIC
     doc/PageTree.cpp
     doc/PageMap.h                 # Stage 7 T2 -- where every page went (D7-3), and what a page command found (D7-2)
     doc/PageMap.cpp
+    doc/CopiedPages.h             # Stage 7 T5 -- pages copied out of another document, as a command carries them
 
     # Stage 3 T4 -- the rest of D3-8's list, and no more: a type with no Stage 3 caller is tested only
     # against its own idea of what a caller wants. Document is the model CommandJournal (T5) will be

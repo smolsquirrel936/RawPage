@@ -63,8 +63,8 @@
 //
 // **PHASE 8, `--stage7`** (Stage 7 T3, D7-19) is A2 AT STAGE 7: the viewport while page commands reload the engine
 // with the pages in a new order and remap every index the cache and the queue hold (D7-3), and how long a moved
-// page takes to reach the pixels SHOWING THAT PAGE -- see the phase's own header, below phase 7. Its insert is a
-// stand-in until Stage 7 T5; the product's reading is T19's `bench_surface --stage7` (guide A-114).
+// page takes to reach the pixels SHOWING THAT PAGE -- see the phase's own header, below phase 7. Its insert is an
+// InsertPagesCommand since Stage 7 T5 (a duplicate stood in at T3); the product's reading is T19's `bench_surface --stage7` (guide A-114).
 //
 // **O7** -- is the render cache's disk tier shared between documents or per-document? D2-14 says
 // that is answered by MEASUREMENT over the corpus rather than by preference, and `CacheStats` plus
@@ -1929,12 +1929,12 @@ int runStage6Workload(const Resolution& a2)
 //   * `journal.run` (the compose inside it; since Stage 7 T4 the verify on its own thread), the REMAP (the cache's and the queue's, timed around
 //     `documentChanged`) and the reload under the engine lock -- reported, not graded (§3.7 grades `run`).
 //
-// **THE INSERT IS A STAND-IN, and says so.** §3.1's workload ends with one `InsertPages` of 100 pages from
-// `text-900.pdf`, and `InsertPagesCommand` is Stage 7 T5's: at T3 no command brings pages from another
-// document. What T3 can run that INSERTS 100 pages whose first tiles are not in the cache is a
-// `DuplicatePagesCommand` of 100 pages -- 601 … 700 -- each copy landing after its source; its first copy's
-// top-left tile is timed to the pixels as the moves are, its identity the source's. T5 replaces it with the
-// insert §3.1 names, and the reading is taken again then.
+// **THE INSERT** (Stage 7 T5, which replaced T3's stand-in, a 100-page duplicate): §3.1's workload ends with one
+// `InsertPagesCommand` of 100 pages -- 601 … 700, copied by `IDocumentBackend::copyPages` before the clock starts, as a
+// person's insert is copied when the pages are picked -- landing at 601. **Copied from the file the column runs on**,
+// which is §3.1's `text-900.pdf` on that file and `pages-900.pdf` itself on the other: the first inserted page's
+// top-left tile is timed to the pixels as the moves are, and its identity is checked against the source page's own
+// tile, which the run already holds for the file it opened.
 
 int g_stage7Seconds = 30;
 constexpr int kStage7PeriodMs = 100;
@@ -2033,7 +2033,7 @@ Stage7Outcome runStage7Column(const QString& relative, const Resolution& view, b
         };
 
         // THE IDENTITIES, before anything moves: the top-left tile of the range's first page and of the first
-        // page the stand-in insert copies.
+        // page the insert copies.
         std::map<int, QByteArray> topLeft;
         const auto topLeftOf = [&](int page) {
             RenderRequest request = requestFor(handle, page, TileRect{0, 0, 256, 256}, view.dpi);
@@ -2056,7 +2056,7 @@ Stage7Outcome runStage7Column(const QString& relative, const Resolution& view, b
                     awaitingViewport.erase(at);
                 }
                 // NOT THE WARM-UP'S ONE PIXEL (`RenderScheduler::documentChanged`, A2's named work): it is a tile at
-                // (0, 0) too, of the first page a command moved, and for the stand-in insert that is the first copy --
+                // (0, 0) too, of the first page a command moved, and for the insert that is the first inserted page --
                 // the index this column watches. Counting it would read a 1x1 tile as another page's picture.
                 if (request.document != handle || request.tile.x != 0 || request.tile.y != 0 || request.tile.width <= 1) return;
                 // The page's index, at a revision where the page stands there: its pixels must be the page's.
@@ -2164,12 +2164,18 @@ Stage7Outcome runStage7Column(const QString& relative, const Resolution& view, b
             std::this_thread::yield();
         }
 
-        // THE STAND-IN INSERT: 100 pages copied, the first copy's top-left tile timed to the pixels.
+        // THE INSERT: 100 pages copied first (untimed, as a dialog copies them), then inserted, the first inserted page's
+        // top-left tile timed to the pixels.
         if (commands) {
-            std::vector<int> copied;
-            for (int i = 0; i < kStage7CopyLength; ++i) copied.push_back(kStage7CopyFirst + i);
+            std::vector<int> picked;
+            for (int i = 0; i < kStage7CopyLength; ++i) picked.push_back(kStage7CopyFirst + i);
+            auto copied = backend.copyPages(QDir(QStringLiteral(RAWPAGE_CORPUS_DIR)).filePath(relative), picked);
+            if (!copied) {
+                std::fprintf(stderr, "bench: the insert's pages could not be copied (%s)\n", copied.error().messageKey.data());
+                return Stage7Outcome{};
+            }
             const Clock::time_point began = Clock::now();
-            const core::Status ran = journal.run(std::make_unique<core::DuplicatePagesCommand>(copied));
+            const core::Status ran = journal.run(std::make_unique<core::InsertPagesCommand>(kStage7CopyFirst + 1, copied.value()));
             const Clock::time_point returned = Clock::now();
             outcome.insertRunMs = std::chrono::duration<double, std::milli>(returned - began).count();
             if (ran) {
@@ -2231,7 +2237,7 @@ int runStage7Workload(const Resolution& a2)
                 " first page asked for at its new index after each\n",
                 kStage7RangeLength, kStage7PeriodMs, g_stage7Seconds, kStage7RangeFirst + 1,
                 kStage7RangeFirst + kStage7RangeLength);
-    std::printf("    insert        a STAND-IN: DuplicatePages of pages %d-%d (InsertPages is T5's); its first copy timed\n",
+    std::printf("    insert        InsertPages of pages %d-%d of the same file, copied before the clock; its first page timed\n",
                 kStage7CopyFirst + 1, kStage7CopyFirst + kStage7CopyLength);
     std::printf("    identity      a moved page's tile counts only when its pixels are that page's, captured before the"
                 " first command (rule 7); another page's pixels at its index are counted WRONG\n");
@@ -2260,7 +2266,7 @@ int runStage7Workload(const Resolution& a2)
         reportDistribution("verify (own thread)", moved.verifyMs);
         reportDistribution("remap", moved.remapMs);
         reportDistribution("reload", moved.reloadMs);
-        std::printf("      insert (stand-in) journal.run %.3f ms, to the pixels %s\n", moved.insertRunMs,
+        std::printf("      insert        journal.run %.3f ms, to the pixels %s\n", moved.insertRunMs,
                     moved.insertToPixels < 0.0 ? "NEVER" : QByteArray::number(moved.insertToPixels, 'f', 3).append(" ms").constData());
         std::printf("      commands %lld (%lld refused, %lld never seen), %d scrolls; wrong-identity tiles %lld; reloads"
                     " %lld, coalesced %lld, failed %lld; %lld waiting viewport tiles asked again\n",

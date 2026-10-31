@@ -146,15 +146,27 @@ TEST_CASE("assembly_shown: every page command is shown as it is saved and each u
     steps.emplace_back("the last two to the front", std::make_unique<core::MovePagesCommand>(std::vector<int>{10, 11}, 0));
     steps.emplace_back("the first and last duplicated", std::make_unique<core::DuplicatePagesCommand>(std::vector<int>{0, 11}));
     steps.emplace_back("the second deleted", std::make_unique<core::DeletePagesCommand>(std::vector<int>{1}));
+    // Stage 7 T5: pages from another document -- three that inherit every inheritable key, inserted, and a page REPLACED
+    // by one of `annots-on-pages.pdf`'s, its comments added after the page's own. The page drawn is the page saved.
+    core::IDocumentBackend& backend = product.root->services().backend;
+    auto inherited = backend.copyPages(test_oracle::corpusPath("assembly/inherit-resources.pdf"), {0, 1, 2});
+    REQUIRE(inherited);
+    steps.emplace_back("three pages inserted", std::make_unique<core::InsertPagesCommand>(4, inherited.value()));
+    auto annotated = backend.copyPages(test_oracle::corpusPath("assembly/annots-on-pages.pdf"), {3});
+    REQUIRE(annotated);
+    steps.emplace_back("a page replaced", std::make_unique<core::ReplacePagesCommand>(std::vector<int>{2}, annotated.value()));
 
     int compared = 0;
     int n = 0;
     for (auto& [name, command] : steps) {
+        // A replace saved earlier in this loop: a page is replaced only once a save has written it -- every step here
+        // runs on a document the step before saved.
+        INFO(name);
         REQUIRE(journal->run(std::move(command)));
         product.settle();
         compared += compareEveryPage(product, saveCopy(product, ++n), name);
     }
-    CHECK(compared == 12 + 12 + 14 + 13);
+    CHECK(compared == 12 + 12 + 14 + 13 + 16 + 16);
 
     // EACH UNDONE, after the saves: every page as the ORIGINAL file draws it.
     for (std::size_t i = 0; i < steps.size(); ++i) {

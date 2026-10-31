@@ -790,8 +790,14 @@ what page commands ADD: **+6.1–6.7 / +4.6–5.0 ms before the warm-up, +1.4 / 
 
 **What this does NOT claim.** One rig; our own generated corpus (D2-11); the bench's request pattern, not the shipped
 thumbnails pane's -- that reading is T19's `bench_surface --stage7` (guide A-114); a burst of ten moves a second, §3.1's
-scale and not a person's -- whether moving pages by hand feels immediate is M-12's; and an insert that is a duplicate,
-whose pages come from the same document, until T5 measures the insert §3.1 names.
+scale and not a person's -- whether moving pages by hand feels immediate is M-12's.
+
+**Re-read at T5 (2026-10-31) with the real insert** -- `InsertPagesCommand` of 100 pages (601 … 700, copied by `copyPages`
+before the clock from the file the column runs on: §3.1's `text-900.pdf` on that file, `pages-900.pdf` itself on the other),
+three runs, nothing else running: viewport p95 **11.17–11.30 ms on `pages-900.pdf`** (viewer alone 9.63–9.76) and
+**14.86–15.14 on `text-900.pdf`** (13.52–13.76); command-to-pixels p95 **0.069–0.083 ms**, max ≤ 0.19; 0 wrong-identity
+tiles; the insert's `journal.run` **4.5–5.1 ms** and its first page **to the pixels in 8.5–10.7 ms**. **Every §3.1 bound inside
+on both files; the verdict stands.** (`Stage7-Assembly-Testing-Guide.md` A-33.)
 
 **A6, measured on the build machine (2026-08-18), Stage 0 task T12.** A prebuilt PDFium DLL
 links from `g++` and works. Pinned: **PDFium 153.0.8009.0**, `pdfium-win-x64.tgz` from release
