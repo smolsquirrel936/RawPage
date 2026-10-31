@@ -1263,8 +1263,10 @@ built one, and only UBSan sees the overflow -- on this machine it wraps silently
 floor raised through `reserveThrough`. *Regression:* `unit.a reference past the object limit does not move where new
 objects are numbered` (`tests/unit/tst_composememo.cpp`): two built files, one referencing `8388608 0 R` and one
 `9223372036854775807 0 R`, each edited, every new object at or under the limit, and saved. *Control:* the fix
-reverted alone (P13), the 8,388,608 file's edit refused by `error.save.verifyFailed`; restored, green. The overflow
-itself is graded by the `portable-asan` and `portable-fuzz` jobs of the push that carries the fix.
+reverted alone (P13), the 8,388,608 file's edit refused by `error.save.verifyFailed`; restored, green. *Graded in
+CI:* run **41148688029** on `b4d5ab5`, the fix's push, read from its logs 2026-10-31 -- green in all five jobs; the
+regression passed under `Portable ASan + UBSan` (1034/1034, no `runtime error`), and `fuzz_annot_pipeline` ran its
+60 s (15,020 runs) with no finding.
 
 **I-05 (S3) — a Stage 5 index case read one page more than it expected, once, in CI.** *Found* by the same run's
 `Windows x64` job, the only red case of 1,903: `ui.a rotation drops the rotated page from the index and the next
@@ -1276,7 +1278,8 @@ passed it. *What is known:* the case runs over `tests/ui/FakeBackend.h`, whose `
 verify thread and gate are not in its path; the case's selection has read page 1 before the rotation, and the
 selection and the search can each ask for page 1 again afterwards. *Mechanism:* NOT ESTABLISHED -- a race between
 those two reads is the suspicion, and a suspicion is not a cause. *Severity S3* because what was miscounted is an
-extraction, not a result: the search found what it should. *Open*; the next CI runs are read for it.
+extraction, not a result: the search found what it should. *Since:* the next run, **41148688029** on `b4d5ab5`, passed it (1904/1904) -- one
+green run says nothing about an intermittent cause. *Open*; the next CI runs are read for it.
 
 ---
 
