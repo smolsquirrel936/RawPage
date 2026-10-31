@@ -19,6 +19,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "SaveSession.h"
+#include "TinyPdf.h"
 #include "core/cmd/commands/AnnotationCommands.h"
 #include "core/cmd/commands/PageCommands.h"
 #include "core/doc/Annotation.h"
@@ -300,4 +301,41 @@ TEST_CASE("a moved link whose target page is deleted is written once", "[compose
     REQUIRE(object);
     CHECK(object.value().object.find("Dest") == nullptr);
     CHECK(object.value().object.find("A") == nullptr);
+}
+
+// GUIDE I-04's REGRESSION (S7 T4, found by CI's `fuzz_annot_pipeline`, run 41141004141): the book's first number is
+// the allocator's floor raised past every number the file REFERENCES -- through `ObjectAllocator::reserveThrough`,
+// which ignores a reference past ISO 32000-1 Annex C's limit. Computed as `largestReferenced + 1` it overflowed on a
+// reference to 2^63-1 (UBSan's finding, invisible on MinGW, where it wraps), and numbered every new object past the
+// limit on a reference to 8,388,608 -- which the reader refuses, so the edit was refused by its verify.
+TEST_CASE("a reference past the object limit does not move where new objects are numbered", "[compose][I-04]")
+{
+    for (const char* far : {"8388608", "9223372036854775807"}) {
+        INFO("the file references " << far << " 0 R");
+        const std::string bytes = tests::annotatedDocument(1, [far](int, tests::TinyPdf& pdf, int) -> std::string {
+            pdf.add(std::string("<< /Dangling ") + far + " 0 R >>");   // placed, referenced by nothing, naming nothing
+            return std::string();
+        });
+        auto session = tests::openBuilt(QStringLiteral("far.pdf"), bytes);
+        REQUIRE(session);
+        REQUIRE(session->sink() != nullptr);
+        tests::SaveSession* self = session.get();
+        session->journal->setShowHandler([self](const core::Scope&) { return self->backend.showEdits(self->handle, {}); },
+                                         [self] { return self->backend.settleEdits(self->handle); });
+        const core::Status ran = session->journal->run(std::make_unique<core::AddAnnotationCommand>(
+            std::vector<core::Annotation>{highlightOn(*session, 0, 0.0)}));
+        INFO((ran ? std::string("made") : std::string(ran.error().messageKey.data()) + " " + ran.error().context.toStdString()));
+        REQUIRE(ran);
+        REQUIRE(session->journal->settle());
+        auto composed = pdf::ops::RevisionWriter::composeUpdate(*session->sink(), false);
+        REQUIRE(composed);
+        REQUIRE_FALSE(composed.value().objectsWritten.empty());
+        for (const long long number : composed.value().objectsWritten) {
+            CHECK(number > 0);
+            CHECK(number <= pdf::cos::ObjectAllocator::kMaxObjectNumber);
+        }
+        auto saved = session->coordinator->save(*session->journal, session->path);
+        REQUIRE(saved);
+        CHECK(saved.value().kind == core::SaveOutcome::Kind::Saved);
+    }
 }

@@ -22,7 +22,9 @@
 > user's choice of 2026-10-31; A-03 and A-27 carry their T2 halves (🟡); A-08 … A-10 carry T4's readings; no other
 > case has one.** T1 raised **I-01 (S2), closed inside T1** — the engine facade showed a page that inherits its
 > boxes at US Letter, uncropped, and refused its document for editing; T4's A-128 raised **I-03 (S2), closed inside
-> T4** — a moved link whose target page is then deleted refused the delete (§8); T2 and T3 raised none. **P-3, a
+> T4** — a moved link whose target page is then deleted refused the delete; CI's fuzzer then raised **I-04 (S2),
+> closed at T4** — the compose's first new number ignored the object limit — and CI's Windows job **I-05 (S3), OPEN** —
+> a Stage 5 index case read one page more than expected, once (§8); T2 and T3 raised none. **P-3, a
 > duplex printer for M-04, is open.** **Cases written against a §0 proposal name it in their heading or row**
 > (Q*n* ✅); none was declined, so none moved or was struck. **128 automated** (A-01 … A-128, A-128 added at T4)
 > and **14 manual** (M-01 … M-14).
@@ -1176,6 +1178,8 @@ missed it, and the control that was run red before the fix — the shape every e
 | **I-01** | S2 | A page that inherits its `/MediaBox` or `/CropBox` from a `/Pages` node was shown at US Letter, uncropped, and its whole document refused for editing | **Closed** at T1, 2026-10-29 |
 | **I-02** | S3 | The fuzz soak built nothing: `ubuntu-latest` moved it to Ubuntu 26.04, whose Clang 21 refuses an unused field in `core/text/FolderSearch.h` under `-Werror` | **Closed** 2026-10-29, soak 40875917394 read from its log |
 | **I-03** | S2 | Move a link the file holds, then delete the page it points at: the delete was refused (`error.edit.notShown`), because its compose wrote that link twice | **Closed** at T4, 2026-10-31 |
+| **I-04** | S2 | A file referencing an object number past ISO 32000-1's limit: the compose's first new number overflowed (2^63-1, UBSan) or lay past the limit (8,388,608), and an edit was refused by its verify | **Closed** at T4, 2026-10-31, after CI run 41141004141 |
+| **I-05** | S3 | `ui.a rotation drops the rotated page from the index and the next search re-reads only it` (Stage 5 guide A-64) failed once in CI: the search read 2 pages where 1 was expected | **Open** -- not reproduced locally |
 
 **I-01 (S2) — the engine facade read a page's boxes from the page dictionary alone.** *Found* at T1 by
 the first scratch render of `assembly/inherit-resources.pdf`, whose pages inherit both boxes: an A4 page
@@ -1245,6 +1249,34 @@ model instead (`MutationSinkImpl::composeAnnotations`). *Regression:* `unit.a mo
 deleted is written once` (`tests/unit/tst_composememo.cpp`): the link moved, its page deleted, saved, and the link
 read back where it was moved to with no `/Dest` and no `/A`; and A-128 itself. *Control:* the fix reverted alone
 (P11), the regression red by `error.pdf.writeDuplicateObject`; restored, green.
+
+**I-04 (S2) — the number book's first number ignored the object limit.** *Found* by CI run **41141004141** on
+`6cf1219` (T4's commit), its `Portable libFuzzer` job: `fuzz_annot_pipeline` stopped on
+`pdf/ops/MutationSinkImpl.cpp:325: runtime error: signed integer overflow: 9223372036854775807 + 1`. *Mechanism:*
+D7-26's book starts above every number the file references, and T4 computed that start as `largestReferenced + 1`.
+The allocator it replaced raised its floor through `ObjectAllocator::reserveThrough`, which ignores a reference past
+ISO 32000-1 Annex C's limit (8,388,607 -- Stage 3 guide I-12's rule) because such a reference names nothing a reader
+resolves. Without that rule a reference to 2^63-1 overflowed -- undefined behaviour, a wrap to a negative number on
+MinGW -- and a reference just past the limit numbered every new object past it, where the reader refuses it, so the
+edit was refused by its verify. *Why no suite saw it:* no corpus file references a number past the limit; the fuzzer
+built one, and only UBSan sees the overflow -- on this machine it wraps silently. *Fix:* the start is the allocator's
+floor raised through `reserveThrough`. *Regression:* `unit.a reference past the object limit does not move where new
+objects are numbered` (`tests/unit/tst_composememo.cpp`): two built files, one referencing `8388608 0 R` and one
+`9223372036854775807 0 R`, each edited, every new object at or under the limit, and saved. *Control:* the fix
+reverted alone (P13), the 8,388,608 file's edit refused by `error.save.verifyFailed`; restored, green. The overflow
+itself is graded by the `portable-asan` and `portable-fuzz` jobs of the push that carries the fix.
+
+**I-05 (S3) — a Stage 5 index case read one page more than it expected, once, in CI.** *Found* by the same run's
+`Windows x64` job, the only red case of 1,903: `ui.a rotation drops the rotated page from the index and the next
+search re-reads only it` (Stage 5 guide **A-64**), `tests/ui/tst_documentindex.cpp:277`,
+`CHECK( uitest::fakeTextExtractions.load() == before + 1 )` with expansion `10 == 9` -- after a rotation of page 1, the
+next search extracted two pages, where the case expects page 1 alone. *Not reproduced:* 30 runs of the case alone and
+40 more beside six copies of the unit suite on this machine, all green; T3's CI run, **41042157448** on `daee550`,
+passed it. *What is known:* the case runs over `tests/ui/FakeBackend.h`, whose `settleEdits` answers at once, so T4's
+verify thread and gate are not in its path; the case's selection has read page 1 before the rotation, and the
+selection and the search can each ask for page 1 again afterwards. *Mechanism:* NOT ESTABLISHED -- a race between
+those two reads is the suspicion, and a suspicion is not a cause. *Severity S3* because what was miscounted is an
+extraction, not a result: the search found what it should. *Open*; the next CI runs are read for it.
 
 ---
 

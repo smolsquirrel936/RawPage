@@ -320,9 +320,15 @@ std::string nameOf(const core::AnnotationId& id)
 cos::NumberBook& MutationSinkImpl::book()
 {
     // Above every number the file defines, and every one it REFERENCES (Stage 3 guide I-12) -- the floor
-    // `reserveNumbersThrough` used to raise in each compose, raised once.
-    if (!book_)
-        book_.emplace(std::max(cos::ObjectAllocator::forTable(table_).nextNumber(), protection().largestReferenced + 1));
+    // `reserveNumbersThrough` used to raise in each compose, raised once, and THROUGH THE ALLOCATOR'S RULE: a
+    // reference past ISO 32000-1 Annex C's limit names nothing and is ignored (Stage 7 guide I-04, found by
+    // `fuzz_annot_pipeline` -- `largestReferenced + 1` overflowed on a reference to 2^63-1, and one just past the
+    // limit numbered every new object where the reader refuses it).
+    if (!book_) {
+        cos::ObjectAllocator floor = cos::ObjectAllocator::forTable(table_);
+        floor.reserveThrough(protection().largestReferenced);
+        book_.emplace(floor.nextNumber());
+    }
     return *book_;
 }
 
