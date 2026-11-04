@@ -685,9 +685,10 @@ TEST_CASE("fuzz.assembly_replay: the copier and the insert over the corpus, its 
 // and parser targets had written; the input was not kept. The copier refused the trailer's catalog and every node and
 // page THE WALK MET -- and a reference reaching a `/Pages` node the walk did not meet (one no `/Kids` lists) or a
 // `/Catalog` the trailer does not name (an earlier revision's) copied it, and with it the
-// pages it lists. Each input below is a page whose `/Resources` name one such object.
+// pages it lists. The first two inputs are a page whose `/Resources` name one such object. The third is the next run's
+// finding: a page the walk calls a page that SAYS `/Pages`, copied with its own `/Type`.
 
-TEST_CASE("copier I-12: an orphan page-tree node and an old catalog stay behind", "[copier][bounds][I-12]")
+TEST_CASE("copier I-12: an orphan tree node and an old catalog stay behind and a page is copied as a page", "[copier][bounds][I-12]")
 {
     std::vector<std::pair<std::string, std::string>> inputs;
     {
@@ -715,6 +716,19 @@ TEST_CASE("copier I-12: an orphan page-tree node and an old catalog stay behind"
         pdf.set(page, "<< /Type /Page /Parent " + std::to_string(root) + " 0 R /Resources << /X " + std::to_string(old) + " 0 R >> >>");
         pdf.set(old, "<< /Type /Catalog /Pages " + std::to_string(root) + " 0 R >>");
         inputs.emplace_back("a catalog the trailer does not name", pdf.bytes(catalog));
+    }
+    {
+        // CI run 41770714539's input (`fuzz-artifacts`, kept since the job uploads them): a mutation split one node's
+        // `/Kids` key, so the node -- still `/Type /Pages` -- has no `/Kids` array, and the walk reads it as a PAGE, as
+        // PDFium does. The copy wrote it with its own `/Type`, and the payload held a second page-tree node.
+        tests::TinyPdf pdf;
+        const int catalog = pdf.reserve();
+        const int root = pdf.reserve();
+        const int leaf = pdf.reserve();
+        pdf.set(catalog, "<< /Type /Catalog /Pages " + std::to_string(root) + " 0 R >>");
+        pdf.set(root, "<< /Type /Pages /Kids [" + std::to_string(leaf) + " 0 R] /Count 1 /MediaBox [0 0 200 200] >>");
+        pdf.set(leaf, "<< /Type /Pages /Kid /s [ 9 0 R ] /Count 3 /Parent " + std::to_string(root) + " 0 R /Resources << >> >>");
+        inputs.emplace_back("a leaf typed /Pages", pdf.bytes(catalog));
     }
 
     for (const auto& [label, bytes] : inputs) {

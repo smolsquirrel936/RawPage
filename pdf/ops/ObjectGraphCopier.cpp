@@ -499,7 +499,10 @@ void Copier::copyPage(int index, long long local)
     std::vector<CosObject::Entry> entries;
     for (const CosObject::Entry& item : page.entries()) {
         const std::string& key = item.key;
-        if (key == "Parent" || key == "Annots" || key == "StructParents" || key == "B") continue;
+        // `/Type` too: written below as `/Page`, whatever the source says -- the walk calls a page what has no `/Kids`,
+        // so a node whose `/Kids` is damaged is a page here with `/Type /Pages`, and copied as it was it is a second
+        // tree node in the payload (Stage 7 guide I-12, CI run 41770714539's input).
+        if (key == "Parent" || key == "Annots" || key == "StructParents" || key == "B" || key == "Type") continue;
         bool inheritable = false;
         for (const char* name : PageOps::kInheritable) inheritable = inheritable || key == name;
         if (!inheritable) entries.push_back({key, transform(item.value)});
@@ -521,7 +524,7 @@ void Copier::copyPage(int index, long long local)
                                                                  CosObject::makeInteger(612), CosObject::makeInteger(792)})});
     if (const std::optional<CosObject> crop = resolved("CropBox")) entries.push_back({"CropBox", transform(*crop)});
     entries.push_back({"Rotate", CosObject::makeInteger(entry.effectiveRotate())});
-    if (!page.has("Type")) entries.push_back({"Type", CosObject::makeName("Page")});
+    entries.push_back({"Type", CosObject::makeName("Page")});
     std::vector<CosObject> annots;
     for (const long long annotation : annots_[local]) annots.push_back(CosObject::makeReference(annotation, 0));
     if (!annots.empty()) entries.push_back({"Annots", CosObject::makeArray(std::move(annots))});
