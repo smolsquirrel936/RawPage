@@ -412,10 +412,11 @@ TEST_CASE("a Global command acts on the window that is active", "[tabs]")
     // Attachments pane's four minted commands), and by 4 at T12 (`annot.measurePerimeter`, `annot.measurementScale`
     // and the minted `annot.dimension` and `annot.measureCalibrate`), and by 4 at T13 (`comment.import`,
     // `comment.export`, `edit.cut` and the minted `comment.migrate`), and by 2 at T14 (the minted `annot.recordAudio` and
-    // `annot.attachAudio`; `redact.mark` has been registered since T5), and the
+    // `annot.attachAudio`; `redact.mark` has been registered since T5), and by 1 at Stage 7 T6 (`file.saveACopy`,
+    // declared since Stage 1, D7-25), and the
     // point of asserting it here is unchanged: this case is about registration happening once per
     // REGISTRY rather than once per window, and a count is how "once" is stated.
-    CHECK(fixture.actions.registeredCount() == 173);
+    CHECK(fixture.actions.registeredCount() == 174);
 
     second.raiseToForeground();
     CHECK(ui::MainWindow::activeShell() == &second);

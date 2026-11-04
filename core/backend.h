@@ -136,6 +136,13 @@ struct DocumentHandle {
 // Format_RGB32 consume without a conversion -- so `ui/` wraps the bytes rather than copying them.
 // The alpha byte is the only difference: `Bgrx8888` carries no transparency and its fourth byte is
 // padding, which is the ordinary case for a page rendered onto white.
+// HOW A SAVE WRITES THE FILE -- Stage 7 T6, D7-25 (`Stage7-Assembly-Plan.md` §3). `Append`: the newest revision on
+// disk copied verbatim and the update after it (D3-4) -- every signed byte range intact. `Rewrite`: ONE revision of
+// what the trailer reaches, every object at its own number and generation (`pdf/cos/FullWriter`) -- what deleting
+// pages leaves behind is gone, and a signature over the old bytes no longer verifies. Which one a save uses is
+// `core/doc/SaveCoordinator`'s policy; the backend writes what it is asked.
+enum class SaveForm { Append, Rewrite };
+
 enum class PixelFormat {
     Bgra8888,   // ← QImage::Format_ARGB32 (not premultiplied)
     Bgrx8888,   // ← QImage::Format_RGB32
@@ -528,6 +535,13 @@ public:
     // calls it, once, at open.
     virtual const Permissions* permissions(DocumentHandle document) const = 0;
 
+    // HOW MANY SIGNATURES THE DOCUMENT CARRIES -- Stage 7 T6, D7-20's reading (`Stage7-Assembly-Plan.md` §3): the
+    // signature fields of its `/AcroForm` (`/FT /Sig`, inherited through `/Parent`) that hold a value, read
+    // first-party at open. Nothing is validated -- that is Stage 11's. 0 for a document the first-party reader did
+    // not read (an encrypted one) or a handle this backend did not open. A rewrite breaks every one of them, so Save
+    // As asks first (D7-25).
+    virtual int signatureCount(DocumentHandle document) const = 0;
+
     // WHICH FILE THIS IS -- path, size, modification time and a hash of the bytes that were opened --
     // or null for a handle this backend did not open. Added at Stage 3 T4: "taken at open" (D3-16) is
     // only possible where the bytes are read, and a second read of the file by a caller could hash a
@@ -705,14 +719,22 @@ public:
     // document's mutation sink holds, to `temporaryPath`; then read that file back from its path and
     // verify it -- the prefix identical, the file opening with no repair, every page as the model
     // says -- before returning. A document whose opening needed a repair gets D3-6's complete
-    // section. On failure the temporary file does not exist. Refused for a document with no sink.
-    virtual Status writeRevision(DocumentHandle document, const QString& temporaryPath) = 0;
+    // section. On failure the temporary file does not exist.
+    //
+    // STAGE 7 T6 (D7-25): `form`. `Rewrite` writes that same whole file again as one revision of what it reaches,
+    // numbers kept, and verifies the rewrite as `pdf/ops/RevisionWriter::rewrite` says -- refused for a document with
+    // no sink (`error.save.notRewritable`). A document with NO SINK -- one this build reads and will not edit, an
+    // encrypted one -- has no update, and `Append` writes the bytes it opened, verified byte for byte: Save As of it
+    // is a copy (guide A-126).
+    virtual Status writeRevision(DocumentHandle document, const QString& temporaryPath, SaveForm form) = 0;
 
     // `adoptRevision`: after the replace, `path` holds the newest revision on disk. The sink compares
     // against it from now on, and `repairReport()` and `documentId()` describe it. The ENGINE is not
     // reloaded by a save: it goes on drawing what `showEdits` last handed it, which is what was just
     // written (S6 T4, D6-2). Its PAGE TREE (`pages()`) is unchanged by the save -- the order just written,
     // each page as read at open -- and an unsaved rotation's render delta stays relative to it (D3-15).
+    // STAGE 7 T6 (D7-29): after a `Rewrite`, the sink also keeps the file the rewrite was made from, so an undo can
+    // bring back what the rewrite dropped. A document with no sink adopts only the file's identity.
     virtual Status adoptRevision(DocumentHandle document, const QString& path) = 0;
 
     // WHAT THE SCREEN SHOWS IS WHAT SAVE WRITES -- Stage 6 T4, decision **D6-2**, which ends D3-15 for

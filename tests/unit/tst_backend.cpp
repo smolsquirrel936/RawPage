@@ -78,6 +78,7 @@ public:
     const core::PageTree* pages(core::DocumentHandle) const override { return nullptr; }
     const core::RepairReport* repairReport(core::DocumentHandle) const override { return nullptr; }
     const core::Permissions* permissions(core::DocumentHandle) const override { return nullptr; }
+    int signatureCount(core::DocumentHandle) const override { return 0; }
     const core::DocumentId* documentId(core::DocumentHandle) const override { return nullptr; }
     // S4 T4 (D4-3, D4-4). This double reads no file, so it carries EMPTY models rather than null:
     // null means *not a handle of mine*, and empty means *this document has none*, which is the
@@ -169,7 +170,7 @@ public:
 
 
     // Stage 3 T8: nothing here writes; a save through this backend fails by key.
-    core::Status writeRevision(core::DocumentHandle, const QString&) override
+    core::Status writeRevision(core::DocumentHandle, const QString&, core::SaveForm) override
     {
         return core::Error{core::ErrorCode::Unsupported, QLatin1String("error.save.notEditable"), QString()};
     }

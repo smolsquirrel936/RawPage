@@ -34,6 +34,7 @@
 #include "core/cmd/ActionId.h"
 #include "core/cmd/KeyContext.h"
 #include "core/settings/CommentingTypes.h"
+#include "core/doc/SaveMode.h"
 #include "core/text/CompareSensitivity.h"
 
 // THE SETTINGS TABLE NAMES `core/render/` VOCABULARY as of Stage 2 T15 -- `pageDisplay/layoutMode`
@@ -399,6 +400,20 @@ template <> struct SettingsCodec<text::CompareSensitivity> {
     static text::CompareSensitivity fromDefault(text::CompareSensitivity value) { return value; }
 };
 
+// The S7 T6 enum -- `documents/saveMode` (D7-25). The token is `core/doc/SaveMode.h`'s name.
+template <> struct SettingsCodec<SaveMode> {
+    static QVariant toVariant(SaveMode value)
+    {
+        const std::string_view name = saveModeName(value);
+        return QVariant(QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size())));
+    }
+    static std::optional<SaveMode> fromVariant(const QVariant& variant)
+    {
+        return saveModeFromName(settingsVariantText(variant).trimmed().toStdString());
+    }
+    static SaveMode fromDefault(SaveMode value) { return value; }
+};
+
 // The S6 T12 enum -- `measuring/displayUnit` (D6-14). The token is the unit's SYMBOL, `core/Measure.h`'s one table:
 // "ft" in the settings file, after a reading's number and as a measure dictionary's `/U`.
 template <> struct SettingsCodec<MeasureUnit> {
@@ -651,6 +666,19 @@ template <> struct SettingsEditorTraits<text::CompareSensitivity> {
               text::CompareSensitivity::Appearance}) {
             const std::string token(text::compareSensitivityName(sensitivity));
             out.push_back(SettingsChoice{token, "prefs.choice.compareSensitivity." + token});
+        }
+        return out;
+    }
+};
+
+template <> struct SettingsEditorTraits<SaveMode> {
+    static constexpr SettingsEditor editor = SettingsEditor::Choice;
+    static std::vector<SettingsChoice> choices()
+    {
+        std::vector<SettingsChoice> out;
+        for (const SaveMode mode : {SaveMode::Incremental, SaveMode::Full}) {
+            const std::string token(saveModeName(mode));
+            out.push_back(SettingsChoice{token, "prefs.choice.saveMode." + token});
         }
         return out;
     }

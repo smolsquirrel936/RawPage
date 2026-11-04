@@ -244,11 +244,18 @@ TEST_CASE("an attachment copy saved as a file is reopened from it as an ordinary
     CHECK_FALSE(saved->isAttachmentCopy());
     CHECK(QFileInfo(saved->path()).absoluteFilePath() == QFileInfo(target).absoluteFilePath());
     CHECK(saved->isEditable());
-    // The file is the attachment's bytes, unchanged.
+    // Until Stage 7 T6 the file was the attachment's bytes, unchanged. Save As REWRITES since then (D7-25): the file is
+    // the attachment's document as one revision of what it reaches, each object value for value the attachment's --
+    // which `unit.fullwriter`'s and `render.fullwriter`'s sweeps grade over the corpus (S7 guide A-122). Here: not the
+    // bytes verbatim, and the same pages.
     auto bytes = a.p().root->services().backend.attachmentData(a.p().window->documentAt(0)->handle(),
                                                                core::AttachmentRef::ofDocument(QStringLiteral("appendix.pdf")));
     REQUIRE(bytes);
-    CHECK(readAll(target) == bytes.value());
+    const QByteArray written = readAll(target);
+    const bool verbatim = written == bytes.value();   // a bool: a failed CHECK on QByteArrays crashes the reporter
+    CHECK_FALSE(verbatim);
+    CHECK(written.startsWith("%PDF-"));
+    CHECK(saved->pageCount() >= 1);
 }
 
 // ==========================================================================================

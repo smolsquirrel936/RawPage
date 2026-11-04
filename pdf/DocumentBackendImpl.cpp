@@ -18,6 +18,7 @@
 #include "pdf/ops/ObjectGraphCopier.h"
 #include "pdf/ops/TransitionReader.h"
 #include "pdf/ops/RevisionWriter.h"
+#include "pdf/ops/SignatureFields.h"
 #include "pdf/render/PdfiumDocument.h"
 #include "pdf/render/PdfiumRasterizer.h"
 #include "pdf/render/PdfiumTextExtractor.h"
@@ -76,10 +77,25 @@ void logAnnotationReading(const QString& path, const core::AnnotationStore& stor
     }
 }
 
+// The index in the tree read at open of the page object `number`, or -1 -- Stage 7 guide I-10.
+int openIndexOf(const std::vector<long long>& openObjects, long long number)
+{
+    if (number <= 0) return -1;
+    const auto found = std::find(openObjects.begin(), openObjects.end(), number);
+    return found == openObjects.end() ? -1 : static_cast<int>(found - openObjects.begin());
+}
+
 // S7 T3 (D7-3): for each page the sink's desired state draws, its index in the tree read at open -- the sink's
 // order read through `diskFrom`, which places each page of the newest revision on disk in that tree. With no
 // sink, nothing has moved: the identity over the open tree.
-std::vector<int> drawnFrom(const ops::MutationSinkImpl* sink, const std::vector<int>& diskFrom, int openCount)
+//
+// STAGE 7 GUIDE I-10: A PAGE ON NO DISK REVISION IS STILL FOUND BY ITS OBJECT. A page deleted, saved, and put back by
+// an undo is in no revision on disk -- `desiredDiskIndices` answers -1 for it -- and until this fallback its facts
+// were lost: the engine's tree drew it as a page it never opened. It is the object the document had at open (and,
+// after a rewrite, the object D7-29 writes back), so `openObjects` -- the page objects in the tree read at open, by
+// index -- names it.
+std::vector<int> drawnFrom(const ops::MutationSinkImpl* sink, const std::vector<int>& diskFrom, int openCount,
+                           const std::vector<long long>& openObjects)
 {
     std::vector<int> from;
     if (sink == nullptr) {
@@ -87,22 +103,30 @@ std::vector<int> drawnFrom(const ops::MutationSinkImpl* sink, const std::vector<
         for (std::size_t i = 0; i < from.size(); ++i) from[i] = static_cast<int>(i);
         return from;
     }
-    for (const int onDisk : sink->desiredDiskIndices())
-        from.push_back(onDisk >= 0 && onDisk < static_cast<int>(diskFrom.size())
-                           ? diskFrom[static_cast<std::size_t>(onDisk)] : -1);
+    const std::vector<int> onDisk = sink->desiredDiskIndices();
+    const std::vector<long long> objects = sink->desiredPageObjects();
+    for (std::size_t i = 0; i < onDisk.size(); ++i) {
+        const int d = onDisk[i];
+        from.push_back(d >= 0 && d < static_cast<int>(diskFrom.size()) ? diskFrom[static_cast<std::size_t>(d)]
+                                                                        : openIndexOf(openObjects, objects[i]));
+    }
     return from;
 }
 
-// ... and whether each is the open page OBJECT itself: a page on disk that was one, not a copy the sink is making.
-std::vector<bool> drawnOriginals(const ops::MutationSinkImpl* sink, const std::vector<bool>& diskOriginal, int openCount)
+// ... and whether each is the open page OBJECT itself: a page on disk that was one, not a copy the sink is making --
+// or, since I-10, a page on no disk revision whose object is one the tree read at open holds.
+std::vector<bool> drawnOriginals(const ops::MutationSinkImpl* sink, const std::vector<bool>& diskOriginal, int openCount,
+                                 const std::vector<long long>& openObjects)
 {
     if (sink == nullptr) return std::vector<bool>(static_cast<std::size_t>(openCount), true);
     std::vector<bool> originals;
     const std::vector<int> onDisk = sink->desiredDiskIndices();
+    const std::vector<long long> objects = sink->desiredPageObjects();
     for (std::size_t i = 0; i < onDisk.size(); ++i) {
         const int d = onDisk[i];
-        originals.push_back(!sink->isNewPage(static_cast<int>(i)) && d >= 0 && d < static_cast<int>(diskOriginal.size())
-                            && diskOriginal[static_cast<std::size_t>(d)]);
+        const bool original = d >= 0 ? d < static_cast<int>(diskOriginal.size()) && diskOriginal[static_cast<std::size_t>(d)]
+                                     : openIndexOf(openObjects, objects[i]) >= 0;
+        originals.push_back(!sink->isNewPage(static_cast<int>(i)) && original);
     }
     return originals;
 }
@@ -183,6 +207,11 @@ struct DocumentBackendImpl::Open {
     // Null unless `permissions` allows editing: a sink for a document this build refuses to edit
     // would be a way to edit it (D3-7).
     std::unique_ptr<ops::MutationSinkImpl> sink;
+    // S7 T6 (D7-20's reading): the signatures the first-party reading found -- 0 when it read nothing.
+    int signatures = 0;
+    // S7 T6 (D7-29): the composed file the last `Rewrite` was made from, until `adoptRevision` hands it to the sink.
+    // Cleared by every `writeRevision`, so a rewrite whose replace failed leaves nothing for the next adopt.
+    std::optional<std::string> rewrittenFrom;
 
     // Stage 3 T8. Set once a save has been adopted: the repair report of the file NOW on disk, which
     // after a correct write is empty. The engine's report describes the bytes it loaded, and those
@@ -231,6 +260,9 @@ struct DocumentBackendImpl::Open {
     core::PageTree drawn;
     std::vector<int> drawnFrom;   // `drawn`'s page i is the open tree's page `drawnFrom[i]`
     std::vector<int> diskFrom;
+    // Stage 7 guide I-10: the page OBJECT of each page of the tree read at open, as the first-party walk read it --
+    // how a page on no disk revision (deleted, saved, put back) is still found in that tree. Empty with no sink.
+    std::vector<long long> openObjects;
     // ... and whether each is the open tree's page OBJECT itself, or a copy a duplicate made of it -- per page drawn
     // and per page of the newest revision on disk. What names a page names the original, never its copy (D7-2).
     std::vector<bool> drawnOriginal;
@@ -531,6 +563,7 @@ core::Result<core::DocumentHandle> DocumentBackendImpl::assemble(Opening& openin
             QString()});
     }
     entry->permissions = core::Permissions::assess(entry->document->pages(), reading, facts);
+    if (sink) entry->signatures = ops::SignatureFields::count(sink.value()->table());   // S7 T6
     // S7 T2 (D7-21): a tree the walk noted anything about keeps its page order -- the sink refuses it too.
     if (sink && !sink.value()->pages().notes.empty())
         entry->permissions.setPageTreeDamaged(sink.value()->pages().notes.front().objectNumber);
@@ -554,8 +587,10 @@ core::Result<core::DocumentHandle> DocumentBackendImpl::assemble(Opening& openin
     // same, so a Save As writes it, unchanged, to a file of its own (`RevisionWriter`: a save of an unchanged file
     // is a copy).
     if (entry->fromBytes) entry->permissions = core::Permissions::readOnly("error.edit.attachmentCopy");
-    if (sink && (entry->permissions.canEditPages() || entry->fromBytes))
+    if (sink && (entry->permissions.canEditPages() || entry->fromBytes)) {
+        for (const ops::PageEntry& page : sink.value()->pages().pages) entry->openObjects.push_back(page.number);
         entry->sink = std::move(sink).value();
+    }
 
     const std::lock_guard<std::mutex> guard(mutex_);
     const core::DocumentHandle handle{nextHandle_++};
@@ -733,19 +768,53 @@ core::IPageRasterizer* DocumentBackendImpl::rasterizer(core::DocumentHandle docu
 // is asked from the render thread under the same mutex; holding it through the write would stall
 // every tile behind the disk. The entry itself is only destroyed by `close()`, which the UI thread --
 // the same thread that saves -- calls.
-core::Status DocumentBackendImpl::writeRevision(core::DocumentHandle document, const QString& temporaryPath)
+core::Status DocumentBackendImpl::writeRevision(core::DocumentHandle document, const QString& temporaryPath,
+                                               core::SaveForm form)
 {
     Open* entry = nullptr;
     {
         const std::lock_guard<std::mutex> guard(mutex_);
         entry = find(document);
     }
-    if (entry == nullptr || !entry->sink)
+    if (entry == nullptr)
         return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), temporaryPath};
+    entry->rewrittenFrom.reset();
+    if (!entry->sink) {
+        // S7 T6 (guide A-126): NO SINK, NO UPDATE -- an encrypted document, one this build reads and will not edit.
+        // Appending nothing is a copy of the bytes it opened, read back and compared byte for byte; a rewrite would
+        // need the first-party reading this document does not have.
+        if (form == core::SaveForm::Rewrite)
+            return core::Error{core::ErrorCode::Unsupported, QLatin1String("error.save.notRewritable"), temporaryPath};
+        QFile file(temporaryPath);
+        bool written = file.open(QIODevice::WriteOnly | QIODevice::Truncate) && file.write(entry->bytes) == entry->bytes.size();
+        file.close();
+        written = written && file.error() == QFileDevice::NoError;
+        if (written) {
+            QFile back(temporaryPath);
+            written = back.open(QIODevice::ReadOnly) && back.readAll() == entry->bytes;
+        }
+        if (!written) {
+            QFile::remove(temporaryPath);
+            return core::Error{core::ErrorCode::IoFailure, QLatin1String("error.save.writeFailed"), temporaryPath};
+        }
+        return core::Status{};
+    }
     awaitVerify(*entry);   // S7 T4: the journal settled before the save; this is the sink's own guard
     const bool complete = entry->savedReport ? entry->savedReport->requiresSaveAs()
                                              : entry->document->repairReport().requiresSaveAs();
-    return ops::RevisionWriter::write(*entry->sink, complete, temporaryPath);
+    if (form == core::SaveForm::Append) return ops::RevisionWriter::write(*entry->sink, complete, temporaryPath);
+    std::string before;
+    if (core::Status rewritten = ops::RevisionWriter::rewrite(*entry->sink, complete, temporaryPath, before); !rewritten)
+        return rewritten;
+    entry->rewrittenFrom = std::move(before);
+    return core::Status{};
+}
+
+int DocumentBackendImpl::signatureCount(core::DocumentHandle document) const
+{
+    const std::lock_guard<std::mutex> guard(mutex_);
+    const Open* entry = find(document);
+    return entry ? entry->signatures : 0;
 }
 
 core::Status DocumentBackendImpl::adoptRevision(core::DocumentHandle document, const QString& path)
@@ -755,16 +824,25 @@ core::Status DocumentBackendImpl::adoptRevision(core::DocumentHandle document, c
         const std::lock_guard<std::mutex> guard(mutex_);
         entry = find(document);
     }
-    if (entry == nullptr || !entry->sink)
+    if (entry == nullptr)
         return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), path};
+    if (!entry->sink) {
+        // S7 T6: a copy of what it opened (`writeRevision`) -- the document now lives at `path`, and nothing else moves.
+        entry->id = core::DocumentId::of(path, QFileInfo(path).lastModified().toMSecsSinceEpoch(), entry->bytes);
+        return core::Status{};
+    }
 
     awaitVerify(*entry);   // S7 T4
     // THE ORDER JUST WRITTEN, read before the sink adopts it (S7 T3): the saved revision's page i is the open
     // tree's page `written[i]`, which is what the next page command's order is read through.
-    std::vector<int> written = drawnFrom(entry->sink.get(), entry->diskFrom, entry->document->pages().count());
+    std::vector<int> written = drawnFrom(entry->sink.get(), entry->diskFrom, entry->document->pages().count(), entry->openObjects);
     std::vector<bool> writtenOriginals =
-        drawnOriginals(entry->sink.get(), entry->diskOriginal, entry->document->pages().count());
-    auto adopted = ops::RevisionWriter::adopt(*entry->sink, path);
+        drawnOriginals(entry->sink.get(), entry->diskOriginal, entry->document->pages().count(), entry->openObjects);
+    // S7 T6 (D7-29): after a rewrite the sink keeps the file it was made from; after an append, nothing more.
+    std::optional<std::string> before = std::move(entry->rewrittenFrom);
+    entry->rewrittenFrom.reset();
+    auto adopted = before ? ops::RevisionWriter::adoptRewrite(*entry->sink, path, std::move(*before))
+                          : ops::RevisionWriter::adopt(*entry->sink, path);
     if (!adopted)
         return adopted.error();
     entry->diskFrom = std::move(written);
@@ -829,7 +907,7 @@ core::Status DocumentBackendImpl::showEdits(core::DocumentHandle document,
     // its tree (S7 T3).
     if (!entry->sink) {
         for (const auto& [handle, target] : shown) {
-            const std::vector<int> identity = drawnFrom(nullptr, {}, target->document->pages().count());
+            const std::vector<int> identity = drawnFrom(nullptr, {}, target->document->pages().count(), {});
             if (target->drawnFrom != identity || !target->drawnFacts.empty()) {
                 target->drawn = target->document->pages();
                 target->drawnFrom = identity;
@@ -862,9 +940,9 @@ core::Status DocumentBackendImpl::showEdits(core::DocumentHandle document,
     // REASSIGNED ONLY WHEN THE ORDER CHANGED: an assignment moves the tree's storage, and a caller may hold a
     // page of it across an edit that moved no page -- every annotation edit of Stage 6 is one. S7 T4: what each
     // replaced is kept, to put back if the verify refuses.
-    const std::vector<int> from = drawnFrom(entry->sink.get(), entry->diskFrom, entry->document->pages().count());
+    const std::vector<int> from = drawnFrom(entry->sink.get(), entry->diskFrom, entry->document->pages().count(), entry->openObjects);
     const std::vector<bool> originals =
-        drawnOriginals(entry->sink.get(), entry->diskOriginal, entry->document->pages().count());
+        drawnOriginals(entry->sink.get(), entry->diskOriginal, entry->document->pages().count(), entry->openObjects);
     // S7 T5: and each page the engine never opened, as it was first drawn.
     std::vector<std::optional<core::Page>> facts = entry->sink->drawnFacts();
     if (std::none_of(facts.begin(), facts.end(), [](const std::optional<core::Page>& page) { return page.has_value(); }))

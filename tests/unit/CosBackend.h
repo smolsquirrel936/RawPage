@@ -36,6 +36,7 @@
 #include "pdf/ops/MutationSinkImpl.h"
 #include "pdf/ops/ObjectGraphCopier.h"
 #include "pdf/ops/RevisionWriter.h"
+#include "pdf/ops/SignatureFields.h"
 #include "pdf/cos/XrefRepair.h"
 
 #include <QFile>
@@ -293,15 +294,31 @@ public:
 
     // Stage 3 T8: the same `pdf/ops/RevisionWriter` the shipped backend calls, so a round trip through
     // this backend exercises the real write, re-read and adopt -- everything but the engine.
-    core::Status writeRevision(core::DocumentHandle handle, const QString& temporaryPath) override
+    // S7 T6: and the rewrite, as the shipped backend makes it -- the composed file kept for the adopt (D7-29).
+    core::Status writeRevision(core::DocumentHandle handle, const QString& temporaryPath, core::SaveForm form) override
     {
         if (failWrite_)
             return core::Error{core::ErrorCode::IoFailure, QLatin1String("error.save.writeFailed"), temporaryPath};
         auto* entry = findMutable(handle);
         if (entry == nullptr || !entry->sink)
             return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), QString()};
-        return pdf::ops::RevisionWriter::write(*entry->sink, entry->repair.requiresSaveAs(), temporaryPath);
+        entry->rewrittenFrom.reset();
+        lastForm_ = form;
+        if (form == core::SaveForm::Append)
+            return pdf::ops::RevisionWriter::write(*entry->sink, entry->repair.requiresSaveAs(), temporaryPath);
+        std::string before;
+        if (core::Status rewritten = pdf::ops::RevisionWriter::rewrite(*entry->sink, entry->repair.requiresSaveAs(),
+                                                                       temporaryPath, before); !rewritten)
+            return rewritten;
+        entry->rewrittenFrom = std::move(before);
+        return core::Status{};
     }
+    int signatureCount(core::DocumentHandle handle) const override
+    {
+        const auto* entry = find(handle);
+        return entry != nullptr && entry->sink ? pdf::ops::SignatureFields::count(entry->sink->table()) : 0;
+    }
+    std::optional<core::SaveForm> lastSaveForm() const { return lastForm_; }
 
     core::Status adoptRevision(core::DocumentHandle handle, const QString& path) override
     {
@@ -310,7 +327,10 @@ public:
         auto* entry = findMutable(handle);
         if (entry == nullptr || !entry->sink)
             return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), QString()};
-        auto adopted = pdf::ops::RevisionWriter::adopt(*entry->sink, path);
+        std::optional<std::string> before = std::move(entry->rewrittenFrom);
+        entry->rewrittenFrom.reset();
+        auto adopted = before ? pdf::ops::RevisionWriter::adoptRewrite(*entry->sink, path, std::move(*before))
+                              : pdf::ops::RevisionWriter::adopt(*entry->sink, path);
         if (!adopted)
             return adopted.error();
         entry->bytes = std::move(adopted.value().bytes);
@@ -415,6 +435,7 @@ private:
         core::Permissions permissions;
         core::DocumentId id;
         std::unique_ptr<pdf::ops::MutationSinkImpl> sink;
+        std::optional<std::string> rewrittenFrom;   // S7 T6: until the adopt
         QByteArray shown;                      // S6 T4: the update the last `showEdits` composed
         std::function<core::Status()> pending; // S7 T4: a verify `settleEdits` has not run yet
         QByteArray pendingUpdate;              // ... and the update it would show
@@ -434,6 +455,7 @@ private:
     std::optional<core::CosReading> planted_;
     std::optional<int> plantedDisagreement_;
     bool failWrite_ = false;
+    std::optional<core::SaveForm> lastForm_;   // S7 T6: what the last `writeRevision` was asked for
     bool failAdopt_ = false;
     int adoptions_ = 0;
     int shows_ = 0;

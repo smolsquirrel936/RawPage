@@ -232,7 +232,7 @@ TEST_CASE("an attached PDF opens from its bytes read-only and a Save As writes i
     CHECK(backend.permissions(copy.value())->refusalKey() == QLatin1String("error.edit.attachmentCopy"));
     REQUIRE(backend.mutationSink(copy.value()) != nullptr);
     const QString target = QDir(scratch.path()).filePath(QStringLiteral("appendix-saved.pdf"));
-    REQUIRE(backend.writeRevision(copy.value(), target));
+    REQUIRE(backend.writeRevision(copy.value(), target, core::SaveForm::Append));
     CHECK(readAll(target) == bytes.value());   // a Save As of an unchanged document is a copy
 
     // THE CONTROL: bytes that are not a PDF are refused by the engine, by key.

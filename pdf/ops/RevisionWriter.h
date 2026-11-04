@@ -33,6 +33,21 @@
 // comparison onto it (D3-5's "newest revision on disk"). It returns the bytes and the repair report
 // of that file, which the backend keeps -- the sink holds views into those bytes.
 //
+// -------------------------------------------------------------------------------------------
+// `rewrite()` -- SAVE AS THAT REWRITES (Stage 7 T6, D7-25, D7-29)
+// -------------------------------------------------------------------------------------------
+//   1. **Compose** as `write()` does -- the newest revision on disk and the update, whole, in memory.
+//   2. **Rewrite** that file with `pdf/cos/FullWriter`: one revision of what its trailer reaches, every object at
+//      its own number and generation.
+//   3. **Write** it to `temporaryPath` and **read it back from that path**, and verify (`verifyRewrite`): it opens
+//      through its own table with nothing that forces a Save-As; it has ONE cross-reference section and no
+//      `/Prev`; every object it holds is reached from its trailer and every object the composed file reached is
+//      in it; each is the composed file's object, value for value (a stream: its dictionary but `/Length`, and its
+//      encoded bytes); and every page, rotation, annotation listing and attached file reads back as the sink says
+//      -- `write()`'s model checks, unchanged. A file failing any check is removed and the save fails by key.
+//   4. The composed file is handed back in `before`: the caller keeps it until the replace has happened and gives
+//      it to `adoptRewrite`, which the sink keeps so that an undo can bring back what the rewrite dropped (D7-29).
+//
 // THE TEST SEAM. `setComposeFaultForTesting()` lets a test corrupt the composed bytes before they are
 // written, which is the only way to obtain an update its own reader cannot parse from a writer that
 // is correct (guide case A-54). It is process-wide, empty in the product, and every test that sets it
@@ -93,6 +108,18 @@ public:
 
     // Steps 1-3. On failure the temporary file does not exist.
     static core::Status write(MutationSinkImpl& sink, bool complete, const QString& temporaryPath);
+
+    // S7 T6: the rewrite -- see the header. On success `before` holds the composed file the rewrite was made from;
+    // on failure the temporary file does not exist and `before` is empty.
+    static core::Status rewrite(MutationSinkImpl& sink, bool complete, const QString& temporaryPath, std::string& before);
+    // Checks the rewritten `written` against the composed `before` and the sink, as step 3 of `rewrite`. Pure.
+    static core::Status verifyRewrite(std::string_view before, std::string_view written, const MutationSinkImpl& sink);
+    // After the replace: reads `path` and moves `sink` onto it, keeping `before` (`MutationSinkImpl::adoptRewrite`).
+    static core::Result<AdoptedRevision> adoptRewrite(MutationSinkImpl& sink, const QString& path, std::string before);
+
+    // S7 T6: what a test that plants a fault in the rewrite needs -- applied to the rewritten bytes before they are
+    // written, as `setComposeFaultForTesting` is to the composed ones. Process-wide, empty in the product.
+    static void setRewriteFaultForTesting(std::function<void(std::string& bytes)> fault);
 
     // Reads `path` and moves `sink` onto it. On failure the sink is unchanged.
     static core::Result<AdoptedRevision> adopt(MutationSinkImpl& sink, const QString& path);

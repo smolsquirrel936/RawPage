@@ -109,6 +109,11 @@ add_library(rawpage_cos STATIC
     cos/IncrementalWriter.h
     cos/IncrementalWriter.cpp
 
+    # Stage 7 T6 (D7-25): the REWRITE -- one revision of what the trailer reaches, every object at its own number
+    # and generation. Here for the incremental writer's reasons: COS syntax and offsets, portable, sanitized.
+    cos/FullWriter.h
+    cos/FullWriter.cpp
+
     # Stage 6 T3 (D6-6): content streams, written one operator at a time and re-read against Annex A's
     # operator table. COS syntax with no opinion about what an appearance looks like -- that is
     # pdf/ops/AppearanceStreamBuilder's.

@@ -195,10 +195,14 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // `annot.attachAudio`; `redact.mark` arms the redaction tool it has armed since T5, which now makes marks. 389 ids are
     // declared.
     //
+    // **One more at Stage 7 T6** (D7-25): `file.saveACopy`, declared since Stage 1, registered with the rewrite it
+    // writes. 389 ids are declared.
+    //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 173);
+    CHECK(fixture.actions.registeredCount() == 174);
+    CHECK(fixture.actions.isRegistered(core::ActionId::FileSaveACopy));          // S7 T6
     CHECK(fixture.actions.isRegistered(core::ActionId::AnnotRecordAudio));       // S6 T14
     CHECK(fixture.actions.isRegistered(core::ActionId::AnnotAttachAudio));       // S6 T14
     CHECK(fixture.actions.isRegistered(core::ActionId::RedactMark));             // S6 T5, makes marks since T14

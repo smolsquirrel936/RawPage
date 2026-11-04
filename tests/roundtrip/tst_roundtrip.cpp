@@ -140,11 +140,19 @@ TEST_CASE("roundtrip over every editable corpus file saves the rotation and keep
 
         // ---- READ FROM THE PATH ----
         const QByteArray onDisk = tests::readAllBytes(target);
-        CHECK(onDisk.startsWith(session->openedBytes));                        // the prefix, byte for byte
+        // The prefix, byte for byte -- for a Save. A repaired file's forced Save As REWRITES since Stage 7 T6 (D7-25,
+        // S7 guide A-126): one revision, which is what makes it open with no repair; D3-6's complete section kept the
+        // damaged bytes in front, and is now what the rewrite is made from.
+        if (repaired) {
+            CHECK_FALSE(onDisk.startsWith(session->openedBytes));
+        } else {
+            CHECK(onDisk.startsWith(session->openedBytes));
+        }
         auto again = reopen(onDisk);
         REQUIRE(again.has_value());
         CHECK(again->opened.usedOriginalXref);                                 // opened through its own table
         CHECK_FALSE(again->opened.report.requiresSaveAs());
+        if (repaired) CHECK(again->opened.table.sections().size() == 1);       // S7 T6: one revision
         if (!repaired) {
             // No finding the original did not already have.
             auto original = reopen(session->openedBytes);
@@ -308,14 +316,24 @@ TEST_CASE("roundtrip Save As moves the document to the new file and leaves the o
     CHECK(stale.value().kind == SaveOutcome::Kind::SaveAsRequired);
 }
 
+// UNTIL STAGE 7 T6 THIS WAS SAVE AS's OWN PROPERTY; since D7-25 Save As rewrites, and the copy is the APPEND form's --
+// what a Save, and a Save As that keeps a document's signatures, write (`core::SaveForm::Append`). Both halves are asserted.
 TEST_CASE("roundtrip Save As of an unchanged document is a byte-identical copy", "[save][roundtrip]")
 {
     auto session = tests::openCopy("ordinary/objstm-xrefstream.pdf");
     REQUIRE(session);
     const QString copy = session->directory.filePath(QStringLiteral("unchanged.pdf"));
-    auto result = session->coordinator->saveAs(*session->journal, copy);
-    REQUIRE(result);
+    REQUIRE(session->backend.writeRevision(session->handle, copy, core::SaveForm::Append));
     CHECK(tests::sha256(tests::readAllBytes(copy)) == tests::sha256(session->openedBytes));
+    // Save As itself rewrites: one revision, no longer the opened bytes.
+    const QString rewritten = session->directory.filePath(QStringLiteral("rewritten.pdf"));
+    auto result = session->coordinator->saveAs(*session->journal, rewritten);
+    REQUIRE(result);
+    CHECK(result.value().form == core::SaveForm::Rewrite);
+    auto reopened = reopen(tests::readAllBytes(rewritten));
+    REQUIRE(reopened.has_value());
+    CHECK(reopened->opened.table.sections().size() == 1);
+    CHECK(tests::sha256(tests::readAllBytes(rewritten)) != tests::sha256(session->openedBytes));
 }
 
 // ==========================================================================================

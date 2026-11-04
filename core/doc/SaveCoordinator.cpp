@@ -93,7 +93,28 @@ QString SaveCoordinator::temporaryPathFor(const QString& target, qint64 processI
     return info.dir().filePath(QStringLiteral(".%1.rawpage-%2.tmp").arg(info.fileName()).arg(processId));
 }
 
-Result<SaveOutcome> SaveCoordinator::save(CommandJournal& journal, const QString& path)
+Result<SaveForm> SaveCoordinator::formFor(CommandJournal& journal, bool rewrite, const SaveOptions& options)
+{
+    if (!rewrite) return SaveForm::Append;
+    const DocumentHandle handle = journal.document().handle();
+    if (backend_.mutationSink(handle) == nullptr) return SaveForm::Append;   // no update: a copy (A-126)
+    const int signatures = backend_.signatureCount(handle);
+    if (signatures == 0) return SaveForm::Rewrite;
+    if (!options.askSigned) {
+        // Convention 16: nobody to ask, so nothing a person did not choose -- the signatures are kept.
+        RAWPAGE_LOG_INFO(LogSubsystem::Save) << "save: kept" << signatures
+                                             << "signature(s) -- appended rather than rewritten, with nobody to ask";
+        return SaveForm::Append;
+    }
+    switch (options.askSigned(signatures)) {
+    case SignedRewriteAnswer::KeepSignatures: return SaveForm::Append;
+    case SignedRewriteAnswer::Rewrite: return SaveForm::Rewrite;
+    case SignedRewriteAnswer::Cancel: break;
+    }
+    return Error{ErrorCode::Cancelled, QLatin1String("error.save.cancelled"), journal.document().id().path};
+}
+
+Result<SaveOutcome> SaveCoordinator::save(CommandJournal& journal, const QString& path, const SaveOptions& options)
 {
     // S7 T4: the last edit's verify first -- a save writes the composition that VERIFIED, and an edit refused after
     // it returned is taken back, and told to whoever listens for refusals, before anything is written.
@@ -109,10 +130,12 @@ Result<SaveOutcome> SaveCoordinator::save(CommandJournal& journal, const QString
     if (!stillTheOpenedFile(document.id(), path))
         return saveAsRequired("error.save.fileChanged");
 
-    return writeThrough(journal, path);
+    auto form = formFor(journal, options.rewriteOnSave, options);
+    if (!form) return form.error();
+    return writeThrough(journal, path, form.value(), Afterwards::Adopt);
 }
 
-Result<SaveOutcome> SaveCoordinator::saveAs(CommandJournal& journal, const QString& target)
+Result<SaveOutcome> SaveCoordinator::saveAs(CommandJournal& journal, const QString& target, const SaveOptions& options)
 {
     journal.settle();   // S7 T4: as `save`
     if (durableFiles_ == nullptr)
@@ -120,8 +143,22 @@ Result<SaveOutcome> SaveCoordinator::saveAs(CommandJournal& journal, const QStri
     // The document's own file goes through every check a Save makes -- or a repaired document could
     // be "saved as" itself and skip D3-6.
     if (DocumentId::normalizePath(target) == journal.document().id().path)
-        return save(journal, target);
-    return writeThrough(journal, target);
+        return save(journal, target, options);
+    auto form = formFor(journal, true, options);   // S7 T6: Save As rewrites (D7-25)
+    if (!form) return form.error();
+    return writeThrough(journal, target, form.value(), Afterwards::Adopt);
+}
+
+Result<SaveOutcome> SaveCoordinator::saveACopy(CommandJournal& journal, const QString& target, const SaveOptions& options)
+{
+    journal.settle();
+    if (durableFiles_ == nullptr)
+        return Error{ErrorCode::Unavailable, QLatin1String("error.save.noDurableFiles"), target};
+    if (DocumentId::normalizePath(target) == journal.document().id().path)
+        return save(journal, target, options);   // a copy over its own file is a Save
+    auto form = formFor(journal, true, options);
+    if (!form) return form.error();
+    return writeThrough(journal, target, form.value(), Afterwards::LeaveAlone);
 }
 
 void SaveCoordinator::removeStrayTemporaries(const QString& target)
@@ -143,7 +180,8 @@ void SaveCoordinator::removeStrayTemporaries(const QString& target)
     }
 }
 
-Result<SaveOutcome> SaveCoordinator::writeThrough(CommandJournal& journal, const QString& target)
+Result<SaveOutcome> SaveCoordinator::writeThrough(CommandJournal& journal, const QString& target, SaveForm form,
+                                                  Afterwards afterwards)
 {
     const DocumentHandle handle = journal.document().handle();
     removeStrayTemporaries(target);
@@ -168,7 +206,7 @@ Result<SaveOutcome> SaveCoordinator::writeThrough(CommandJournal& journal, const
         return outcome;
     };
     notePhase(Phase::Writing, temporary);
-    if (const Status written = backend_.writeRevision(handle, temporary); !written)
+    if (const Status written = backend_.writeRevision(handle, temporary, form); !written)
         return abandon(written.error());
     notePhase(Phase::Written, temporary);
     if (const Status flushed = durableFiles_->syncToDisk(temporary); !flushed)
@@ -177,6 +215,15 @@ Result<SaveOutcome> SaveCoordinator::writeThrough(CommandJournal& journal, const
     if (const Status replaced = durableFiles_->replaceFile(target, temporary); !replaced)
         return abandon(replaced.error());
     notePhase(Phase::Replaced, temporary);
+    if (afterwards == Afterwards::LeaveAlone) {
+        // Save a Copy (S7 T6): the copy is on disk, and the document is still the one it was -- nothing adopted.
+        RAWPAGE_LOG_INFO(LogSubsystem::Save) << "save: wrote a copy to" << target
+                                             << (form == SaveForm::Rewrite ? "(rewritten)" : "(appended)");
+        SaveOutcome outcome;
+        outcome.path = target;
+        outcome.form = form;
+        return outcome;
+    }
 
     // Step 7, after the replace: see the header for why a failure here asks for Save-As next time.
     if (const Status adopted = backend_.adoptRevision(handle, target); !adopted) {
@@ -188,9 +235,11 @@ Result<SaveOutcome> SaveCoordinator::writeThrough(CommandJournal& journal, const
     if (const Status marked = journal.adoptSavedFile(backend_, target); !marked)
         return marked.error();
 
-    RAWPAGE_LOG_INFO(LogSubsystem::Save) << "save: saved" << target;
+    RAWPAGE_LOG_INFO(LogSubsystem::Save) << "save: saved" << target
+                                         << (form == SaveForm::Rewrite ? "(rewritten)" : "(appended)");
     SaveOutcome outcome;
     outcome.path = target;
+    outcome.form = form;
     return outcome;
 }
 

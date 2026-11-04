@@ -161,6 +161,12 @@ MainWindow::SaveAsAnswer& installedSaveAsAnswer()
     return answer;
 }
 
+MainWindow::SignedRewriteAnswer& installedSignedRewriteAnswer()
+{
+    static MainWindow::SignedRewriteAnswer answer;
+    return answer;
+}
+
 MainWindow::AttachmentAnswers& installedAttachmentAnswers()
 {
     static MainWindow::AttachmentAnswers answers;
@@ -1117,6 +1123,37 @@ bool MainWindow::canAskSavePath()
     return static_cast<bool>(installedSaveAsAnswer()) || canPromptTheUser();
 }
 
+void MainWindow::setSignedRewriteAnswerForTesting(SignedRewriteAnswer answer)
+{
+    installedSignedRewriteAnswer() = std::move(answer);
+}
+
+core::SaveOptions MainWindow::saveOptionsFor(DocumentWindow* document)
+{
+    core::SaveOptions options;
+    options.rewriteOnSave = services_.settings.get(core::keys::documents::saveMode) == core::SaveMode::Full;
+    if (installedSignedRewriteAnswer()) {
+        options.askSigned = installedSignedRewriteAnswer();
+    } else if (canPromptTheUser()) {
+        // D7-25: the signatures named as becoming invalid, and keeping them the default -- the answer nothing breaks.
+        const QString title = document ? document->title() : QString();
+        options.askSigned = [this, title](int signatures) {
+            QMessageBox box(QMessageBox::Warning, catalog::translate(catalog::key::SaveAsSignedTitle),
+                            catalog::translate(catalog::key::SaveAsSignedText).arg(title).arg(signatures),
+                            QMessageBox::Cancel, this);
+            QPushButton* keep = box.addButton(catalog::translate(catalog::key::SaveAsSignedKeep), QMessageBox::AcceptRole);
+            QPushButton* rewrite = box.addButton(catalog::translate(catalog::key::SaveAsSignedRewrite),
+                                                 QMessageBox::DestructiveRole);
+            box.setDefaultButton(keep);
+            box.exec();
+            if (box.clickedButton() == keep) return core::SignedRewriteAnswer::KeepSignatures;
+            if (box.clickedButton() == rewrite) return core::SignedRewriteAnswer::Rewrite;
+            return core::SignedRewriteAnswer::Cancel;
+        };
+    }
+    return options;
+}
+
 namespace {
 
 // The page "current page" means. ONE reading for the dialog's label and the rotation, so the page the
@@ -1168,8 +1205,9 @@ core::Status MainWindow::saveDocument(DocumentWindow* document)
 {
     if (!document) return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), QString()};
 
-    core::Result<core::SaveOutcome> saved = document->save();
+    core::Result<core::SaveOutcome> saved = document->save(saveOptionsFor(document));
     if (!saved) {
+        if (saved.error().code == core::ErrorCode::Cancelled) return saved.error();   // S7 T6: the question, cancelled
         reportSaveFailure(document, saved.error());
         return saved.error();
     }
@@ -1224,8 +1262,9 @@ core::Status MainWindow::saveDocumentAs(DocumentWindow* document)
     if (!target) return core::Error{core::ErrorCode::Cancelled, QLatin1String("error.save.cancelled"), document->title()};
 
     const bool attachmentCopy = document->isAttachmentCopy();   // S6 T11: reopened from its file once saved
-    core::Result<core::SaveOutcome> saved = document->saveAs(*target);
+    core::Result<core::SaveOutcome> saved = document->saveAs(*target, saveOptionsFor(document));
     if (!saved) {
+        if (saved.error().code == core::ErrorCode::Cancelled) return saved.error();   // S7 T6: the question, cancelled
         reportSaveFailure(document, saved.error());
         return saved.error();
     }
@@ -1252,6 +1291,39 @@ core::Status MainWindow::saveDocumentAs(DocumentWindow* document)
         openFiles({savedPath});
     }
     updateDocumentChrome();
+    return {};
+}
+
+core::Status MainWindow::saveDocumentACopy(DocumentWindow* document)
+{
+    if (!document) return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), QString()};
+
+    std::optional<QString> target;
+    const QString proposed = document->suggestedSavePath();
+    if (installedSaveAsAnswer()) {
+        target = installedSaveAsAnswer()(proposed);
+    } else if (canPromptTheUser()) {
+        const QString chosen = QFileDialog::getSaveFileName(this, catalog::translate(catalog::key::SaveACopyTitle), proposed,
+                                                            catalog::translate(catalog::key::SaveAsFilter));
+        if (!chosen.isEmpty()) target = chosen;
+    }
+    if (!target) return core::Error{core::ErrorCode::Cancelled, QLatin1String("error.save.cancelled"), document->title()};
+
+    core::Result<core::SaveOutcome> saved = document->saveACopy(*target, saveOptionsFor(document));
+    if (!saved) {
+        if (saved.error().code == core::ErrorCode::Cancelled) return saved.error();
+        reportSaveFailure(document, saved.error());
+        return saved.error();
+    }
+    if (saved.value().kind == core::SaveOutcome::Kind::SaveAsRequired) {
+        // A copy over the tab's own file is a Save, and that Save may need a new file (repaired, changed on disk).
+        const core::Error refused{core::ErrorCode::Unavailable, saved.value().reasonKey,
+                                  saved.value().reasonContext.isEmpty() ? document->title() : saved.value().reasonContext};
+        reportSaveFailure(document, refused);
+        return refused;
+    }
+    document->clearCondition(static_cast<int>(MessageBar::Kind::SaveFailed));
+    updateDocumentChrome();   // a copy over its own file was a Save
     return {};
 }
 
@@ -3525,10 +3597,28 @@ void MainWindow::registerMutationActions()
         saveAs.enable = [currentDocumentOfActiveShell] {
             const DocumentWindow* document = currentDocumentOfActiveShell();
             // S6 T11: an attached PDF opened read-only is saved as a file of its own -- its one way to be edited.
-            return document && (document->isEditable() || document->isAttachmentCopy()) && canAskSavePath();
+            // S7 T6 (guide A-126): and a document this build will not edit -- an encrypted one -- is Saved As as a copy.
+            return document && document->canSaveAs() && canAskSavePath();
         };
         saveAs.unavailableText = whyNotEditable(ActionId::FileSaveAs);
         registerRegistration(ActionId::FileSaveAs, std::move(saveAs));
+    }
+    // --- file.saveACopy -------------------------------------------------------------------------
+    // S7 T6 (D7-25), declared since Stage 1: what Save As would write, elsewhere, and the tab left where it was. Needs
+    // somebody to name the file, as Save As does (convention 16).
+    {
+        core::ActionRegistry::Registration saveACopy;
+        saveACopy.handler = [](KeyContext) {
+            MainWindow* window = activeShell();
+            if (DocumentWindow* document = window ? window->currentDocument() : nullptr)
+                window->saveDocumentACopy(document);
+        };
+        saveACopy.enable = [currentDocumentOfActiveShell] {
+            const DocumentWindow* document = currentDocumentOfActiveShell();
+            return document && document->canSaveAs() && canAskSavePath();
+        };
+        saveACopy.unavailableText = whyNotEditable(ActionId::FileSaveACopy);
+        registerRegistration(ActionId::FileSaveACopy, std::move(saveACopy));
     }
 }
 

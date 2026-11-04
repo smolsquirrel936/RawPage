@@ -654,8 +654,10 @@ TEST_CASE("the Documents page's recovery folder redirects the next journal and t
     ui::SettingsPage* page = preferences->settingsPage(core::SettingsGroup::Documents);
     REQUIRE(page != nullptr);
     // ... and since Stage 5 T13 the four comparison rows (D5-20), which join this page rather than make one.
+    // ... and since Stage 7 T6 `documents/saveMode` (D7-25), after the two Stage 3 rows, in table order.
     CHECK(page->rowPaths() == QStringList{QStringLiteral("documents/recentCount"), QStringLiteral("documents/recentPinned"),
                                           QStringLiteral("documents/recoveryDir"), QStringLiteral("documents/warnOnRepairedSave"),
+                                          QStringLiteral("documents/saveMode"),
                                           QStringLiteral("documents/compareSensitivity"),
                                           QStringLiteral("documents/compareIgnoreHeaderFooter"),
                                           QStringLiteral("documents/compareIgnorePageNumbers"),

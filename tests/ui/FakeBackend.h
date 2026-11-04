@@ -174,6 +174,13 @@ public:
     bool failWrites = false;     // a save's write step fails by key -- `IoFailure`, THE PLACE (Save-As is offered)
     bool failVerify = false;     // the composed bytes fail their own re-read -- `Corrupted`, OUR BYTES (refused)
     int writes = 0;
+    std::vector<core::SaveForm> forms;        // S7 T6: each `writeRevision`'s form, in order
+    std::map<std::uint64_t, int> signatures;  // S7 T6: what `signatureCount` answers, by handle; 0 when absent
+    int signatureCount(core::DocumentHandle handle) const override
+    {
+        const auto found = signatures.find(handle.id);
+        return found == signatures.end() ? 0 : found->second;
+    }
     int adoptions = 0;
     bool failShows = false;      // S6 T4: `showEdits` refuses
     std::vector<std::vector<core::DocumentHandle>> shows;   // S6 T4: every `showEdits`, document first
@@ -583,8 +590,10 @@ public:
 
     // Stage 3 T10: the opened file's bytes plus a line naming the save, so a saved file differs from the one
     // before it -- enough for `SaveCoordinator`'s identity check and for the chrome's dirty marker.
-    core::Status writeRevision(core::DocumentHandle handle, const QString& temporaryPath) override
+    // S7 T6: the form asked for is recorded, and a rewrite writes the same bytes -- this backend has no COS to rewrite.
+    core::Status writeRevision(core::DocumentHandle handle, const QString& temporaryPath, core::SaveForm form) override
     {
+        forms.push_back(form);
         const auto found = edits.find(handle.id);
         if (found == edits.end() || !found->second->permissions.canEditPages())
             return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), QString()};

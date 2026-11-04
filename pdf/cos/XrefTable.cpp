@@ -538,9 +538,18 @@ const std::vector<IndirectObject>* XrefTable::objectStreamFor(long long number)
     return &objectStreams_.emplace(number, std::move(objects)).first->second;
 }
 
+std::string_view XrefTable::sourceOf(long long number) const
+{
+    const XrefEntry* entry = find(number);
+    if ((entry == nullptr || entry->type == XrefEntryType::Free) && retired_ != nullptr) return retired_->sourceOf(number);
+    return source_;
+}
+
 core::Result<IndirectObject> XrefTable::fetch(long long number)
 {
     const XrefEntry* entry = find(number);
+    // S7 T6 (D7-29): a number this table does not hold in use, from the file a rewrite dropped it from.
+    if ((entry == nullptr || entry->type == XrefEntryType::Free) && retired_ != nullptr) return retired_->fetch(number);
     if (entry == nullptr) {
         return core::Error{core::ErrorCode::NotFound, QLatin1String("error.pdf.objectMissing"),
                            QString::number(static_cast<qlonglong>(number))};

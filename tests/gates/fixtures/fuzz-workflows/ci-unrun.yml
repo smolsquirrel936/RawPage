@@ -1,0 +1,13 @@
+# Fixture: I-09's shape -- fuzz_beta is linked by the loop and named in a comment, and no step runs it.
+jobs:
+  portable-fuzz:
+    steps:
+      - name: linked
+        run: |
+          for target in fuzz_alpha fuzz_beta; do
+            echo "$target"
+          done
+      - name: alpha
+        run: ./build/portable-fuzz/bin/fuzz_alpha corpus/malformed -max_total_time=60
+      # - name: beta
+      #   run: ./build/portable-fuzz/bin/fuzz_beta fuzz-work/beta corpus/ordinary -max_total_time=60

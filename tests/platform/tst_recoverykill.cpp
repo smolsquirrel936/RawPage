@@ -33,6 +33,7 @@
 #include "core/cmd/RecoveryJournal.h"
 #include "core/cmd/commands/PageCommands.h"
 #include "core/doc/Document.h"
+#include "core/doc/DocumentId.h"
 #include "core/doc/SaveCoordinator.h"
 #include "platform/win/WinDurableFiles.h"
 
@@ -519,6 +520,121 @@ TEST_CASE("recovery.kill_pages: twenty kills during page commands recover every 
     CHECK(landed["inside the flush"] >= 1);
     CHECK(landed["between apply and the flush"] >= 1);
     CHECK(mostSteps >= tests::killsteps::kPageCycle);   // every kind of page command was among what was recovered
+}
+
+// ==========================================================================================
+// Stage 7 T6 (S7 guide A-124) -- kills after a Save As that rewrote: the journal names the rewrite, and its replay
+// equals the steps run again over the same rewrite
+// ==========================================================================================
+
+TEST_CASE("recovery.kill_rewrite: twenty kills after a Save As that rewrote recover every acknowledged page command",
+          "[recovery][kill][pages][S7-A-124]")
+{
+    // The probe runs the page cycle once, Saves As -- a REWRITE, D7-25 -- to `saved.pdf`, and only then says it is
+    // ready, so every kill lands after the rewrite. The journal must then name `saved.pdf`, and its replay over that
+    // file must equal the same steps run here over the same file: the cycle on a pristine copy and the same Save As
+    // make `expected-saved.pdf`, compared BYTE FOR BYTE with the probe's -- the writer is deterministic -- and the
+    // steps after the save are then run over THAT FILE, opened fresh, as the replay runs over the probe's. Fresh,
+    // because a model carried across a save is not a fresh reading of the file it saved: this backend reads no
+    // `/PageLabels`, and a created annotation keeps its `/NM` identity in the session that made it where a reading
+    // names it by its object (measured at T6, after an append save as after a rewrite) -- neither is the replay's
+    // question.
+    //
+    // WHAT IT DOES NOT COVER (convention 19): an UNDO after the rewrite of a step from before it. The recovery journal
+    // replays such an undo as the command's `revert()` (`RecoveryJournal.h`), and a page delete's revert needs the pages
+    // the killed process held; whether that replays is not this case's question.
+    const quint32 seed = QRandomGenerator::global()->generate();
+    QRandomGenerator random(seed);
+    std::cout << "kill_rewrite: seed " << seed << std::endl;
+    const QString fixture = QStringLiteral("assembly/refs-every-kind.pdf");
+
+    std::map<std::string, int> landed;
+    int mostSteps = 0;
+    for (int run = 1; run <= kRuns; ++run) {
+        INFO("run " << run << " of " << kRuns << ", seed " << seed);
+        QTemporaryDir dir;
+        REQUIRE(dir.isValid());
+        const QString document = dir.filePath(QStringLiteral("doc.pdf"));
+        const QString saved = dir.filePath(QStringLiteral("saved.pdf"));
+        REQUIRE(QFile::copy(QString::fromStdString(RAWPAGE_CORPUS_DIR "/") + fixture, document));
+        const QString root = dir.filePath(QStringLiteral("recovery"));
+
+        auto probe = startProbe({QStringLiteral("rewrite"), document, root, QString::number(kDwellMs), saved});
+        const QList<QByteArray> lines = killProbe(*probe, 20000 + static_cast<qint64>(random.bounded(380000)));
+        REQUIRE_FALSE(lines.isEmpty());
+        int acknowledged = 0;
+        for (const QByteArray& line : lines)
+            acknowledged = std::max(acknowledged, numberAfter(line, "ack"));
+        const QByteArray last = lines.last();
+        const std::string where = last.startsWith("writing") ? "between apply and the flush"
+                                  : last.startsWith("flushing") ? "inside the flush"
+                                  : last.startsWith("apply") ? "inside apply"
+                                                             : "between commands";
+        ++landed[where];
+
+        const auto candidates = core::RecoveryJournal::discover(root);
+        REQUIRE(candidates.size() == 1);
+        CHECK(candidates.front().sourceMatches);
+        CHECK(core::DocumentId::normalizePath(candidates.front().meta.sourcePath) == core::DocumentId::normalizePath(saved));
+
+        // What this case expects: the cycle and the same Save As, here.
+        const QString copy = dir.filePath(QStringLiteral("expected.pdf"));
+        const QString expectedSaved = dir.filePath(QStringLiteral("expected-saved.pdf"));
+        REQUIRE(QFile::copy(QString::fromStdString(RAWPAGE_CORPUS_DIR "/") + fixture, copy));
+        tests::CosBackend expectedBackend;
+        auto expectedHandle = expectedBackend.open(copy, nullptr);
+        REQUIRE(expectedHandle);
+        core::Document pristine;
+        REQUIRE(pristine.hydrate(expectedBackend, expectedHandle.value()));
+        core::CommandJournal expected(std::move(pristine), expectedBackend.mutationSink(expectedHandle.value()));
+        for (int k = 1; k <= tests::killsteps::kPageCycle; ++k) REQUIRE(expected.run(tests::killsteps::pageStep(k, expected.document())));
+        platform::win::WinDurableFiles files;
+        core::SaveCoordinator coordinator(expectedBackend, &files);
+        auto expectedSave = coordinator.saveAs(expected, expectedSaved);
+        REQUIRE(expectedSave);
+        REQUIRE(expectedSave.value().form == core::SaveForm::Rewrite);
+        CHECK(shaOf(saved) == shaOf(expectedSaved));
+        tests::CosBackend afterBackend;
+        auto afterHandle = afterBackend.open(expectedSaved, nullptr);
+        REQUIRE(afterHandle);
+        core::Document reread;
+        REQUIRE(reread.hydrate(afterBackend, afterHandle.value()));
+        core::CommandJournal after(std::move(reread), afterBackend.mutationSink(afterHandle.value()));
+
+        tests::CosBackend backend;
+        auto handle = backend.open(saved, nullptr);
+        REQUIRE(handle);
+        core::Document fresh;
+        REQUIRE(fresh.hydrate(backend, handle.value()));
+        core::CommandJournal journal(std::move(fresh), backend.mutationSink(handle.value()));
+        auto report = core::RecoveryJournal::replay(candidates.front().directory, journal);
+        REQUIRE(report);
+        const int steps = report.value().stepsApplied;
+        INFO("killed " << where << " after ack " << acknowledged << "; replayed " << steps);
+        CHECK_FALSE(report.value().stoppedAtStep.has_value());
+        const int afterSave = acknowledged >= tests::killsteps::kPageCycle + 1 ? acknowledged - tests::killsteps::kPageCycle : 0;
+        CHECK(steps >= afterSave);
+        CHECK(steps <= afterSave + 1);
+        mostSteps = std::max(mostSteps, steps);
+
+        for (int k = 1; k <= steps; ++k)
+            REQUIRE(after.run(tests::killsteps::pageStep(tests::killsteps::kPageCycle + k, after.document())));
+        CHECK(journal.document().modelHash().toHex().toStdString() == after.document().modelHash().toHex().toStdString());
+        auto replayed = pdf::ops::RevisionWriter::compose(*backend.sinkFor(handle.value()), false);
+        auto planned = pdf::ops::RevisionWriter::compose(*afterBackend.sinkFor(afterHandle.value()), false);
+        REQUIRE(replayed);
+        REQUIRE(planned);
+        CHECK(QCryptographicHash::hash(replayed.value().bytes, QCryptographicHash::Sha256).toHex().toStdString()
+              == QCryptographicHash::hash(planned.value().bytes, QCryptographicHash::Sha256).toHex().toStdString());
+    }
+
+    std::cout << "kill_rewrite: where the " << kRuns << " kills landed --";
+    for (const auto& [where, count] : landed)
+        std::cout << " " << where << ": " << count << ";";
+    std::cout << " most steps replayed after the rewrite: " << mostSteps << std::endl;
+    CHECK(landed["inside the flush"] >= 1);
+    CHECK(landed["between apply and the flush"] >= 1);
+    CHECK(mostSteps >= 2);
 }
 
 TEST_CASE("recovery.kill_annotsaves: twenty kills during saves of annotation edits leave the target a whole revision",

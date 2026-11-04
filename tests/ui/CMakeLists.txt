@@ -57,6 +57,10 @@ add_executable(rawpage_ui_tests
     # Stage 3 T10 -- undo, redo, rotate, save and close: the mutation UI (guide cases A-71 … A-81).
     tst_mutationcommands.cpp
 
+    # Stage 7 T6 -- Save a Copy, the question before a rewrite breaks a signature, and documents/saveMode (D7-25;
+    # S7 guide A-124's Ctrl+S half, A-125, A-126's question half).
+    tst_saveacopy.cpp
+
     # Stage 3 T11 -- the recovery prompt at launch (guide cases A-67's untitled half, A-82's prompt half).
     # app/RecoveryPrompt.cpp is COMPILED IN rather than linked, as tests/unit compiles three app/ units:
     # app/ is an executable, and this file names core/ and ui/ only, so the target's closure is unchanged.

@@ -138,6 +138,9 @@ add_executable(rawpage_tests
     tst_composememo.cpp           # Stage 7 T4  -- the compose that keeps what it composed writes what one from nothing
                                   #   writes, over every editable corpus file (S7 guide A-128), and the late refusal
                                   #   taken back through a real sink (A-36's headless half)
+    tst_fullwriter.cpp            # Stage 7 T6  -- Save As that rewrites: one revision of what is reached, numbers kept,
+                                  #   the file compacted, every undo after it bringing back what it dropped, the signed
+                                  #   question's answers and Save a Copy (S7 guide A-122 ... A-126, headless halves)
     tst_dpipolicy.cpp             # Stage 2 T10 -- guide cases A-28, A-29, A-30
     tst_tilegrid.cpp              # Stage 2 T10 -- guide case A-31
     tst_presentation.cpp          # Stage 2 T10 -- guide cases A-32, A-33, A-34

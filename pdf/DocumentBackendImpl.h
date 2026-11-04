@@ -138,7 +138,8 @@ public:
     core::Status pageGeometry(core::DocumentHandle document, int pageIndex, core::PageGeometry& into) override;
 
     // Stage 3 T8 (D3-4): through `pdf/ops/RevisionWriter`, the same code the headless round trip runs.
-    core::Status writeRevision(core::DocumentHandle document, const QString& temporaryPath) override;
+    core::Status writeRevision(core::DocumentHandle document, const QString& temporaryPath, core::SaveForm form) override;
+    int signatureCount(core::DocumentHandle document) const override;
     core::Status adoptRevision(core::DocumentHandle document, const QString& path) override;
     // Stage 6 T4 (D6-2): `RevisionWriter::compose` and `verify` -- Save's own -- then each engine's
     // `PdfiumDocument::show`.

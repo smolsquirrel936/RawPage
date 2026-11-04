@@ -97,6 +97,9 @@ add_executable(rawpage_render_tests
                                   #   PDFium extracts from the page it lands on; each page deleted in turn; the labels
     tst_copierengine.cpp          # Stage 7 T5 -- guide A-38 (D7-4): every page of every editable corpus file copied and
                                   #   inserted, saved, reopened and drawn against its source, 0 px at 72 and 144 dpi
+    tst_fullwriterengine.cpp      # Stage 7 T6 -- guide A-122, A-124, A-126 (D7-25, D7-29): every Save As that rewrote
+                                  #   drawn against the append it replaces, 0 px at 72 and 144 dpi; each undo after a
+                                  #   rewrite drawn as its step was; an encrypted document Saved As as a byte copy
     tst_remap.cpp                 # Stage 7 T3 -- guide A-30, A-32 (D7-3): a move of pages-900.pdf's pages 10 ... 19
                                   #   served wholly from the cache at their new indices, the engine never entered for
                                   #   one, each graded by its text and the saved file's pixels; an unsaved rotation
@@ -132,7 +135,10 @@ target_compile_definitions(rawpage_render_tests PRIVATE
     RAWPAGE_A4_ANNOT_DIR="${CMAKE_BINARY_DIR}/a4-product-annot"
     # Stage 7 T2 (S7 guide A-27): the same four files after PAGE commands -- duplicated, moved and deleted,
     # saved after each -- for OpenSSL (D7-20: a signed document is edited, and its signed bytes keep).
-    RAWPAGE_A4_PAGES_DIR="${CMAKE_BINARY_DIR}/a4-product-pages")
+    RAWPAGE_A4_PAGES_DIR="${CMAKE_BINARY_DIR}/a4-product-pages"
+    # Stage 7 T6 (S7 guide A-126): the same four files after a page command and a SAVE AS with nobody to ask -- which
+    # keeps their signatures (D7-25, convention 16) -- for OpenSSL.
+    RAWPAGE_A4_SAVEAS_DIR="${CMAKE_BINARY_DIR}/a4-product-saveas")
 
 target_include_directories(rawpage_render_tests PRIVATE "${CMAKE_SOURCE_DIR}")
 
@@ -199,10 +205,22 @@ add_test(NAME render.a4_product.pages.openssl
             -P "${CMAKE_CURRENT_SOURCE_DIR}/RunA4Product.cmake")
 set_tests_properties(render.a4_product.pages.openssl PROPERTIES
     ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin;PATH=path_list_prepend:${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+# --- Stage 7 T6 (S7 guide A-126): the same runner over a SAVE AS with nobody to ask, which keeps the signatures by
+# appending rather than rewriting (D7-25). `-R a4_product` selects all four.
+add_test(NAME render.a4_product.saveas.openssl
+    COMMAND ${CMAKE_COMMAND}
+            "-DTEST_BINARY=$<TARGET_FILE:rawpage_render_tests>"
+            "-DPRODUCT_DIR=${CMAKE_BINARY_DIR}/a4-product-saveas"
+            "-DCHECKS_DIR=${CMAKE_SOURCE_DIR}/tests/gates"
+            "-DCASE=A4 product Saves As every signed corpus file and keeps its signatures"
+            -P "${CMAKE_CURRENT_SOURCE_DIR}/RunA4Product.cmake")
+set_tests_properties(render.a4_product.saveas.openssl PROPERTIES
+    ENVIRONMENT_MODIFICATION "PATH=path_list_prepend:${RAWPAGE_MINGW_ROOT}/bin;PATH=path_list_prepend:${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 # All alone under ctest -j: each re-runs a Catch2 case that ctest also runs as a test of its own, and
 # the two write the same files in one directory -- one could delete or rewrite a file while OpenSSL
 # reads the other's (cmake/RawPageSerialTests.cmake).
 set_tests_properties(render.a4_product.openssl render.a4_product.annotation.openssl render.a4_product.pages.openssl
+                     render.a4_product.saveas.openssl
                      PROPERTIES RUN_SERIAL TRUE)
 
 include(Catch)

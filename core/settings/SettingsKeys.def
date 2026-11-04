@@ -264,7 +264,8 @@ RAWPAGE_SETTING(performance, throttleOnBattery, bool,
 
 // =============================================================================================
 // The two Stage 3 keys -- Stage3-Mutation-Plan.md D3-9, which moved the plan's other two away:
-// `documents/saveMode` to Stage 8 (it needs FullWriter) and `documents/autosaveIntervalSec` to Stage 13
+// `documents/saveMode` to Stage 8 (it needs FullWriter) -- brought back to Stage 7 T6 by D7-25, which built the
+// writer, and declared after these two -- and `documents/autosaveIntervalSec` to Stage 13
 // (a journal flushed per command has no interval to configure). Both rows are in the `Documents` group,
 // which is what makes the Documents Preferences page ship at T12 (convention 17) -- beside the two
 // Stage 1 rows already declared there.
@@ -288,6 +289,13 @@ RAWPAGE_SETTING(documents, recoveryDir, QString,
 // gated; a file changed on disk, or an untitled document, still explains itself.
 RAWPAGE_SETTING(documents, warnOnRepairedSave, bool,
                 "documents/warnOnRepairedSave", true, Documents, true)
+
+// How Save (`Ctrl+S`) writes the file -- Stage 7 T6, D7-25 (`core/doc/SaveMode.h`). INCREMENTAL BY DEFAULT: an
+// append keeps every signed byte range and costs what changed; `full` rewrites as Save As does, compacting what page
+// commands left behind, and asks first about a signed document. Save As rewrites whatever this says. Read at each
+// Save by `ui/shell/MainWindow`, which hands it to `core/doc/SaveCoordinator` as `SaveOptions::rewriteOnSave`.
+RAWPAGE_SETTING(documents, saveMode, SaveMode,
+                "documents/saveMode", SaveMode::Incremental, Documents, true)
 
 // =============================================================================================
 // The eleven Stage 4 `units/` rows -- S4 T8, D4-5 and D4-6. They fill the `UnitsAndGuides` group,

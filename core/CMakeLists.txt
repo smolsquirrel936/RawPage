@@ -199,6 +199,8 @@ add_library(rawpage_core STATIC
     # the backend writes and re-reads, platform::IDurableFiles flushes and replaces.
     doc/SaveCoordinator.h
     doc/SaveCoordinator.cpp
+    # Stage 7 T6 (D7-25): how Save writes -- `documents/saveMode`'s two tokens.
+    doc/SaveMode.h
 
     # S4 T4 (D4-3, D4-4) -- the READ-ONLY halves of what a document says about itself. Hydrated
     # through the PDFium facade at open; the editing halves are Stage 7's and Stage 8's, and they

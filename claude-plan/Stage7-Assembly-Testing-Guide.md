@@ -16,11 +16,11 @@
 > T6, which renumbered T6 … T18 as T7 … T19 throughout, added §3.9, A-122 … A-127 and M-13's Save As steps; Q4
 > ANSWERED the same day, approved — §3.7 and A-35 … A-37 stand, their *struck if declined* clauses removed; Q5
 > ANSWERED the same day, all five parts approved — §1's five out-of-scope rows, A-80, A-96 and §6's note stand
-> as written.** **T1 done 2026-10-29, T2 and T3 2026-10-30, T4 and T5 2026-10-31: A-12 … A-34, A-36 … A-44 and A-128 carry a
-> result, all ✅ but A-27 (A-25 from CI run 40995950997's log; A-33 is §3.1's verdict, `go, with named custom work`,
+> as written.** **T1 done 2026-10-29, T2 and T3 2026-10-30, T4 and T5 2026-10-31, T6 2026-11-04: A-12 … A-34, A-36 … A-44, A-122 … A-126 and
+> A-128 carry a result, all ✅ but A-27 (A-25 from CI runs 40995950997's and 41180314162's logs; A-122's `qpdf` half at T6's push; A-33 is §3.1's verdict, `go, with named custom work`,
 > the user's choice, re-read at T5 with the real insert and inside); A-35 carries T4's half and T5's reading (🟡) --
 > **§3.7's move half NOT TAKEN at T5** (+20.9 … +23.8 ms after ~3,600 copied objects), the bookmark half T11's;
-> A-45 and A-46 carry T5's halves (🟡); A-03 and A-27 carry their T2 halves (🟡); A-08 … A-10 carry T5's readings; no
+> A-45 and A-46 carry T5's halves (🟡) -- **A-46's 60 s log read 2026-11-04 and found the target UNRUN, I-09**; A-03 and A-27 carry their T2 halves (🟡); A-08 … A-10 carry T5's readings; no
 > other case has one.** T1 raised **I-01 (S2), closed inside T1** — the engine facade showed a page that inherits its
 > boxes at US Letter, uncropped, and refused its document for editing; T4's A-128 raised **I-03 (S2), closed inside
 > T4** — a moved link whose target page is then deleted refused the delete; CI's fuzzer then raised **I-04 (S2),
@@ -28,7 +28,9 @@
 > a Stage 5 index case read one page more than expected, once; T5's A-38 raised **I-06 (S3)** — the parser read an
 > unterminated dictionary into the next object — and **I-07 (S2)** — an inserted page drew its hidden layers — both
 > **closed inside T5** by the user's choice, and its first full run **I-08 (S3), OPEN** — a Stage 5 timing bound red
-> once (§8); T2 and T3 raised none. **P-3, a
+> once (§8); T6 raised **I-09 (S3), fixed** -- `fuzz_assembly` built and fuzzed by nothing, a gate added -- **I-10 (S2), closed
+> inside T6** -- a page an undo put back after a save drawn as one the engine never opened, older than T6 -- and **I-11 (S2),
+> OPEN** -- recovery stops at an undo, after a save, of a page delete; T2 and T3 raised none. **P-3, a
 > duplex printer for M-04, is open.** **Cases written against a §0 proposal name it in their heading or row**
 > (Q*n* ✅); none was declined, so none moved or was struck. **128 automated** (A-01 … A-128, A-128 added at T4)
 > and **14 manual** (M-01 … M-14).
@@ -518,7 +520,7 @@ by a later task says so in its result.
 **A-25 · `qpdf --check` over every file a page command saves** ✅ *2026-10-30, T2; the log read at each push*
 **Steps** The `portable-asan` job's `check-qpdf.py` step; **read the log** (rule 3).
 **Expect** *"No syntax or stream encoding errors found"* for every Stage 7 output, each named; the file count re-derived. **If it fails** S2.
-**Result (T2)** Every file `tests/unit/tst_reference_repair.cpp` saves is kept as `written/pages-NN.pdf` beside Stage 6's, which the job's existing step judges. Run **40995950997** on `2da9e8e`, read from the job's log 2026-10-30: `pages-01.pdf` … `pages-08.pdf` each *"No syntax or stream encoding errors found"*, and *"qpdf check: 79 file(s), 0 failed; the truncated-stream control rejected"* -- the eight over run 40875904825's 71. Later tasks' outputs are read at their own pushes. **T5 (2026-10-31):** every file `tst_copier` saves -- inserts, a replace and its undo, blank pages, the layers' union -- is kept as `written/copies-<line>.pdf`, **11 files**, read at T5's push.
+**Result (T2)** Every file `tests/unit/tst_reference_repair.cpp` saves is kept as `written/pages-NN.pdf` beside Stage 6's, which the job's existing step judges. Run **40995950997** on `2da9e8e`, read from the job's log 2026-10-30: `pages-01.pdf` … `pages-08.pdf` each *"No syntax or stream encoding errors found"*, and *"qpdf check: 79 file(s), 0 failed; the truncated-stream control rejected"* -- the eight over run 40875904825's 71. Later tasks' outputs are read at their own pushes. **T5 (2026-10-31):** every file `tst_copier` saves -- inserts, a replace and its undo, blank pages, the layers' union -- is kept as `written/copies-<line>.pdf`, **11 files**. Run **41180314162** on `bcfbb1b`, read from the job's log 2026-11-04: `copies-453.pdf` … `copies-731.pdf`, all eleven *"No syntax or stream encoding errors found"*, and *"qpdf check: 90 file(s), 0 failed; the truncated-stream control rejected"* -- the eleven over T2's 79; the same job ran `tst_copier`'s cases and `unit.fuzz.assembly_replay` under ASan + UBSan, 1048/1048, no `runtime error` in the log.
 
 **A-26 · What is refused is refused by key** ✅ *2026-10-30, T2*
 **Steps** `ctest -R "pageops.refused"`.
@@ -638,29 +640,35 @@ by a later task says so in its result.
 **A-46 · `fuzz_assembly`, replayed here and run on Linux** 🟡 *Windows replay ✅ 2026-10-31, T5; the 60 s log at the push; the soak's at T19*
 **Steps** `ctest -R "fuzz.assembly_replay"` (the body over the corpus and the adversarial inputs, headless); the `portable-fuzz` job's log; the soak's.
 **Expect** No crash, no hang beyond the body's time bound; 60 s and ten minutes with no finding, read from the **logs**. **If it fails** S1 for a crash; each finding gets a regression case before it counts as fixed.
-**Result (Windows replay)** `unit.fuzz.assembly_replay: ...` -- `tests/fuzz/AssemblyFuzzBody.h`, the target's body: *"199 inputs, 123 reached the copy"* (every corpus PDF, each `assembly/` file cut at a half, a third and a fifth, and three hostile graphs -- resources naming the tree, a node listed twice, content naming itself and its page), every invariant held: refusal by key, the payload opening with no repair, one catalog and one node, every reference closed, each page its own inheritable keys, the insert and the replace composed and VERIFIED and undone to nothing. The 60-second CI log is read at the push.
+**Result (Windows replay)** `unit.fuzz.assembly_replay: ...` -- `tests/fuzz/AssemblyFuzzBody.h`, the target's body: *"199 inputs, 123 reached the copy"* (every corpus PDF, each `assembly/` file cut at a half, a third and a fifth, and three hostile graphs -- resources naming the tree, a node listed twice, content naming itself and its page), every invariant held: refusal by key, the payload opening with no repair, one catalog and one node, every reference closed, each page its own inheritable keys, the insert and the replace composed and VERIFIED and undone to nothing.
+**Result (the 60 s log, 2026-11-04) -- NOT RUN, raised as I-09.** Run **41180314162** on `bcfbb1b`, T5's push, read from its `Portable libFuzzer` log: configure counted *"fuzz_assembly (6, as expected)"* and the build linked `bin/fuzz_assembly`, and **no step ran it** -- the job fuzzed the other five, 60 s each, with no finding, and `fuzz-soak.yml`'s matrix lists the same five, so the four daily soaks since (41189182957 … 41622024204) did not run it either. Both workflows now run it, and `gates.fuzz_workflows.*` refuses a target either omits; **the 60 s half is read at the fix's push.**
 
 ### 5.8 Save As that rewrites (T6) — D7-25
 
-**A-122 · Save As writes one revision of what is reachable, and loses nothing** ☐ *T6; re-run at T19* — §3.9
+**A-122 · Save As writes one revision of what is reachable, and loses nothing** ✅ *T6 2026-11-04; the `qpdf` log at the push; re-run at T19* — §3.9
 **Steps** `ctest -R "fullwriter"` over every editable corpus file, each after a `MovePages` and an `AddAnnotation`; the `qpdf` step's log.
 **Expect** §3.9's bars for every file. **The control (rule 5):** a planted writer that skips one reachable object type (`/XObject` resources) fails the raster bar on the image fixtures. **If it fails** S1.
+**Result** ✅ *2026-11-04, T6.* `unit.fullwriter every editable corpus file Saved As after a move and a highlight is one revision of what it reaches`: *"122 files Saved As -- 118 rewritten, 16739 objects kept, 25 dropped; 4 signed, kept by appending; 0 failures"* (not editable by the first-party writer: `merge-not-a-pdf.pdf`, `objstm-corrupt.pdf`, `truncated-mid-stream.pdf`) -- each rewrite opened with no repair, ONE section and no `/Prev`, what it holds exactly what it reaches and exactly what the composed file reached (a walk of the case's own, not the writer's), every object value for value and generation for generation the composed file's, every dropped number a free row at its generation, `/Size` above every dropped number. The raster bar: `render.fullwriter every page of every Save As that rewrote draws as the save it replaces`: *"118 files Saved As, 114 rewritten, 7708 renders, 0 differ or refused"* -- every page at 72 and 144 dpi, annotations on, against the APPEND of the same state reopened in a fresh engine (the bound: a file over 200 pages at 144 dpi every ninth page). The four signed files are appended, nobody having been asked (A-126). **Controls:** P1 (every in-use object kept) and P2 (`/XObject` resources skipped) red -- refused by the rewrite's own verify (`unreachable`, `reachable`) before any pixel -- so **P2b**, the same plant with the verify's two reachability checks disabled, is the raster bar's own control: *"26 differ or refused"*, the five the runner kept each a page drawing differently (`decorated-elsewhere.pdf`, `inherit-resources.pdf`, `compare/base.pdf` among them); P3 (a dropped number's free row at generation + 1) red; P10 (Save As appending, as before T6) red. **The `qpdf` half** is the push's: the kept files are `written/rewrite-*.pdf`.
 
-**A-123 · What is unreachable goes, and the file shrinks** ☐ *T6*
+**A-123 · What is unreachable goes, and the file shrinks** ✅ *T6 2026-11-04*
 **Steps** `ctest -R "fullwriter.compaction" -V`: delete 800 of `pages-900.pdf`'s pages; Save, and Save As, to two scratch files.
 **Expect** The rewrite holds **no** object unreachable from its trailer (counted); it is smaller than both the incremental save and the original, all three sizes printed. **The control:** a planted writer that keeps every in-use entry reachable or not fails the count. **If it fails** S2.
+**Result** ✅ *2026-11-04, T6.* `unit.fullwriter.compaction ...`: *"pages-900.pdf, 800 pages deleted -- original 126451 bytes, save 126960 (1629 objects unreachable), Save As 76241 (0 unreachable, 219 objects)"*: the incremental save GREW the file and kept 1,629 unreachable objects (the control the case asserts), the rewrite holds none and is 40 % smaller than either. **Control:** P1 (every in-use object kept) red; P10 red.
 
-**A-124 · Numbers kept: undo, identities and recovery survive a Save As** ☐ *T6*
+**A-124 · Numbers kept: undo, identities and recovery survive a Save As** ✅ *T6 2026-11-04*
 **Steps** `ctest -R "fullwriter.identity"`: annotate, move pages, Save As; undo every step, redo every step; then the A-28 rotation with a kill after the Save As; then `documents/saveMode = full` and `Ctrl+S`.
 **Expect** Every surviving object's number and generation equal before and after; each undo and redo after the Save As rasterizes as the same step did before it (0 px); every annotation identity resolves; the replay after the kill equals the document before it; with `full`, `Ctrl+S` rewrites as Save As does. **If it fails** S1.
+**Result** ✅ *2026-11-04, T6.* `unit.fullwriter.identity ...` over `assembly/refs-every-kind.pdf`: a highlight, a move and a two-page delete (the highlighted page among them), Saved As -- every surviving object at its number and generation, value for value; the deleted pages gone from the file; then every undo reaching its step's model hash and composing (what the rewrite dropped written back, D7-29), saved by appending, and the file's pages the original objects in the original order, each dictionary but `/Parent` and every annotation it lists value for value the original's; every redo after it; then `documents/saveMode = full` -- `Save` rewrote, one section, nothing unreached, two retired revisions held. The pixels: `render.fullwriter.identity ...` -- each undo and redo after the rewrite drawn, live, as its step drew before it (0 differ, 252 renders), which found **I-10** (§8). Recovery: `platform.recovery.kill_rewrite ...` (`rawpage_killprobe rewrite`, a mode added for it) -- the page cycle, a Save As that rewrote, then twenty kills: *"between apply and the flush: 12; inside apply: 2; inside the flush: 6; most steps replayed after the rewrite: 8"*, the journal naming the rewrite each time, the probe's rewrite and the case's own byte-identical, and every replay equal -- by model hash and by the composed bytes -- to the same steps run over that rewrite opened fresh. Fresh, not the model carried across the save, and measured why: after an APPEND save as after a rewrite, a model carried across it differs from a fresh reading of its file in two ways neither is the replay's question -- the headless backend reads no `/PageLabels`, and a created annotation keeps its `/NM` identity in its own session where a reading names it by its object. The `Ctrl+S` half through the shell: `ui.documents/saveMode full makes Save rewrite ...`. **Controls:** P4 (no revival) and P5 (no retired fallback) red; P7 (I-10's fallback removed) red in the raster case; P11 (a rewrite's save not telling the recovery journal the document moved) red in the kill case. **Not covered** (stated at the kill case): an undo, after a save, of a step from before it, replayed by recovery -- which does not replay for a page delete after any save, **I-11** (§8).
 
-**A-125 · Save a Copy leaves the tab where it was** ☐ *T6*
+**A-125 · Save a Copy leaves the tab where it was** ✅ *T6 2026-11-04*
 **Steps** `ctest -R "ui.save_a_copy"`.
 **Expect** The copy written by the rewrite at the chosen path and passing A-122; the tab keeps its own path, title and unsaved state, and a later `Ctrl+S` writes to its own file. **If it fails** S2.
+**Result** ✅ *2026-11-04, T6.* `ui.Save a Copy writes the rewrite elsewhere and the tab keeps its file, title and changes` (`file.saveACopy` dispatched, the path answered by the twin): the copy written by the REWRITE form, the tab's path, title and dirty state unchanged, its own file untouched; a later `file.save` appended to its own file and left the copy as it was. The coordinator's half, over a real file: `unit.fullwriter.copy ...` -- the copy one section with nothing unreached, the journal dirty and on its own path, a later Save appending to the original. **Control:** P9 (the copy adopted) red in both.
 
-**A-126 · A signed document asks; an encrypted one is copied** ☐ *T6*
+**A-126 · A signed document asks; an encrypted one is copied** ✅ *T6 2026-11-04*
 **Steps** `ctest -R "fullwriter.signed|fullwriter.encrypted|a4_product" -V` over the four `corpus/signed/` files and `corpus/encrypted/`; the question answered each way, and once with no user.
 **Expect** *Keep the signatures*: copied and appended, and OpenSSL verifies all four, each with one byte flipped first as its control; *rewrite*: written, the question having named the signatures as becoming invalid; **no user: the signatures kept** (convention 16). Encrypted: copied and appended, the output's prefix byte-identical to the original. A **repaired** document's forced Save As now rewrites, and the output opens with **no repair**. **If it fails** S1.
+**Result** ✅ *2026-11-04, T6.* `unit.fullwriter.signed ...` over the four `corpus/signed/` files: each counts its signature (`pdf/ops/SignatureFields`, D7-20's reading); *cancel* writes nothing and leaves no temporary file, the question having been handed the count; *keep* appends, the opened bytes a prefix; *rewrite* writes one section; nobody to ask appends. And an unsigned file is never asked (the control). `render.a4_product.saveas.openssl`: a duplicate then a Save As with nobody to ask, on each signed file, and OpenSSL *"8 of 8 controls rejected, 4 of 4 signatures verify"*, each signed range ending where the original's did (`approval.pdf`: byte 19370 of 19768). The question through the shell: `ui.Save As asks before a rewrite breaks a signature ...` -- each answer writing what it says, *cancel* reporting no failure. Encrypted: `render.fullwriter.encrypted ...` -- the one `corpus/encrypted/` file the engine opens with no password Saved As, byte for byte the original, the document then living at the copy. Repaired: `unit.fullwriter.repaired ...` -- *"12 repaired files rewritten"*, each opening with no repair, one section, nothing unreached. **Controls:** P6 (signatures ignored) red; P8 (the encrypted copy short) red.
 
 ### 5.9 New documents: extract and split (T7) — Q1 ✅
 
@@ -1208,6 +1216,9 @@ missed it, and the control that was run red before the fix — the shape every e
 | **I-06** | S3 | A page dictionary missing its `>>` was read by the first-party parser ON INTO THE NEXT OBJECT, whose `/Contents` then won -- so a copy or a duplicate of the page drew another page | **Closed** at T5, 2026-10-31 (the user's choice: fixed in the parser) |
 | **I-07** | S2 | A page inserted from another document drew the content of its optional-content groups that the source HID: the target listed no such group, and a reader shows a group no `/OCProperties` lists | **Closed** at T5, 2026-10-31 (the user's choice: the groups united now) |
 | **I-08** | S3 | `render.a 900-page file's open never holds the engine longer than one page's extraction` (Stage 5's T9 bound, `[run-serial]`) failed once in T5's first full run: an engine piece of 5.36 ms against an extraction maximum of 3.80 | **Open** -- 5 of 5 green alone |
+| **I-09** | S3 | `fuzz_assembly` was built, linked and counted by CI, and fuzzed by nothing: neither `ci.yml`'s 60 s steps nor `fuzz-soak.yml`'s matrix named it | **Fixed** 2026-11-04 at T6's start; closed when a push's log shows it run |
+| **I-10** | S2 | After ANY save, a deleted page put back by an undo was drawn on screen as a page the engine never opened -- not as it drew before the delete, and not as Save then wrote it | **Closed** at T6, 2026-11-04 (fixed inside the task) |
+| **I-11** | S2 | A recovery replay STOPS at an undo, made after a save, of a page delete from before it -- the deleted page not put back and every later step lost -- after an append save as after a rewrite | **Open** -- unreachable by a person until a surface runs a page command (T8); owner the user's decision |
 
 **I-01 (S2) — the engine facade read a page's boxes from the page dictionary alone.** *Found* at T1 by
 the first scratch render of `assembly/inherit-resources.pdf`, whose pages inherit both boxes: an A4 page
@@ -1346,6 +1357,60 @@ max 3.797 ms"* -- `pieceMax <= extractionMax` false. *Not reproduced:* five runs
 3.68–4.86, all green. *What is known:* the case is `[run-serial]`, so no other ctest case ran beside it; it compares
 one maximum with another, so a single slow piece decides it; T5's code is not in an open's path except the parser's
 one new keyword comparison per dictionary key. *Mechanism:* NOT ESTABLISHED. *Open*; each full run is read for it.
+
+**I-09 (S3) — a fuzz target built and counted, and run by nothing.** *Found* 2026-11-04 by reading **A-46**'s 60 s half
+from run **41180314162** on `bcfbb1b` (T5's push): the `Portable libFuzzer` job's configure printed *"fuzz_assembly (6,
+as expected)"*, its build linked `bin/fuzz_assembly`, and it then ran five targets -- the step list and the *"all five
+targets linked"* loop were Stage 6's. `fuzz-soak.yml`'s matrix named the same five, so the soaks of 2026-10-31 …
+2026-11-03 did not fuzz it either. No product behaviour is wrong; *S3*, like I-02, because what was lost is evidence --
+§9 item 6 and A-46 are read from these logs, and D7-23 says *"the soak runs it"*. *Mechanism:* the targets a workflow
+fuzzes are written by hand in two YAML files no build reads, while `cmake/RawPageFuzzTargets.cmake` asserts only how
+many tests/fuzz BUILDS; T5 changed the build and its count and not the workflows. *Why no suite saw it:* the count
+assertion was written for the opposite failure -- a target that does not exist passing *"no crashes"* -- and every job
+was green, because a target nobody runs finds nothing. *Fix:* `fuzz_assembly` added to `ci.yml`'s linked loop and as a
+60 s step, seeded from `corpus/assembly/` and `corpus/malformed/`, and to the soak's matrix with the same seeds; and the
+class closed by `tests/gates/CheckFuzzWorkflows.cmake`, which reads `tests/fuzz/CMakeLists.txt`'s
+`rawpage_add_fuzz_target()` calls and both workflows as text, comments dropped, and refuses a target with no ci.yml run
+step, no place in its linked loop, or no soak entry. *Bound, stated at the script:* it does not check seeds, times, or
+that a step is not skipped by an `if:`. *Regression:* `gates.fuzz_workflows.repository` over the real three files,
+with `clean_pair_passes` (the control), `ci_unrun_fails`, `soak_unrun_fails` and `no_targets_fails` over
+`tests/gates/fixtures/fuzz-workflows/`. *Control:* the repository case run BEFORE the workflow edits, red with all three
+omissions named (`fuzz_assembly: no ci.yml step runs it`, `… not in ci.yml's linked loop`, `… no fuzz-soak.yml matrix
+entry`); after them, green. *Fixed*, not closed: closed when a push's `Portable libFuzzer` log shows `fuzz_assembly`'s
+60 s with no finding.
+
+**I-10 (S2) — after a save, a page an undo put back was drawn as a page the engine never opened.** *Found* at T6 by
+**A-124**'s raster half (`render.fullwriter.identity`): after a Save As that rewrote, each undo and redo drew the two pages
+the rewrite had dropped and the undo brought back differently from the same step before the save -- render indices *0–3*
+and *2–5*, both scales of exactly those two pages, every other page equal. A probe settled where: what Save would write
+at that moment, reopened in a fresh engine, drew every page as before the save (0 differ), so the BYTES were right and
+the screen was not -- D6-2's *what is shown is what is saved*, broken. A second probe found it older than T6: the same
+undo after an ordinary APPEND save drew the same two pages wrong. *Mechanism:* the backend's page tree (D7-3) places each
+drawn page in the tree read at open through `MutationSinkImpl::desiredDiskIndices` and `diskFrom` -- the newest revision
+ON DISK. A page deleted and saved is in no disk revision, so an undo that puts it back answered `-1`, and the engine's
+tree carried it as a page it had never opened, without the boxes, rotation and identity it read at open; `drawnOriginals`
+likewise called it not the original object, so a destination naming it was not carried to it. *Why no suite saw it:*
+T2's undo-after-a-save cases grade the SAVED file (A-24, `unit.roundtrip chains three saves and an undo after a save
+writes the page back`) and T3's remap cases (A-30 … A-34) a move with no save between; no case drew the live engine after
+a delete, a save and an undo. *Fix:* the page OBJECT each desired page shows (`MutationSinkImpl::desiredPageObjects`) is
+looked up in the open tree's page objects (`DocumentBackendImpl::Open::openObjects`, read at open) when no disk revision
+has it -- a page put back is the object the document had at open, and after a rewrite the object D7-29 writes back.
+*Regression:* `render.fullwriter I-10 a page an undo puts back after an append save draws as it did` (`[I-10]`), and
+A-124's raster case. *Control:* P7 (the fallback removed) red in both.
+
+**I-11 (S2) — recovery cannot replay an undo, after a save, of a page delete from before it.** *Found* at T6 while writing
+A-124's recovery clause, by a probe (removed after the run): `assembly/refs-every-kind.pdf`, page 2 deleted, saved, the
+delete undone, the owner gone, the journal replayed over the saved file -- *"applied 0 stopped 1 pages 11"*, both after an
+APPEND save and after a Save As that rewrote. *Mechanism, as far as read:* `RecoveryJournal` replays an undo of a step the
+rebuilt history no longer holds as that command's `revert()` (`RecoveryJournal.h`), and `DeletePagesCommand`'s revert is
+`MutationSink::restorePages(pages, key)` -- which puts back the pages the SINK took out under that key (`stash_`), held by the
+process that ran the delete. The replaying process never ran it, so the key is unknown and the step refused -- by the
+code, `error.command.malformed`; the probe read only that the replay stopped; after a rewrite the deleted pages' objects are not even in the file (D7-29 keeps them in the
+memory of the session that rewrote). Stage 3's A-64 (`unit.recovery replays an undo after a save as the command's revert`)
+proves the rule over a rotation, whose revert needs nothing the session held. *Why it is S2:* a replay that stops loses the
+undo and every step after it; *open, not fixed in T6*, because the repair is a decision about what a page command's line
+must carry across a save -- the pages' objects, or the file they lived in -- and no surface runs a page command before T8, so no
+person can meet it yet. The duplicate and the insert, whose undos are removals by key too, were not probed. *Open.*
 
 ---
 

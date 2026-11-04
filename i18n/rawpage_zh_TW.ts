@@ -2047,6 +2047,26 @@
         <translation>PDF 檔案 (*.pdf)</translation>
     </message>
     <message>
+        <source>shell.saveACopy.title</source>
+        <translation>另存副本</translation>
+    </message>
+    <message>
+        <source>shell.saveAs.signedTitle</source>
+        <translation>已簽署的文件</translation>
+    </message>
+    <message>
+        <source>shell.saveAs.signedText</source>
+        <translation>%1 帶有 %2 個簽章。將它重寫為一個精簡的檔案，會使每一個簽章失效。若保留簽章，變更會如「儲存」一般附加在已簽署的內容之後。</translation>
+    </message>
+    <message>
+        <source>shell.saveAs.signedKeep</source>
+        <translation>保留簽章</translation>
+    </message>
+    <message>
+        <source>shell.saveAs.signedRewrite</source>
+        <translation>重寫（簽章將失效）</translation>
+    </message>
+    <message>
         <source>shell.recovery.title</source>
         <translation>復原文件</translation>
     </message>
@@ -2648,6 +2668,10 @@
     <message>
         <source>error.save.cancelled</source>
         <translation>已取消儲存 %1。</translation>
+    </message>
+    <message>
+        <source>error.save.notRewritable</source>
+        <translation>此版本只能複製此文件，無法重寫（%1）。</translation>
     </message>
     <message>
         <source>error.font.collectionUnavailable</source>
@@ -3864,6 +3888,14 @@
         <translation>外觀</translation>
     </message>
     <message>
+        <source>prefs.choice.saveMode.incremental</source>
+        <translation>將變更附加在檔案之後（保留簽章）</translation>
+    </message>
+    <message>
+        <source>prefs.choice.saveMode.full</source>
+        <translation>重寫整個檔案（使其精簡）</translation>
+    </message>
+    <message>
         <source>prefs.setting.pageDisplay.layoutMode</source>
         <translation>頁面配置</translation>
     </message>
@@ -4030,6 +4062,10 @@
     <message>
         <source>prefs.setting.documents.warnOnRepairedSave</source>
         <translation>說明修復過的文件為何要另存為新檔</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.saveMode</source>
+        <translation>「儲存」寫入檔案的方式</translation>
     </message>
     <message>
         <source>prefs.setting.documents.compareSensitivity</source>

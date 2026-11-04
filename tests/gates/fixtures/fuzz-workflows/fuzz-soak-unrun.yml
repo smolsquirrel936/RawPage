@@ -1,0 +1,9 @@
+# Fixture: fuzz_beta missing from the matrix, as fuzz_assembly was at Stage 7 T5.
+jobs:
+  soak:
+    strategy:
+      matrix:
+        include:
+          - target: fuzz_alpha
+            seeds: corpus/malformed
+          #- target: fuzz_beta

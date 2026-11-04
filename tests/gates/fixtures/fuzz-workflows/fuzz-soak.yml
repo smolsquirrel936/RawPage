@@ -1,0 +1,10 @@
+# Fixture: both targets in the matrix -- the control.
+jobs:
+  soak:
+    strategy:
+      matrix:
+        include:
+          - target: fuzz_alpha
+            seeds: corpus/malformed
+          - target: fuzz_beta
+            seeds: corpus/ordinary

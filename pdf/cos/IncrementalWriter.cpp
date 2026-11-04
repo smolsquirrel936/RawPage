@@ -364,7 +364,9 @@ core::Result<WrittenUpdate> write(std::string_view original, const XrefTable& ta
         const bool added = delta.isNew(change.number);
         const XrefEntry* entry = added ? nullptr : table.find(change.number);   // S7 T4: a new number is not the file's
         const bool present = entry != nullptr && entry->type != XrefEntryType::Free;
-        if (change.number <= 0 || (!added && !present))
+        // S7 T6 (D7-29): a number a rewrite dropped comes back at the generation its free row keeps.
+        const bool revived = !added && !present && change.number > 0 && delta.revivalGeneration(change.number).has_value();
+        if (change.number <= 0 || (!added && !present && !revived))
             return writeError(core::ErrorCode::NotFound, "error.pdf.writeObjectMissing",
                               change.number);
         if (!change.written && change.object.isStream() && !change.streamData)
@@ -395,8 +397,9 @@ core::Result<WrittenUpdate> write(std::string_view original, const XrefTable& ta
         // A replaced object keeps its generation; one that lived in an object stream had
         // generation 0 by definition (ISO 32000-1 7.5.7), and so does a new one.
         const XrefEntry* entry = delta.isNew(change->number) ? nullptr : table.find(change->number);
-        const long long generation =
-            entry != nullptr && entry->type == XrefEntryType::InFile ? entry->field3 : 0;
+        long long generation = entry != nullptr && entry->type == XrefEntryType::InFile ? entry->field3 : 0;
+        if (!delta.isNew(change->number) && (entry == nullptr || entry->type == XrefEntryType::Free))
+            generation = delta.revivalGeneration(change->number).value_or(0);   // S7 T6: validated above
         rows.emplace_hint(rows.end(), change->number,
                           Row{XrefEntryType::InFile, static_cast<long long>(original.size() + out.size()), generation});
         std::shared_ptr<const WrittenObject> written = change->written;
@@ -553,6 +556,14 @@ std::string serializeObject(const CosObject& object)
 {
     std::string out;
     appendObject(out, object);
+    return out;
+}
+
+std::string serializeIndirect(long long number, long long generation, const CosObject& object,
+                              const std::optional<std::string>& streamData)
+{
+    std::string out;
+    appendIndirect(out, number, generation, object, streamData);
     return out;
 }
 

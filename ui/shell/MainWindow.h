@@ -46,6 +46,7 @@
 #include "core/cmd/RecoveryJournal.h"
 #include "core/doc/Annotation.h"
 #include "core/doc/Fdf.h"
+#include "core/doc/SaveCoordinator.h"
 #include "core/text/SearchEngine.h"
 #include "ui/dialogs/CompareDialog.h"
 #include "ui/dialogs/CustomStampDialog.h"
@@ -173,6 +174,14 @@ public:
     // I-15). A failure no other path could answer is a `SaveFailed` banner as well as the result.
     core::Status saveDocument(DocumentWindow* document);
     core::Status saveDocumentAs(DocumentWindow* document);
+    // S7 T6 (D7-25): Save a Copy -- asked where as Save As asks, and the tab left where it was.
+    core::Status saveDocumentACopy(DocumentWindow* document);
+
+    // THE QUESTION BEFORE A REWRITE BREAKS A SIGNATURE (S7 T6, D7-25), and its parameterized twin for a headless case.
+    // Asked by Save As, Save a Copy, and Save under `documents/saveMode = full`, with the signature count; with no
+    // answer installed and nobody to ask, nothing is asked and the signatures are kept (convention 16).
+    using SignedRewriteAnswer = std::function<core::SignedRewriteAnswer(int signatures)>;
+    static void setSignedRewriteAnswerForTesting(SignedRewriteAnswer answer);
 
     // WHERE A SAVE AS GOES, and the parameterized twin a headless case drives (convention 16). The
     // answer is handed the path the dialog would propose -- the document's own, or for an untitled document
@@ -181,6 +190,8 @@ public:
     using SaveAsAnswer = std::function<std::optional<QString>(const QString& currentPath)>;
     static void setSaveAsAnswerForTesting(SaveAsAnswer answer);
     static bool canAskSavePath();
+    // S7 T6: how a save of `document` writes -- `documents/saveMode`, and who answers for a signed document.
+    core::SaveOptions saveOptionsFor(DocumentWindow* document);
 
     // `Ctrl+Tab` / `Ctrl+Shift+Tab` once T13 wires the chords. Wraps at both ends, which is what
     // every tab strip does and what makes the chord usable without looking.

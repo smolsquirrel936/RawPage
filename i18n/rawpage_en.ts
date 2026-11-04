@@ -2047,6 +2047,26 @@
         <translation>PDF files (*.pdf)</translation>
     </message>
     <message>
+        <source>shell.saveACopy.title</source>
+        <translation>Save a Copy</translation>
+    </message>
+    <message>
+        <source>shell.saveAs.signedTitle</source>
+        <translation>Signed document</translation>
+    </message>
+    <message>
+        <source>shell.saveAs.signedText</source>
+        <translation>%1 carries %2 signature(s). Rewriting it as one compact file makes every one of them invalid. Keeping the signatures adds your changes after the signed content instead, as Save does.</translation>
+    </message>
+    <message>
+        <source>shell.saveAs.signedKeep</source>
+        <translation>Keep the signatures</translation>
+    </message>
+    <message>
+        <source>shell.saveAs.signedRewrite</source>
+        <translation>Rewrite (signatures become invalid)</translation>
+    </message>
+    <message>
         <source>shell.recovery.title</source>
         <translation>Recover Documents</translation>
     </message>
@@ -2648,6 +2668,10 @@
     <message>
         <source>error.save.cancelled</source>
         <translation>Saving %1 was cancelled.</translation>
+    </message>
+    <message>
+        <source>error.save.notRewritable</source>
+        <translation>This document can be copied but not rewritten in this build (%1).</translation>
     </message>
     <message>
         <source>error.font.collectionUnavailable</source>
@@ -3864,6 +3888,14 @@
         <translation>Appearance</translation>
     </message>
     <message>
+        <source>prefs.choice.saveMode.incremental</source>
+        <translation>Add the changes after the file (keeps signatures)</translation>
+    </message>
+    <message>
+        <source>prefs.choice.saveMode.full</source>
+        <translation>Rewrite the whole file (compacts it)</translation>
+    </message>
+    <message>
         <source>prefs.setting.pageDisplay.layoutMode</source>
         <translation>Page layout</translation>
     </message>
@@ -4030,6 +4062,10 @@
     <message>
         <source>prefs.setting.documents.warnOnRepairedSave</source>
         <translation>Explain why a repaired document is saved as a new file</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.saveMode</source>
+        <translation>How Save writes the file</translation>
     </message>
     <message>
         <source>prefs.setting.documents.compareSensitivity</source>

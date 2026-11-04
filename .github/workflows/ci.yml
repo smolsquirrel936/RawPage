@@ -526,9 +526,12 @@ jobs:
       # THREE from Stage 3 T13 (D3-17): fuzz_cos_roundtrip, the reader and the writer against each other.
       # FOUR from Stage 5 T4 (D5-21): fuzz_text_pipeline, core/text/ over hostile geometry.
       # FIVE from Stage 6 T2 (D6-29): fuzz_annot_pipeline, the annotation reader and store.
-      - name: A-25 / A-26 / A-83 / S5 A-40 / S6 A-23 -- all five targets linked
+      # SIX from Stage 7 T5 (D7-23): fuzz_assembly -- built from T5 and RUN only from Stage 7 guide I-09's fix,
+      # because this list and the steps below are written by hand. gates.fuzz_workflows.* now refuses a
+      # target tests/fuzz/CMakeLists.txt declares that this file or fuzz-soak.yml does not run.
+      - name: A-25 / A-26 / A-83 / S5 A-40 / S6 A-23 / S7 A-46 -- all six targets linked
         run: |
-          for target in fuzz_cos_lexer fuzz_cos_parser fuzz_cos_roundtrip fuzz_text_pipeline fuzz_annot_pipeline; do
+          for target in fuzz_cos_lexer fuzz_cos_parser fuzz_cos_roundtrip fuzz_text_pipeline fuzz_annot_pipeline fuzz_assembly; do
             path="build/portable-fuzz/bin/$target"
             if [ ! -x "$path" ]; then
               echo "::error::$path was not built -- a preset that has never linked anything has not been proven to link anything"
@@ -590,6 +593,15 @@ jobs:
         run: |
           mkdir -p fuzz-work/annot
           ./build/portable-fuzz/bin/fuzz_annot_pipeline fuzz-work/annot corpus/ordinary corpus/malformed corpus/exchange \
+              -max_total_time=60 -error_exitcode=1
+
+      # Stage 7 T5, D7-23 (S7 guide A-46): bytes through the page walk, pdf/ops/ObjectGraphCopier and the
+      # sink's insert and replace, composed and verified (tests/fuzz/AssemblyFuzzBody.h). Seeded with
+      # corpus/assembly/ -- inheritance, shared resources, layers, references -- and corpus/malformed/.
+      - name: S7 A-46 -- fuzz_assembly
+        run: |
+          mkdir -p fuzz-work/assembly
+          ./build/portable-fuzz/bin/fuzz_assembly fuzz-work/assembly corpus/assembly corpus/malformed \
               -max_total_time=60 -error_exitcode=1
 
   # =====================================================================================

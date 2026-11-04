@@ -472,6 +472,40 @@ TEST_CASE("A4 product saves page commands into every signed corpus file", "[rend
     CHECK(written == 4);
 }
 
+TEST_CASE("A4 product Saves As every signed corpus file and keeps its signatures", "[render][save][a4][saveas]")
+{
+    // Stage 7 T6 (S7 guide A-126, D7-25): SAVE AS REWRITES, and a rewrite breaks a signature -- so with nobody to ask
+    // (no `SaveOptions::askSigned`, flow K's case) the signatures are KEPT: the Save As appends. The opened bytes are
+    // a prefix of the file Saved As, and tests/render/RunA4Product.cmake hands the four to OpenSSL, controls first.
+    const QString outDir = QStringLiteral(RAWPAGE_A4_SAVEAS_DIR);
+    REQUIRE(QDir().mkpath(outDir));
+    QTemporaryDir scratch;
+    REQUIRE(scratch.isValid());
+    std::size_t written = 0;
+    for (const char* name : {"approval.pdf", "approval-xrefstream.pdf", "certified-nochanges.pdf", "approval-then-update.pdf"}) {
+        INFO("file: " << name);
+        const QString target = QDir(outDir).filePath(QString::fromLatin1(name));
+        if (QFile::exists(target)) {
+            QFile::setPermissions(target, QFileDevice::ReadOwner | QFileDevice::WriteOwner);
+            REQUIRE(QFile::remove(target));
+        }
+        auto session = openCopy(QString::fromStdString((fs::path(RAWPAGE_CORPUS_DIR) / "signed" / name).string()),
+                                scratch.filePath(QString::fromLatin1(name)));
+        REQUIRE(session);
+        CHECK(session->backend.signatureCount(session->handle) >= 1);
+        REQUIRE(session->journal->run(std::make_unique<core::DuplicatePagesCommand>(std::vector<int>{0})));
+        auto result = session->coordinator->saveAs(*session->journal, target);
+        INFO("save as error: " << (result ? std::string() : std::string(result.error().messageKey.data())));
+        REQUIRE(result);
+        REQUIRE(result.value().kind == SaveOutcome::Kind::Saved);
+        CHECK(result.value().form == core::SaveForm::Append);
+        const QByteArray onDisk = readAll(target);
+        CHECK(onDisk.startsWith(session->openedBytes));
+        ++written;
+    }
+    CHECK(written == 4);
+}
+
 TEST_CASE("the engine reads a highlight our writer saved as the first-party reader does", "[render][save][annotops]")
 {
     // D6-3 over OUR output: a page with no annotations, one with nine, a page whose /Annots sits in an

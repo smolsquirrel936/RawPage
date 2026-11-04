@@ -162,6 +162,17 @@ public:
     // whole reason this is affordable.
     core::Result<IndirectObject> fetch(long long number);
 
+    // WHAT A FULL REWRITE DROPPED, STILL READABLE -- Stage 7 T6, D7-29 (`pdf/cos/FullWriter.h`). A table set here
+    // answers `fetch` for a number THIS table does not hold in use: the file before the rewrite, which the sink
+    // keeps so that an undo can bring back a page or an annotation the rewrite dropped. `find`, `entries` and every
+    // walk see this table alone; only `fetch` looks further. An object fetched from it has its spans -- a stream's
+    // data among them -- in THAT table's `source()`, never this one's: a caller reading a stream's bytes reads them
+    // through `retiredSource(number)`. Not owned; null clears it.
+    void setRetired(XrefTable* older) noexcept { retired_ = older; }
+    XrefTable* retired() const noexcept { return retired_; }
+    // The buffer `fetch(number)` reads from: this table's `source()`, or a retired one's.
+    std::string_view sourceOf(long long number) const;
+
     // The `/Length 9 0 R` resolver `pdf/cos/Parser` takes. Handing the parser this is what closes
     // the loop T6 deliberately left open -- and it is re-entrancy guarded, because a stream whose
     // `/Length` points at an object inside another stream would otherwise recurse without bound.
@@ -195,6 +206,7 @@ private:
     // can mark what that stream would have defined had the classic table not got there first.
     bool readingXrefStm_ = false;
 
+    XrefTable* retired_ = nullptr;   // S7 T6: see `setRetired`
     std::map<long long, std::vector<IndirectObject>> objectStreams_;
     std::vector<long long> objectStreamsInProgress_;
     bool resolvingLength_ = false;

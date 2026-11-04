@@ -205,6 +205,17 @@ public:
     // annotation listing this sink changed must read back as it composed it (`reconcile`), or nothing
     // moves; after it, no annotation change is pending.
     core::Status adopt(std::string_view bytes);
+    // STAGE 7 T6 (D7-29): after a save that REWROTE (`pdf/cos/FullWriter`) -- `bytes` the rewritten file and `before`
+    // the whole file it was rewritten from, which the sink now OWNS and keeps for the life of the document. The
+    // rewrite dropped what nothing reached; the undo history may still name it -- a deleted page, a deleted
+    // annotation -- so `table()` reads a dropped number from `before` (`XrefTable::setRetired`) and every compose
+    // writes back each dropped object its update now reaches, at its old number and generation (`revive`). On
+    // failure nothing moves and `before` is not kept.
+    core::Status adoptRewrite(std::string_view bytes, std::string before);
+    // How many revisions a rewrite left behind are held (each a whole file), and how many objects the last compose
+    // brought back from them -- for the guide's cases.
+    std::size_t retiredRevisions() const noexcept { return retired_.size(); }
+    std::size_t revivedLastCompose() const noexcept { return revivedLast_; }
 
     int pageCount() const noexcept { return static_cast<int>(walk_.pages.size()); }
     const PageWalk& pages() const noexcept { return walk_; }
@@ -230,6 +241,11 @@ public:
     // the engine draws at each index once `showEdits` hands it this state, which is what the backend's page
     // tree follows.
     std::vector<int> desiredDiskIndices() const;
+    // Stage 7 guide I-10: for each page of the desired order, the page OBJECT it shows -- its own number, or for a page
+    // a duplicate made the number of the page it copies; 0 for a page drawn from another document's graph. A page an
+    // undo put back after a save is on no disk revision, and `desiredDiskIndices` answers -1 for it: this is how the
+    // backend still finds it in the tree it opened.
+    std::vector<long long> desiredPageObjects() const;
     // Each page's label once the desired state is written; empty for a document with no /PageLabels.
     QString pageLabel(int pageIndex) const;
 
@@ -470,6 +486,23 @@ private:
     // --- The compose that keeps what it composed (Stage 7 T4) -- see the header ---------------------
     cos::NumberBook& book();
     const cos::Protection& protection();
+    // --- What a rewrite dropped (Stage 7 T6, D7-29) ---------------------------------------------------------------
+    // Each a whole file a save rewrote, newest first; `table` reads its own `bytes` and falls back to the next older
+    // (`XrefTable::setRetired`), and `table_` to the newest. `floor` is the largest number it used or referenced, which
+    // the book stays above, so no new object takes a number an undo may bring back.
+    struct Retired {
+        std::string bytes;
+        std::unique_ptr<cos::XrefTable> table;
+        long long floor = 0;
+    };
+    std::vector<std::unique_ptr<Retired>> retired_;
+    // The generation a dropped number comes back at, or nothing when no retired file holds it in use.
+    std::optional<long long> retiredGeneration(long long number) const;
+    // Writes into `delta`, at its old number and generation, every object a rewrite dropped that `delta` now reaches
+    // -- and what those reach in turn. Nothing when no rewrite happened. Called at the end of `delta()`.
+    void revive(cos::ObjectDelta& delta);
+    std::map<std::string, std::vector<long long>> writtenReferences_;   // by a written object's digest
+    std::size_t revivedLast_ = 0;
     std::optional<cos::NumberBook> book_;            // dropped by adopt
     std::optional<cos::Protection> protection_;      // dropped by adopt
     std::uint64_t round_ = 0;                        // the compose in progress, or the last

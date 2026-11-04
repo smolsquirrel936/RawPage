@@ -28,24 +28,26 @@ using core::SettingsGroup;
 namespace keys = core::keys;
 
 TEST_CASE("the two Stage 3 keys are declared in the Documents group and only Stage 5's four joined it", "[settings][stage3]")
+// ... and, since Stage 7 T6, `documents/saveMode` -- the key D3-9 sent to Stage 8, declared by D7-25 with the writer it
+// needed. The case keeps its name (convention: a case is found by its name across stages).
 {
     std::vector<std::string> documents;
     for (const core::SettingsKeyInfo& info : core::SettingsSchema::allKeys())
         if (info.group == SettingsGroup::Documents) documents.emplace_back(info.path);
 
-    // THE WHOLE GROUP, in table order -- Stage 1's two rows, then D3-9's two, then since Stage 5 T13 the four
-    // comparison rows (D5-20). A count alone would stay green if `documents/saveMode` (Stage 8's) arrived early
-    // in place of one of them.
+    // THE WHOLE GROUP, in table order -- Stage 1's two rows, then D3-9's two, then since Stage 7 T6 `documents/saveMode`
+    // (D7-25), then since Stage 5 T13 the four comparison rows (D5-20). A count alone would stay green if a key
+    // arrived in place of another.
     CHECK(documents == std::vector<std::string>{"documents/recentCount", "documents/recentPinned",
                                                 "documents/recoveryDir", "documents/warnOnRepairedSave",
+                                                "documents/saveMode",
                                                 "documents/compareSensitivity", "documents/compareIgnoreHeaderFooter",
                                                 "documents/compareIgnorePageNumbers", "documents/compareIgnoreWhitespace"});
 
-    // D3-9 MOVED TWO KEYS AWAY; they must not be declared anywhere.
-    for (const core::SettingsKeyInfo& info : core::SettingsSchema::allKeys()) {
-        CHECK(info.path != "documents/saveMode");
+    // D3-9 MOVED TWO KEYS AWAY. `documents/saveMode` came back at Stage 7 T6 (D7-25); the other is Stage 13's and
+    // must not be declared anywhere.
+    for (const core::SettingsKeyInfo& info : core::SettingsSchema::allKeys())
         CHECK(info.path != "documents/autosaveIntervalSec");
-    }
 }
 
 TEST_CASE("the Stage 3 keys default to the default root and to explaining", "[settings][stage3]")

@@ -237,8 +237,14 @@ public:
 
     // Through `SaveCoordinator` (D3-4). A Save As that succeeds makes `target` this tab's path. An untitled
     // document's Save is `SaveAsRequired` by `error.save.untitled`, before the coordinator is asked anything.
-    core::Result<core::SaveOutcome> save();
-    core::Result<core::SaveOutcome> saveAs(const QString& target);
+    // S7 T6 (D7-25): `options` -- whether Save rewrites, and who answers for a signed document.
+    core::Result<core::SaveOutcome> save(const core::SaveOptions& options = {});
+    core::Result<core::SaveOutcome> saveAs(const QString& target, const core::SaveOptions& options = {});
+    // S7 T6: Save a Copy -- `target` written as Save As would write it; this tab keeps its path, title and changes.
+    core::Result<core::SaveOutcome> saveACopy(const QString& target, const core::SaveOptions& options = {});
+    // S7 T6 (guide A-126): whether there is a document here to write at all -- an encrypted one, which this build will
+    // not edit, is still Saved As, as a copy of its bytes. A companion window has none of its own.
+    bool canSaveAs() const noexcept { return journal_ && coordinator_; }
 
     // The user discarded the document's changes (D3-14): its recovery directory goes with them.
     void discardRecovery();

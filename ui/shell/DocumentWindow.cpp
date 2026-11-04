@@ -1260,7 +1260,7 @@ void DocumentWindow::refreshPropertiesBar()
     propertiesBar_->showNothing();
 }
 
-core::Result<core::SaveOutcome> DocumentWindow::save()
+core::Result<core::SaveOutcome> DocumentWindow::save(const core::SaveOptions& options)
 {
     if (!journal_ || !coordinator_)
         return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), path_};
@@ -1272,19 +1272,28 @@ core::Result<core::SaveOutcome> DocumentWindow::save()
         outcome.reasonKey = QLatin1String("error.save.untitled");
         return outcome;
     }
-    return coordinator_->save(*journal_, path_);
+    return coordinator_->save(*journal_, path_, options);
 }
 
-core::Result<core::SaveOutcome> DocumentWindow::saveAs(const QString& target)
+core::Result<core::SaveOutcome> DocumentWindow::saveAs(const QString& target, const core::SaveOptions& options)
 {
     if (!journal_ || !coordinator_)
         return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), target};
-    auto result = coordinator_->saveAs(*journal_, target);
+    auto result = coordinator_->saveAs(*journal_, target, options);
     if (result && result.value().kind == core::SaveOutcome::Kind::Saved) {
         path_ = QFileInfo(target).absoluteFilePath();
         sourcePath_ = path_;                     // an untitled document now has a file of its own
     }
     return result;
+}
+
+core::Result<core::SaveOutcome> DocumentWindow::saveACopy(const QString& target, const core::SaveOptions& options)
+{
+    if (!journal_ || !coordinator_)
+        return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), target};
+    // A copy over this tab's own file is a Save (`SaveCoordinator::saveACopy`), and a Save moves nothing here: the
+    // path is the one it had.
+    return coordinator_->saveACopy(*journal_, target, options);
 }
 
 QString DocumentWindow::suggestedSavePath() const

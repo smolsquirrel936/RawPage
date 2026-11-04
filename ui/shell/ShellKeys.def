@@ -289,6 +289,12 @@ RAWPAGE_SHELL_STRING(MessageBarSaveAsRequired,      "shell.messageBar.saveAsRequ
 RAWPAGE_SHELL_STRING(MessageBarRecoveryUnavailable, "shell.messageBar.recoveryUnavailable")
 RAWPAGE_SHELL_STRING(SaveAsTitle,                   "shell.saveAs.title")
 RAWPAGE_SHELL_STRING(SaveAsFilter,                  "shell.saveAs.filter")
+// Stage 7 T6 (D7-25): Save a Copy's dialog, and the question Save As asks before a rewrite breaks a signature.
+RAWPAGE_SHELL_STRING(SaveACopyTitle,                "shell.saveACopy.title")
+RAWPAGE_SHELL_STRING(SaveAsSignedTitle,             "shell.saveAs.signedTitle")
+RAWPAGE_SHELL_STRING(SaveAsSignedText,              "shell.saveAs.signedText")
+RAWPAGE_SHELL_STRING(SaveAsSignedKeep,              "shell.saveAs.signedKeep")
+RAWPAGE_SHELL_STRING(SaveAsSignedRewrite,           "shell.saveAs.signedRewrite")
 
 // Stage 3 T11 -- the recovery prompt at launch, and the banner a recovered document carries. The plan's
 // `recovery` catalog family (`Stage3-Mutation-Plan.md` §4) is these `shell.recovery.*` rows, as T10 filed the

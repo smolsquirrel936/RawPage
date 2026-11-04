@@ -48,6 +48,29 @@
 //
 // NOT HERE: asking the user anything (T10). The recovery journal hears about the save through
 // `CommandJournal::adoptSavedFile` and its recorder (T9).
+//
+// -------------------------------------------------------------------------------------------
+// HOW THE FILE IS WRITTEN -- Stage 7 T6, D7-25 (`Stage7-Assembly-Plan.md` §3)
+// -------------------------------------------------------------------------------------------
+// **Save As REWRITES**: one revision of what the document reaches, every object at its own number
+// (`IDocumentBackend::writeRevision` with `SaveForm::Rewrite`, `pdf/cos/FullWriter`), so what page commands
+// left behind is gone. **Save appends** (D3-4) -- unless `SaveOptions::rewriteOnSave`, which is
+// `documents/saveMode = full`, makes it rewrite too. Two documents are never rewritten:
+//
+//   * **One with no sink** -- an encrypted document, which the first-party reader declines (D2-6). It has no
+//     update, and Save As of it is a byte copy (`SaveForm::Append`).
+//   * **One carrying a signature, unless someone says so.** A rewrite breaks every signature over the old bytes,
+//     which a person must choose and never meet (D7-25), so `SaveOptions::askSigned` is asked, naming how many:
+//     *keep the signatures* appends, as Save does; *rewrite* rewrites; *cancel* writes nothing
+//     (`error.save.cancelled`). **With no one to ask -- an empty `askSigned`, which is flow K's -- the signatures
+//     are kept** (convention 16): a headless Save As of a signed contract never breaks it.
+//
+// The question is asked BEFORE anything is written, so a cancelled one leaves no temporary file. And a document
+// whose opening needed a repair still gets D3-6's complete section first -- the rewrite is made from it.
+//
+// `saveACopy(target)` -- **Save a Copy** (`file.saveACopy`) -- writes what Save As would write, at `target`, and
+// stops before the adopt: the document stays on its own file, its journal as dirty as it was, and the next Save
+// writes there. A target naming the document's own file is a Save.
 
 #ifndef RAWPAGE_CORE_DOC_SAVECOORDINATOR_H
 #define RAWPAGE_CORE_DOC_SAVECOORDINATOR_H
@@ -71,6 +94,18 @@ struct SaveOutcome {
     QLatin1String reasonKey{""};   // SaveAsRequired: why, as a catalog key
     QString reasonContext;         // SaveAsRequired: that key's argument, when its text takes one
     QString path;                  // Saved: the file now on disk
+    SaveForm form = SaveForm::Append;   // Saved: how it was written (S7 T6)
+};
+
+// S7 T6 (D7-25): what a person answers about a signed document a rewrite would break.
+enum class SignedRewriteAnswer { KeepSignatures, Rewrite, Cancel };
+
+// S7 T6: how a save writes -- see the header.
+struct SaveOptions {
+    // `documents/saveMode = full`: Save rewrites as Save As does.
+    bool rewriteOnSave = false;
+    // Asked, with the signature count, before a signed document is rewritten. Empty: nobody to ask, kept.
+    std::function<SignedRewriteAnswer(int signatures)> askSigned;
 };
 
 class SaveCoordinator {
@@ -80,10 +115,13 @@ public:
     SaveCoordinator(IDocumentBackend& backend, platform::IDurableFiles* durableFiles);
 
     // Saves `journal`'s document to `path`, the file it was opened from (or last saved to).
-    Result<SaveOutcome> save(CommandJournal& journal, const QString& path);
+    Result<SaveOutcome> save(CommandJournal& journal, const QString& path, const SaveOptions& options = {});
 
     // Saves it to `target`, which becomes the document's file.
-    Result<SaveOutcome> saveAs(CommandJournal& journal, const QString& target);
+    Result<SaveOutcome> saveAs(CommandJournal& journal, const QString& target, const SaveOptions& options = {});
+
+    // S7 T6: Save a Copy -- what Save As would write, at `target`; the document stays where it was (the header).
+    Result<SaveOutcome> saveACopy(CommandJournal& journal, const QString& target, const SaveOptions& options = {});
 
     // `<dir>/.<name>.rawpage-<pid>.tmp`: beside the target, so the replace never crosses a volume;
     // hidden by its leading dot in a directory listing; and named by its writer, so a stray one can be
@@ -99,7 +137,10 @@ public:
     void setProcessIdForTesting(qint64 processId) { processId_ = processId; }
 
 private:
-    Result<SaveOutcome> writeThrough(CommandJournal& journal, const QString& target);
+    enum class Afterwards { Adopt, LeaveAlone };
+    Result<SaveOutcome> writeThrough(CommandJournal& journal, const QString& target, SaveForm form, Afterwards afterwards);
+    // S7 T6: how this save writes, the question asked when a signature would break.
+    Result<SaveForm> formFor(CommandJournal& journal, bool rewrite, const SaveOptions& options);
     void removeStrayTemporaries(const QString& target);
 
     IDocumentBackend& backend_;

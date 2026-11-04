@@ -19,6 +19,10 @@
 //       move, a delete and a 200 KiB attachment, the last a SIDE FILE (D6-23). Stage 6 T15, guide A-107.
 //   rawpage_killprobe annotsaves <document> <dwell ms>
 //       `saves`, but each save follows one step of that cycle. Stage 6 T15, guide A-107.
+//   rawpage_killprobe rewrite <document> <recovery root> <dwell ms> <target>
+//       `pages`, but after the cycle's first `kPageCycle` steps a SAVE AS THAT REWRITES to <target> (D7-25), and only
+//       then `ready` -- so every kill lands after the rewrite, on a journal that now names <target>. Stage 7 T6, guide
+//       A-124's recovery clause.
 //
 // THE PROTOCOL, one line per event on stdout, each flushed before the step it announces:
 //   ready <pid>
@@ -106,7 +110,8 @@ int main(int argc, char** argv)
         return std::make_unique<core::RotatePageCommand>(rotatePage, 90);
     };
 
-    if ((mode == QLatin1String("commands") || mode == QLatin1String("annotations") || paging) && args.size() >= 5) {
+    const bool rewriting = mode == QLatin1String("rewrite");
+    if ((mode == QLatin1String("commands") || mode == QLatin1String("annotations") || paging || rewriting) && args.size() >= 5) {
         const int dwellMs = args.at(4).toInt();
         auto recovery = core::RecoveryJournal::open(args.at(3), documentPath, journal.document().id(), &durableFiles);
         if (!recovery->isRecoverable())
@@ -127,10 +132,23 @@ int main(int argc, char** argv)
                 break;
             }
         });
+        int first = 1;
+        if (rewriting) {
+            // The cycle once, then the Save As -- every kind of page command written into the rewrite -- before `ready`.
+            if (args.size() < 6) return 2;
+            for (current = 1; current <= tests::killsteps::kPageCycle; ++current) {
+                if (!journal.run(tests::killsteps::pageStep(current, journal.document()))) return 5;
+            }
+            core::SaveCoordinator coordinator(backend, &durableFiles);
+            auto saved = coordinator.saveAs(journal, args.at(5));
+            if (!saved || saved.value().kind != core::SaveOutcome::Kind::Saved || saved.value().form != core::SaveForm::Rewrite)
+                return 6;
+            first = current;
+        }
         say("ready " + std::to_string(QCoreApplication::applicationPid()));
-        for (current = 1; current < 1000000; ++current) {
+        for (current = first; current < 1000000; ++current) {
             say("apply " + std::to_string(current));
-            if (!journal.run(stepFor(current, current % pages)))
+            if (!journal.run(rewriting ? tests::killsteps::pageStep(current, journal.document()) : stepFor(current, current % pages)))
                 return 5;
             say("ack " + std::to_string(current));
         }

@@ -92,6 +92,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <set>
@@ -196,6 +197,18 @@ public:
     // True when `number` is already replaced or added by this delta.
     bool touches(long long number) const noexcept;
 
+    // A NUMBER A FULL REWRITE DROPPED, WRITTEN AGAIN -- Stage 7 T6, D7-29 (`pdf/cos/FullWriter.h`). An undo after
+    // a Save As that rewrote can bring back an object the rewrite dropped -- a deleted page, a deleted annotation
+    // -- and the update then writes it at its old number. The table holds that number as FREE, so `replace` of it
+    // is refused by the writer unless this answers the generation it comes back at: the generation the object had,
+    // which the rewrite wrote into the free row. Unset, nothing is revived.
+    using Revival = std::function<std::optional<long long>(long long number)>;
+    void setRevival(Revival revival) { revival_ = std::move(revival); }
+    std::optional<long long> revivalGeneration(long long number) const
+    {
+        return revival_ ? revival_(number) : std::nullopt;
+    }
+
     // See `ObjectAllocator::reserveThrough`. Called by `IncrementalWriter::protectOriginal`. With a book it
     // changes nothing: the book starts above every reference already.
     void reserveNumbersThrough(long long number) noexcept { allocator_.reserveThrough(number); }
@@ -213,6 +226,7 @@ public:
 private:
     ObjectAllocator allocator_;
     NumberBook* book_ = nullptr;
+    Revival revival_;
     std::vector<ObjectChange> changes_;
     // Which numbers this delta writes: a bit per number for the numbers a file has (S7 T4 -- a node per change
     // was most of the cost of a delta of thousands), a set past them.
@@ -293,6 +307,12 @@ public:
 // A direct object in PDF syntax, from its VALUES (spans ignored -- see the note above). A Stream
 // serializes as its dictionary only; the writer adds `/Length`, the keyword and the data.
 std::string serializeObject(const CosObject& object);
+
+// One INDIRECT object, `N G obj ... endobj` and the line end after it, exactly as an update writes it: a stream's
+// `/Length` replaced by the size of `streamData`, which a Stream requires. Stage 7 T6: `pdf/cos/FullWriter` writes
+// every object it keeps through this, so a rewrite and an update spell an object the same way.
+std::string serializeIndirect(long long number, long long generation, const CosObject& object,
+                              const std::optional<std::string>& streamData);
 
 } // namespace rawpage::pdf::cos
 

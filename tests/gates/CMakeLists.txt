@@ -813,6 +813,55 @@ rawpage_add_fuzz_count_test(NAME gates.fuzz_count.helper_is_not_a_target
     EXPECT_EXIT 1 EXPECT_MATCH "miscounted")
 
 # --------------------------------------------------------------------------------------
+# Every fuzz target BUILT is also RUN -- Stage 7 guide I-09 (`Stage7-Assembly-Testing-Guide.md` §8).
+#
+# The count above proves tests/fuzz builds six targets; CI run 41180314162 built and counted
+# fuzz_assembly and fuzzed it nowhere, because ci.yml's steps and fuzz-soak.yml's matrix name their
+# targets by hand. tests/gates/CheckFuzzWorkflows.cmake reads the three files as text. The repository
+# case is the gate; the fixture cases prove it passes a clean pair and refuses each workflow's omission.
+# --------------------------------------------------------------------------------------
+set(FW_SCRIPT "${CMAKE_CURRENT_SOURCE_DIR}/CheckFuzzWorkflows.cmake")
+set(FW_FIXTURES "${FIXTURES}/fuzz-workflows")
+
+function(rawpage_add_fuzz_workflows_test)
+    cmake_parse_arguments(FW "" "NAME;CMAKELISTS;CI;SOAK;EXPECT_EXIT" "EXPECT_MATCH" ${ARGN})
+    set(match_args "")
+    foreach(pattern IN LISTS FW_EXPECT_MATCH)
+        list(APPEND match_args EXPECT_MATCH "${pattern}")
+    endforeach()
+    rawpage_add_gate_test(NAME ${FW_NAME}
+        COMMAND ${CMAKE_COMMAND} -DFUZZ_CMAKELISTS=${FW_CMAKELISTS} -DCI_YML=${FW_CI} -DSOAK_YML=${FW_SOAK}
+                -P ${FW_SCRIPT}
+        EXPECT_EXIT ${FW_EXPECT_EXIT} ${match_args})
+endfunction()
+
+rawpage_add_fuzz_workflows_test(NAME gates.fuzz_workflows.repository
+    CMAKELISTS "${CMAKE_SOURCE_DIR}/tests/fuzz/CMakeLists.txt"
+    CI "${CMAKE_SOURCE_DIR}/.github/workflows/ci.yml"
+    SOAK "${CMAKE_SOURCE_DIR}/.github/workflows/fuzz-soak.yml"
+    EXPECT_EXIT 0 EXPECT_MATCH "fuzz workflows: 6 target\\(s\\), each run by ci.yml and fuzz-soak.yml")
+
+# THE CONTROL: two targets, both linked, run and soaked -- and a third named only in a comment.
+rawpage_add_fuzz_workflows_test(NAME gates.fuzz_workflows.clean_pair_passes
+    CMAKELISTS "${FW_FIXTURES}/CMakeLists.txt" CI "${FW_FIXTURES}/ci.yml" SOAK "${FW_FIXTURES}/fuzz-soak.yml"
+    EXPECT_EXIT 0 EXPECT_MATCH "2 target\\(s\\).*fuzz_alpha fuzz_beta\\]")
+
+# I-09's ci.yml half: linked by the loop, its run step only in a comment.
+rawpage_add_fuzz_workflows_test(NAME gates.fuzz_workflows.ci_unrun_fails
+    CMAKELISTS "${FW_FIXTURES}/CMakeLists.txt" CI "${FW_FIXTURES}/ci-unrun.yml" SOAK "${FW_FIXTURES}/fuzz-soak.yml"
+    EXPECT_EXIT 1 EXPECT_MATCH "fuzz_beta: no ci.yml step runs it" "unrun")
+
+# And the soak's half.
+rawpage_add_fuzz_workflows_test(NAME gates.fuzz_workflows.soak_unrun_fails
+    CMAKELISTS "${FW_FIXTURES}/CMakeLists.txt" CI "${FW_FIXTURES}/ci.yml" SOAK "${FW_FIXTURES}/fuzz-soak-unrun.yml"
+    EXPECT_EXIT 1 EXPECT_MATCH "fuzz_beta: no fuzz-soak.yml matrix entry" "unrun")
+
+# Zero targets read is a failure: a reading that matches nothing finds nothing unrun.
+rawpage_add_fuzz_workflows_test(NAME gates.fuzz_workflows.no_targets_fails
+    CMAKELISTS "${FW_FIXTURES}/ci.yml" CI "${FW_FIXTURES}/ci.yml" SOAK "${FW_FIXTURES}/fuzz-soak.yml"
+    EXPECT_EXIT 1 EXPECT_MATCH "nothing")
+
+# --------------------------------------------------------------------------------------
 # The PDFium pin (PA-1 .. PA-5) -- guide case A-05, Stage 2 T2, decision D2-3.
 #
 # A golden-image baseline is a claim about ONE rasterizer, so the engine's version is asserted at

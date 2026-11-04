@@ -7,6 +7,7 @@
 #include "core/doc/TypedText.h"
 #include "core/doc/Stamps.h"
 #include "pdf/cos/ContentStreamBuilder.h"
+#include "pdf/cos/Parser.h"
 #include "pdf/cos/XrefRepair.h"
 #include "pdf/ops/AnnotationOps.h"
 #include "pdf/ops/AnnotationReader.h"
@@ -329,6 +330,8 @@ cos::NumberBook& MutationSinkImpl::book()
     if (!book_) {
         cos::ObjectAllocator floor = cos::ObjectAllocator::forTable(table_);
         floor.reserveThrough(protection().largestReferenced);
+        // S7 T6 (D7-29): and above every number a rewrite dropped, which an undo may bring back.
+        for (const auto& retired : retired_) floor.reserveThrough(retired->floor);
         book_.emplace(floor.nextNumber());
     }
     return *book_;
@@ -491,6 +494,8 @@ core::Result<cos::ObjectDelta> MutationSinkImpl::delta()
     book().beginRound();
     cos::ObjectDelta delta(table_, book());
     delta.reserveChanges(lastWritten_ + 16);
+    // S7 T6 (D7-29): a number a rewrite dropped may be written again, at the generation it had.
+    if (!retired_.empty()) delta.setRevival([this](long long number) { return retiredGeneration(number); });
     // A page dictionary is written ONCE, carrying every change to it: its rotation and, from Stage 6
     // T3, its /Annots -- `ObjectDelta` refuses one object replaced twice. Since Stage 7 T2 every object
     // two parts of a compose may both change -- a page's /Parent and its /Annots, the catalog's
@@ -552,6 +557,7 @@ core::Result<cos::ObjectDelta> MutationSinkImpl::delta()
             delta.replace(number, std::move(dictionary));
         }
     }
+    revive(delta);   // S7 T6 (D7-29): what a rewrite dropped and this update reaches again
     // S7 T4: the round ends HERE, before anything is written -- a name this compose did not ask for gives its number
     // back now, so the update's `/Size` and its free rows are the ones the next compose of the same state writes
     // (found by guide A-128: ended after the write, a deleted annotation's numbers were still counted by the update
@@ -1793,6 +1799,10 @@ core::Status MutationSinkImpl::adopt(std::string_view bytes)
 
     bytes_ = bytes;
     table_ = std::move(table).value();
+    // S7 T6 (D7-29): what a rewrite dropped stays readable through the new table, and no written object of the old
+    // revision is reused, so the references read from them go.
+    if (!retired_.empty()) table_.setRetired(retired_.front()->table.get());
+    writtenReferences_.clear();
     // S7 T2: the new pages are now objects the file holds; what the repair wrote joins the ledger -- an older
     // value it holds stays, being the one before RawPage changed anything -- and a value back as it was
     // leaves it; and the scan and the shape, read from the old revision, go.
@@ -1872,6 +1882,107 @@ core::Status MutationSinkImpl::adopt(std::string_view bytes)
             ++it;
     }
     return core::Status{};
+}
+
+// ==========================================================================================
+// What a rewrite dropped (Stage 7 T6, D7-29) -- `adoptRewrite`'s note in the header
+// ==========================================================================================
+
+namespace {
+
+// Every reference in `value` but a stream's `/Length`, which the writer replaces with a direct one -- the walk
+// `pdf/cos/FullWriter` makes, so what it dropped and what this brings back are counted the same way.
+void referencesOf(const cos::CosObject& value, std::vector<long long>& out)
+{
+    switch (value.type()) {
+    case cos::CosType::Reference:
+        out.push_back(value.reference().number);
+        return;
+    case cos::CosType::Array:
+        for (const cos::CosObject& item : value.items()) referencesOf(item, out);
+        return;
+    case cos::CosType::Dictionary:
+    case cos::CosType::Stream:
+        for (const cos::CosObject::Entry& entry : value.entries()) {
+            if (value.isStream() && entry.key == "Length") continue;
+            referencesOf(entry.value, out);
+        }
+        return;
+    default:
+        return;
+    }
+}
+
+} // namespace
+
+core::Status MutationSinkImpl::adoptRewrite(std::string_view bytes, std::string before)
+{
+    auto retired = std::make_unique<Retired>();
+    retired->bytes = std::move(before);
+    // A file this sink composed: it opens through its own structures, a repaired original's complete section included.
+    auto opened = cos::openWithRepair(retired->bytes);
+    if (!opened) return opened.error();
+    retired->table = std::make_unique<cos::XrefTable>(std::move(opened.value().table));
+    if (!retired_.empty()) retired->table->setRetired(retired_.front()->table.get());
+    retired->floor = std::max(retired->table->largestObjectNumber(), cos::IncrementalWriter::largestReference(*retired->table));
+    retired_.insert(retired_.begin(), std::move(retired));
+    if (core::Status adopted = adopt(bytes); !adopted) {
+        retired_.erase(retired_.begin());   // `adopt` moved nothing, `table_` still reads what it read
+        return adopted;
+    }
+    return core::Status{};
+}
+
+std::optional<long long> MutationSinkImpl::retiredGeneration(long long number) const
+{
+    for (const auto& retired : retired_) {
+        const cos::XrefEntry* entry = retired->table->find(number);
+        if (entry != nullptr && entry->type != cos::XrefEntryType::Free)
+            return entry->type == cos::XrefEntryType::InFile ? entry->field3 : 0;
+    }
+    return std::nullopt;
+}
+
+void MutationSinkImpl::revive(cos::ObjectDelta& delta)
+{
+    revivedLast_ = 0;
+    if (retired_.empty()) return;
+    // What the update names: each change's references -- an object written in an earlier compose of this revision
+    // read back from its bytes once, by digest.
+    std::vector<long long> pending;
+    for (const cos::ObjectChange& change : delta.changes()) {
+        if (!change.written) {
+            referencesOf(change.object, pending);
+            continue;
+        }
+        auto known = writtenReferences_.find(change.written->digest);
+        if (known == writtenReferences_.end()) {
+            std::vector<long long> found;
+            cos::Parser parser{std::string_view(change.written->bytes)};
+            if (auto parsed = parser.parseIndirectObject()) referencesOf(parsed.value().object, found);
+            known = writtenReferences_.emplace(change.written->digest, std::move(found)).first;
+        }
+        pending.insert(pending.end(), known->second.begin(), known->second.end());
+    }
+    // Each dropped object named, written back as the file before the rewrite held it -- and what it names in turn.
+    std::set<long long> seen;
+    while (!pending.empty()) {
+        const long long number = pending.back();
+        pending.pop_back();
+        if (number <= 0 || !seen.insert(number).second || delta.touches(number) || delta.isNew(number)) continue;
+        const cos::XrefEntry* entry = table_.find(number);
+        if (entry != nullptr && entry->type != cos::XrefEntryType::Free) continue;   // the file holds it
+        if (!retiredGeneration(number)) continue;   // named nothing before the rewrite either: null, as it was
+        auto fetched = table_.fetch(number);        // through the retired chain
+        if (!fetched) continue;
+        cos::CosObject value = std::move(fetched.value().object);
+        std::optional<std::string> data;
+        if (value.isStream()) data = std::string(value.rawStreamData(table_.sourceOf(number)));
+        value.clearSpansRecursively();
+        referencesOf(value, pending);
+        delta.replace(number, std::move(value), std::move(data));
+        ++revivedLast_;
+    }
 }
 
 // ==========================================================================================
@@ -1991,6 +2102,21 @@ std::vector<int> MutationSinkImpl::desiredDiskIndices() const
         indices.push_back(found != onDisk.end() ? found->second : -1);
     }
     return indices;
+}
+
+std::vector<long long> MutationSinkImpl::desiredPageObjects() const
+{
+    std::vector<long long> objects;
+    objects.reserve(walk_.pages.size());
+    for (const PageEntry& page : walk_.pages) {
+        long long number = page.number;
+        if (number < 0) {
+            const auto copy = newPages_.find(number);
+            number = copy != newPages_.end() ? copy->second.source : 0;
+        }
+        objects.push_back(number);
+    }
+    return objects;
 }
 
 QString MutationSinkImpl::pageLabel(int pageIndex) const

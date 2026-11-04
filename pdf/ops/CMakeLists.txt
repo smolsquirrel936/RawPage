@@ -37,6 +37,10 @@ add_library(rawpage_ops STATIC
     ObjectGraphCopier.h
     ObjectGraphCopier.cpp
 
+    # S7 T6 (D7-20's reading, D7-25): how many signatures a document carries -- what Save As that rewrites asks about.
+    SignatureFields.h
+    SignatureFields.cpp
+
     # S4 T10 (D4-12). A READER in a directory named for operations, and the reason is that /Trans
     # is document semantics rather than object model: PageOps sits on the same line. It exists at
     # all because PDFium's C API exposes page transitions nowhere, which makes it the first read

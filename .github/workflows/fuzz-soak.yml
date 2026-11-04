@@ -81,6 +81,10 @@ jobs:
           # Stage 6 T2 (D6-29, S6 guide A-23): the annotation reader and store.
           - target: fuzz_annot_pipeline
             seeds: corpus/ordinary corpus/malformed corpus/exchange   # S6 T13: the exchange branch's seeds
+          # Stage 7 T5 (D7-23, S7 guide A-46): the copier and the insert. Added by S7 guide I-09's fix -- built
+          # from T5, soaked by nothing until then; gates.fuzz_workflows.* now refuses that.
+          - target: fuzz_assembly
+            seeds: corpus/assembly corpus/malformed
     env:
       SOAK_SECONDS: ${{ github.event.inputs.seconds || '600' }}
     steps:
