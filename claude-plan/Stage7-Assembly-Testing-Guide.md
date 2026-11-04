@@ -645,6 +645,7 @@ by a later task says so in its result.
 **Result (the 60 s log, T6's push) -- RAN, and found I-12.** Run **41758087362** on `b3083f9`: `fuzz_assembly` loaded 1,484 seeds -- 1,462 from a `corpus/malformed/` the job's lexer and parser steps had written into -- and stopped on its first pass over them, *"the payload holds the source's tree"*, the input kept nowhere (§8 **I-12**, fixed, with the job's directories and artifacts corrected and a gate). **The 60 s with no finding is still owed**, at the next push.
 **Result (the 60 s log, run 41770714539 on `d238834`) -- RAN, and found I-12 again.** Seeded from the 46 checked-in files (22 `assembly/`, 24 `malformed/`), it stopped on a mutation that left a `/Type /Pages` node with no `/Kids` -- a page to the walk, copied saying `/Pages` -- and the input was KEPT this time; fixed (§8 **I-12**). The job's five other targets each ran 60 s with no finding.
 **Result (the 60 s log, run 41808943466 on `37ec179`) -- RAN, and found I-12 a third time**, about 9 s in: a page's `/Annots` naming the tree node above it, copied as an annotation; the input kept, fixed (§8 **I-12**). The five other targets again ran 60 s each with no finding. **The 60 s with no finding is owed again**, at the next push.
+**Result (the soak, run 41816834053 on `37ec179`, 2026-11-04) -- RAN for the first time, and found I-12** about 5 s into its 600: the same `/Annots` path the push's run found, the input kept (`fuzz-soak-fuzz_assembly`), and green against the fix (§8 **I-12**). The soak's five other targets ran their ten minutes with no finding. **The soak's ten minutes with no finding are owed**, at the next soak after the fix is pushed.
 
 ### 5.8 Save As that rewrites (T6) — D7-25
 
@@ -1221,10 +1222,10 @@ missed it, and the control that was run red before the fix — the shape every e
 | **I-06** | S3 | A page dictionary missing its `>>` was read by the first-party parser ON INTO THE NEXT OBJECT, whose `/Contents` then won -- so a copy or a duplicate of the page drew another page | **Closed** at T5, 2026-10-31 (the user's choice: fixed in the parser) |
 | **I-07** | S2 | A page inserted from another document drew the content of its optional-content groups that the source HID: the target listed no such group, and a reader shows a group no `/OCProperties` lists | **Closed** at T5, 2026-10-31 (the user's choice: the groups united now) |
 | **I-08** | S3 | `render.a 900-page file's open never holds the engine longer than one page's extraction` (Stage 5's T9 bound, `[run-serial]`) failed in two full `x64-release` runs: T5's first, an engine piece of 5.36 ms against an extraction maximum of 3.80, and the one after T6's push, 4.28 against 4.01 | **Open** -- 5 of 5 green alone, both times |
-| **I-09** | S3 | `fuzz_assembly` was built, linked and counted by CI, and fuzzed by nothing: neither `ci.yml`'s 60 s steps nor `fuzz-soak.yml`'s matrix named it | **Fixed** 2026-11-04 at T6's start; T6's push and the two after ran it, and each found I-12; closed when a push's 60 s log shows no finding |
+| **I-09** | S3 | `fuzz_assembly` was built, linked and counted by CI, and fuzzed by nothing: neither `ci.yml`'s 60 s steps nor `fuzz-soak.yml`'s matrix named it | **Fixed** 2026-11-04 at T6's start; T6's push and the two after ran it, and so did the soak (41816834053), and each found I-12; closed when a push's 60 s log shows no finding |
 | **I-10** | S2 | After ANY save, a deleted page put back by an undo was drawn on screen as a page the engine never opened -- not as it drew before the delete, and not as Save then wrote it | **Closed** at T6, 2026-11-04 (fixed inside the task) |
 | **I-11** | S2 | A recovery replay STOPS at an undo, made after a save, of a page delete from before it -- the deleted page not put back and every later step lost -- after an append save as after a rewrite | **Open** -- unreachable by a person until a surface runs a page command (T8); owner the user's decision |
-| **I-12** | S3 | `fuzz_assembly`'s first CI run: a copy's payload held a catalog or a page-tree node of the SOURCE'S -- the copier refused only the trailer's catalog and the nodes and pages its walk met, so a reference reaching an orphan `/Pages` node or an earlier revision's `/Catalog` copied it and every page it lists -- and, found by the next run, a page the walk reads as a page that SAYS `/Type /Pages` was copied saying so -- and, by the run after, a tree node a page's `/Annots` lists was copied as an annotation | **Fixed** three times, 2026-11-04, after runs 41758087362, 41770714539 and 41808943466; closed when a push's 60 s log shows no finding |
+| **I-12** | S3 | `fuzz_assembly`'s first CI run: a copy's payload held a catalog or a page-tree node of the SOURCE'S -- the copier refused only the trailer's catalog and the nodes and pages its walk met, so a reference reaching an orphan `/Pages` node or an earlier revision's `/Catalog` copied it and every page it lists -- and, found by the next run, a page the walk reads as a page that SAYS `/Type /Pages` was copied saying so -- and, by the run after, a tree node a page's `/Annots` lists was copied as an annotation | **Fixed** three times, 2026-11-04, after runs 41758087362, 41770714539 and 41808943466 -- the soak's first run of the target, 41816834053, found the third form too; closed when a push's 60 s log and a soak show no finding |
 | **I-13** | S3 | `qpdf --check` refused three of T6's rewrites -- of `malformed/bad-flate-stream.pdf`, `pages-loop.pdf` and `duplicate-object-number.pdf` -- for the damage each source carries on purpose, which a rewrite keeps as PDFium draws it: the check judged a fault we were given as one we wrote, and no case held a rewrite to what PDFium draws of the ORIGINAL | **Closed** 2026-11-04 by run 41770714539's `qpdf` log: *"210 file(s), 0 failed, 3 inherited"*, each source refused for the same fault |
 | **I-14** | S3 | The FIRST unknown font PDFium substitutes in a process draws unlike every later one: the same bytes, opened twice in one process, give two digests | **Open** -- measured, cause inside the engine not established; the user's decision |
 
@@ -1392,7 +1393,9 @@ with `clean_pair_passes` (the control), `ci_unrun_fails`, `soak_unrun_fails` and
 omissions named (`fuzz_assembly: no ci.yml step runs it`, `… not in ci.yml's linked loop`, `… no fuzz-soak.yml matrix
 entry`); after them, green. *Fixed*, not closed: closed when a push's `Portable libFuzzer` log shows `fuzz_assembly`'s
 60 s with no finding. *Since:* T6's push, run **41758087362** on `b3083f9`, RAN it -- the fix works -- and its first input
-stopped on **I-12**, and so did the next two, **41770714539** and **41808943466** -- that 60 s is still owed.
+stopped on **I-12**, and so did the next two, **41770714539** and **41808943466** -- that 60 s is still owed. The soak's
+half works too: **41816834053**, the scheduled soak on `37ec179`, ran `fuzz_assembly` for the first time, and stopped on
+**I-12**.
 
 **I-10 (S2) — after a save, a page an undo put back was drawn as a page the engine never opened.** *Found* at T6 by
 **A-124**'s raster half (`render.fullwriter.identity`): after a Save As that rewrote, each undo and redo drew the two pages
@@ -1461,12 +1464,19 @@ the `/Type /Pages` node above it, and `listAnnotations` took every dictionary `/
 `copyAnnotation` wrote it -- a path out of the source that does not go through `localFor`'s stop. *Fix:* an `/Annots`
 entry that is the catalog, a node or a page the walk met, or a dictionary typed `/Catalog`, `/Pages` or `/Page`, is no
 annotation and is not copied. *Regression:* the case's fourth input, `an /Annots entry that is the tree` -- the node above
-the page, the catalog, the page itself, an untyped root, and a direct dictionary typed `/Pages`, beside one real annotation
-that must still be copied -- red before the fix with the job's words. The CI input through the fuzz body by a temporary
+the page, the catalog, the page itself, an untyped root, a direct dictionary typed `/Pages`, and a node and a page the
+walk never met, beside one real annotation that must still be copied -- red before the fix with the job's words. The CI input through the fuzz body by a temporary
 case (removed): *"copied 0 ok 0 the payload holds the source's tree"* with the fix stashed, *"copied 1 ok 1"* with it.
 *Control* for the other half (convention 22): a plant dropping every `/Annots` entry, red at the case's check that the
-real annotation stays. *Fixed*; closed when a push's `Portable libFuzzer` log shows `fuzz_assembly`'s 60 s with no
-finding.
+real annotation stays. **And the soak**, the same day: `fuzz-soak.yml`'s scheduled run **41816834053**, also on
+`37ec179` and the first soak to run `fuzz_assembly` (I-09), stopped on the same words about 5 s in (`MS: 1 CrossOver-`,
+kept as `crash-be1ef340…` in the `fuzz-soak-fuzz_assembly` artifact): the same path -- two pages' `/Annots` listing two
+`/Type /Pages` nodes and three `/Type /Page` dictionaries, each written with the `/P` `copyAnnotation` adds. Through the
+fuzz body by a temporary case (removed): *"copied 0 ok 0 the payload holds the source's tree"* with `37ec179`'s copier,
+*"copied 1 ok 1"* with the fix above -- so it needed no fix of its own. The fourth input gained a node and a page typed so
+and met by the walk nowhere, which only the fix's type half stops; *control:* that half planted out (the number half
+kept), red at the job's words. *Fixed*; closed when a push's `Portable libFuzzer` log shows `fuzz_assembly`'s 60 s with no finding,
+and a soak its ten minutes.
 
 **I-13 (S3) — `qpdf` judged a fault Save As was given as one it wrote.** *Found* by **A-122**'s `qpdf` half, CI run
 **41758087362**, the `Portable ASan + UBSan` job: *"qpdf check: 210 file(s), 3 failed"* -- `rewrite-40.pdf` (*"stream
