@@ -17,10 +17,10 @@
 > ANSWERED the same day, approved — §3.7 and A-35 … A-37 stand, their *struck if declined* clauses removed; Q5
 > ANSWERED the same day, all five parts approved — §1's five out-of-scope rows, A-80, A-96 and §6's note stand
 > as written.** **T1 done 2026-10-29, T2 and T3 2026-10-30, T4 and T5 2026-10-31, T6 2026-11-04: A-12 … A-34, A-36 … A-44, A-122 … A-126 and
-> A-128 carry a result, all ✅ but A-27 (A-25 from CI runs 40995950997's and 41180314162's logs; A-122's `qpdf` half at T6's push; A-33 is §3.1's verdict, `go, with named custom work`,
+> A-128 carry a result, all ✅ but A-27 (A-25 from CI runs 40995950997's and 41180314162's logs; A-122's `qpdf` half read at T6's push, three faults inherited from damaged sources (I-13), re-read at the next; A-33 is §3.1's verdict, `go, with named custom work`,
 > the user's choice, re-read at T5 with the real insert and inside); A-35 carries T4's half and T5's reading (🟡) --
 > **§3.7's move half NOT TAKEN at T5** (+20.9 … +23.8 ms after ~3,600 copied objects), the bookmark half T11's;
-> A-45 and A-46 carry T5's halves (🟡) -- **A-46's 60 s log read 2026-11-04 and found the target UNRUN, I-09**; A-03 and A-27 carry their T2 halves (🟡); A-08 … A-10 carry T5's readings; no
+> A-45 and A-46 carry T5's halves (🟡) -- **A-46's 60 s log read 2026-11-04 and found the target UNRUN, I-09; run at T6's push, where it found I-12**; A-03 and A-27 carry their T2 halves (🟡); A-08 … A-10 carry T5's readings; no
 > other case has one.** T1 raised **I-01 (S2), closed inside T1** — the engine facade showed a page that inherits its
 > boxes at US Letter, uncropped, and refused its document for editing; T4's A-128 raised **I-03 (S2), closed inside
 > T4** — a moved link whose target page is then deleted refused the delete; CI's fuzzer then raised **I-04 (S2),
@@ -520,7 +520,7 @@ by a later task says so in its result.
 **A-25 · `qpdf --check` over every file a page command saves** ✅ *2026-10-30, T2; the log read at each push*
 **Steps** The `portable-asan` job's `check-qpdf.py` step; **read the log** (rule 3).
 **Expect** *"No syntax or stream encoding errors found"* for every Stage 7 output, each named; the file count re-derived. **If it fails** S2.
-**Result (T2)** Every file `tests/unit/tst_reference_repair.cpp` saves is kept as `written/pages-NN.pdf` beside Stage 6's, which the job's existing step judges. Run **40995950997** on `2da9e8e`, read from the job's log 2026-10-30: `pages-01.pdf` … `pages-08.pdf` each *"No syntax or stream encoding errors found"*, and *"qpdf check: 79 file(s), 0 failed; the truncated-stream control rejected"* -- the eight over run 40875904825's 71. Later tasks' outputs are read at their own pushes. **T5 (2026-10-31):** every file `tst_copier` saves -- inserts, a replace and its undo, blank pages, the layers' union -- is kept as `written/copies-<line>.pdf`, **11 files**. Run **41180314162** on `bcfbb1b`, read from the job's log 2026-11-04: `copies-453.pdf` … `copies-731.pdf`, all eleven *"No syntax or stream encoding errors found"*, and *"qpdf check: 90 file(s), 0 failed; the truncated-stream control rejected"* -- the eleven over T2's 79; the same job ran `tst_copier`'s cases and `unit.fuzz.assembly_replay` under ASan + UBSan, 1048/1048, no `runtime error` in the log.
+**Result (T2)** Every file `tests/unit/tst_reference_repair.cpp` saves is kept as `written/pages-NN.pdf` beside Stage 6's, which the job's existing step judges. Run **40995950997** on `2da9e8e`, read from the job's log 2026-10-30: `pages-01.pdf` … `pages-08.pdf` each *"No syntax or stream encoding errors found"*, and *"qpdf check: 79 file(s), 0 failed; the truncated-stream control rejected"* -- the eight over run 40875904825's 71. Later tasks' outputs are read at their own pushes. **T5 (2026-10-31):** every file `tst_copier` saves -- inserts, a replace and its undo, blank pages, the layers' union -- is kept as `written/copies-<line>.pdf`, **11 files**. Run **41180314162** on `bcfbb1b`, read from the job's log 2026-11-04: `copies-453.pdf` … `copies-731.pdf`, all eleven *"No syntax or stream encoding errors found"*, and *"qpdf check: 90 file(s), 0 failed; the truncated-stream control rejected"* -- the eleven over T2's 79; the same job ran `tst_copier`'s cases and `unit.fuzz.assembly_replay` under ASan + UBSan, 1048/1048, no `runtime error` in the log. **T6 (2026-11-04)** Run **41758087362** on `b3083f9`: *"qpdf check: 210 file(s), 3 failed"* -- T2's and T5's files all clean, and three of T6's Save As rewrites refused for damage their `malformed/` sources carry (§8 **I-13**, A-122).
 
 **A-26 · What is refused is refused by key** ✅ *2026-10-30, T2*
 **Steps** `ctest -R "pageops.refused"`.
@@ -642,13 +642,15 @@ by a later task says so in its result.
 **Expect** No crash, no hang beyond the body's time bound; 60 s and ten minutes with no finding, read from the **logs**. **If it fails** S1 for a crash; each finding gets a regression case before it counts as fixed.
 **Result (Windows replay)** `unit.fuzz.assembly_replay: ...` -- `tests/fuzz/AssemblyFuzzBody.h`, the target's body: *"199 inputs, 123 reached the copy"* (every corpus PDF, each `assembly/` file cut at a half, a third and a fifth, and three hostile graphs -- resources naming the tree, a node listed twice, content naming itself and its page), every invariant held: refusal by key, the payload opening with no repair, one catalog and one node, every reference closed, each page its own inheritable keys, the insert and the replace composed and VERIFIED and undone to nothing.
 **Result (the 60 s log, 2026-11-04) -- NOT RUN, raised as I-09.** Run **41180314162** on `bcfbb1b`, T5's push, read from its `Portable libFuzzer` log: configure counted *"fuzz_assembly (6, as expected)"* and the build linked `bin/fuzz_assembly`, and **no step ran it** -- the job fuzzed the other five, 60 s each, with no finding, and `fuzz-soak.yml`'s matrix lists the same five, so the four daily soaks since (41189182957 … 41622024204) did not run it either. Both workflows now run it, and `gates.fuzz_workflows.*` refuses a target either omits; **the 60 s half is read at the fix's push.**
+**Result (the 60 s log, T6's push) -- RAN, and found I-12.** Run **41758087362** on `b3083f9`: `fuzz_assembly` loaded 1,484 seeds -- 1,462 from a `corpus/malformed/` the job's lexer and parser steps had written into -- and stopped on its first pass over them, *"the payload holds the source's tree"*, the input kept nowhere (§8 **I-12**, fixed, with the job's directories and artifacts corrected and a gate). **The 60 s with no finding is still owed**, at the next push.
 
 ### 5.8 Save As that rewrites (T6) — D7-25
 
-**A-122 · Save As writes one revision of what is reachable, and loses nothing** ✅ *T6 2026-11-04; the `qpdf` log at the push; re-run at T19* — §3.9
+**A-122 · Save As writes one revision of what is reachable, and loses nothing** ✅ *T6 2026-11-04; the `qpdf` log read at the push, three inherited faults (I-13), re-read at the next; re-run at T19* — §3.9
 **Steps** `ctest -R "fullwriter"` over every editable corpus file, each after a `MovePages` and an `AddAnnotation`; the `qpdf` step's log.
 **Expect** §3.9's bars for every file. **The control (rule 5):** a planted writer that skips one reachable object type (`/XObject` resources) fails the raster bar on the image fixtures. **If it fails** S1.
 **Result** ✅ *2026-11-04, T6.* `unit.fullwriter every editable corpus file Saved As after a move and a highlight is one revision of what it reaches`: *"122 files Saved As -- 118 rewritten, 16739 objects kept, 25 dropped; 4 signed, kept by appending; 0 failures"* (not editable by the first-party writer: `merge-not-a-pdf.pdf`, `objstm-corrupt.pdf`, `truncated-mid-stream.pdf`) -- each rewrite opened with no repair, ONE section and no `/Prev`, what it holds exactly what it reaches and exactly what the composed file reached (a walk of the case's own, not the writer's), every object value for value and generation for generation the composed file's, every dropped number a free row at its generation, `/Size` above every dropped number. The raster bar: `render.fullwriter every page of every Save As that rewrote draws as the save it replaces`: *"118 files Saved As, 114 rewritten, 7708 renders, 0 differ or refused"* -- every page at 72 and 144 dpi, annotations on, against the APPEND of the same state reopened in a fresh engine (the bound: a file over 200 pages at 144 dpi every ninth page). The four signed files are appended, nobody having been asked (A-126). **Controls:** P1 (every in-use object kept) and P2 (`/XObject` resources skipped) red -- refused by the rewrite's own verify (`unreachable`, `reachable`) before any pixel -- so **P2b**, the same plant with the verify's two reachability checks disabled, is the raster bar's own control: *"26 differ or refused"*, the five the runner kept each a page drawing differently (`decorated-elsewhere.pdf`, `inherit-resources.pdf`, `compare/base.pdf` among them); P3 (a dropped number's free row at generation + 1) red; P10 (Save As appending, as before T6) red. **The `qpdf` half** is the push's: the kept files are `written/rewrite-*.pdf`.
+**Result (the `qpdf` half, T6's push).** Run **41758087362**'s `Portable ASan + UBSan` log: *"qpdf check: 210 file(s), 3 failed"* -- every rewrite clean but the three of `malformed/bad-flate-stream.pdf`, `duplicate-object-number.pdf` and `pages-loop.pdf`, each refused for the damage its source carries (§8 **I-13**). The rewrites draw every page as PDFium draws their ORIGINALS, which a new case now holds every file to: `render.fullwriter an unedited Save As draws every page as the original drew it` (`[I-13]`), *"118 files Saved As unedited, 7708 renders, 0 differ"* -- the oracle the source before anything was written, not the append (P2b red in it). Those rewrites are now kept as `written/rewrite-malformed-<name>.pdf` and judged with `--source`, a failure accepted only where qpdf refuses the source too; **re-read at the next push.**
 
 **A-123 · What is unreachable goes, and the file shrinks** ✅ *T6 2026-11-04*
 **Steps** `ctest -R "fullwriter.compaction" -V`: delete 800 of `pages-900.pdf`'s pages; Save, and Save As, to two scratch files.
@@ -1212,13 +1214,16 @@ missed it, and the control that was run red before the fix — the shape every e
 | **I-02** | S3 | The fuzz soak built nothing: `ubuntu-latest` moved it to Ubuntu 26.04, whose Clang 21 refuses an unused field in `core/text/FolderSearch.h` under `-Werror` | **Closed** 2026-10-29, soak 40875917394 read from its log |
 | **I-03** | S2 | Move a link the file holds, then delete the page it points at: the delete was refused (`error.edit.notShown`), because its compose wrote that link twice | **Closed** at T4, 2026-10-31 |
 | **I-04** | S2 | A file referencing an object number past ISO 32000-1's limit: the compose's first new number overflowed (2^63-1, UBSan) or lay past the limit (8,388,608), and an edit was refused by its verify | **Closed** at T4, 2026-10-31, after CI run 41141004141 |
-| **I-05** | S3 | `ui.a rotation drops the rotated page from the index and the next search re-reads only it` (Stage 5 guide A-64) failed once in CI: the search read 2 pages where 1 was expected | **Open** -- not reproduced locally |
+| **I-05** | S3 | `ui.a rotation drops the rotated page from the index and the next search re-reads only it` (Stage 5 guide A-64) failed in CI twice (41141004141, 41758087362): the search read 2 pages where 1 was expected | **Open** -- not reproduced locally |
 | **I-06** | S3 | A page dictionary missing its `>>` was read by the first-party parser ON INTO THE NEXT OBJECT, whose `/Contents` then won -- so a copy or a duplicate of the page drew another page | **Closed** at T5, 2026-10-31 (the user's choice: fixed in the parser) |
 | **I-07** | S2 | A page inserted from another document drew the content of its optional-content groups that the source HID: the target listed no such group, and a reader shows a group no `/OCProperties` lists | **Closed** at T5, 2026-10-31 (the user's choice: the groups united now) |
-| **I-08** | S3 | `render.a 900-page file's open never holds the engine longer than one page's extraction` (Stage 5's T9 bound, `[run-serial]`) failed once in T5's first full run: an engine piece of 5.36 ms against an extraction maximum of 3.80 | **Open** -- 5 of 5 green alone |
-| **I-09** | S3 | `fuzz_assembly` was built, linked and counted by CI, and fuzzed by nothing: neither `ci.yml`'s 60 s steps nor `fuzz-soak.yml`'s matrix named it | **Fixed** 2026-11-04 at T6's start; closed when a push's log shows it run |
+| **I-08** | S3 | `render.a 900-page file's open never holds the engine longer than one page's extraction` (Stage 5's T9 bound, `[run-serial]`) failed in two full `x64-release` runs: T5's first, an engine piece of 5.36 ms against an extraction maximum of 3.80, and the one after T6's push, 4.28 against 4.01 | **Open** -- 5 of 5 green alone, both times |
+| **I-09** | S3 | `fuzz_assembly` was built, linked and counted by CI, and fuzzed by nothing: neither `ci.yml`'s 60 s steps nor `fuzz-soak.yml`'s matrix named it | **Fixed** 2026-11-04 at T6's start; T6's push ran it, and it found I-12; closed when a push's 60 s log shows no finding |
 | **I-10** | S2 | After ANY save, a deleted page put back by an undo was drawn on screen as a page the engine never opened -- not as it drew before the delete, and not as Save then wrote it | **Closed** at T6, 2026-11-04 (fixed inside the task) |
 | **I-11** | S2 | A recovery replay STOPS at an undo, made after a save, of a page delete from before it -- the deleted page not put back and every later step lost -- after an append save as after a rewrite | **Open** -- unreachable by a person until a surface runs a page command (T8); owner the user's decision |
+| **I-12** | S3 | `fuzz_assembly`'s first CI run: a copy's payload held a catalog or a page-tree node of the SOURCE'S -- the copier refused only the trailer's catalog and the nodes and pages its walk met, so a reference reaching an orphan `/Pages` node or an earlier revision's `/Catalog` copied it and every page it lists | **Fixed** 2026-11-04 after T6's push; closed when a push's 60 s log shows no finding |
+| **I-13** | S3 | `qpdf --check` refused three of T6's rewrites -- of `malformed/bad-flate-stream.pdf`, `pages-loop.pdf` and `duplicate-object-number.pdf` -- for the damage each source carries on purpose, which a rewrite keeps as PDFium draws it: the check judged a fault we were given as one we wrote, and no case held a rewrite to what PDFium draws of the ORIGINAL | **Fixed** 2026-11-04 after T6's push; closed when a push's `qpdf` log reads it |
+| **I-14** | S3 | The FIRST unknown font PDFium substitutes in a process draws unlike every later one: the same bytes, opened twice in one process, give two digests | **Open** -- measured, cause inside the engine not established; the user's decision |
 
 **I-01 (S2) — the engine facade read a page's boxes from the page dictionary alone.** *Found* at T1 by
 the first scratch render of `assembly/inherit-resources.pdf`, whose pages inherit both boxes: an A4 page
@@ -1318,7 +1323,12 @@ verify thread and gate are not in its path; the case's selection has read page 1
 selection and the search can each ask for page 1 again afterwards. *Mechanism:* NOT ESTABLISHED -- a race between
 those two reads is the suspicion, and a suspicion is not a cause. *Severity S3* because what was miscounted is an
 extraction, not a result: the search found what it should. *Since:* the next run, **41148688029** on `b4d5ab5`, passed it (1904/1904) -- one
-green run says nothing about an intermittent cause. *Open*; the next CI runs are read for it.
+green run says nothing about an intermittent cause. **Again** in run **41758087362** on `b3083f9` (T6's push), the only
+red case of 1,943 in its `Windows x64` job: the same line, the same `10 == 9`. *Tried, 2026-11-04:* a 30 ms sleep in
+`FakeTextExtractor::extractPage`, ten runs of the case, all green -- so a slow extraction alone does not open the window.
+*A candidate path, not a mechanism:* after a search the hit painter asks again for every page on screen that has hits
+(`SelectionOverlay.cpp`, `paintSearchHits`' `ensurePage`), and page 1 is on screen and has just been dropped, so a
+repaint between the rotation and the case's `before` can ask for it a second time. *Open*; the next CI runs are read for it.
 
 **I-06 (S3) — the parser read an unterminated dictionary on into the next object.** *Found* at T5 by **A-38**: of
 3,114 pages copied and inserted, `malformed/unbalanced-dictionary.pdf` page 1 drew differently from its source at
@@ -1356,7 +1366,7 @@ tst_foldersearch.cpp:494`), *"T9 bound: 262 engine pieces, max 5.356 ms, p95 1.1
 max 3.797 ms"* -- `pieceMax <= extractionMax` false. *Not reproduced:* five runs alone, max 3.14–3.49 ms against
 3.68–4.86, all green. *What is known:* the case is `[run-serial]`, so no other ctest case ran beside it; it compares
 one maximum with another, so a single slow piece decides it; T5's code is not in an open's path except the parser's
-one new keyword comparison per dictionary key. *Mechanism:* NOT ESTABLISHED. *Open*; each full run is read for it.
+one new keyword comparison per dictionary key. *Mechanism:* NOT ESTABLISHED. **Again** 2026-11-04, the full `x64-release` run after T6's push fixes (1945 of 1946): *"274 engine pieces, max 4.281 ms ... extraction ... max 4.014 ms"*; five runs alone, max 3.06-3.76 ms against 3.45-4.02, all green. Those fixes are a test, the copier's reference rule and CI, none in an open's path. *Open*; each full run is read for it.
 
 **I-09 (S3) — a fuzz target built and counted, and run by nothing.** *Found* 2026-11-04 by reading **A-46**'s 60 s half
 from run **41180314162** on `bcfbb1b` (T5's push): the `Portable libFuzzer` job's configure printed *"fuzz_assembly (6,
@@ -1377,7 +1387,8 @@ with `clean_pair_passes` (the control), `ci_unrun_fails`, `soak_unrun_fails` and
 `tests/gates/fixtures/fuzz-workflows/`. *Control:* the repository case run BEFORE the workflow edits, red with all three
 omissions named (`fuzz_assembly: no ci.yml step runs it`, `… not in ci.yml's linked loop`, `… no fuzz-soak.yml matrix
 entry`); after them, green. *Fixed*, not closed: closed when a push's `Portable libFuzzer` log shows `fuzz_assembly`'s
-60 s with no finding.
+60 s with no finding. *Since:* T6's push, run **41758087362** on `b3083f9`, RAN it -- the fix works -- and its first input
+stopped on **I-12**, so that 60 s is still owed.
 
 **I-10 (S2) — after a save, a page an undo put back was drawn as a page the engine never opened.** *Found* at T6 by
 **A-124**'s raster half (`render.fullwriter.identity`): after a Save As that rewrote, each undo and redo drew the two pages
@@ -1411,6 +1422,64 @@ proves the rule over a rotation, whose revert needs nothing the session held. *W
 undo and every step after it; *open, not fixed in T6*, because the repair is a decision about what a page command's line
 must carry across a save -- the pages' objects, or the file they lived in -- and no surface runs a page command before T8, so no
 person can meet it yet. The duplicate and the insert, whose undos are removals by key too, were not probed. *Open.*
+
+**I-12 (S3) — a catalog or a tree node the walk never met was copied with the pages it lists.** *Found* by **A-46**'s
+first 60 s run, CI run **41758087362** on `b3083f9` (T6's push), the first run that fuzzed the target at all (I-09's
+fix): *"assembly invariant violated: the payload holds the source's tree"*, before any mutation (`MS: 0`), on one of the
+1,484 seeds -- of which 1,462 were in `corpus/malformed/`, a directory of 24: ci.yml's lexer and parser steps, earlier in
+the same job, had been given it as libFuzzer's FIRST directory, which is where libFuzzer writes what it finds, so the
+crashing seed was one of their inputs and no checked-in file. The input was too large for libFuzzer to print and the job
+kept no artifact, so it is lost. *Mechanism, read from the code and reproduced:* `ObjectGraphCopier::localFor` stopped at
+the trailer's `/Root` and at every node and page in the walk's sets (D7-4's *"the page tree never followed"*, A-41); an
+object that IS a catalog or a tree node but that the walk never MET -- a `/Pages` node no `/Kids` lists, an earlier
+revision's `/Catalog` -- was copied like any resource, and with it, through its `/Kids`, every page it lists.
+*Consequence:* objects of the source's structure in the payload, then in the document an insert lands in, referenced by
+nothing it draws; no drawing changes -- *S3*. *Why the suite missed it:* `copier bounds` and the replay's hostile graph
+name the trailer's catalog and the walked root, the two objects the sets hold. *Fix:* an object TYPED `/Catalog`, `/Pages`
+or `/Page` that is not a copied page is never followed, by its type and not by the walk's sets -- the reference reads null,
+as one naming nothing does. *Regression:* `unit.copier I-12: an orphan page-tree node and an old catalog stay behind`
+(`[I-12]`), each input through the fuzz body and read directly. *Control:* the case run BEFORE the fix, red on both inputs
+with the fuzz job's own words. **And the job:** each fuzz step's first directory is now scratch (`fuzz-work/<target>`),
+every run writes a crashing input to `fuzz-artifacts/` (`-artifact_prefix`), a failed job uploads it, and
+`gates.fuzz_workflows.corpus_written_fails` refuses a run whose first directory is under `corpus/` -- the repository case
+red against the pushed `ci.yml`, naming `fuzz_cos_lexer` and `fuzz_cos_parser`. *Fixed*; closed when a push's
+`Portable libFuzzer` log shows `fuzz_assembly`'s 60 s with no finding.
+
+**I-13 (S3) — `qpdf` judged a fault Save As was given as one it wrote.** *Found* by **A-122**'s `qpdf` half, CI run
+**41758087362**, the `Portable ASan + UBSan` job: *"qpdf check: 210 file(s), 3 failed"* -- `rewrite-40.pdf` (*"stream
+inflate: invalid bit length repeat"*, object 3), `rewrite-44.pdf` (*"page object 9 0: object is supposed to be a stream
+... but is neither"*) and `rewrite-54.pdf` (*"Loop detected in /Pages structure"*), every other rewrite clean. Read
+locally, the three are the rewrites of `malformed/bad-flate-stream.pdf`, `duplicate-object-number.pdf` and
+`pages-loop.pdf` -- a corrupted stream copied as its bytes, the object 5 the repair reads (the second, a font, so page 3's
+`/Contents` names a font and the first object 5, page 3's content stream, is unreached and dropped), and a page-tree
+cycle kept as its objects. *Is anything lost?* Measured with a case written for it, `render.fullwriter an unedited Save As
+draws every page as the original drew it` (`[I-13]`): every corpus file Saved As with no edit, reopened in a fresh engine,
+against the SOURCE as PDFium drew it before anything was written -- *"118 files Saved As unedited, 7708 renders, 0 differ"*.
+PDFium reads all three sources as the rewrite does, `duplicate-object-number.pdf`'s page 3 included. So the files are
+right and the CHECK was wrong: it holds every file we write to qpdf's clean line, and these keep damage they were given.
+*Why no suite saw that question:* A-122's raster bar grades a rewrite against the APPEND of the same state, which carries
+the first-party reading of a damaged file as the rewrite does -- the two depart from PDFium together or not at all.
+*Fix:* a rewrite of `malformed/<name>.pdf` is kept as `written/rewrite-malformed-<name>.pdf`, and `check-qpdf.py --source
+rewrite-malformed-=corpus/malformed` (ci.yml) counts its failure as INHERITED, printed with both verdicts, only when qpdf
+refuses the source too; a rewrite of a source qpdf accepts, or one whose source is missing, fails as any file does.
+*Regression:* the `[I-13]` case, which stays as the stronger bar; the script's rule run here over a stand-in qpdf (an
+inherited failure passes, a clean source's and a missing source's fail, and without `--source` nothing is exempt).
+*Control:* P2b (the rewrite skips `/XObject`, the verify's reachability off) red in the `[I-13]` case, *"26 differ or
+refused"*. *Fixed*; closed when a push's `qpdf` log shows the three inherited and nothing failed. Whether a rewrite should
+MEND a damaged page tree rather than keep it is not decided -- D7-25 writes objects value for value.
+
+**I-14 (S3) — PDFium's first substitution of an unknown font draws unlike every later one.** *Found* 2026-11-04 by the
+`[I-13]` case's first run: `malformed/bad-name-hex-escape.pdf` (`/BaseFont /Helve#GGtica`) differed on every page from
+its unedited rewrite, which writes the name `/Helve#23GGtica`. *Measured* with a probe (removed after the run), one
+process, the same file with the name respelled at the same length so no offset moves: the source opened TWICE gave two
+digests; the second equalled `/Helve#00tica`, `/Helve` alone, `/HelveGGtica`, `/Helve#23GGti` and `/Xyzzy`; `/Helvetica`
+was stable in both places; and with `/Helvetica` drawn first, the first UNKNOWN name drawn (`/Helve#00tica`) took the odd
+digest instead. So the spelling does not matter and the order does: the first unknown font substituted in a process draws
+one way, every later one another. *Consequence:* the first document of a session with a font PDFium does not know draws
+unlike the same document opened again -- *S3*, nothing written changes. *Why no suite saw it:* every engine case compares
+two drawings inside one process, and the first substitution happened to fall on a file both sides of a comparison drew
+after it. *Cause inside the engine:* not established. *Bound, at the case:* the `[I-13]` case takes the first substitution
+before its sweep and says it does not cover what a session's first document shows. *Open*; the user's decision.
 
 ---
 

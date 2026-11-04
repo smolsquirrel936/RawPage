@@ -1,0 +1,16 @@
+# Fixture: Stage 7 I-12's shape -- both targets linked and run, and fuzz_alpha WRITES into corpus/malformed,
+# the first directory libFuzzer is given.
+jobs:
+  portable-fuzz:
+    steps:
+      - name: linked
+        run: |
+          for target in fuzz_alpha fuzz_beta; do
+            echo "$target"
+          done
+      - name: alpha
+        run: ./build/portable-fuzz/bin/fuzz_alpha corpus/malformed -max_total_time=60
+      - name: beta
+        run: |
+          ./build/portable-fuzz/bin/fuzz_beta fuzz-work/beta corpus/ordinary \
+              -max_total_time=60

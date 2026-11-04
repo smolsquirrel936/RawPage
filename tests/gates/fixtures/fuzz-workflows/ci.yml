@@ -8,7 +8,7 @@ jobs:
             echo "$target"
           done
       - name: alpha
-        run: ./build/portable-fuzz/bin/fuzz_alpha corpus/malformed -max_total_time=60
+        run: ./build/portable-fuzz/bin/fuzz_alpha fuzz-work/alpha corpus/malformed -max_total_time=60
       - name: beta
         run: |
           ./build/portable-fuzz/bin/fuzz_beta fuzz-work/beta corpus/ordinary \

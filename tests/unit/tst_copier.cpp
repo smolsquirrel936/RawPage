@@ -678,6 +678,61 @@ TEST_CASE("fuzz.assembly_replay: the copier and the insert over the corpus, its 
 }
 
 // ==========================================================================================
+// Stage 7 guide I-12 -- a tree node or a catalog the walk never met is still not copied
+// ==========================================================================================
+//
+// Found by `fuzz_assembly`'s first CI run (41758087362, *"the payload holds the source's tree"*) on a seed the lexer
+// and parser targets had written; the input was not kept. The copier refused the trailer's catalog and every node and
+// page THE WALK MET -- and a reference reaching a `/Pages` node the walk did not meet (one no `/Kids` lists) or a
+// `/Catalog` the trailer does not name (an earlier revision's) copied it, and with it the
+// pages it lists. Each input below is a page whose `/Resources` name one such object.
+
+TEST_CASE("copier I-12: an orphan page-tree node and an old catalog stay behind", "[copier][bounds][I-12]")
+{
+    std::vector<std::pair<std::string, std::string>> inputs;
+    {
+        tests::TinyPdf pdf;
+        const int catalog = pdf.reserve();
+        const int root = pdf.reserve();
+        const int page = pdf.reserve();
+        const int orphan = pdf.reserve();
+        const int stray = pdf.reserve();
+        pdf.set(catalog, "<< /Type /Catalog /Pages " + std::to_string(root) + " 0 R >>");
+        pdf.set(root, "<< /Type /Pages /Kids [" + std::to_string(page) + " 0 R] /Count 1 /MediaBox [0 0 200 200] >>");
+        pdf.set(page, "<< /Type /Page /Parent " + std::to_string(root) + " 0 R /Resources << /X " + std::to_string(orphan) + " 0 R >> >>");
+        pdf.set(orphan, "<< /Type /Pages /Kids [" + std::to_string(stray) + " 0 R] /Count 1 >>");
+        pdf.set(stray, "<< /Type /Page /Parent " + std::to_string(orphan) + " 0 R /MediaBox [0 0 50 50] >>");
+        inputs.emplace_back("an orphan /Pages node", pdf.bytes(catalog));
+    }
+    {
+        tests::TinyPdf pdf;
+        const int catalog = pdf.reserve();
+        const int root = pdf.reserve();
+        const int page = pdf.reserve();
+        const int old = pdf.reserve();
+        pdf.set(catalog, "<< /Type /Catalog /Pages " + std::to_string(root) + " 0 R >>");
+        pdf.set(root, "<< /Type /Pages /Kids [" + std::to_string(page) + " 0 R] /Count 1 /MediaBox [0 0 200 200] >>");
+        pdf.set(page, "<< /Type /Page /Parent " + std::to_string(root) + " 0 R /Resources << /X " + std::to_string(old) + " 0 R >> >>");
+        pdf.set(old, "<< /Type /Catalog /Pages " + std::to_string(root) + " 0 R >>");
+        inputs.emplace_back("a catalog the trailer does not name", pdf.bytes(catalog));
+    }
+
+    for (const auto& [label, bytes] : inputs) {
+        INFO(label);
+        const rawpage::fuzz::AssemblyVerdict verdict =
+            rawpage::fuzz::assemblyFuzzOnce(reinterpret_cast<const std::uint8_t*>(bytes.data()), bytes.size());
+        INFO(verdict.failure);
+        CHECK(verdict.copied);
+        CHECK(verdict.ok);
+        // And read directly: the reference the page made reads null in the copy.
+        auto copied = pdf::ops::ObjectGraphCopier::copyFile(bytes, {0});
+        REQUIRE(copied);
+        auto read = readBytes(copied.value().graph);
+        CHECK(read->resolved(read->page(0).get("Resources")).get("X").isNull());
+    }
+}
+
+// ==========================================================================================
 // Stage 7 guide I-07 -- an inserted page's hidden layers stay hidden
 // ==========================================================================================
 

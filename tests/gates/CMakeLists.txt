@@ -856,6 +856,11 @@ rawpage_add_fuzz_workflows_test(NAME gates.fuzz_workflows.soak_unrun_fails
     CMAKELISTS "${FW_FIXTURES}/CMakeLists.txt" CI "${FW_FIXTURES}/ci.yml" SOAK "${FW_FIXTURES}/fuzz-soak-unrun.yml"
     EXPECT_EXIT 1 EXPECT_MATCH "fuzz_beta: no fuzz-soak.yml matrix entry" "unrun")
 
+# Stage 7 I-12's shape: every target run, and one run's FIRST directory -- where libFuzzer writes -- the corpus.
+rawpage_add_fuzz_workflows_test(NAME gates.fuzz_workflows.corpus_written_fails
+    CMAKELISTS "${FW_FIXTURES}/CMakeLists.txt" CI "${FW_FIXTURES}/ci-writes-corpus.yml" SOAK "${FW_FIXTURES}/fuzz-soak.yml"
+    EXPECT_EXIT 1 EXPECT_MATCH "fuzz_alpha: its run writes into corpus/malformed" "corpus")
+
 # Zero targets read is a failure: a reading that matches nothing finds nothing unrun.
 rawpage_add_fuzz_workflows_test(NAME gates.fuzz_workflows.no_targets_fails
     CMAKELISTS "${FW_FIXTURES}/ci.yml" CI "${FW_FIXTURES}/ci.yml" SOAK "${FW_FIXTURES}/fuzz-soak.yml"

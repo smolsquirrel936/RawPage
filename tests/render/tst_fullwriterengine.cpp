@@ -238,6 +238,59 @@ TEST_CASE("render.fullwriter every page of every Save As that rewrote draws as t
 }
 
 // ==========================================================================================
+// Stage 7 guide I-13 -- an unedited Save As draws as the ORIGINAL draws
+// ==========================================================================================
+//
+// The bar above grades a rewrite against the APPEND of the same state, which carries the first-party reader's reading
+// of a damaged file -- its repair -- as the rewrite does, so where that reading departs from PDFium's both depart
+// together and the bar sees nothing. Here the oracle is the source as PDFium opened it, before anything was written:
+// a Save As with no edit, reopened in a fresh engine, must draw every page of it identically.
+
+TEST_CASE("render.fullwriter an unedited Save As draws every page as the original drew it", "[render][fullwriter][I-13]")
+{
+    // THE FIRST UNKNOWN FONT PDFium SUBSTITUTES IN A PROCESS DRAWS UNLIKE EVERY LATER ONE (Stage 7 guide I-14, measured
+    // here: `malformed/bad-name-hex-escape.pdf` drawn twice from the same bytes, two digests; a second drawing matches
+    // every other spelling of an unknown name). Without this, the sweep's first such file -- drawn first as the
+    // original, then as the rewrite -- differs on every page for a reason that is not in either file. So the first
+    // substitution is TAKEN before the sweep, and this case does NOT cover what the first document of a session shows.
+    {
+        pdf::DocumentBackendImpl warm;
+        auto opened = warm.open(corpusPath("malformed/bad-name-hex-escape.pdf"), nullptr);
+        REQUIRE(opened);
+        int ignored = 0;
+        (void)drawEvery(warm, opened.value(), ignored);
+    }
+    int files = 0;
+    int renders = 0;
+    std::vector<std::string> failures;
+    for (const std::string& relative : candidates()) {
+        auto live = openLive(relative);
+        if (!live) continue;
+        const std::vector<std::string> a = drawEvery(live->backend, live->handle, renders);
+        const QString target = live->scratch.filePath(QStringLiteral("rewritten.pdf"));
+        auto saved = live->coordinator->saveAs(*live->journal, target);
+        if (!saved || saved.value().kind != core::SaveOutcome::Kind::Saved) {
+            failures.push_back(relative + ": Save As was refused" + (saved ? std::string() : " (" + keyOf(saved.error()) + ")"));
+            continue;
+        }
+        ++files;
+        pdf::DocumentBackendImpl rewrittenBackend;
+        auto after = rewrittenBackend.open(target, nullptr);
+        REQUIRE(after);
+        const std::vector<std::string> b = drawEvery(rewrittenBackend, after.value(), renders);
+        if (const std::string which = differing(a, b); !which.empty()) failures.push_back(relative + ": renders " + which + " differ");
+    }
+    std::cout << "render.fullwriter.original: " << files << " files Saved As unedited, " << renders << " renders, "
+              << failures.size() << " differ or refused\n";
+    for (const std::string& f : failures) {
+        std::cout << "  " << f << "\n";
+        UNSCOPED_INFO(f);
+    }
+    CHECK(failures.empty());
+    CHECK(files > 100);
+}
+
+// ==========================================================================================
 // A-124 -- each undo and redo after a Save As draws as the same step did before it
 // ==========================================================================================
 

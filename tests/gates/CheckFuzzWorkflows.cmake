@@ -74,5 +74,24 @@ if(missing)
         "Add it to both workflows in the commit that adds it: unrun\n")
 endif()
 
+# The FIRST directory a libFuzzer run is given is where it WRITES every input it finds. A checked-in corpus there is
+# corpus data no provenance row records, and every later step seeded from it reads what an earlier target wrote:
+# ci.yml's lexer and parser steps wrote ~1,440 inputs into corpus/malformed/ on every push until Stage 7 guide I-12,
+# so fuzz_assembly's crashing seed was one of theirs and no checked-in file at all.
+set(writes "")
+foreach(workflow ci soak)
+    string(REGEX MATCHALL "bin/[A-Za-z0-9_]+ +corpus/[A-Za-z0-9_/.-]*" runs "${${workflow}_text}")
+    foreach(run IN LISTS runs)
+        string(REGEX MATCH "^bin/([A-Za-z0-9_]+) +(.*)$" pair "${run}")
+        list(APPEND writes "${CMAKE_MATCH_1}: its run writes into ${CMAKE_MATCH_2}")
+    endforeach()
+endforeach()
+if(writes)
+    list(JOIN writes "\n  " writes_text)
+    message(FATAL_ERROR "\n  ${writes_text}\n"
+        "libFuzzer writes what it finds into its FIRST directory; pass a scratch directory first and the checked-in "
+        "seeds after it (Stage 7 I-12): corpus\n")
+endif()
+
 list(JOIN targets " " targets_text)
 message(STATUS "fuzz workflows: ${count} target(s), each run by ci.yml and fuzz-soak.yml [${targets_text}]")

@@ -207,7 +207,14 @@ std::optional<long long> Copier::localFor(long long number)
     // An annotation is named only through the keys `copyAnnotation` writes itself.
     if (annotations_.count(number) != 0) return std::nullopt;
     if (const auto found = local_.find(number); found != local_.end()) return found->second;
-    if (!table_.fetch(number)) return std::nullopt;   // a reference that names nothing means null, here as in any reader
+    auto fetched = table_.fetch(number);
+    if (!fetched) return std::nullopt;   // a reference that names nothing means null, here as in any reader
+    // ... and the same stop for a catalog, a tree node or a page the walk never MET -- an earlier revision's catalog,
+    // a node no `/Kids` lists: by its type, not by the walk's sets, or it comes along with every page it lists
+    // (Stage 7 guide I-12, found by `fuzz_assembly`).
+    if (const CosObject& type = fetched.value().object.get("Type"); type.isName()
+        && (type.text() == "Catalog" || type.text() == "Pages" || type.text() == "Page"))
+        return std::nullopt;
     if (!spend()) return std::nullopt;
     const long long local = next_++;
     local_.emplace(number, local);

@@ -11,7 +11,8 @@
 //   * PIXELS. Every page drawn at 72 and 144 dpi against the document before the save, and each undo after a Save As
 //     drawn as before it, are `tests/render/tst_fullwriterengine.cpp`'s (A-122's raster bar, A-124's);
 //   * `qpdf --check` over what these cases write -- the `portable-asan` job's `check-qpdf.py` step reads
-//     `written/rewrite-NN.pdf` (A-122);
+//     `written/rewrite-NN.pdf` (A-122), and `written/rewrite-malformed-<name>.pdf`, whose failure it accepts only
+//     where qpdf refuses `corpus/malformed/<name>.pdf` too (Stage 7 guide I-13);
 //   * an ENCRYPTED document, which this backend does not open: its byte copy is the shipped backend's (A-126, render);
 //   * OpenSSL's verdict on the signed files kept -- `render.a4_product.saveas.openssl` (A-126);
 //   * the question itself as a person meets it, and Save a Copy's tab -- `ui.save_a_copy` (A-125).
@@ -265,7 +266,12 @@ TEST_CASE("fullwriter every editable corpus file Saved As after a move and a hig
         REQUIRE(walk);
         if (static_cast<int>(walk.value().pages.size()) != pages) failures.push_back(relative + ": page count");
         objects += static_cast<int>(held.size());
-        keep(target, "rewrite-" + std::to_string(files) + ".pdf");
+        // A rewrite of a file damaged on purpose keeps its damage (I-13: drawn as PDFium draws the original), so it is
+        // named after its source, which `check-qpdf.py --source` judges beside it.
+        if (relative.rfind("malformed/", 0) == 0)
+            keep(target, "rewrite-malformed-" + relative.substr(std::string("malformed/").size()));
+        else
+            keep(target, "rewrite-" + std::to_string(files) + ".pdf");
     }
     std::cout << "fullwriter: " << files << " files Saved As -- " << files - signedKept << " rewritten, " << objects
               << " objects kept, " << dropped << " dropped; " << signedKept << " signed, kept by appending; "
