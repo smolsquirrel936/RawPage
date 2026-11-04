@@ -686,9 +686,10 @@ TEST_CASE("fuzz.assembly_replay: the copier and the insert over the corpus, its 
 // page THE WALK MET -- and a reference reaching a `/Pages` node the walk did not meet (one no `/Kids` lists) or a
 // `/Catalog` the trailer does not name (an earlier revision's) copied it, and with it the
 // pages it lists. The first two inputs are a page whose `/Resources` name one such object. The third is the next run's
-// finding: a page the walk calls a page that SAYS `/Pages`, copied with its own `/Type`.
+// finding: a page the walk calls a page that SAYS `/Pages`, copied with its own `/Type`. The fourth is the run after
+// that: the tree named by a page's `/Annots`, copied as an annotation.
 
-TEST_CASE("copier I-12: an orphan tree node and an old catalog stay behind and a page is copied as a page", "[copier][bounds][I-12]")
+TEST_CASE("copier I-12: no part of the source's tree comes along and a page is copied as a page", "[copier][bounds][I-12]")
 {
     std::vector<std::pair<std::string, std::string>> inputs;
     {
@@ -730,6 +731,26 @@ TEST_CASE("copier I-12: an orphan tree node and an old catalog stay behind and a
         pdf.set(leaf, "<< /Type /Pages /Kid /s [ 9 0 R ] /Count 3 /Parent " + std::to_string(root) + " 0 R /Resources << >> >>");
         inputs.emplace_back("a leaf typed /Pages", pdf.bytes(catalog));
     }
+    {
+        // CI run 41808943466's input (`fuzz-artifacts`): a page's `/Annots` lists the tree node above it, and the
+        // copier took every dictionary `/Annots` names for an annotation -- so the node was written as one, a second
+        // page-tree node in the payload. The other entries are the catalog, the page itself, an untyped node, and a
+        // direct dictionary typed `/Pages`; the one real annotation beside them is still copied.
+        tests::TinyPdf pdf;
+        const int catalog = pdf.reserve();
+        const int root = pdf.reserve();
+        const int node = pdf.reserve();
+        const int page = pdf.reserve();
+        const int note = pdf.reserve();
+        pdf.set(catalog, "<< /Type /Catalog /Pages " + std::to_string(root) + " 0 R >>");
+        pdf.set(root, "<< /Kids [" + std::to_string(node) + " 0 R] /Count 1 /MediaBox [0 0 200 200] >>");
+        pdf.set(node, "<< /Type /Pages /Kids [" + std::to_string(page) + " 0 R] /Count 1 /Parent " + std::to_string(root) + " 0 R >>");
+        pdf.set(page, "<< /Type /Page /Parent " + std::to_string(node) + " 0 R /Resources << >> /Annots [" + std::to_string(node)
+                          + " 0 R " + std::to_string(catalog) + " 0 R " + std::to_string(page) + " 0 R " + std::to_string(root)
+                          + " 0 R << /Type /Pages /Kids [] /Count 0 >> " + std::to_string(note) + " 0 R] >>");
+        pdf.set(note, "<< /Type /Annot /Subtype /Text /Rect [10 10 30 30] /Contents (kept) >>");
+        inputs.emplace_back("an /Annots entry that is the tree", pdf.bytes(catalog));
+    }
 
     for (const auto& [label, bytes] : inputs) {
         INFO(label);
@@ -743,6 +764,12 @@ TEST_CASE("copier I-12: an orphan tree node and an old catalog stay behind and a
         REQUIRE(copied);
         auto read = readBytes(copied.value().graph);
         CHECK(read->resolved(read->page(0).get("Resources")).get("X").isNull());
+        if (label == "an /Annots entry that is the tree") {
+            // The tree's five entries dropped, the annotation kept -- a body that dropped every /Annots passes the rest.
+            const CosObject annots = read->resolved(read->page(0).get("Annots"));
+            REQUIRE(annots.items().size() == 1);
+            CHECK(read->resolved(annots.items().front()).get("Contents").text() == "kept");
+        }
     }
 }
 

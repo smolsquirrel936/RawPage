@@ -418,6 +418,13 @@ void Copier::listAnnotations(int index, long long pageLocal)
         }
         dictionary.clearSpansRecursively();
         if (!dictionary.isDictionary()) continue;   // an entry that is no annotation: nothing to copy
+        // Nor is the catalog, a tree node or a page, which `/Annots` can name as any reference can: written as an
+        // annotation it is a second tree node in the payload, by the stop `localFor` keeps for every other key (Stage 7
+        // guide I-12, CI run 41808943466's input -- a page listing the node above it).
+        if (number >= 0 && (number == catalog_ || tree_.nodes.count(number) != 0 || sourcePages_.count(number) != 0)) continue;
+        if (const CosObject& type = dictionary.get("Type"); type.isName()
+            && (type.text() == "Catalog" || type.text() == "Pages" || type.text() == "Page"))
+            continue;
         // Listed by two copied pages (or twice by one): ONE copy, listed wherever the source listed it.
         if (number >= 0) {
             if (const auto copied = annotations_.find(number); copied != annotations_.end()) {
