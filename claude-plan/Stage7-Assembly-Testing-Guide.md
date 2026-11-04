@@ -1228,6 +1228,7 @@ missed it, and the control that was run red before the fix — the shape every e
 | **I-12** | S3 | `fuzz_assembly`'s first CI run: a copy's payload held a catalog or a page-tree node of the SOURCE'S -- the copier refused only the trailer's catalog and the nodes and pages its walk met, so a reference reaching an orphan `/Pages` node or an earlier revision's `/Catalog` copied it and every page it lists -- and, found by the next run, a page the walk reads as a page that SAYS `/Type /Pages` was copied saying so -- and, by the run after, a tree node a page's `/Annots` lists was copied as an annotation | **Fixed** three times, 2026-11-04, after runs 41758087362, 41770714539 and 41808943466 -- the soak's first run of the target, 41816834053, found the third form too; closed when a push's 60 s log and a soak show no finding |
 | **I-13** | S3 | `qpdf --check` refused three of T6's rewrites -- of `malformed/bad-flate-stream.pdf`, `pages-loop.pdf` and `duplicate-object-number.pdf` -- for the damage each source carries on purpose, which a rewrite keeps as PDFium draws it: the check judged a fault we were given as one we wrote, and no case held a rewrite to what PDFium draws of the ORIGINAL | **Closed** 2026-11-04 by run 41770714539's `qpdf` log: *"210 file(s), 0 failed, 3 inherited"*, each source refused for the same fault |
 | **I-14** | S3 | The FIRST unknown font PDFium substitutes in a process draws unlike every later one: the same bytes, opened twice in one process, give two digests | **Open** -- measured, cause inside the engine not established; the user's decision |
+| **I-15** | S3 | Every CI job's vcpkg binary cache restored NOTHING -- *"Restored 0 package(s)"* in `Windows x64`, `Portable ASan + UBSan`, `Portable libFuzzer` and every soak job -- so each built every port from source and downloaded its sources, and run 41824929474's `Portable libFuzzer` stopped at configure on gitlab.com's *"response code 429"* for libtiff, before any fuzz target ran | **Fixed** 2026-11-04, not pushed; closed when a run on a runner image a previous run saved shows the ports restored |
 
 **I-01 (S2) — the engine facade read a page's boxes from the page dictionary alone.** *Found* at T1 by
 the first scratch render of `assembly/inherit-resources.pdf`, whose pages inherit both boxes: an A4 page
@@ -1516,6 +1517,28 @@ unlike the same document opened again -- *S3*, nothing written changes. *Why no 
 two drawings inside one process, and the first substitution happened to fall on a file both sides of a comparison drew
 after it. *Cause inside the engine:* not established. *Bound, at the case:* the `[I-13]` case takes the first substitution
 before its sweep and says it does not cover what a session's first document shows. *Open*; the user's decision.
+
+**I-15 (S3) — the vcpkg binary cache restored nothing, and a rate limit stopped a fuzz run.** *Found* 2026-11-04 by
+run **41824929474** on `f68f0c1`, the `Portable libFuzzer` job: configure stopped on *"curl operation failed with
+response code 429"* for `gitlab.com/libtiff/…/libtiff-v4.7.2.tar.gz`, three attempts, and *"building tiff:x64-linux failed"*
+-- no fuzz target was built or run, so the run says nothing of I-12. Not a product defect, and not the fault the job
+reported: why a job downloads libtiff at all is. *Mechanism, read from the logs:* every vcpkg cache step reported a hit
+on its key, and vcpkg then printed *"Restored 0 package(s)"* -- in run 41808943466's `Windows x64`, `Portable ASan +
+UBSan` and `Portable libFuzzer`, in all six jobs of soak 41816834053 and in this run -- and built all nine ports. The key
+hashed `vcpkg.json` and `vcpkg-configuration.json` alone, but a port's ABI also follows the RUNNER IMAGE, which ships the
+vcpkg tool and its scripts: on image `20261025.353.1` the ABIs were identical across runs and across the ASan, fuzz and
+soak jobs (`tiff` `64562705…`, `zlib` `e5a44375…`), and on `20261101.360.1` every one differed (`tiff` `f2df6356…`).
+Archives saved under an older image matched nothing, and a key that still HIT is never saved again -- and on Linux
+`actions/cache`'s combined step saves only when the whole job passes, so a red run never saved what it built. *Why
+nothing caught it:* a cache that restores nothing is slower, never red. *Fix* (`ci.yml`'s three vcpkg caches,
+`fuzz-soak.yml`'s): the key names the image (`ImageOS`-`ImageVersion`, a step that FAILS when either is unset rather than
+fall back to the old key); no `restore-keys`, since another image's archives match nothing; restore and save as two
+steps on Linux, as the Windows job already had; and every save only after a configure that SUCCEEDED -- a configure
+stopped part-way holds some ports' archives, which saved under the key would be restored as a hit and never saved again
+(the Windows save ran on any configure that ran). *Bound:* the image is what the logs show the ABIs following; anything
+else that moves them is not keyed, and the same *"Restored 0 package(s)"* line is where it would show. `gates` 145/145
+over the edited workflows (`gates.fuzz_workflows.*` read both files). *Fixed*, not pushed; closed when a run on an image a
+previous run saved logs the ports restored rather than built.
 
 ---
 

@@ -98,17 +98,36 @@ jobs:
       - name: Export VCPKG_ROOT
         run: echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_ENV"
 
-      - name: Cache vcpkg binaries
-        uses: actions/cache@v4
+      # ci.yml's portable-fuzz key, the runner image in it, restore and save as two steps (Stage 7
+      # guide I-15: a combined actions/cache saved only when the job passed, and a key without the
+      # image hit every run and restored nothing). The matrix's jobs race to save one key: one saves,
+      # and actions/cache/save is documented to report the others as a warning, not a failure --
+      # first read at the soak after this change.
+      - name: Name the runner image
+        id: image
+        run: |
+          if [ -z "$ImageOS" ] || [ -z "$ImageVersion" ]; then echo "::error::ImageOS/ImageVersion unset: the vcpkg cache key cannot name the image (Stage 7 guide I-15)"; exit 1; fi
+          echo "id=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+
+      - name: Restore vcpkg binaries
+        id: vcpkg-cache
+        uses: actions/cache/restore@v4
         with:
           path: ~/.cache/vcpkg/archives
-          key: vcpkg-linux-fuzz-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
-          restore-keys: vcpkg-linux-fuzz-
+          key: vcpkg-linux-fuzz-${{ steps.image.outputs.id }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
 
       # tests/fuzz/CMakeLists.txt fails configure on the wrong target count (A-27), so an empty fuzz
       # graph stops here rather than soaking nothing for ten minutes.
       - name: Configure
+        id: configure
         run: cmake --preset portable-fuzz
+
+      - name: Save vcpkg binaries
+        if: ${{ !cancelled() && steps.configure.outcome == 'success' && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/vcpkg/archives
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
 
       - name: Build ${{ matrix.target }}
         run: cmake --build --preset portable-fuzz --target ${{ matrix.target }}

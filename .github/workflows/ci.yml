@@ -216,13 +216,26 @@ jobs:
           echo "VCPKG_ROOT=$env:VCPKG_INSTALLATION_ROOT" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
           New-Item -ItemType Directory -Force $env:VCPKG_DEFAULT_BINARY_CACHE | Out-Null
 
+      # The RUNNER IMAGE is in the key because vcpkg's package ABIs are: the image ships the vcpkg tool
+      # and its scripts, so a new image gives every package a new ABI and an archive saved under
+      # another image restores nothing. With the manifest hash alone the key hit every run and saved
+      # nothing new, and from the first image change every job built every port from source and
+      # downloaded its sources -- until a gitlab.com 429 stopped one (Stage 7 guide I-15). No
+      # restore-keys for the same reason: another image's archives never match (measured there,
+      # on the Linux jobs).
+      - name: Name the runner image
+        id: image
+        shell: pwsh
+        run: |
+          if (-not $env:ImageOS -or -not $env:ImageVersion) { throw "ImageOS/ImageVersion unset: the vcpkg cache key cannot name the image (Stage 7 guide I-15)" }
+          echo "id=$env:ImageOS-$env:ImageVersion" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
       - name: Restore vcpkg binaries
         id: vcpkg-cache
         uses: actions/cache/restore@v4
         with:
           path: C:\vcpkg-archives
-          key: vcpkg-mingw-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'tools/ports/**') }}
-          restore-keys: vcpkg-mingw-
+          key: vcpkg-mingw-${{ steps.image.outputs.id }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json', 'tools/ports/**') }}
 
       # MUST come before the first vcpkg invocation, not merely before the compile step.
       # Measured at T6: vcpkg's x64-mingw-dynamic triplet runs a detect_compiler probe that
@@ -313,12 +326,12 @@ jobs:
         id: configure
         run: cmake --preset x64-release
 
-      # Saved straight after Configure, even when Configure or a later step fails, for the reason
-      # the Qt cache is -- but never when Configure did not run, which would save an empty
-      # directory under the key. Only on a primary-key miss: a restore through restore-keys is a
-      # miss, and saving then records the new manifest's archives under the new key.
+      # Saved straight after Configure, even when a later step fails, for the reason the Qt cache
+      # is -- and only when Configure SUCCEEDED: a configure that stopped part-way (a download
+      # refused, Stage 7 guide I-15) holds some ports' archives, and saved under the key it would
+      # be restored as a hit, which is never saved again. Only on a primary-key miss.
       - name: Save vcpkg binaries
-        if: ${{ !cancelled() && steps.configure.outcome != 'skipped' && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
+        if: ${{ !cancelled() && steps.configure.outcome == 'success' && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
         uses: actions/cache/save@v4
         with:
           path: C:\vcpkg-archives
@@ -424,15 +437,32 @@ jobs:
       - name: Export VCPKG_ROOT
         run: echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_ENV"
 
-      - name: Cache vcpkg binaries
-        uses: actions/cache@v4
+      # The runner image in the key, and restore and save as two steps, for the Windows job's
+      # reasons (Stage 7 guide I-15) -- and a combined actions/cache saves only when the whole
+      # job passes, so a red run never saved what it built.
+      - name: Name the runner image
+        id: image
+        run: |
+          if [ -z "$ImageOS" ] || [ -z "$ImageVersion" ]; then echo "::error::ImageOS/ImageVersion unset: the vcpkg cache key cannot name the image (Stage 7 guide I-15)"; exit 1; fi
+          echo "id=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+
+      - name: Restore vcpkg binaries
+        id: vcpkg-cache
+        uses: actions/cache/restore@v4
         with:
           path: ~/.cache/vcpkg/archives
-          key: vcpkg-linux-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
-          restore-keys: vcpkg-linux-
+          key: vcpkg-linux-${{ steps.image.outputs.id }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
 
       - name: Configure
+        id: configure
         run: cmake --preset portable-asan
+
+      - name: Save vcpkg binaries
+        if: ${{ !cancelled() && steps.configure.outcome == 'success' && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/vcpkg/archives
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
 
       - name: Build core/, pdf/cos/ and pdf/ops/
         run: cmake --build --preset portable-asan
@@ -508,18 +538,33 @@ jobs:
       - name: Export VCPKG_ROOT
         run: echo "VCPKG_ROOT=$VCPKG_INSTALLATION_ROOT" >> "$GITHUB_ENV"
 
-      - name: Cache vcpkg binaries
-        uses: actions/cache@v4
+      # As portable-asan's (Stage 7 guide I-15). fuzz-soak.yml's jobs share this key.
+      - name: Name the runner image
+        id: image
+        run: |
+          if [ -z "$ImageOS" ] || [ -z "$ImageVersion" ]; then echo "::error::ImageOS/ImageVersion unset: the vcpkg cache key cannot name the image (Stage 7 guide I-15)"; exit 1; fi
+          echo "id=$ImageOS-$ImageVersion" >> "$GITHUB_OUTPUT"
+
+      - name: Restore vcpkg binaries
+        id: vcpkg-cache
+        uses: actions/cache/restore@v4
         with:
           path: ~/.cache/vcpkg/archives
-          key: vcpkg-linux-fuzz-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
-          restore-keys: vcpkg-linux-fuzz-
+          key: vcpkg-linux-fuzz-${{ steps.image.outputs.id }}-${{ hashFiles('vcpkg.json', 'vcpkg-configuration.json') }}
 
       # A-27 has teeth HERE: the target-count assertion is at configure time, so a fuzz graph that
       # had quietly become empty stops this step instead of producing two green "no crashes" runs
       # over nothing.
       - name: Configure
+        id: configure
         run: cmake --preset portable-fuzz
+
+      - name: Save vcpkg binaries
+        if: ${{ !cancelled() && steps.configure.outcome == 'success' && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@v4
+        with:
+          path: ~/.cache/vcpkg/archives
+          key: ${{ steps.vcpkg-cache.outputs.cache-primary-key }}
 
       - name: Build the fuzz targets
         run: cmake --build --preset portable-fuzz
