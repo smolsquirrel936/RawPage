@@ -149,6 +149,20 @@ public:
                    QWidget* parent = nullptr);
 
     // ---------------------------------------------------------------------------------------
+    // A NEW DOCUMENT AN EXTRACT MADE -- Stage 7 T7, D7-5 and D7-30.
+    // ---------------------------------------------------------------------------------------
+    // `handle` is what `IDocumentBackend::openBytes(..., BytesOrigin::Assembly)` returned. UNTITLED: no file stands
+    // behind it and nothing is on disk until it is saved. It is an attached PDF's tab in every way but two: it is
+    // DIRTY from the start -- a document nobody has saved yet, so closing it asks first -- and Save goes to Save As,
+    // proposing `suggestedPath`. Read-only until then (the backend refuses every command by
+    // `error.edit.unsavedAssembly`), and `MainWindow` opens the saved file in its place, as it does an attachment's.
+    struct Assembled {
+        QString suggestedPath;
+    };
+    DocumentWindow(app::Services services, core::DocumentHandle handle, const Assembled& assembled,
+                   QWidget* parent = nullptr);
+
+    // ---------------------------------------------------------------------------------------
     // A SECOND VIEW OF ONE DOCUMENT, IN A SECOND WINDOW -- S4 T11, `window.new`, D4-13's exception.
     // ---------------------------------------------------------------------------------------
     // `handle` is the SAME FILE opened a second time, which is the one place a second
@@ -211,6 +225,8 @@ public:
     bool isUntitled() const noexcept { return path_.isEmpty() && !sourcePath_.isEmpty(); }
     // Stage 6 T11: an attached PDF opened from its bytes, and not yet saved as a file of its own.
     bool isAttachmentCopy() const noexcept { return path_.isEmpty() && !attachmentName_.isEmpty(); }
+    // Stage 7 T7: a new document an extract made, and not yet saved as a file.
+    bool isAssembly() const noexcept { return path_.isEmpty() && assembly_; }
 
     // Where a Save As proposes to write: the path, or for an untitled document "<source name> (recovered).pdf"
     // beside its source -- never the source itself, which the user chose not to write into.
@@ -485,6 +501,8 @@ private:
     QString path_;
     QString sourcePath_;
     QString attachmentName_;   // S6 T11: the attachment an attachment copy was opened from
+    bool assembly_ = false;          // S7 T7: an extract's new document, until it is saved
+    QString assembledSuggestion_;    // ... and where its Save As proposes to write
     core::DocumentHandle handle_;
     core::Revision revision_ = core::Revision::initial();
     bool protected_ = false;

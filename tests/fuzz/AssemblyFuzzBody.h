@@ -3,13 +3,13 @@
 // `RoundtripFuzzBody.h` and `AnnotPipelineFuzzBody.h` document.
 //
 // -------------------------------------------------------------------------------------------
-// THE PIPELINE, AS FAR AS T5 BUILDS IT
+// THE PIPELINE, AS FAR AS T7 BUILDS IT
 // -------------------------------------------------------------------------------------------
 // bytes -> `pdf/cos/` (`openWithRepair`) -> the page walk -> `ObjectGraphCopier` (every page, up to a bound, into
 // a payload) -> the payload re-read as a file of its own -> the payload INSERTED into a fixed one-page target and
 // one of its pages REPLACING the target's, each composed by `RevisionWriter` and VERIFIED as a save would, then
-// undone. T7 adds the assembler (`DocumentAssembler`), T11 the outline reader and T17 the layer tree over the same
-// bytes (D7-23).
+// undone -> and (Stage 7 T7) the payload BUILT into a new document by `DocumentAssembler` and verified as an
+// extract's is. T11 adds the outline reader and T17 the layer tree over the same bytes (D7-23).
 //
 // THE INVARIANTS, each one a defect the copier or the sink could plausibly have:
 //   * REFUSAL  -- a copy refused is refused BY KEY, one of the copier's own; anything else is a finding;
@@ -21,6 +21,8 @@
 //   * INSERT   -- the payload inserted into the target composes to an update `RevisionWriter::verify` accepts,
 //                 with the target's page count plus the payload's, and an undo leaves nothing to write;
 //   * REPLACE  -- the payload's first page replacing the target's page does the same, the count unchanged.
+//   * ASSEMBLE -- the payload built into a new document (T7, D7-5) is one `DocumentAssembler::verify` accepts: one
+//                 revision, nothing unreachable, its pages the payload's in order, every object the payload's.
 //
 // WHAT IS NOT A FINDING: an input the walk cannot read, or one the copier refuses by key.
 
@@ -30,6 +32,7 @@
 #include "core/doc/CopiedPages.h"
 #include "pdf/cos/XrefRepair.h"
 #include "pdf/cos/XrefTable.h"
+#include "pdf/ops/DocumentAssembler.h"
 #include "pdf/ops/MutationSinkImpl.h"
 #include "pdf/ops/ObjectGraphCopier.h"
 #include "pdf/ops/PageOps.h"
@@ -186,6 +189,13 @@ inline AssemblyVerdict assemblyFuzzOnce(const std::uint8_t* data, std::size_t si
         if (!sink.value()->restoreReplacedPages({0}, key)) return assemblyFail("the replace's undo was refused");
         auto delta = sink.value()->delta();
         if (!delta || !delta.value().isEmpty()) return assemblyFail("a replace undone still writes");
+    }
+    // ASSEMBLE -- the payload as a new document, built and verified (T7).
+    {
+        auto built = pdf::ops::DocumentAssembler::build(pdf, "fuzz");
+        if (!built) return assemblyFail(std::string("assemble refused: ") + built.error().messageKey.data() + " " + built.error().context.toStdString());
+        if (const core::Status verified = pdf::ops::DocumentAssembler::verify(built.value(), pdf); !verified)
+            return assemblyFail("assemble: verify refused " + verified.error().context.toStdString());
     }
     return verdict;
 }

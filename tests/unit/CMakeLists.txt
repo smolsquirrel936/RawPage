@@ -141,6 +141,11 @@ add_executable(rawpage_tests
     tst_fullwriter.cpp            # Stage 7 T6  -- Save As that rewrites: one revision of what is reached, numbers kept,
                                   #   the file compacted, every undo after it bringing back what it dropped, the signed
                                   #   question's answers and Save a Copy (S7 guide A-122 ... A-126, headless halves)
+    tst_assembler.cpp             # Stage 7 T7  -- new documents: one revision, a fresh /ID, a balanced tree, the pages
+                                  #   as they stand; the folder write refused whole on a collision and taken back on a
+                                  #   failed verify (S7 guide A-47, A-48's control, A-50, headless halves)
+    tst_splitplan.cpp             # Stage 7 T7  -- the six split rules and the page-range syntax, pure, against hand
+                                  #   values and the split-blanks labels (S7 guide A-49's planning half)
     tst_dpipolicy.cpp             # Stage 2 T10 -- guide cases A-28, A-29, A-30
     tst_tilegrid.cpp              # Stage 2 T10 -- guide case A-31
     tst_presentation.cpp          # Stage 2 T10 -- guide cases A-32, A-33, A-34

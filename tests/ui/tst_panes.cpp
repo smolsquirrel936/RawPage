@@ -42,6 +42,7 @@
 #include "tests/ui/ShellFixture.h"
 #include "core/doc/Destinations.h"
 #include "core/doc/Outline.h"
+#include "ui/dialogs/PageOpsDialogs.h"
 #include "ui/panes/BookmarksPane.h"
 #include "ui/panes/DestinationsPane.h"
 #include "ui/panes/ThumbnailsPane.h"
@@ -275,7 +276,6 @@ TEST_CASE("the page operations in the table stay unregistered and leave their ke
         {Qt::Key_A,      Qt::ControlModifier,                   ActionId::PageSelectAll},
         {Qt::Key_Up,     Qt::AltModifier,                       ActionId::PageMoveEarlier},
         {Qt::Key_Down,   Qt::AltModifier,                       ActionId::PageMoveLater},
-        {Qt::Key_X,      Qt::ControlModifier | Qt::ShiftModifier, ActionId::PageExtract},
         {Qt::Key_D,      Qt::ControlModifier | Qt::ShiftModifier, ActionId::PageDuplicate},
     };
 
@@ -284,6 +284,19 @@ TEST_CASE("the page operations in the table stay unregistered and leave their ke
         CHECK_FALSE(thumbs.fixture.actions.isRegistered(row.id));
         CHECK_FALSE(thumbs.press(row.key, row.modifiers));
     }
+
+    // `Ctrl+Shift+X` LEFT THE TABLE AT STAGE 7 T7: `page.extract` is registered (D7-5), and the pane's chord opens its
+    // dialog -- at the current page until T8 fills in the selection (A-52). Asked through the dialog's twin.
+    int asked = 0;
+    ui::ExtractPagesDialog::setAnswerForTesting([&asked](int pageCount, int) -> std::optional<ui::ExtractPagesDialog::Choice> {
+        CHECK(pageCount == 12);
+        ++asked;
+        return std::nullopt;   // cancelled: nothing extracted
+    });
+    CHECK(thumbs.fixture.actions.isRegistered(ActionId::PageExtract));
+    CHECK(thumbs.press(Qt::Key_X, Qt::ControlModifier | Qt::ShiftModifier));
+    ui::ExtractPagesDialog::setAnswerForTesting({});
+    CHECK(asked == 1);
 
     ui::DocumentWindow* document = thumbs.window->currentDocument();
     REQUIRE(document != nullptr);

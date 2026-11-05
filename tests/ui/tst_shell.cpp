@@ -198,10 +198,15 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // **One more at Stage 7 T6** (D7-25): `file.saveACopy`, declared since Stage 1, registered with the rewrite it
     // writes. 389 ids are declared.
     //
+    // **Two more at Stage 7 T7** (D7-5, D7-30): `page.extract` and `page.split`, both declared since Stage 1, each
+    // opening its dialog in `ui/dialogs/PageOpsDialogs`. Neither is a command. 389 ids are declared.
+    //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 174);
+    CHECK(fixture.actions.registeredCount() == 176);
+    CHECK(fixture.actions.isRegistered(core::ActionId::PageExtract));            // S7 T7
+    CHECK(fixture.actions.isRegistered(core::ActionId::PageSplit));              // S7 T7
     CHECK(fixture.actions.isRegistered(core::ActionId::FileSaveACopy));          // S7 T6
     CHECK(fixture.actions.isRegistered(core::ActionId::AnnotRecordAudio));       // S6 T14
     CHECK(fixture.actions.isRegistered(core::ActionId::AnnotAttachAudio));       // S6 T14

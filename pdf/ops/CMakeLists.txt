@@ -37,6 +37,11 @@ add_library(rawpage_ops STATIC
     ObjectGraphCopier.h
     ObjectGraphCopier.cpp
 
+    # S7 T7 (D7-5 as amended by D7-25, D7-30): a NEW document from copied pages -- the tree balanced, the /ID fresh,
+    # written by pdf/cos/FullWriter and read back before it counts -- and the folder a split writes into.
+    DocumentAssembler.h
+    DocumentAssembler.cpp
+
     # S7 T6 (D7-20's reading, D7-25): how many signatures a document carries -- what Save As that rewrites asks about.
     SignatureFields.h
     SignatureFields.cpp

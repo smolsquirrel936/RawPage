@@ -494,10 +494,13 @@ jobs:
       # judge -- and a qpdf step over no files is a green tick that checked nothing (the script refuses one).
       # Stage 7 guide I-13: a Save As of a file damaged ON PURPOSE keeps its damage, as PDFium draws it, and is
       # named after it; --source accepts its failure only where qpdf refuses corpus/malformed/'s file too.
+      # Stage 7 T7: a NEW document assembled from such a file keeps what the copy copies of its damage, and
+      # tst_assembler names it assembly-malformed-<source> for the same rule (guide A-47).
       - name: A-31 -- qpdf judges every file the suite wrote
         run: |
           sudo apt-get install -y qpdf
           python3 tests/gates/check-qpdf.py --qpdf qpdf --source rewrite-malformed-=corpus/malformed \
+              --source assembly-malformed-=corpus/malformed \
               build/portable-asan/written/*.pdf
 
   # =====================================================================================

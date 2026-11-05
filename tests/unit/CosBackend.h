@@ -35,6 +35,7 @@
 #include "core/doc/RepairReport.h"
 #include "pdf/ops/MutationSinkImpl.h"
 #include "pdf/ops/ObjectGraphCopier.h"
+#include "pdf/ops/DocumentAssembler.h"
 #include "pdf/ops/RevisionWriter.h"
 #include "pdf/ops/SignatureFields.h"
 #include "pdf/cos/XrefRepair.h"
@@ -74,13 +75,13 @@ public:
     // S6 T11 (D6-17): `open()` over bytes, as the shipped backend does it -- no path, read-only, its sink kept so a
     // Save As writes it unchanged.
     core::Result<core::DocumentHandle> openBytes(const QByteArray& bytes, const QString& name,
-                                                 const core::PasswordCallback& password) override
+                                                 const core::PasswordCallback& password, core::BytesOrigin origin) override
     {
-        return openFrom(bytes, name, password, true);
+        return openFrom(bytes, name, password, true, origin);
     }
 
     core::Result<core::DocumentHandle> openFrom(const QByteArray& bytes, const QString& path, const core::PasswordCallback&,
-                                                bool fromBytes)
+                                                bool fromBytes, core::BytesOrigin origin = core::BytesOrigin::Attachment)
     {
         auto entry = std::make_unique<Entry>();
         entry->bytes = bytes;
@@ -131,7 +132,9 @@ public:
             entry->permissions.assessAnnotations(engine, entry->annotations.listingFacts());
             plantedDisagreement_.reset();
         }
-        if (fromBytes) entry->permissions = core::Permissions::readOnly("error.edit.attachmentCopy");
+        if (fromBytes)
+            entry->permissions = core::Permissions::readOnly(origin == core::BytesOrigin::Assembly ? "error.edit.unsavedAssembly"
+                                                                                               : "error.edit.attachmentCopy");
         if (entry->permissions.canEditPages() || fromBytes)
             entry->sink = std::move(sink).value();
 
@@ -215,6 +218,22 @@ public:
     core::Result<core::CopiedPages> blankPages(core::PdfSize size, int count) override
     {
         return pdf::ops::ObjectGraphCopier::blankPages(size, count);
+    }
+    // Stage 7 T7: the shipped backend's snapshot -- the sink's composed file, or the bytes opened -- through the same
+    // assembler.
+    core::Result<std::unique_ptr<core::AssemblySource>> assemblySource(core::DocumentHandle handle) override
+    {
+        auto* entry = find(handle);
+        if (entry == nullptr) return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.backend.unknownDocument")};
+        QByteArray whole = entry->bytes;
+        if (entry->sink) {
+            auto composed = pdf::ops::RevisionWriter::compose(*entry->sink, entry->repair.requiresSaveAs());
+            if (!composed) return composed.error();
+            whole = composed.value().bytes;
+        }
+        auto source = pdf::ops::DocumentAssembler::Source::open(std::string(whole.constData(), static_cast<std::size_t>(whole.size())));
+        if (!source) return source.error();
+        return std::unique_ptr<core::AssemblySource>(std::move(source).value());
     }
     const core::PageTree* pages(core::DocumentHandle handle) const override
     {

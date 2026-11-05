@@ -445,12 +445,60 @@ public:
         return core::notImplementedError(core::BackendInterface::DocumentBackend, "blankPages");
     }
 
+    // S7 T7: a snapshot that RECORDS what it was asked -- `assembled`, each page set made in memory, and `writes`, each
+    // folder and its outputs -- and writes NOTHING: what the assembler builds, and what reaches the disk, is
+    // `tests/unit/tst_assembler.cpp`'s and `tests/render/tst_assemblerengine.cpp`'s to judge; the widget suite needs
+    // the commands and the tab. `assembleFails` / `writeFails` refuse by the key given.
+    struct AssemblyWrite {
+        QString folder;
+        std::vector<core::AssemblyOutput> outputs;
+    };
+    std::vector<std::vector<int>> assembled;
+    std::vector<AssemblyWrite> assemblyWrites;
+    const char* assembleFails = nullptr;   // a catalog key, or null
+    const char* writeFails = nullptr;
+    class FakeAssemblySource final : public core::AssemblySource {
+    public:
+        FakeAssemblySource(FakeBackend& backend, int pages) : backend_(backend), pages_(pages) {}
+        int pageCount() const override { return pages_; }
+        core::Result<core::AssembledDocument> assemble(const std::vector<int>& pages) override
+        {
+            backend_.assembled.push_back(pages);
+            if (backend_.assembleFails) return core::Error{core::ErrorCode::Corrupted, QLatin1String(backend_.assembleFails), QString()};
+            core::AssembledDocument out;
+            out.bytes = QByteArray("%PDF-1.7 fake assembly of ") + QByteArray::number(static_cast<int>(pages.size())) + " page(s)";
+            out.pageCount = static_cast<int>(pages.size());
+            return out;
+        }
+        core::Result<std::vector<core::WrittenDocument>> write(const std::vector<core::AssemblyOutput>& outputs, const QString& folder) override
+        {
+            backend_.assemblyWrites.push_back(AssemblyWrite{folder, outputs});
+            if (backend_.writeFails) return core::Error{core::ErrorCode::IoFailure, QLatin1String(backend_.writeFails), folder};
+            std::vector<core::WrittenDocument> written;
+            for (const core::AssemblyOutput& output : outputs)
+                written.push_back(core::WrittenDocument{QDir(folder).filePath(output.fileName), static_cast<int>(output.pages.size()), 0, {}});
+            return written;
+        }
+
+    private:
+        FakeBackend& backend_;
+        int pages_ = 0;
+    };
+    core::Result<std::unique_ptr<core::AssemblySource>> assemblySource(core::DocumentHandle handle) override
+    {
+        const core::PageTree* tree = pages(handle);
+        if (tree == nullptr) return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.backend.unknownDocument")};
+        return std::unique_ptr<core::AssemblySource>(new FakeAssemblySource(*this, tree->count()));
+    }
+
     // `openBytes` opens as `open()` does, under the name, read-only: the bytes are recorded, not read.
     QList<QByteArray> openedBytes;
+    QList<core::BytesOrigin> openedOrigins;   // S7 T7
     core::Result<core::DocumentHandle> openBytes(const QByteArray& bytes, const QString& name,
-                                                 const core::PasswordCallback& password) override
+                                                 const core::PasswordCallback& password, core::BytesOrigin origin) override
     {
         openedBytes << bytes;
+        openedOrigins << origin;
         const bool wasEditable = editable;
         editable = false;
         core::Result<core::DocumentHandle> handle = open(name, password);

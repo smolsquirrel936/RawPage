@@ -60,6 +60,9 @@ add_executable(rawpage_ui_tests
     # Stage 7 T6 -- Save a Copy, the question before a rewrite breaks a signature, and documents/saveMode (D7-25;
     # S7 guide A-124's Ctrl+S half, A-125, A-126's question half).
     tst_saveacopy.cpp
+    # S7 T7 -- the extract and split dialogs' widgets, the two commands' availability, and extract-and-delete's
+    # order over the fake snapshot (S7 guide A-48, A-49's dialog halves).
+    tst_pageopsdialogs.cpp
 
     # Stage 3 T11 -- the recovery prompt at launch (guide cases A-67's untitled half, A-82's prompt half).
     # app/RecoveryPrompt.cpp is COMPILED IN rather than linked, as tests/unit compiles three app/ units:

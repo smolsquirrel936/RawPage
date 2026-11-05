@@ -107,7 +107,8 @@ public:
     {
         return core::notImplementedError(core::BackendInterface::DocumentBackend, "extractAttachment");
     }
-    core::Result<core::DocumentHandle> openBytes(const QByteArray&, const QString&, const core::PasswordCallback&) override
+    core::Result<core::DocumentHandle> openBytes(const QByteArray&, const QString&, const core::PasswordCallback&,
+                                                 core::BytesOrigin) override
     {
         return core::notImplementedError(core::BackendInterface::DocumentBackend, "openBytes");
     }
@@ -131,6 +132,10 @@ public:
     core::Result<core::CopiedPages> blankPages(core::PdfSize, int) override
     {
         return core::notImplementedError(core::BackendInterface::DocumentBackend, "blankPages");
+    }
+    core::Result<std::unique_ptr<core::AssemblySource>> assemblySource(core::DocumentHandle) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "assemblySource");
     }
     const core::PageTransitions* pageTransitions(core::DocumentHandle) const override
     {

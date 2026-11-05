@@ -110,7 +110,7 @@ public:
                                    const QString& path, bool overwrite) override;
     // `open()`'s pieces with the read skipped; the document names no file and is never editable.
     core::Result<core::DocumentHandle> openBytes(const QByteArray& bytes, const QString& name,
-                                                 const core::PasswordCallback& password) override;
+                                                 const core::PasswordCallback& password, core::BytesOrigin origin) override;
 
     // S6 T13 (D6-20). Both files through `pdf/ops/FdfCodec` -- an export's FileAttachments given their bytes by
     // `attachmentData` first -- and the writability the sink asks, `MutationSinkImpl::canCreate`.
@@ -121,6 +121,9 @@ public:
     // Stage 7 T5 (D7-4, D7-6) -- see core/backend.h.
     core::Result<core::CopiedPages> copyPages(const QString& path, const std::vector<int>& pages) override;
     core::Result<core::CopiedPages> blankPages(core::PdfSize size, int count) override;
+    // Stage 7 T7 (D7-5, D7-30): the document as it stands, composed as a save would compose it, through
+    // `pdf/ops/DocumentAssembler` -- see core/backend.h.
+    core::Result<std::unique_ptr<core::AssemblySource>> assemblySource(core::DocumentHandle document) override;
 
     // S4 T12 (D4-14). Forwards to `PdfiumDocument::contentBox`, which computes on demand and caches
     // per page -- the one reader on this interface that is not hydrated at open, and the header of

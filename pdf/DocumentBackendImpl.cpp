@@ -10,6 +10,7 @@
 #include "core/text/SearchUnit.h"
 #include "pdf/ops/AnnotationReader.h"
 #include "pdf/ops/AttachmentFiles.h"
+#include "pdf/ops/DocumentAssembler.h"
 #include "pdf/ops/FdfCodec.h"
 #include "pdf/cos/XrefRepair.h"
 #include "pdf/ops/EmbeddedFileReader.h"
@@ -204,6 +205,7 @@ struct DocumentBackendImpl::Open {
     core::Attachments attachments;
     // S6 T11: opened from bytes (`openBytes`) -- an attached PDF, read-only until it is saved as a file of its own.
     bool fromBytes = false;
+    core::BytesOrigin origin = core::BytesOrigin::Attachment;   // S7 T7: and which refusal says so
     // Null unless `permissions` allows editing: a sink for a document this build refuses to edit
     // would be a way to edit it (D3-7).
     std::unique_ptr<ops::MutationSinkImpl> sink;
@@ -325,6 +327,7 @@ struct DocumentBackendImpl::Opening {
     // S6 T11: `openBytes` -- the bytes are given, so the read is no read, and the document names no file.
     std::optional<QByteArray> bytes;
     bool fromBytes = false;
+    core::BytesOrigin origin = core::BytesOrigin::Attachment;   // S7 T7
 };
 
 core::Result<core::DocumentHandle> DocumentBackendImpl::open(const QString& path,
@@ -453,7 +456,8 @@ core::Result<core::OpenProgress> DocumentBackendImpl::continueOpen(core::Opening
 }
 
 core::Result<core::DocumentHandle> DocumentBackendImpl::openBytes(const QByteArray& bytes, const QString& name,
-                                                                  const core::PasswordCallback& password)
+                                                                  const core::PasswordCallback& password,
+                                                                  core::BytesOrigin origin)
 {
     // `open()`'s pieces, the read skipped: one open, as `open()` itself is (S5 T9).
     auto opening = std::make_unique<Opening>();
@@ -461,6 +465,7 @@ core::Result<core::DocumentHandle> DocumentBackendImpl::openBytes(const QByteArr
     opening->password = password;
     opening->bytes = bytes;
     opening->fromBytes = true;
+    opening->origin = origin;
     core::OpeningId id = 0;
     {
         const std::lock_guard<std::mutex> guard(mutex_);
@@ -482,6 +487,7 @@ core::Result<core::DocumentHandle> DocumentBackendImpl::assemble(Opening& openin
     const QString& path = opening.path;
     auto entry = std::make_unique<Open>();
     entry->fromBytes = opening.fromBytes;
+    entry->origin = opening.origin;
     entry->document = std::move(opening.document);
     entry->rasterizer = std::make_unique<render::PdfiumRasterizer>(*entry->document);
     // S7 T3: what the engine draws is, until a page command, what it opened.
@@ -586,7 +592,10 @@ core::Result<core::DocumentHandle> DocumentBackendImpl::assemble(Opening& openin
     // S6 T11: a document from bytes is never edited -- its permissions say so by key -- and keeps its sink all the
     // same, so a Save As writes it, unchanged, to a file of its own (`RevisionWriter`: a save of an unchanged file
     // is a copy).
-    if (entry->fromBytes) entry->permissions = core::Permissions::readOnly("error.edit.attachmentCopy");
+    // S7 T7 (D7-30): an extract's new document likewise, until it is Saved As -- refused by its own key.
+    if (entry->fromBytes)
+        entry->permissions = core::Permissions::readOnly(entry->origin == core::BytesOrigin::Assembly ? "error.edit.unsavedAssembly"
+                                                                                                    : "error.edit.attachmentCopy");
     if (sink && (entry->permissions.canEditPages() || entry->fromBytes)) {
         for (const ops::PageEntry& page : sink.value()->pages().pages) entry->openObjects.push_back(page.number);
         entry->sink = std::move(sink).value();
@@ -720,6 +729,36 @@ core::Result<core::CopiedPages> DocumentBackendImpl::copyPages(const QString& pa
 core::Result<core::CopiedPages> DocumentBackendImpl::blankPages(core::PdfSize size, int count)
 {
     return ops::ObjectGraphCopier::blankPages(size, count);
+}
+
+// Stage 7 T7 (D7-5, D7-30): THE DOCUMENT AS IT STANDS -- the bytes a save would compose, the sink's own guard first
+// (`awaitVerify`, as `writeRevision`) -- opened by the assembler once. A document with no sink has no update: its
+// opened bytes are what it is, and the assembler refuses them where the copier would (encrypted, a damaged tree).
+core::Result<std::unique_ptr<core::AssemblySource>> DocumentBackendImpl::assemblySource(core::DocumentHandle document)
+{
+    Open* entry = nullptr;
+    {
+        const std::lock_guard<std::mutex> guard(mutex_);
+        entry = find(document);
+    }
+    if (entry == nullptr)
+        return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.backend.unknownDocument"),
+                           QString::number(static_cast<qulonglong>(document.id))};
+    QByteArray whole = entry->bytes;
+    if (entry->sink) {
+        awaitVerify(*entry);
+        const bool complete = entry->savedReport ? entry->savedReport->requiresSaveAs()
+                                                 : entry->document->repairReport().requiresSaveAs();
+        auto composed = ops::RevisionWriter::compose(*entry->sink, complete);
+        if (!composed) return composed.error();
+        whole = std::move(composed.value().bytes);
+    }
+    auto source = ops::DocumentAssembler::Source::open(std::string(whole.constData(), static_cast<std::size_t>(whole.size())));
+    if (!source) return source.error();
+    RAWPAGE_LOG_INFO(core::LogSubsystem::Save)
+        << "backend: an assembly source of handle" << static_cast<int>(document.id) << "--" << source.value()->pageCount()
+        << "page(s)," << whole.size() << "bytes";
+    return std::unique_ptr<core::AssemblySource>(std::move(source).value());
 }
 
 core::Status DocumentBackendImpl::extractAttachment(core::DocumentHandle document, const core::AttachmentRef& attachment,

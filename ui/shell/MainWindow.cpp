@@ -3,6 +3,8 @@
 #include "core/doc/Attachments.h"
 #include "core/cmd/commands/AnnotationCommands.h"
 #include "core/cmd/commands/AttachmentCommands.h"
+#include "core/cmd/commands/PageCommands.h"
+#include "core/doc/SplitRunner.h"
 #include "core/Log.h"
 #include "core/Units.h"
 // T9: `openFiles()` asks the backend whether a file is a PDF (guide case A-47). It is a `core/`
@@ -1190,6 +1192,157 @@ core::Status MainWindow::rotatePages(DocumentWindow* document, const RotatePages
     return status;
 }
 
+// --- Stage 7 T7: new documents (D7-5, D7-30) ------------------------------------------------------------------
+
+namespace {
+
+// The name a new document's files take after: the document's own file name without its suffix, or -- for one with no
+// file -- the name its tab shows.
+QString stemOf(const DocumentWindow& document)
+{
+    const QString path = !document.path().isEmpty() ? document.path() : document.sourcePath();
+    const QString stem = QFileInfo(path).completeBaseName();
+    return stem.isEmpty() ? QFileInfo(document.title()).completeBaseName() : stem;
+}
+
+// Where a new document's files go when nobody has said: beside the document, or the person's documents folder.
+QString folderOf(const DocumentWindow& document)
+{
+    const QString path = !document.path().isEmpty() ? document.path() : document.sourcePath();
+    return path.isEmpty() ? QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation) : QFileInfo(path).absolutePath();
+}
+
+} // namespace
+
+core::Status MainWindow::extractPages(DocumentWindow* document, const ExtractPagesDialog::Choice& choice)
+{
+    const auto say = [this](const QString& text) {
+        if (status_) status_->setMessage(text);
+    };
+    const auto refuse = [&](const core::Error& error) {
+        RAWPAGE_LOG_WARNING(LogSubsystem::Ui) << "extract refused --" << error.messageKey << error.context;
+        say(catalog::translateError(QString(error.messageKey), error.context));
+        return core::Status(error);
+    };
+    if (!document || !document->handle().isValid())
+        return refuse(core::Error{core::ErrorCode::Unavailable, QLatin1String("error.command.noSink"), QString()});
+    if (choice.pages.empty())
+        return refuse(core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.pages.badRange"), QString()});
+    if (choice.deleteAfter && !document->isEditable())
+        return refuse(core::Error{core::ErrorCode::PermissionDenied, QLatin1String("error.command.noSink"), document->title()});
+
+    core::Result<std::unique_ptr<core::AssemblySource>> source = services_.backend.assemblySource(document->handle());
+    if (!source) return refuse(source.error());
+
+    QString told;
+    if (!choice.filePerPage) {
+        core::Result<core::AssembledDocument> made = source.value()->assemble(choice.pages);
+        if (!made) return refuse(made.error());
+        const QString suggested = QDir(folderOf(*document))
+                                      .filePath(core::safeFileName(catalog::translate(catalog::key::AssemblySuggestedName).arg(stemOf(*document)))
+                                                + QLatin1String(".pdf"));
+        core::Result<core::DocumentHandle> opened =
+            services_.backend.openBytes(made.value().bytes, catalog::translate(catalog::key::DocumentUntitled), core::PasswordCallback{},
+                                        core::BytesOrigin::Assembly);
+        if (!opened) return refuse(opened.error());
+        auto* fresh = new DocumentWindow(services_, opened.value(), DocumentWindow::Assembled{suggested});
+        // THE SOURCE IS DELETED FROM BEFORE THE NEW TAB COMES TO THE FRONT, so the command lands in the document the
+        // person extracted from -- and only now, the new document made, verified and open.
+        if (choice.deleteAfter && document->journal()) {
+            if (core::Status deleted = document->journal()->run(std::make_unique<core::DeletePagesCommand>(choice.pages)); !deleted) {
+                adoptDocument(fresh);
+                updateDocumentChrome();
+                return refuse(deleted.error());
+            }
+        }
+        adoptDocument(fresh);
+        updateDocumentChrome();
+        told = catalog::translate(catalog::key::AssemblyExtracted).arg(made.value().pageCount);
+        RAWPAGE_LOG_INFO(LogSubsystem::Ui) << "extract:" << made.value().pageCount << "page(s) of" << document->path()
+                                           << "opened untitled as handle" << static_cast<int>(opened.value().id);
+    } else {
+        std::vector<int> numbers;
+        for (const int page : choice.pages) numbers.push_back(page + 1);
+        const std::vector<QString> names = core::split::numberedNames(catalog::translate(catalog::key::AssemblyNamePage), stemOf(*document),
+                                                                      numbers, document->pageCount());
+        std::vector<core::AssemblyOutput> outputs;
+        for (std::size_t at = 0; at < choice.pages.size(); ++at) outputs.push_back(core::AssemblyOutput{{choice.pages[at]}, names[at]});
+        core::Result<std::vector<core::WrittenDocument>> written = source.value()->write(outputs, choice.folder);
+        if (!written) return refuse(written.error());
+        if (choice.deleteAfter && document->journal()) {
+            if (core::Status deleted = document->journal()->run(std::make_unique<core::DeletePagesCommand>(choice.pages)); !deleted)
+                return refuse(deleted.error());
+        }
+        told = catalog::translate(catalog::key::AssemblyWrote).arg(static_cast<int>(written.value().size())).arg(choice.folder);
+        RAWPAGE_LOG_INFO(LogSubsystem::Ui) << "extract:" << static_cast<int>(written.value().size()) << "file(s) of" << document->path()
+                                           << "into" << choice.folder;
+    }
+    if (choice.deleteAfter) told += QLatin1Char(' ') + catalog::translate(catalog::key::AssemblyDeleted).arg(static_cast<int>(choice.pages.size()));
+    say(told);
+    return {};
+}
+
+bool MainWindow::isSplitting() const
+{
+    return splitRunner_ && splitRunner_->isRunning();
+}
+
+core::Status MainWindow::splitDocument(DocumentWindow* document, const SplitDocumentDialog::Choice& choice)
+{
+    const auto say = [this](const QString& text) {
+        if (status_) status_->setMessage(text);
+    };
+    const auto refuse = [&](const core::Error& error) {
+        RAWPAGE_LOG_WARNING(LogSubsystem::Ui) << "split refused --" << error.messageKey << error.context;
+        say(catalog::translateError(QString(error.messageKey), error.context));
+        return core::Status(error);
+    };
+    if (!document || !document->handle().isValid())
+        return refuse(core::Error{core::ErrorCode::Unavailable, QLatin1String("error.command.noSink"), QString()});
+    if (!splitRunner_)
+        splitRunner_ = std::make_unique<core::SplitRunner>(services_.backend, services_.renderScheduler, services_.searchEngine);
+
+    core::SplitRequest request;
+    request.method = choice.method;
+    request.pagesPerFile = choice.pagesPerFile;
+    request.level = choice.level;
+    request.maxBytes = static_cast<qint64>(choice.maxMegabytes * 1024.0 * 1024.0);
+    request.pattern.pattern = choice.pattern;
+    request.pattern.flags.useRegex = choice.regex;
+    request.pattern.flags.caseSensitive = choice.caseSensitive;
+    request.folder = choice.folder;
+    request.namePattern = catalog::translate(catalog::key::AssemblyNamePart);
+    request.stem = stemOf(*document);
+
+    QPointer<MainWindow> self(this);
+    const QString folder = choice.folder;
+    const core::Status started = splitRunner_->start(
+        document->handle(), document->indexEntry(), std::move(request), [self, folder](core::Result<core::SplitOutcome> outcome) {
+            if (!self) return;
+            if (!outcome) {
+                RAWPAGE_LOG_WARNING(LogSubsystem::Ui) << "split failed --" << outcome.error().messageKey << outcome.error().context;
+                if (self->status_) self->status_->setMessage(catalog::translateError(QString(outcome.error().messageKey), outcome.error().context));
+                return;
+            }
+            QString text = catalog::translate(catalog::key::AssemblyWrote).arg(static_cast<int>(outcome.value().written.size())).arg(folder);
+            const auto heavy = std::count_if(outcome.value().parts.begin(), outcome.value().parts.end(),
+                                             [](const core::SplitPart& part) { return part.overBound; });
+            if (heavy > 0) text += QLatin1Char(' ') + catalog::translate(catalog::key::SplitOverBound).arg(static_cast<int>(heavy));
+            if (outcome.value().blankPagesLeftOut > 0)
+                text += QLatin1Char(' ') + catalog::translate(catalog::key::SplitBlankLeftOut).arg(outcome.value().blankPagesLeftOut);
+            if (self->status_) self->status_->setMessage(text);
+        });
+    if (!started) return refuse(started.error());
+    // A document closed while its split still reads facts takes the split with it: its engine work is cancelled with
+    // the document, so the facts would never all arrive.
+    const core::DocumentHandle handle = document->handle();
+    connect(document, &QObject::destroyed, this, [this, handle] {
+        if (splitRunner_ && splitRunner_->isRunning() && splitRunner_->runningFor() == handle) splitRunner_->cancel();
+    }, Qt::SingleShotConnection);
+    if (splitRunner_->isRunning()) say(catalog::translate(catalog::key::SplitWorking));
+    return {};
+}
+
 void MainWindow::reportSaveFailure(DocumentWindow* document, const core::Error& error)
 {
     RAWPAGE_LOG_WARNING(LogSubsystem::Ui) << "save failed for" << document->path() << "--" << error.messageKey
@@ -1261,7 +1414,8 @@ core::Status MainWindow::saveDocumentAs(DocumentWindow* document)
     }
     if (!target) return core::Error{core::ErrorCode::Cancelled, QLatin1String("error.save.cancelled"), document->title()};
 
-    const bool attachmentCopy = document->isAttachmentCopy();   // S6 T11: reopened from its file once saved
+    // S6 T11: reopened from its file once saved -- and since S7 T7 an extract's new document likewise.
+    const bool attachmentCopy = document->isAttachmentCopy() || document->isAssembly();
     core::Result<core::SaveOutcome> saved = document->saveAs(*target, saveOptionsFor(document));
     if (!saved) {
         if (saved.error().code == core::ErrorCode::Cancelled) return saved.error();   // S7 T6: the question, cancelled
@@ -3567,6 +3721,53 @@ void MainWindow::registerMutationActions()
         registerRegistration(ActionId::PageRotate, std::move(rotate));
     }
 
+    // --- page.extract / page.split (S7 T7, D7-5, D7-30) -------------------------------------------
+    // Neither changes the document -- extract-and-delete aside, which asks for an editable one in the dialog -- so
+    // both need only a document with pages and somebody to answer the dialog (convention 16). `Ctrl+Shift+X` is the
+    // Page Thumbnails pane's chord (Features.md §8); the selection it fills in is T8's, and until then the dialog
+    // starts at the current page.
+    {
+        const auto documentWithPages = [currentDocumentOfActiveShell] {
+            const DocumentWindow* document = currentDocumentOfActiveShell();
+            return document && document->handle().isValid() && document->pageCount() > 0;
+        };
+        const auto needsDocument = [currentDocumentOfActiveShell](ActionId id) {
+            return [currentDocumentOfActiveShell, id] {
+                return currentDocumentOfActiveShell() ? QString()
+                                                      : catalog::translate(catalog::key::TooltipNeedsDocument).arg(catalog::translateAction(id));
+            };
+        };
+        core::ActionRegistry::Registration extract;
+        extract.handler = [](KeyContext) {
+            MainWindow* window = activeShell();
+            DocumentWindow* document = window ? window->currentDocument() : nullptr;
+            if (!document) return;
+            if (const std::optional<ExtractPagesDialog::Choice> choice =
+                    ExtractPagesDialog::ask(window, document->pageCount(), rotationPageOf(*document), document->isEditable(), folderOf(*document)))
+                window->extractPages(document, *choice);
+        };
+        extract.enable = [documentWithPages] { return documentWithPages() && ExtractPagesDialog::canAsk(); };
+        extract.unavailableText = needsDocument(ActionId::PageExtract);
+        registerRegistration(ActionId::PageExtract, std::move(extract));
+
+        core::ActionRegistry::Registration split;
+        split.handler = [](KeyContext) {
+            MainWindow* window = activeShell();
+            DocumentWindow* document = window ? window->currentDocument() : nullptr;
+            if (!document) return;
+            const core::Outline* outline = window->services_.backend.outline(document->handle());
+            if (const std::optional<SplitDocumentDialog::Choice> choice =
+                    SplitDocumentDialog::ask(window, document->pageCount(), outline ? outline->depth() : 0, folderOf(*document)))
+                window->splitDocument(document, *choice);
+        };
+        split.enable = [documentWithPages] {
+            const MainWindow* window = activeShell();
+            return documentWithPages() && SplitDocumentDialog::canAsk() && !(window && window->isSplitting());
+        };
+        split.unavailableText = needsDocument(ActionId::PageSplit);
+        registerRegistration(ActionId::PageSplit, std::move(split));
+    }
+
     // --- file.save / file.saveAs ----------------------------------------------------------------
     // Save needs something to save; Save As needs somebody to name the file (convention 16). A clean
     // document is not saved -- `SaveCoordinator` would refuse it by key, and a Save that did nothing
@@ -3580,6 +3781,8 @@ void MainWindow::registerMutationActions()
         };
         save.enable = [currentDocumentOfActiveShell] {
             const DocumentWindow* document = currentDocumentOfActiveShell();
+            // S7 T7: an extract's new document has nothing on disk -- its Save is a Save As, and needs somebody to ask.
+            if (document && document->isAssembly()) return document->canSaveAs() && canAskSavePath();
             return document && document->isEditable() && document->isDirty();
         };
         const auto whyNot = whyNotEditable(ActionId::FileSave);
@@ -4802,7 +5005,8 @@ core::Status MainWindow::openAttachment(const core::AttachmentRef& attachment)
     // A PDF OPENS IN A TAB FROM ITS BYTES -- nothing written -- and is read-only until it is saved as a file.
     if (core::isPdfAttachment(row->file) || bytes.value().startsWith("%PDF")) {
         core::Result<core::DocumentHandle> opened =
-            services_.backend.openBytes(bytes.value(), name, PasswordDialog::callbackFor(name, this));
+            services_.backend.openBytes(bytes.value(), name, PasswordDialog::callbackFor(name, this),
+                                        core::BytesOrigin::Attachment);
         if (!opened) {
             say(catalog::translateError(QString(opened.error().messageKey), opened.error().context));
             return opened.error();

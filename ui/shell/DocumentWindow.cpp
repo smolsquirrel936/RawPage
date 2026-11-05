@@ -108,6 +108,16 @@ DocumentWindow::DocumentWindow(app::Services services, core::DocumentHandle hand
     build(nullptr);
 }
 
+DocumentWindow::DocumentWindow(app::Services services, core::DocumentHandle handle, const Assembled& assembled,
+                               QWidget* parent)
+    : QWidget(parent), services_(services), handle_(handle)
+{
+    // As an attachment's copy (above): no path, no source, no recovery journal -- and dirty until it is saved.
+    assembly_ = true;
+    assembledSuggestion_ = assembled.suggestedPath;
+    build(nullptr);
+}
+
 DocumentWindow::DocumentWindow(app::Services services, QString path, core::DocumentHandle handle,
                                DocumentWindow* leader, QWidget* parent)
     : QWidget(parent), services_(services), path_(std::move(path)), handle_(handle)
@@ -1198,6 +1208,7 @@ bool DocumentWindow::isEditable() const
 
 bool DocumentWindow::isDirty() const
 {
+    if (isAssembly()) return true;   // S7 T7: nothing of it is on disk yet
     return journal_ && journal_->isDirty();
 }
 
@@ -1264,7 +1275,7 @@ core::Result<core::SaveOutcome> DocumentWindow::save(const core::SaveOptions& op
 {
     if (!journal_ || !coordinator_)
         return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.save.notEditable"), path_};
-    if (isUntitled()) {
+    if (isUntitled() || isAssembly()) {
         // NO FILE OF ITS OWN, SO NOTHING TO SAVE IN PLACE (Stage 3 T11). Its source is not its file: writing
         // there would be the very write "recover to a new file" promised not to make.
         core::SaveOutcome outcome;
@@ -1302,6 +1313,8 @@ QString DocumentWindow::suggestedSavePath() const
     // stand beside.
     if (isAttachmentCopy())
         return QDir(QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation)).filePath(core::safeFileName(attachmentName_));
+    if (isAssembly())   // S7 T7: beside the document it came from, as `MainWindow` named it
+        return assembledSuggestion_;
     if (!isUntitled())
         return path_;
     const QFileInfo source(sourcePath_);

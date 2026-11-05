@@ -218,7 +218,7 @@ TEST_CASE("an attached PDF opens from its bytes read-only and a Save As writes i
     QTemporaryDir scratch;
     REQUIRE(scratch.isValid());
 
-    auto copy = backend.openBytes(bytes.value(), QStringLiteral("appendix.pdf"), nullptr);
+    auto copy = backend.openBytes(bytes.value(), QStringLiteral("appendix.pdf"), nullptr, core::BytesOrigin::Attachment);
     REQUIRE(copy);
     REQUIRE(backend.pages(copy.value()) != nullptr);
     CHECK(backend.pages(copy.value())->count() == 1);
@@ -238,7 +238,7 @@ TEST_CASE("an attached PDF opens from its bytes read-only and a Save As writes i
     // THE CONTROL: bytes that are not a PDF are refused by the engine, by key.
     auto text = backend.attachmentData(handle.value(), AttachmentRef::ofDocument(QStringLiteral("readme.txt")));
     REQUIRE(text);
-    auto refused = backend.openBytes(text.value(), QStringLiteral("readme.txt"), nullptr);
+    auto refused = backend.openBytes(text.value(), QStringLiteral("readme.txt"), nullptr, core::BytesOrigin::Attachment);
     REQUIRE_FALSE(refused);
     CHECK(keyOf(refused.error()) == "error.open.notPdf");
 }

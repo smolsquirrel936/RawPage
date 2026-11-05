@@ -83,6 +83,10 @@ add_executable(rawpage_composition_tests
     # folder, an executable refused, the folder emptied at the clean quit), A-83 through the pane and the pushpin
     # tool, A-74's attachment clause through the REAL find bar.
     tst_attachmentproduct.cpp
+    # S7 T7 -- guide A-51 (an extract opens untitled and unsaved, closing asks, Ctrl+S is a Save As and the saved file
+    # takes the tab's place), A-48's product half and its control (extract and delete in one undo step, and a planted
+    # write failure that leaves the source untouched and no file), A-49 reached from page.split through the pumps.
+    tst_assemblyproduct.cpp
     # S6 T12 -- guide A-89 (a drag started three device pixels from each of the generator's points on
     # measure-scale.pdf lands exactly on it, through the engine's paths, at 100 and 400 percent), A-90 (calibration
     # through the product) and A-88's product half (the measurements saved and reopened fresh).

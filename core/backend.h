@@ -57,6 +57,7 @@
 #include "core/Geometry.h"
 #include "core/Result.h"
 #include "core/Snap.h"
+#include "core/doc/Assembly.h"   // Stage 7 T7: `assemblySource` hands its owner a `unique_ptr` of it
 
 #include <QByteArray>
 #include <QLatin1String>
@@ -66,6 +67,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -142,6 +144,11 @@ struct DocumentHandle {
 // pages leaves behind is gone, and a signature over the old bytes no longer verifies. Which one a save uses is
 // `core/doc/SaveCoordinator`'s policy; the backend writes what it is asked.
 enum class SaveForm { Append, Rewrite };
+
+// WHERE A DOCUMENT OPENED FROM BYTES CAME FROM -- Stage 7 T7 (D7-30): `IDocumentBackend::openBytes`' refusal names it.
+// `Attachment`: an attached PDF (Stage 6 T11, D6-17), refused by `error.edit.attachmentCopy`. `Assembly`: a new
+// document an extract made (D7-5), refused by `error.edit.unsavedAssembly`. Both are read-only until Saved As.
+enum class BytesOrigin { Attachment, Assembly };
 
 enum class PixelFormat {
     Bgra8888,   // ← QImage::Format_ARGB32 (not premultiplied)
@@ -625,8 +632,10 @@ public:
     // `open()` over `bytes` but for where they came from: its identity names no path (`name` is what a person
     // calls it), and it is NEVER EDITABLE -- its permissions refuse every command by `error.edit.attachmentCopy`
     // -- while a Save As writes it, unchanged, to a file of its own: the tab is read-only until then.
+    // STAGE 7 T7 (D7-30): `origin` -- an extract's new document is opened the same way, refused by
+    // `error.edit.unsavedAssembly` instead.
     virtual Result<DocumentHandle> openBytes(const QByteArray& bytes, const QString& name,
-                                             const PasswordCallback& password) = 0;
+                                             const PasswordCallback& password, BytesOrigin origin) = 0;
 
     // COMMENTS IN AND OUT -- Stage 6 T13 (D6-20). FDF is PDF syntax, so its reader and writer are `pdf/`'s
     // (`pdf/ops/FdfCodec`); XFDF is XML, `core/doc/XfdfCodec`'s -- and both FILES go through here, so the one read and
@@ -658,6 +667,15 @@ public:
     // `count` BLANK pages of `size` points -- no content stream, an empty `/Resources` -- as the same payload (guide
     // A-45). Refused for a size outside ISO 32000-1 Annex C's 3 ... 14,400 units.
     virtual Result<CopiedPages> blankPages(PdfSize size, int count) = 0;
+
+    // NEW DOCUMENTS FROM THIS ONE -- Stage 7 T7 (`Stage7-Assembly-Plan.md` D7-5, D7-30). A SNAPSHOT of `document` as
+    // it stands now: the newest revision on disk followed by its unsaved update, composed as a save would compose
+    // it (so an extract takes what the screen shows), opened and walked once -- from which extract and split make any
+    // number of new documents (`core/doc/Assembly.h`, `pdf/ops/DocumentAssembler`). An edit made after it is taken
+    // changes nothing it makes. Refused by key: a handle this backend did not open (`error.backend.unknownDocument`),
+    // a document the first-party reader cannot copy -- encrypted (`error.pdf.encrypted`), a damaged page tree
+    // (`error.pdf.pageTreeDamaged`) -- and an update that does not compose. Changes nothing.
+    virtual Result<std::unique_ptr<AssemblySource>> assemblySource(DocumentHandle document) = 0;
 
     // THE PAGE'S CONTENT BOUNDING BOX -- the union of its objects' bounds, in PDF points, added at
     // Stage 4 T12 (**D4-14**) to close Stage 2's **I-28**. Fit Visible is defined over it

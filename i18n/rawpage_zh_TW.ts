@@ -2378,6 +2378,126 @@
         <source>shell.status.annotationToolAttachAudio</source>
         <translation>%1：按一下語音註解要放置的位置，然後選擇 WAV 檔案。</translation>
     </message>
+    <message>
+        <source>shell.assembly.browse</source>
+        <translation>瀏覽…</translation>
+    </message>
+    <message>
+        <source>shell.assembly.chooseFolder</source>
+        <translation>選擇資料夾</translation>
+    </message>
+    <message>
+        <source>shell.assembly.folder</source>
+        <translation>存入資料夾：</translation>
+    </message>
+    <message>
+        <source>shell.assembly.suggestedName</source>
+        <translation>%1（擷取）</translation>
+    </message>
+    <message>
+        <source>shell.assembly.namePage</source>
+        <translation>%1 第 %2 頁.pdf</translation>
+    </message>
+    <message>
+        <source>shell.assembly.namePart</source>
+        <translation>%1 第 %2 部分.pdf</translation>
+    </message>
+    <message>
+        <source>shell.assembly.extracted</source>
+        <translation>已將 %1 頁擷取為新文件，尚未儲存。</translation>
+    </message>
+    <message>
+        <source>shell.assembly.wrote</source>
+        <translation>已將 %1 個檔案寫入 %2。</translation>
+    </message>
+    <message>
+        <source>shell.assembly.deleted</source>
+        <translation>已從此文件刪除 %1 頁。</translation>
+    </message>
+    <message>
+        <source>shell.extract.title</source>
+        <translation>擷取頁面</translation>
+    </message>
+    <message>
+        <source>shell.extract.pages</source>
+        <translation>頁面：</translation>
+    </message>
+    <message>
+        <source>shell.extract.pagesHint</source>
+        <translation>例如 1-3, 5, 8-</translation>
+    </message>
+    <message>
+        <source>shell.extract.ofPages</source>
+        <translation>共 %1 頁</translation>
+    </message>
+    <message>
+        <source>shell.extract.as</source>
+        <translation>擷取方式</translation>
+    </message>
+    <message>
+        <source>shell.extract.oneDocument</source>
+        <translation>成為一份新文件</translation>
+    </message>
+    <message>
+        <source>shell.extract.filePerPage</source>
+        <translation>每頁一個檔案，存入資料夾</translation>
+    </message>
+    <message>
+        <source>shell.extract.delete</source>
+        <translation>從此文件刪除已擷取的頁面</translation>
+    </message>
+    <message>
+        <source>shell.split.title</source>
+        <translation>分割文件</translation>
+    </message>
+    <message>
+        <source>shell.split.rule</source>
+        <translation>分割依據</translation>
+    </message>
+    <message>
+        <source>shell.split.everyN</source>
+        <translation>每幾頁：</translation>
+    </message>
+    <message>
+        <source>shell.split.topLevel</source>
+        <translation>於每個最上層書籤</translation>
+    </message>
+    <message>
+        <source>shell.split.level</source>
+        <translation>於此層級以上的書籤：</translation>
+    </message>
+    <message>
+        <source>shell.split.size</source>
+        <translation>每個檔案不超過（MB）：</translation>
+    </message>
+    <message>
+        <source>shell.split.blank</source>
+        <translation>於空白頁（不保留空白頁）</translation>
+    </message>
+    <message>
+        <source>shell.split.pattern</source>
+        <translation>於文字符合下列內容的頁面：</translation>
+    </message>
+    <message>
+        <source>shell.split.regex</source>
+        <translation>規則運算式</translation>
+    </message>
+    <message>
+        <source>shell.split.caseSensitive</source>
+        <translation>大小寫須相符</translation>
+    </message>
+    <message>
+        <source>shell.split.working</source>
+        <translation>正在分割…</translation>
+    </message>
+    <message>
+        <source>shell.split.overBound</source>
+        <translation>有 %1 頁超過大小上限，已各自單獨寫成檔案。</translation>
+    </message>
+    <message>
+        <source>shell.split.blankLeftOut</source>
+        <translation>已略過 %1 個空白頁。</translation>
+    </message>
 </context>
 <context>
     <name>error</name>
@@ -3296,6 +3416,74 @@
     <message>
         <source>error.sound.recordFailed</source>
         <translation>無法開始錄音。</translation>
+    </message>
+    <message>
+        <source>error.edit.unsavedAssembly</source>
+        <translation>此新文件尚未儲存。請另存為檔案後再修改。</translation>
+    </message>
+    <message>
+        <source>error.assembly.verifyFailed</source>
+        <translation>新文件讀回時與建立時不符（%1），未保留任何內容。</translation>
+    </message>
+    <message>
+        <source>error.assembly.writeFailed</source>
+        <translation>無法寫入 %1，未保留任何內容。</translation>
+    </message>
+    <message>
+        <source>error.assembly.badName</source>
+        <translation>「%1」不能作為該資料夾中的檔名。</translation>
+    </message>
+    <message>
+        <source>error.assembly.duplicateName</source>
+        <translation>有兩個新檔案的名稱都會是 %1。</translation>
+    </message>
+    <message>
+        <source>error.assembly.exists</source>
+        <translation>%1 已存在，未寫入任何檔案。</translation>
+    </message>
+    <message>
+        <source>error.assembly.noFolder</source>
+        <translation>請為新檔案選擇資料夾。</translation>
+    </message>
+    <message>
+        <source>error.pages.badRange</source>
+        <translation>「%1」不是此文件的頁面範圍。</translation>
+    </message>
+    <message>
+        <source>error.split.noBoundary</source>
+        <translation>此文件中沒有可依此方式分割的位置。</translation>
+    </message>
+    <message>
+        <source>error.split.allBlank</source>
+        <translation>此文件的每一頁都是空白頁。</translation>
+    </message>
+    <message>
+        <source>error.split.badCount</source>
+        <translation>%1 不是有效的頁數。</translation>
+    </message>
+    <message>
+        <source>error.split.badLevel</source>
+        <translation>%1 不是有效的書籤層級。</translation>
+    </message>
+    <message>
+        <source>error.split.badSize</source>
+        <translation>%1 不是有效的檔案大小。</translation>
+    </message>
+    <message>
+        <source>error.split.noPages</source>
+        <translation>此文件沒有頁面。</translation>
+    </message>
+    <message>
+        <source>error.split.busy</source>
+        <translation>已有分割正在進行。</translation>
+    </message>
+    <message>
+        <source>error.split.unreadable</source>
+        <translation>無法讀取第 %1 頁，未寫入任何檔案。</translation>
+    </message>
+    <message>
+        <source>error.split.documentChanged</source>
+        <translation>分割期間文件已變更，未寫入任何檔案。</translation>
     </message>
 </context>
 <context>

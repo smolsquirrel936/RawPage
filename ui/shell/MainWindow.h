@@ -52,6 +52,7 @@
 #include "ui/dialogs/CustomStampDialog.h"
 #include "ui/dialogs/DocumentPropertiesDialog.h"
 #include "ui/dialogs/ExchangeReportDialog.h"
+#include "ui/dialogs/PageOpsDialogs.h"
 #include "ui/dialogs/RotatePagesDialog.h"
 #include "ui/dialogs/UnsavedChangesDialog.h"
 
@@ -70,6 +71,10 @@ class QCloseEvent;
 class QStackedWidget;
 class QToolButton;
 class QVBoxLayout;
+
+namespace rawpage::core {
+class SplitRunner;
+}
 
 namespace rawpage::ui {
 
@@ -166,6 +171,24 @@ public:
     // ---------------------------------------------------------------------------------------
     // Runs a Rotate Pages choice through the document's journal: one command, or one group (D3-13).
     core::Status rotatePages(DocumentWindow* document, const RotatePagesDialog::Choice& choice);
+
+    // ---------------------------------------------------------------------------------------
+    // NEW DOCUMENTS -- Stage 7 T7 (`Stage7-Assembly-Plan.md` D7-5, D7-30). Neither is a command.
+    // ---------------------------------------------------------------------------------------
+    // EXTRACT: the choice's pages of the document in front, as it stands, through the backend's snapshot -- as ONE
+    // new document opened as an untitled tab (`DocumentWindow::Assembled`), or one file per page written into the
+    // choice's folder (never over a file there: a name it holds refuses the whole extract before anything is written).
+    // *Delete the extracted pages* runs ONE `DeletePagesCommand` through the document's journal -- one undo step -- and
+    // only once the new document is made and verified (for files, written and read back): a refusal anywhere before
+    // it leaves this document untouched. What happened, or why not, is said on the status bar.
+    core::Status extractPages(DocumentWindow* document, const ExtractPagesDialog::Choice& choice);
+    // SPLIT: the choice's rule over the document in front, through `core::SplitRunner` -- the files written into the
+    // choice's folder, named from the document's own name. A rule with engine facts to read (blank pages) or text to
+    // search (a pattern) finishes later, from the pumps; the outcome is said on the status bar either way. A second
+    // split while one runs is refused; closing the document cancels it.
+    core::Status splitDocument(DocumentWindow* document, const SplitDocumentDialog::Choice& choice);
+    // Whether a split started here is still gathering its facts.
+    bool isSplitting() const;
 
     // Save in place, through `SaveCoordinator`. A document that must be saved as a new file -- repaired,
     // changed on disk since it was opened, or refused by the file system (read-only, held by another
@@ -644,6 +667,9 @@ private:
     // Constructed before the ribbon and destroyed after it: every RawPageAction the ribbon shows
     // was made here, and the lambda each one carries holds this factory by reference.
     std::unique_ptr<ActionFactory> actionFactory_;
+
+    // S7 T7: the split in progress, if any -- made on the first split, one per window.
+    std::unique_ptr<core::SplitRunner> splitRunner_;
 
     Ribbon*             ribbon_ = nullptr;
     QuickAccessToolbar* qat_ = nullptr;

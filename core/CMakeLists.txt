@@ -144,6 +144,15 @@ add_library(rawpage_core STATIC
     doc/PageMap.h                 # Stage 7 T2 -- where every page went (D7-3), and what a page command found (D7-2)
     doc/PageMap.cpp
     doc/CopiedPages.h             # Stage 7 T5 -- pages copied out of another document, as a command carries them
+    # Stage 7 T7 (D7-5, D7-30) -- new documents from an open one: the snapshot extract and split make them from, a page
+    # set as a person types it, the six splits' rules over facts, and the run that gathers those facts and writes.
+    doc/Assembly.h
+    doc/PageRanges.h
+    doc/PageRanges.cpp
+    doc/SplitPlan.h
+    doc/SplitPlan.cpp
+    doc/SplitRunner.h
+    doc/SplitRunner.cpp
 
     # Stage 3 T4 -- the rest of D3-8's list, and no more: a type with no Stage 3 caller is tested only
     # against its own idea of what a caller wants. Document is the model CommandJournal (T5) will be

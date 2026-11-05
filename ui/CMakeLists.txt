@@ -315,6 +315,10 @@ add_library(rawpage_ui STATIC
     # parameterized twin a headless case answers through, and neither is raised where nobody can answer.
     dialogs/RotatePagesDialog.h
     dialogs/RotatePagesDialog.cpp
+    # S7 T7 (D7-5, D7-30) -- extract and split: a page set or a rule, and a folder; refused where nobody can answer.
+    # T8 and T9 add the family's other page dialogs here.
+    dialogs/PageOpsDialogs.h
+    dialogs/PageOpsDialogs.cpp
     # S5 T13 -- the two documents and the comparison's options; refused where nobody can answer.
     dialogs/CompareDialog.h
     dialogs/CompareDialog.cpp

@@ -2378,6 +2378,126 @@
         <source>shell.status.annotationToolAttachAudio</source>
         <translation>%1: click where the audio comment goes, then choose a WAV file.</translation>
     </message>
+    <message>
+        <source>shell.assembly.browse</source>
+        <translation>Browse…</translation>
+    </message>
+    <message>
+        <source>shell.assembly.chooseFolder</source>
+        <translation>Choose a Folder</translation>
+    </message>
+    <message>
+        <source>shell.assembly.folder</source>
+        <translation>Into folder:</translation>
+    </message>
+    <message>
+        <source>shell.assembly.suggestedName</source>
+        <translation>%1 (extracted)</translation>
+    </message>
+    <message>
+        <source>shell.assembly.namePage</source>
+        <translation>%1 page %2.pdf</translation>
+    </message>
+    <message>
+        <source>shell.assembly.namePart</source>
+        <translation>%1 part %2.pdf</translation>
+    </message>
+    <message>
+        <source>shell.assembly.extracted</source>
+        <translation>Extracted %1 page(s) into a new document, not saved yet.</translation>
+    </message>
+    <message>
+        <source>shell.assembly.wrote</source>
+        <translation>Wrote %1 file(s) into %2.</translation>
+    </message>
+    <message>
+        <source>shell.assembly.deleted</source>
+        <translation>Deleted %1 page(s) from this document.</translation>
+    </message>
+    <message>
+        <source>shell.extract.title</source>
+        <translation>Extract Pages</translation>
+    </message>
+    <message>
+        <source>shell.extract.pages</source>
+        <translation>Pages:</translation>
+    </message>
+    <message>
+        <source>shell.extract.pagesHint</source>
+        <translation>For example 1-3, 5, 8-</translation>
+    </message>
+    <message>
+        <source>shell.extract.ofPages</source>
+        <translation>of %1</translation>
+    </message>
+    <message>
+        <source>shell.extract.as</source>
+        <translation>Extract them</translation>
+    </message>
+    <message>
+        <source>shell.extract.oneDocument</source>
+        <translation>As one new document</translation>
+    </message>
+    <message>
+        <source>shell.extract.filePerPage</source>
+        <translation>As one file per page, into a folder</translation>
+    </message>
+    <message>
+        <source>shell.extract.delete</source>
+        <translation>Delete the extracted pages from this document</translation>
+    </message>
+    <message>
+        <source>shell.split.title</source>
+        <translation>Split Document</translation>
+    </message>
+    <message>
+        <source>shell.split.rule</source>
+        <translation>Split</translation>
+    </message>
+    <message>
+        <source>shell.split.everyN</source>
+        <translation>Every this many pages:</translation>
+    </message>
+    <message>
+        <source>shell.split.topLevel</source>
+        <translation>At every top-level bookmark</translation>
+    </message>
+    <message>
+        <source>shell.split.level</source>
+        <translation>At bookmarks down to level:</translation>
+    </message>
+    <message>
+        <source>shell.split.size</source>
+        <translation>Into files of at most (MB):</translation>
+    </message>
+    <message>
+        <source>shell.split.blank</source>
+        <translation>At blank pages (the blank pages are left out)</translation>
+    </message>
+    <message>
+        <source>shell.split.pattern</source>
+        <translation>At pages whose text matches:</translation>
+    </message>
+    <message>
+        <source>shell.split.regex</source>
+        <translation>Regular expression</translation>
+    </message>
+    <message>
+        <source>shell.split.caseSensitive</source>
+        <translation>Match case</translation>
+    </message>
+    <message>
+        <source>shell.split.working</source>
+        <translation>Splitting…</translation>
+    </message>
+    <message>
+        <source>shell.split.overBound</source>
+        <translation>%1 page(s) larger than the size limit were each written alone.</translation>
+    </message>
+    <message>
+        <source>shell.split.blankLeftOut</source>
+        <translation>%1 blank page(s) were left out.</translation>
+    </message>
 </context>
 <context>
     <name>error</name>
@@ -3296,6 +3416,74 @@
     <message>
         <source>error.sound.recordFailed</source>
         <translation>Recording could not start.</translation>
+    </message>
+    <message>
+        <source>error.edit.unsavedAssembly</source>
+        <translation>This new document is not saved yet. Save it as a file to change it.</translation>
+    </message>
+    <message>
+        <source>error.assembly.verifyFailed</source>
+        <translation>The new document did not read back as it was built (%1); nothing was kept.</translation>
+    </message>
+    <message>
+        <source>error.assembly.writeFailed</source>
+        <translation>Could not write %1; nothing was kept.</translation>
+    </message>
+    <message>
+        <source>error.assembly.badName</source>
+        <translation>“%1” cannot be a file name in that folder.</translation>
+    </message>
+    <message>
+        <source>error.assembly.duplicateName</source>
+        <translation>Two of the new files would both be named %1.</translation>
+    </message>
+    <message>
+        <source>error.assembly.exists</source>
+        <translation>%1 already exists; nothing was written.</translation>
+    </message>
+    <message>
+        <source>error.assembly.noFolder</source>
+        <translation>Choose a folder for the new files.</translation>
+    </message>
+    <message>
+        <source>error.pages.badRange</source>
+        <translation>“%1” is not a page range of this document.</translation>
+    </message>
+    <message>
+        <source>error.split.noBoundary</source>
+        <translation>There is nothing in this document to split it at that way.</translation>
+    </message>
+    <message>
+        <source>error.split.allBlank</source>
+        <translation>Every page of this document is blank.</translation>
+    </message>
+    <message>
+        <source>error.split.badCount</source>
+        <translation>%1 is not a number of pages.</translation>
+    </message>
+    <message>
+        <source>error.split.badLevel</source>
+        <translation>%1 is not a bookmark level.</translation>
+    </message>
+    <message>
+        <source>error.split.badSize</source>
+        <translation>%1 is not a file size.</translation>
+    </message>
+    <message>
+        <source>error.split.noPages</source>
+        <translation>The document has no pages.</translation>
+    </message>
+    <message>
+        <source>error.split.busy</source>
+        <translation>A split is already running.</translation>
+    </message>
+    <message>
+        <source>error.split.unreadable</source>
+        <translation>Page %1 could not be read; nothing was written.</translation>
+    </message>
+    <message>
+        <source>error.split.documentChanged</source>
+        <translation>The document changed while it was being split; nothing was written.</translation>
     </message>
 </context>
 <context>
