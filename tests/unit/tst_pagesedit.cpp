@@ -73,6 +73,17 @@ public:
         return no().error();
     }
     core::Status restoreReplacedPages(const std::vector<int>&, const QString&) override { return no(); }
+    core::Status setPageBoxes(const std::vector<int>&, const std::vector<core::PageBoxes>&, const QString&) override { return no(); }
+    core::Status restorePageBoxes(const std::vector<int>&, const QString&) override { return no(); }
+    core::Status wrapPageContents(const std::vector<int>&, const std::vector<core::PageContentWrap>&, const QString&) override { return no(); }
+    core::Status unwrapPageContents(const std::vector<int>&, const QString&) override { return no(); }
+    core::Result<std::vector<QString>> setPageLabels(const std::vector<int>&, const std::vector<core::PageLabelSpec>&, const QString&) override
+    {
+        return no().error();
+    }
+    core::Result<std::vector<QString>> restorePageLabels(const QString&) override { return no().error(); }
+    core::Status setPageThumbnails(const std::vector<int>&, const std::vector<core::PageThumbnail>&, const QString&) override { return no(); }
+    core::Status restorePageThumbnails(const std::vector<int>&, const QString&) override { return no(); }
 
 private:
     static core::Status no() { return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.test.unexpected"), QString()}; }

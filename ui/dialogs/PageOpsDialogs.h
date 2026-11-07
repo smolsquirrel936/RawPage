@@ -1,6 +1,6 @@
 // ui/dialogs/PageOpsDialogs -- what `page.extract` and `page.split` open. Stage 7 T7 (`Stage7-Assembly-Plan.md` §6,
 // D7-5, D7-30); T8 added insert, delete and replace -- rotate's ranges went into `RotatePagesDialog`, which Stage 3 had
-// already made -- and T9 adds crop, resize and renumber.
+// already made -- and T9 crop (the five page boxes), resize and renumber.
 //
 // STAGE 7 T8'S THREE. Each starts at the pages a person picked -- the thumbnails' set, or the current page (D7-13):
 //   * INSERT: where (before or after a page, first, last) and from what -- the pages of another PDF (a range, or every
@@ -31,12 +31,15 @@
 #define RAWPAGE_UI_DIALOGS_PAGEOPSDIALOGS_H
 
 #include "core/Geometry.h"
+#include "core/cmd/commands/PageCommands.h"
+#include "core/doc/Page.h"
 #include "core/doc/PaperSize.h"
 #include "core/doc/SplitPlan.h"
 
 #include <QDialog>
 #include <QString>
 
+#include <array>
 #include <functional>
 #include <optional>
 #include <utility>
@@ -44,6 +47,7 @@
 
 class QCheckBox;
 class QComboBox;
+class QDoubleSpinBox;
 class QLabel;
 class QLineEdit;
 class QRadioButton;
@@ -274,6 +278,162 @@ private:
     QLineEdit* range_ = nullptr;
     QLineEdit* file_ = nullptr;
     QSpinBox* sourceFirst_ = nullptr;
+    QLabel* refusal_ = nullptr;
+};
+
+// --- Crop / page boxes (S7 T9) ---------------------------------------------------------------------------------
+//
+// STAGE 7 T9'S THREE (D7-15, D7-32), each starting at the pages a person picked:
+//   * CROP -- *Set Page Boxes*: which box, and what it becomes -- INSET from each page's MediaBox by four margins
+//     (what a dragged box fills in, `page.crop`'s tool), the page's CONTENT box with a margin (*remove white margins*,
+//     `documents/cropRemoveWhiteMargins` first), or REMOVED so it defaults (*undo a crop*, the MediaBox shown); over a
+//     range, or every page the size of the range's first (*apply to all pages of the same size*). Margins are in the
+//     page's own space -- left, bottom, right, top as the page is written, before `/Rotate`.
+//   * RESIZE: a size (the named ones, or any in points) as the page is SHOWN, whether the content is scaled to fit,
+//     and where it is placed -- nine anchors.
+//   * RENUMBER: a range, a style, a prefix and a start (`Features.md` §5.1).
+
+class CropPagesDialog : public QDialog {
+    Q_OBJECT
+
+public:
+    enum class How { Margins, WhiteMargins, Remove };
+
+    struct Choice {
+        std::vector<int> pages;   // zero-based, strictly ascending -- the range as typed
+        bool sameSize = false;    // every page the size of `pages.front()`, instead of `pages`
+        core::PageBoxKind box = core::PageBoxKind::Crop;
+        How how = How::Margins;
+        double left = 0.0;        // Margins: each edge's inset from the MediaBox, points
+        double bottom = 0.0;
+        double right = 0.0;
+        double top = 0.0;
+        double padding = 0.0;     // WhiteMargins: the white kept around the content, points
+        friend bool operator==(const Choice&, const Choice&) = default;
+    };
+
+    // `margins` -- left, bottom, right, top -- is what the margin fields start at: a dragged box's, or the first page's
+    // CropBox measured from its MediaBox; `padding` is `documents/cropRemoveWhiteMargins`.
+    CropPagesDialog(int pageCount, const std::vector<int>& initial, std::array<double, 4> margins, double padding,
+                    QWidget* parent = nullptr);
+
+    // Refused: a range that does not parse; *remove* of the MediaBox (`error.pages.mediaBoxRequired`).
+    core::Result<Choice> choice() const;
+
+    QLineEdit* rangeField() const { return range_; }
+    QCheckBox* sameSizeBox() const { return sameSize_; }
+    QComboBox* boxKindBox() const { return kind_; }
+    QRadioButton* howButton(How how) const;
+    QDoubleSpinBox* marginField(int edge) const { return margins_[static_cast<std::size_t>(edge)]; }   // 0 left ... 3 top
+    QDoubleSpinBox* paddingField() const { return padding_; }
+    QLabel* refusalLabel() const { return refusal_; }
+
+    static bool canAsk();
+    static std::optional<Choice> ask(QWidget* parent, int pageCount, const std::vector<int>& initial,
+                                     std::array<double, 4> margins, double padding);
+    using Answer = std::function<std::optional<Choice>(int pageCount, const std::vector<int>& initial,
+                                                       std::array<double, 4> margins, double padding)>;
+    static void setAnswerForTesting(Answer answer);
+
+    void accept() override;
+
+private:
+    int pageCount_ = 0;
+    QLineEdit* range_ = nullptr;
+    QCheckBox* sameSize_ = nullptr;
+    QComboBox* kind_ = nullptr;
+    std::vector<std::pair<How, QRadioButton*>> hows_;
+    std::array<QDoubleSpinBox*, 4> margins_{};
+    QDoubleSpinBox* padding_ = nullptr;
+    QLabel* refusal_ = nullptr;
+};
+
+// --- Resize (S7 T9) --------------------------------------------------------------------------------------------
+
+class ResizePagesDialog : public QDialog {
+    Q_OBJECT
+
+public:
+    struct Choice {
+        std::vector<int> pages;   // zero-based, strictly ascending
+        core::PdfSize size;       // points, as the page is shown
+        bool scale = true;
+        core::ResizeAnchor anchor = core::ResizeAnchor::Centre;
+        friend bool operator==(const Choice&, const Choice&) = default;
+    };
+
+    // `paperSize` is what the size starts at (`documents/defaultPageSize`).
+    ResizePagesDialog(int pageCount, const std::vector<int>& initial, core::PaperSize paperSize, QWidget* parent = nullptr);
+
+    // Refused: a range that does not parse; a size outside 3 ... 14,400 points (`error.pages.badSize`).
+    core::Result<Choice> choice() const;
+
+    QLineEdit* rangeField() const { return range_; }
+    QComboBox* sizeBox() const { return size_; }
+    QDoubleSpinBox* widthField() const { return width_; }
+    QDoubleSpinBox* heightField() const { return height_; }
+    QCheckBox* landscapeBox() const { return landscape_; }
+    QCheckBox* scaleBox() const { return scale_; }
+    QComboBox* anchorBox() const { return anchor_; }
+    QLabel* refusalLabel() const { return refusal_; }
+
+    static bool canAsk();
+    static std::optional<Choice> ask(QWidget* parent, int pageCount, const std::vector<int>& initial, core::PaperSize paperSize);
+    using Answer = std::function<std::optional<Choice>(int pageCount, const std::vector<int>& initial)>;
+    static void setAnswerForTesting(Answer answer);
+
+    void accept() override;
+
+private:
+    int pageCount_ = 0;
+    QLineEdit* range_ = nullptr;
+    QComboBox* size_ = nullptr;
+    QDoubleSpinBox* width_ = nullptr;
+    QDoubleSpinBox* height_ = nullptr;
+    QCheckBox* landscape_ = nullptr;
+    QCheckBox* scale_ = nullptr;
+    QComboBox* anchor_ = nullptr;
+    QLabel* refusal_ = nullptr;
+};
+
+// --- Renumber (S7 T9) ------------------------------------------------------------------------------------------
+
+class RenumberPagesDialog : public QDialog {
+    Q_OBJECT
+
+public:
+    struct Choice {
+        std::vector<int> pages;   // zero-based, strictly ascending
+        core::PageLabelStyle style = core::PageLabelStyle::Decimal;
+        QString prefix;
+        int start = 1;
+        friend bool operator==(const Choice&, const Choice&) = default;
+    };
+
+    RenumberPagesDialog(int pageCount, const std::vector<int>& initial, QWidget* parent = nullptr);
+
+    // Refused: a range that does not parse.
+    core::Result<Choice> choice() const;
+
+    QLineEdit* rangeField() const { return range_; }
+    QComboBox* styleBox() const { return style_; }
+    QLineEdit* prefixField() const { return prefix_; }
+    QSpinBox* startField() const { return start_; }
+    QLabel* refusalLabel() const { return refusal_; }
+
+    static bool canAsk();
+    static std::optional<Choice> ask(QWidget* parent, int pageCount, const std::vector<int>& initial);
+    using Answer = std::function<std::optional<Choice>(int pageCount, const std::vector<int>& initial)>;
+    static void setAnswerForTesting(Answer answer);
+
+    void accept() override;
+
+private:
+    int pageCount_ = 0;
+    QLineEdit* range_ = nullptr;
+    QComboBox* style_ = nullptr;
+    QLineEdit* prefix_ = nullptr;
+    QSpinBox* start_ = nullptr;
     QLabel* refusal_ = nullptr;
 };
 

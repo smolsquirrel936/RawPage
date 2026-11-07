@@ -1,7 +1,7 @@
 // core/cmd/commands/PageCommands -- commands over pages. Stage 3 T5: `RotatePageCommand`. Stage 7 T2:
 // `MovePagesCommand`, `DeletePagesCommand` and `DuplicatePagesCommand` (`Stage7-Assembly-Plan.md` D7-1 ... D7-3);
-// Stage 7 T5: `InsertPagesCommand` and `ReplacePagesCommand` (D7-4, D7-6); crop, resize and renumber (T9) arrive
-// with their task.
+// Stage 7 T5: `InsertPagesCommand` and `ReplacePagesCommand` (D7-4, D7-6); Stage 7 T9: `CropPagesCommand`,
+// `ResizePagesCommand`, `RenumberPagesCommand` and `SetEmbeddedThumbnailsCommand` (D7-15, D7-32).
 //
 // RotatePageCommand is the first-milestone mutation and the shape every later command copies, so the
 // choices below are made for the hundredth command as much as for this one.
@@ -37,10 +37,13 @@
 
 #include <QString>
 
+#include <cstdint>
 #include <memory>
 #include <vector>
 
 namespace rawpage::core {
+
+class PageTree;   // core/doc/PageTree.h
 
 class RotatePageCommand final : public Command {
 public:
@@ -307,6 +310,205 @@ private:
     std::optional<Error> refusal_;
     std::vector<Page> before_;                      // what each page was, from apply
     std::vector<AnnotationPlacement> added_;        // where apply listed the payload's annotations
+};
+
+// ===========================================================================================
+// BOXES, CROP, RESIZE, RENUMBER AND THUMBNAILS -- Stage 7 T9 (`Stage7-Assembly-Plan.md` D7-15, D7-32)
+// ===========================================================================================
+// Four commands that change what a page SHOWS and not where it is: no page map, a `Scope::pages` of the pages they
+// name. Each has a key, under which the sink keeps what it replaced (`MutationSink::setPageBoxes` and its three
+// siblings), so an undo puts back exactly that -- before a save and after one -- and a refusal part-way through a
+// command's two sink calls is taken back by the first call's restore. Sink first, model second.
+//
+// WHAT EACH MEANS IS DECIDED HERE, from the MODEL, before the sink hears of it -- a crop's boxes clipped to the
+// MediaBox, a resize's boxes and content matrix, a renumbering's labels -- so the journal line says what was meant and
+// a replay against the same document computes the same thing (D7-24).
+
+enum class PageBoxKind : std::uint8_t { Media, Crop, Bleed, Trim, Art };
+
+// Where a resized page's content goes in its new size: one of nine places, as the page is SHOWN (after `/Rotate`).
+enum class ResizeAnchor : std::uint8_t { TopLeft, Top, TopRight, Left, Centre, Right, BottomLeft, Bottom, BottomRight };
+
+// The smallest box a page may be given, in points: ISO 32000-1 Annex C's 3 units, the size `blankPages` refuses below.
+inline constexpr double kMinPageBoxPoints = 3.0;
+
+// `boxes` with every box but the MediaBox intersected with the MediaBox -- and, in `clipped`, which were cut (D7-15:
+// *a box outside the MediaBox is clipped to it and the report says so*). Refused by `error.pages.boxTooSmall` for a
+// MediaBox or CropBox under `kMinPageBoxPoints` on a side, before or after the clip, and by `error.pages.boxOutside`
+// for any box that does not overlap the MediaBox at all.
+Result<PageBoxes> clipToMediaBox(const PageBoxes& boxes, std::vector<PageBoxKind>* clipped = nullptr);
+
+// REMOVE WHITE MARGINS (D7-15): the CropBox that shows `content` -- the engine's content box (Stage 4's) -- with
+// `padding` points around it, inside `cropBox`, the box the page shows now. Never larger than what the page shows.
+PdfRect whiteMarginBox(PdfRect content, double padding, PdfRect cropBox);
+
+// The pages of `pages` whose SHOWN size is `page`'s, within a hundredth of a point -- *apply to all pages of the same
+// size*. In order.
+std::vector<int> pagesOfSameSize(const PageTree& pages, int page);
+
+// A RESIZE OF ONE PAGE (D7-15, D7-32): `target` as the page will be SHOWN, in points. With `scale`, the content that was
+// shown is scaled to fit -- the larger of the two that fit, up or down -- placed at `anchor` and clipped to what it
+// showed; the MediaBox is the target and the other four boxes are removed. Without, the MediaBox is the target placed
+// at `anchor` around what the page showed, the content where it was. Refused by `error.pages.boxTooSmall` for a
+// target under `kMinPageBoxPoints`, and by `error.pages.badSize` for one past ISO 32000-1 Annex C's 14,400.
+struct ResizePlan {
+    PageBoxes boxes;
+    std::optional<PageContentWrap> wrap;   // with scaling only
+};
+Result<ResizePlan> planResize(const Page& page, PdfSize target, bool scale, ResizeAnchor anchor);
+
+class CropPagesCommand final : public Command {
+public:
+    static constexpr QLatin1String kTypeId{"page.crop"};
+
+    // Page `pages[i]` takes `boxes[i]` -- each box given set, each absent one removed. `boxes` of ONE applies it to
+    // every page. A crop UNDONE puts back what each page had; *undo a crop* the person asks for (`Features.md` §5.1)
+    // is this command with each CropBox absent -- the MediaBox shown again.
+    CropPagesCommand(std::vector<int> pages, std::vector<PageBoxes> boxes, QString key = {});
+
+    const std::vector<int>& pages() const noexcept { return pages_; }
+    const std::vector<PageBoxes>& boxes() const noexcept { return boxes_; }
+    const QString& key() const noexcept { return key_; }
+    // Each box clipped to its MediaBox (`PageReference::Kind::PageBox`, `Clipped`), per page.
+    const PageCommandReport& report() const noexcept { return report_; }
+    Operation operation() const override { return Operation::EditPages; }
+    Status permitted(const Document& document) const override;
+
+    QLatin1String typeId() const override { return kTypeId; }
+    CatalogText name() const override;      // command.page.crop: %1 page count
+    Scope scope() const override { return Scope::pages(pages_); }
+    std::optional<Error> refusal() const override { return refusal_; }
+
+    bool apply(Document& document, MutationSink& sink) override;
+    bool revert(Document& document, MutationSink& sink) override;
+
+    // {"type": "page.crop", "pages": [...], "key": "<hex>", "boxes": [{"media": [l, b, r, t], "crop": [...], ...}]}
+    QJsonObject serialize() const override;
+    static Result<std::unique_ptr<Command>> deserialize(const QJsonObject& json);
+
+private:
+    std::vector<int> pages_;
+    std::vector<PageBoxes> boxes_;
+    QString key_;
+    PageCommandReport report_;
+    std::optional<Error> refusal_;
+    std::vector<Page> before_;   // the model's pages, from apply
+};
+
+class ResizePagesCommand final : public Command {
+public:
+    static constexpr QLatin1String kTypeId{"page.resize"};
+
+    ResizePagesCommand(std::vector<int> pages, PdfSize target, bool scale, ResizeAnchor anchor, QString key = {});
+
+    const std::vector<int>& pages() const noexcept { return pages_; }
+    PdfSize target() const noexcept { return target_; }
+    bool scales() const noexcept { return scale_; }
+    ResizeAnchor anchor() const noexcept { return anchor_; }
+    const QString& key() const noexcept { return key_; }
+    // With scaling: each page whose comments keep their rectangles (`PageReference::Kind::PageComments`, D7-32).
+    const PageCommandReport& report() const noexcept { return report_; }
+    Operation operation() const override { return Operation::EditPages; }
+    Status permitted(const Document& document) const override;
+
+    QLatin1String typeId() const override { return kTypeId; }
+    CatalogText name() const override;      // command.page.resize: %1 page count
+    Scope scope() const override { return Scope::pages(pages_); }
+    std::optional<Error> refusal() const override { return refusal_; }
+
+    bool apply(Document& document, MutationSink& sink) override;
+    bool revert(Document& document, MutationSink& sink) override;
+
+    // {"type": "page.resize", "pages": [...], "key": "<hex>", "width": w, "height": h, "scale": b, "anchor": 0..8}
+    QJsonObject serialize() const override;
+    static Result<std::unique_ptr<Command>> deserialize(const QJsonObject& json);
+
+private:
+    std::vector<int> pages_;
+    PdfSize target_;
+    bool scale_ = true;
+    ResizeAnchor anchor_ = ResizeAnchor::Centre;
+    QString key_;
+    PageCommandReport report_;
+    std::optional<Error> refusal_;
+    std::vector<Page> before_;
+};
+
+class RenumberPagesCommand final : public Command {
+public:
+    static constexpr QLatin1String kTypeId{"page.renumber"};
+
+    // `pages` numbered `start`, `start + 1`, ... in order, in `style` after `prefix` (`Features.md` §5.1: *a page-label
+    // style, a prefix and a start value, per page range*). Every other page keeps the label it shows.
+    RenumberPagesCommand(std::vector<int> pages, PageLabelStyle style, QString prefix, int start, QString key = {});
+
+    const std::vector<int>& pages() const noexcept { return pages_; }
+    PageLabelStyle style() const noexcept { return style_; }
+    const QString& prefix() const noexcept { return prefix_; }
+    int start() const noexcept { return start_; }
+    const QString& key() const noexcept { return key_; }
+    Operation operation() const override { return Operation::EditPages; }
+    Status permitted(const Document& document) const override;
+
+    QLatin1String typeId() const override { return kTypeId; }
+    CatalogText name() const override;      // command.page.renumber: %1 page count
+    Scope scope() const override { return Scope::nothing(); }   // a label draws nothing on the page
+    std::optional<Error> refusal() const override { return refusal_; }
+
+    bool apply(Document& document, MutationSink& sink) override;
+    bool revert(Document& document, MutationSink& sink) override;
+
+    // {"type": "page.renumber", "pages": [...], "key": "<hex>", "style": "D", "prefix": "...", "start": n}
+    QJsonObject serialize() const override;
+    static Result<std::unique_ptr<Command>> deserialize(const QJsonObject& json);
+
+    // The largest start a label may have, and the longest prefix -- a hostile journal line's bound.
+    static constexpr int kMaxStart = 1'000'000;
+    static constexpr int kMaxPrefix = 256;
+
+private:
+    std::vector<int> pages_;
+    PageLabelStyle style_ = PageLabelStyle::Decimal;
+    QString prefix_;
+    int start_ = 1;
+    QString key_;
+    std::optional<Error> refusal_;
+    std::vector<QString> before_;   // every page's label, from apply
+};
+
+class SetEmbeddedThumbnailsCommand final : public Command {
+public:
+    static constexpr QLatin1String kTypeId{"page.thumbnails"};
+
+    // Page `pages[i]` carries `thumbnails[i]` as its embedded thumbnail; `thumbnails` EMPTY removes every page's
+    // (`Features.md` §5.2: *embed page thumbnails into the file, or remove embedded thumbnails*).
+    SetEmbeddedThumbnailsCommand(std::vector<int> pages, std::vector<PageThumbnail> thumbnails, QString key = {});
+
+    const std::vector<int>& pages() const noexcept { return pages_; }
+    const std::vector<PageThumbnail>& thumbnails() const noexcept { return thumbnails_; }
+    bool removes() const noexcept { return thumbnails_.empty(); }
+    const QString& key() const noexcept { return key_; }
+    Operation operation() const override { return Operation::EditPages; }
+    Status permitted(const Document& document) const override;
+
+    QLatin1String typeId() const override { return kTypeId; }
+    CatalogText name() const override;      // command.page.embedThumbnails / command.page.removeThumbnails: %1 page count
+    Scope scope() const override { return Scope::nothing(); }   // a reader shows a page, not its thumbnail
+    std::optional<Error> refusal() const override { return refusal_; }
+
+    bool apply(Document& document, MutationSink& sink) override;
+    bool revert(Document& document, MutationSink& sink) override;
+
+    // {"type": "page.thumbnails", "pages": [...], "key": "<hex>", "thumbnails": [{"width": w, "height": h,
+    // "rgb": "<base64 of qCompress>"}]} -- no "thumbnails" for a removal
+    QJsonObject serialize() const override;
+    static Result<std::unique_ptr<Command>> deserialize(const QJsonObject& json);
+
+private:
+    std::vector<int> pages_;
+    std::vector<PageThumbnail> thumbnails_;
+    QString key_;
+    std::optional<Error> refusal_;
 };
 
 // 128 random bits as 32 lowercase hex digits -- a page command's key.

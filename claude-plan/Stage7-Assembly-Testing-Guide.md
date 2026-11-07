@@ -16,8 +16,8 @@
 > T6, which renumbered T6 … T18 as T7 … T19 throughout, added §3.9, A-122 … A-127 and M-13's Save As steps; Q4
 > ANSWERED the same day, approved — §3.7 and A-35 … A-37 stand, their *struck if declined* clauses removed; Q5
 > ANSWERED the same day, all five parts approved — §1's five out-of-scope rows, A-80, A-96 and §6's note stand
-> as written.** **T1 done 2026-10-29, T2 and T3 2026-10-30, T4 and T5 2026-10-31, T6 2026-11-04, T7 2026-11-05, T8 2026-11-07: A-12 … A-34, A-36 … A-45, A-47 … A-57, A-59, A-122 … A-126 and
-> A-128 carry a result, all ✅ (A-55's second process `[D7-13]` run by hand on `windows` 2026-11-07, with the user's leave; A-47's `qpdf` half from the next CI run's log; **A-58 moved to T9**, `Stage7-Assembly-Plan.md` D7-31(j)) (A-25 from CI runs 40995950997's and 41180314162's logs; A-122's `qpdf` half ✅ from run 41770714539's log, three faults inherited from damaged sources (I-13, closed); A-33 is §3.1's verdict, `go, with named custom work`,
+> as written.** **T1 done 2026-10-29, T2 and T3 2026-10-30, T4 and T5 2026-10-31, T6 2026-11-04, T7 2026-11-05, T8 2026-11-07, T9 2026-11-08: A-12 … A-34, A-36 … A-45, A-47 … A-65, A-122 … A-126 and
+> A-128 carry a result, all ✅ (A-55's second process `[D7-13]` run by hand on `windows` 2026-11-07, with the user's leave; A-47's `qpdf` half from the next CI run's log; A-58 moved to T9 by `Stage7-Assembly-Plan.md` D7-31(j) and done there; A-61 graded with the engine's stroke allowance, I-16; A-64 at scale 1, its 150 % half M-08's) (A-25 from CI runs 40995950997's and 41180314162's logs; A-122's `qpdf` half ✅ from run 41770714539's log, three faults inherited from damaged sources (I-13, closed); A-33 is §3.1's verdict, `go, with named custom work`,
 > the user's choice, re-read at T5 with the real insert and inside); A-35 carries T4's half and T5's reading (🟡) --
 > **§3.7's move half NOT TAKEN at T5** (+20.9 … +23.8 ms after ~3,600 copied objects), the bookmark half T11's;
 > A-45 carries T5's half and T8's (✅); **A-46 ✅ 2026-11-04** -- its 60 s log found the target UNRUN (I-09), then I-12 at T6's push and the two after, and run 41832843136's 60 s and soak 41833219442's ten minutes found nothing; A-03 carries its T2 half (🟡) and A-27 its T2 and T8 halves (✅); A-08 … A-10 carry T5's readings; no
@@ -30,7 +30,7 @@
 > **closed inside T5** by the user's choice, and its first full run **I-08 (S3), OPEN** — a Stage 5 timing bound red
 > once (§8); T6 raised **I-09 (S3), fixed** -- `fuzz_assembly` built and fuzzed by nothing, a gate added -- **I-10 (S2), closed
 > inside T6** -- a page an undo put back after a save drawn as one the engine never opened, older than T6 -- and **I-11 (S2),
-> OPEN** -- recovery stops at an undo, after a save, of a page delete; T2, T3, T7 and T8 raised none (T8's full `x64-debug` run met **I-08** a fourth time). **T8 made M-01, M-12 and M-13 walkable; none is walked.** **P-3, a
+> OPEN** -- recovery stops at an undo, after a save, of a page delete; T2, T3, T7 and T8 raised none (T8's full `x64-debug` run met **I-08** a fourth time); T9 raised **I-16 (S3), OPEN** -- a white-margin crop of a stroked path keeps a point more white than asked, the engine's content box, the user's to decide -- and **I-17 (S3), OPEN** -- T7's blank-page split case died once in a full run, not reproduced. **T8 made M-01, M-12 and M-13 walkable and T9 M-08; none is walked.** **P-3, a
 > duplex printer for M-04, is open.** **Cases written against a §0 proposal name it in their heading or row**
 > (Q*n* ✅); none was declined, so none moved or was struck. **128 automated** (A-01 … A-128, A-128 added at T4)
 > and **14 manual** (M-01 … M-14).
@@ -738,9 +738,10 @@ by a later task says so in its result.
 **Expect** Comment, field and link badges exactly on the pages the labels name. **If it fails** S3.
 **Result** ✅ *2026-11-07, T8.* The store's reading (`unit.thumbnails.badges ...`, `AnnotationStore::carries`): every page of `annots-on-pages.pdf` carries all three (its labels: a note with its pop-up, a reply, a link, a widget); **`refs-every-kind.pdf` a link on pages 1 … 4 and nothing else** (its labels' `links`, the control that the badge is per page); `forms-acroform.pdf`'s one page fields only (its `PROVENANCE.md` row). The paint (`ui.thumbnails.badges are painted ...`): a page's badge square carries ink, the same square a slot lower on a page with none is the white sheet, and three badges are wider than one. Through the product (`ui.composition.thumbnails.badges ...`): the pane's badges for `refs-every-kind.pdf` exactly the labels', and a move carries the first page's badge to the end with it. **Control:** P4 (links not counted) red.
 
-**A-58 · Embedded thumbnails written and removed** ☐ *T9 -- moved from T8 by `Stage7-Assembly-Plan.md` D7-31(j): `SetEmbeddedThumbnails` is T9's in the plan's §4 and its T9 row*
+**A-58 · Embedded thumbnails written and removed** ✅ *2026-11-08, T9 -- moved from T8 by `Stage7-Assembly-Plan.md` D7-31(j): `SetEmbeddedThumbnails` is T9's in the plan's §4 and its T9 row*
 **Steps** `ctest -R "serialize:SetEmbeddedThumbnailsCommand|revert:SetEmbeddedThumbnailsCommand|thumbnails.embed"`.
 **Expect** Each page's `/Thumb` an image PDFium reads back (`FPDFPage_GetThumbnailAsBitmap`) at the size written; removal leaves no `/Thumb`; reversible. **If it fails** S3.
+**Result** ✅ *2026-11-08, T9.* `SetEmbeddedThumbnailsCommand` (`page.thumbnails`): page `i` carries thumbnail `i`, none to remove (D7-32(g)). **First-party** (`unit.thumbnails.embed ...`, `tests/unit/tst_pageedits.cpp`): three images of `odd-count-3.pdf`'s pages written as RGB `/FlateDecode` streams with `/Width`, `/Height`, `/DeviceRGB`, their decoded bytes the bytes given (SHA-256); undone before a save, nothing to write; SAVED, nothing left to write; removed and saved, no page has a `/Thumb`; the removal undone after the save brings the same images back; the embedding undone, none, as the file came. **By PDFium** (`render.thumbnails.embed ...`): a fresh engine's `FPDFPage_GetThumbnailAsBitmap` (a new facade method, `PdfiumDocument::embeddedThumbnail`) decodes each at the size written, every pixel the colour given, 0 differing; after the removal `NotFound` on every page; the control, the corpus file itself, carries none. **Through the product** (`ui.composition.pages embed thumbnails ...`): `page.embedThumbnails` draws every page on the render thread (`core::PageWorkRunner`) and runs one command; the saved file's thumbnails are `kThumbnailEdge` (128) pixels on the longest side, the page's identity dark in each; `page.removeThumbnails`, saved, leaves none. `[serialize:SetEmbeddedThumbnailsCommand]` round-trips two samples, its hostile lines (a width past the bound, bytes CLAIMING 4 GB or another size before `qUncompress` runs, not base64) refused; `[revert:SetEmbeddedThumbnailsCommand]` over every editable corpus file. **Controls:** P10 (an image a save wrote kept as pending) **STAYED GREEN** until the first-party case checked that a save leaves nothing to write -- every later save would have written each image again; P11 (a page's own `/Thumb` not read as what an undo puts back) red.
 
 **A-59 · Rotation over a set, a range, odd, even, or one orientation** ✅ *2026-11-07, T8*
 **Steps** `ctest -R "rotate.ranges"`; `ctest -R "serialize:RotatePageCommand"`.
@@ -749,29 +750,35 @@ by a later task says so in its result.
 
 ### 5.11 Boxes, crop, resize, renumber (T9)
 
-**A-60 · The five boxes, written and read back** ☐ *T9*
+**A-60 · The five boxes, written and read back** ✅ *2026-11-08, T9*
 **Steps** `ctest -R "pageops.boxes"`; `serialize:`/`revert:CropPagesCommand`.
 **Expect** Each box set alone and together, read back by PDFium (`FPDFPage_Get*Box`) as written; a box outside the MediaBox clipped to it and reported; *undo a crop* removes `/CropBox`. **If it fails** S2.
+**Result** ✅ *2026-11-08, T9.* `CropPagesCommand` (`page.crop`): what each page SHOWS (`core::PageBoxes`), the keys the sink's (D7-32(a)). **First-party** (`unit.pageops.boxes ...`, three cases): on `boxes.pdf`'s page 1 (all five, from its label) each box alone, saved, read back as asked, and each undone AFTER the save read back as the label's; all five together; a crop of pages 1 and 3 undone before a save writes nothing; *undo a crop* -- the CropBox removed -- leaves no `/CropBox` and the model showing the MediaBox; **on `inherit-resources.pdf`, a page INHERITING its CropBox**, the removal shows the MediaBox (written as its own CropBox, D7-32(a)) and its undo the inherited one; page 2's CropBox reaching outside on three sides written clipped to the label's `cropBoxClippedToMedia`, a TrimBox likewise, the report two `PageBox` references `Clipped`; a box that does not touch the MediaBox and a CropBox under 3 points refused, nothing written. A crop carried by a move and copied by a duplicate, every step undone after a save: the file's own boxes. **By PDFium** (`render.pageops.boxes ...`): a fresh engine reads all five as written, within a hundredth of a point (it reads floats), page 2's clipped crop, and after *undo a crop* the CropBox and ArtBox as the MediaBox; the live engine's page tree the same. `[serialize:CropPagesCommand]` two samples, the T9 hostile table's ten crop lines refused; `[revert:CropPagesCommand]` over every editable corpus file. **Controls:** P1 (a revert that does not tell the sink) red; **P2 (an inherited CropBox not overridden when a crop is removed) STAYED GREEN** until the inheriting case was written; P4 (the engine's page tree not told the new boxes) red; P12 (a MediaBox asked and never written) red.
 
-**A-61 · White margins are removed to the CONTENT box** ☐ *T9*
+**A-61 · White margins are removed to the CONTENT box** ✅ *2026-11-08, T9 -- graded, for a stroked path, with the engine's stroke allowance (I-16)*
 **Steps** `ctest -R "crop.white_margins"` over `boxes.pdf` and `cropbox-margins.pdf`.
 **Expect** The CropBox equals Stage 4's content box (`IDocumentBackend::contentBox`) padded by `documents/cropRemoveWhiteMargins`, and the cropped page's **ink** (rule 6) touches each edge within the padding ± 1 device pixel at 144 dpi; *all pages of the same size* crops exactly those pages. **If it fails** S2.
+**Result** ✅ *2026-11-08, T9.* `render.crop.white_margins ...`: at paddings 0 and 9 points the written CropBox is the live engine's content box padded, read back by a fresh engine within a hundredth of a point; the ink, at 144 dpi, is **`boxes.pdf`'s page 3 (a filled rectangle) within one device pixel of the padding on every edge**, and **`cropbox-margins.pdf`'s panel (stroked 2 pt wide) one POINT further on every edge** -- the engine's content box of a stroked path reaches 2 pt past the path where the ink reaches 1 (I-16), graded as measured; a crop 3 pt inside the content box, the control, leaves ink at the edge. `unit.crop.white_margins ...`: `whiteMarginBox` padded, never past the CropBox, a negative padding none, content outside left alone; `pagesOfSameSize` over `mixed-page-sizes.pdf`, A4 portrait and landscape told apart as shown. **Through the product** (`ui.composition.pages remove white margins ...`): the dialog's choice measures the three pages on the render thread and runs ONE crop, page 3's box the content box padded by 4; one undo puts all three back; a delete landing while the pages are read refuses the run with `error.pages.documentChanged` and crops nothing. `documents/cropRemoveWhiteMargins` declared (0 ... 72 pt, 0 by default) on the Documents page. **Control:** P6 (the padding ignored) red.
 
-**A-62 · A resized page's content is scaled and placed as asked — on the ink** ☐ *T9*
+**A-62 · A resized page's content is scaled and placed as asked — on the ink** ✅ *2026-11-08, T9*
 **Steps** `ctest -R "resize"` over `text-letter.pdf` → A4 and `mixed-page-sizes.pdf`.
 **Expect** With scaling: the ink's bounding box scaled by the ratio asked and centred (or anchored as asked) within ± 1 device pixel at 144 dpi; without scaling: the boxes alone change and the ink does not move; the wrapper streams marked (D7-7), and undo byte-identical. **If it fails** S2.
+**Result** ✅ *2026-11-08, T9.* `ResizePagesCommand` (`page.resize`): `planResize` from the model (D7-32(e)), then the boxes and -- with scaling -- the wrapper. **On the ink** (`render.resize ...`): `text-letter.pdf` to A4 scaled and centred, its ink measured at 288 dpi before and at 144 dpi after, each edge where the plan's matrix puts it within one device pixel plus the reference's quarter point; the live engine's tree A4; undone and saved, the letter page and its ink exactly as before. Without scaling to 700 x 900 the MediaBox `-44 -54 656 846` and the ink within a pixel of where it was. `mixed-page-sizes.pdf`'s unturned pages to US Letter, scaled, bottom-left: each page's ink where its own matrix puts it. **The wrapper** (`unit.resize ...`): `/Contents` three items -- a stream beginning `q 0.9727 0 0 0.9727 0` and ending `re W n`, and one `Q`, both marked `/RawPageDecoration << /Kind /Resize /Id <the command's key> >>`, the page's own content untouched between them; undone before a save, nothing to write; undone AFTER a save, `/Contents` the page's own reference again and the MediaBox back; two resizes nest (five items) and the inner one comes out alone. The plan's arithmetic against hand values: centred, a cropped page from its own corner, a page turned 90 (its sides swapped, top-left its own bottom-left, and **top-centre its own left edge halfway up**), and without scaling centred and bottom-right; a target under 3 or over 14,400 points refused. `[serialize:ResizePagesCommand]` two samples, eight hostile lines refused; `[revert:ResizePagesCommand]` over every editable corpus file. *Not covered:* a comment keeps its rectangle under scaling and is reported, not moved (D7-32(e)). **Controls:** P3 (the two streams swapped) and P7 (a quarter turn's anchor read across for down -- red only once the top-centre check was added; top-left cannot tell the axes apart) red.
 
-**A-63 · Renumbering pages** ☐ *T9*
+**A-63 · Renumbering pages** ✅ *2026-11-08, T9*
 **Steps** `ctest -R "renumber"`; `serialize:`/`revert:RenumberPagesCommand`.
 **Expect** Each style (arabic, roman upper and lower, letters upper and lower), a prefix and a start, per range, read back by `FPDF_GetPageLabel` against hand-written tables; ranges outside the selection unchanged. **If it fails** S2.
+**Result** ✅ *2026-11-08, T9.* `RenumberPagesCommand` (`page.renumber`) over a page set (D7-32(f)). **By PDFium** (`render.renumber ...`): on `odd-count-9.pdf`, five commands -- roman lower from 1, letters upper with `App-` from 26, roman upper from 14, letters lower from 3, no number with `Cover` -- and a fresh engine's labels are the hand table `i ii iii App-Z App-AA 6 XIV c Cover` (page 6, outside every range, its own number), the model's the same; all undone and saved, no page has a label. **First-party** (`unit.renumber ...`): a document with no labels numbered `i ii iii 4 5 ... 9`, undone after the save with `/PageLabels` taken out of the catalog; each of the six styles with `P-` from 26 against its hand table, the pages either side unchanged; `outline-labels.pdf`'s own numbering kept on every page but the one renumbered, and an undo after the save writes it back exactly. `[serialize:RenumberPagesCommand]` two samples (one prefix not Latin), seven hostile lines refused; `[revert:RenumberPagesCommand]` over every editable corpus file. **Control:** P9 (a style-less label numbered as asked, where a reader counts it within its range) red -- found while writing the case: such a save failed its own verify.
 
-**A-64 · The crop tool's box is where it was dragged** ☐ *T9*
+**A-64 · The crop tool's box is where it was dragged** ✅ *2026-11-08, T9 -- at scale 1; the raster at 1.5 is M-08's*
 **Steps** `ctest -R "ui.croptool"`, rendering into an image at 1.5 at an odd logical offset (Stage 5's A-123).
 **Expect** The written CropBox, drawn back, coincides with the dragged rectangle on the **raster** within 1 device pixel; snapping as `core/Snap.h` resolves it; `Esc` cancels with no command. **If it fails** S2.
+**Result** ✅ *2026-11-08, T9.* `ui.croptool ...` (`tests/ui/tst_croptool.cpp`, three cases): the tool alone over a host mapping a pixel to a point hands ONE page-space box, its left corner snapped onto a guide 1 point away, `y` turned up; a click, a drag under the marquee's threshold either way and an `Esc` mid-drag hand nothing. Through the window: `page.crop` arms it (cross cursor, sticky); `Esc` mid-drag runs no command; a drag with nobody to ask runs ONE `CropPagesCommand` of page 1, the CropBox written within a device pixel of the page points under the two pixels, the model showing it, only the CropBox changed -- and **drawn back through the view's layout, its corners within one pixel of the pixels dragged between**; with a person (the dialog's twin), the dialog is offered the dragged box's margins, and widening it to three pages crops each from its own MediaBox, one command. **Bound, as drafted:** at the offscreen platform's scale of 1 and graded on the layout the raster is placed by; A-123's 1.5 at an odd offset was not built -- the dragged box at 150 % is M-08 step 1. **Control:** P8 (`Esc` leaving the drag going) red.
 
-**A-65 · Crop through the product, saved, undone** ☐ *T9*
+**A-65 · Crop through the product, saved, undone** ✅ *2026-11-08, T9*
 **Steps** `ctest -R "composition.assembly_shown"` with a crop and a resize in its rotation.
 **Expect** §3.3's bar. **If it fails** S1.
+**Result** ✅ *2026-11-08, T9.* `ui.composition.assembly_shown ...` (A-29's case) gained five steps after its six: a page cropped, one resized to A4 scaled and centred, one to 500 x 700 unscaled, three pages renumbered, every page given a thumbnail -- each saved and every page compared live against the saved file reopened fresh at 72 dpi, 144 dpi and turned: **0 differing bytes, 16 x 5 more pages**; every step undone after the saves, every page as the original draws it. **Its first run failed** on the unscaled step: the page was drawn **700 pixels tall live and 701 from its saved file** -- the engine's page tree held the new box in doubles (700.0) while a fresh open reads PDFium's floats (700.000015), and a page's tile height is rounded up. The tree now carries each edge as the engine reads it (D7-32(b), `DocumentBackendImpl::showEdits`) -- and the plain `double(float(x))` of that fix came back unchanged from that translation unit under GCC 13.1 at `-O3`, so the narrowing goes through a `volatile`, measured. **Control:** P5 (the narrowing dropped) red. *Not covered:* the commands are constructed, not made by their surfaces -- §3.3's *through its surface* is A-119's sweep at T19.
 
 ### 5.12 Merge (T10)
 
@@ -1134,12 +1141,17 @@ Three things about the state you will be walking, so a planned absence is not re
 **M-08 · Crop and resize** ☐
 - **Goal** The crop tool and *remove white margins* judged by eye, on both monitors.
 - **Pre** T9. Copies of `boxes.pdf` and `text-letter.pdf` in `tests\manual\M-08`; both monitors.
-- **Steps**
-  1. Drag a crop box on the 150 % monitor; move the window to the 100 % monitor and drag another.
-  2. Remove white margins on `boxes.pdf`; apply to all pages of the same size.
-  3. Resize `text-letter.pdf` to A4 with scaling, centred; then without scaling.
-  4. Undo the crop.
-- **Expect** The crop is the box you dragged on both monitors; white margins go to the edge of the ink; the A4 page holds the letter content centred; undo restores the page.
+- **Steps** *(as built at T9: **Organize → Page Size → Crop** arms the tool -- `page.crop`, also in the tool finder; **Set
+  Page Boxes…** beside it is the dialog -- `page.setBoxes`; **Resize** and **Renumber** open theirs)*
+  1. On the 150 % monitor, arm **Crop** and drag a box on page 1 of `boxes.pdf`; the **Set Page Boxes** dialog opens with the
+     box's margins filled in -- press **OK**. Move the window to the 100 % monitor and do the same on page 2.
+  2. **Set Page Boxes…**, **Remove white margins**, **All pages the size of the first page in the range**, **OK**.
+  3. Open `text-letter.pdf`; **Resize**, **A4**, **Scale the content to fit** on, **Centre**, **OK**. **Undo**, then
+     **Resize** to A4 again with scaling off.
+  4. Back in `boxes.pdf`, **Undo** (`Ctrl+Z`) until the crops are gone.
+- **Expect** The crop is the box you dragged on both monitors; white margins go to the edge of the ink -- on page 3, the
+  filled panel; on a stroked frame one point outside it (I-16, known); the A4 page holds the letter content centred, and
+  unscaled the content stays where it was on a larger sheet; undo restores the page.
 - **If it fails** Note the monitor and the page; a crop off the dragged box is S2.
 
 **M-09 · Watermarks** ☐
@@ -1244,6 +1256,8 @@ missed it, and the control that was run red before the fix — the shape every e
 | **I-13** | S3 | `qpdf --check` refused three of T6's rewrites -- of `malformed/bad-flate-stream.pdf`, `pages-loop.pdf` and `duplicate-object-number.pdf` -- for the damage each source carries on purpose, which a rewrite keeps as PDFium draws it: the check judged a fault we were given as one we wrote, and no case held a rewrite to what PDFium draws of the ORIGINAL | **Closed** 2026-11-04 by run 41770714539's `qpdf` log: *"210 file(s), 0 failed, 3 inherited"*, each source refused for the same fault |
 | **I-14** | S3 | The FIRST unknown font PDFium substitutes in a process draws unlike every later one: the same bytes, opened twice in one process, give two digests | **Open** -- measured, cause inside the engine not established; the user's decision |
 | **I-15** | S3 | Every CI job's vcpkg binary cache restored NOTHING -- *"Restored 0 package(s)"* in `Windows x64`, `Portable ASan + UBSan`, `Portable libFuzzer` and every soak job -- so each built every port from source and downloaded its sources, and run 41824929474's `Portable libFuzzer` stopped at configure on gitlab.com's *"response code 429"* for libtiff, before any fuzz target ran | **Fixed** 2026-11-04, pushed in `279fe66`: run 41832843136 and soak 41833219442 each missed and SAVED, one key per image; closed when a later run on a saved image logs the ports restored |
+| **I-16** | S3 | *Remove white margins* leaves a stroked path's ink 1 point inside the padding asked: the engine's content box of `cropbox-margins.pdf`'s panel, stroked 2 pt wide, reaches 2 pt past the path where the ink reaches 1 | **Open** -- measured at T9, graded as measured (A-61); the design keeps Stage 4's content box (D7-15), the user's to decide |
+| **I-17** | S3 | `ui.composition.page.split at blank pages writes its files through the product's pumps` (T7's) died with a SEGFAULT 0.13 s into one full `x64-release` run at T9, with no output past Catch2's filter line | **Open** -- not reproduced: 4 of 4 alone and 32 of 32 eight at a time, green; the full run after it green |
 
 **I-01 (S2) — the engine facade read a page's boxes from the page dictionary alone.** *Found* at T1 by
 the first scratch render of `assembly/inherit-resources.pdf`, whose pages inherit both boxes: an A4 page
@@ -1562,6 +1576,28 @@ another job may be creating this cache"* and *"Cache save failed"* as a warning,
 *"Restored 0 package(s)"*, as a miss must. *Bound:* with the image in the key, a job restores only on an image a job before
 it saved, and the runners hand out several images at once. *Fixed*, not closed: closed when a later run on one of those
 images logs the ports restored rather than built.
+
+**I-16 (S3) — the content box a white-margin crop is made from reaches past a stroked path's ink.** *Found* 2026-11-08 by
+**A-61**'s first run. `boxes.pdf`'s page 3, a FILLED rectangle, cropped to its content box: the ink touched every edge
+within a device pixel of the padding asked. `cropbox-margins.pdf`'s page 1, whose panel is the same rectangle filled and
+STROKED 2 pt wide: the engine's content box was `142 158 453.276 683.89` around a path at `144 160 451.276 681.89`, and the
+ink at 144 dpi `143 158.89 452.5 682.89` -- the box 2 pt past the path on every side, the ink 1 pt, so the crop left
+**1 point more white than asked** on each edge. *Mechanism, as far as measured:* the content box is the union of
+`FPDFPageObj_GetBounds` (Stage 4's D4-14), and for a stroked path PDFium's bounds reach the full line width past the path
+where the stroke draws half of it; why, inside the engine, was not read. *Why it is not fixed here:* D7-15 makes the crop
+read the content box BECAUSE Fit Visible does, so the two agree on what the ink is; measuring the ink off a raster instead
+would be a second definition of *white margin* (D7-15's argument) -- the user's to choose. A-61 grades each fixture as
+measured: the filled one within a pixel of the padding, the stroked one one point further, and a control crop inside the
+content box that leaves ink at the edge. *Open*, the user's decision: keep the content box, or measure the ink.
+
+**I-17 (S3) — a Stage 7 T7 split case died once under the full run.** *Found* 2026-11-08 by T9's second full
+`x64-release` run: `ui.composition.page.split at blank pages writes its files through the product's pumps` ended
+`SEGFAULT` after 0.13 s, its output nothing but Catch2's `Filters:` and `Randomness seeded to: 3361317809` lines -- before
+the case's first assertion, by its timing (it runs for seconds when green). *Not reproduced:* alone 4 of 4 green, then 32
+runs eight at a time (the presets' `-j 8`), all green; the next full run green. Nothing T9 changed is on that case's path --
+`core::SplitRunner`, the assembler, the blank pages' content boxes -- except that `DocumentBackendImpl::showEdits` now reads
+the sink's boxes, which the split never sets. The run's log was copied before the next run overwrote it (CLAUDE.md's
+trap); the case's whole output is the two lines quoted. *Open*: read again at each full run, as I-05 and I-08 are.
 
 ---
 

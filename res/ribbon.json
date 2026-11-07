@@ -357,7 +357,9 @@
             { "action": "page.insert", "size": "large" },
             { "action": "page.delete", "size": "small" },
             { "action": "page.extract", "size": "small" },
-            { "action": "page.replace", "size": "small" }
+            { "action": "page.replace", "size": "small" },
+            { "action": "page.embedThumbnails", "size": "small" },
+            { "action": "page.removeThumbnails", "size": "small" }
           ]
         },
         {
@@ -377,6 +379,7 @@
           "collapsePriority": 5,
           "controls": [
             { "action": "page.crop", "size": "small" },
+            { "action": "page.setBoxes", "size": "small" },
             { "action": "page.resize", "size": "small" },
             { "action": "page.split", "size": "small" },
             { "action": "page.renumber", "size": "small" }

@@ -105,6 +105,10 @@ struct DuplicatedPages;      // core/doc/PageMap.h         -- Stage 7 T2
 struct AnnotationCopy;       // core/doc/Annotation.h      -- Stage 7 T2
 struct CopiedPages;          // core/doc/CopiedPages.h     -- Stage 7 T5 (D7-4, D7-6)
 struct InsertedPages;        // core/doc/CopiedPages.h     -- Stage 7 T5
+struct PageBoxes;            // core/doc/Page.h            -- Stage 7 T9 (D7-15)
+struct PageContentWrap;      // core/doc/Page.h            -- Stage 7 T9 (D7-7, D7-32)
+struct PageLabelSpec;        // core/doc/Page.h            -- Stage 7 T9
+struct PageThumbnail;        // core/doc/Page.h            -- Stage 7 T9
 
 namespace render {
 struct RenderRequest;        // core/render/RenderRequest.h -- Stage 2 T10
@@ -406,6 +410,34 @@ public:
     // the same key puts back what each page drew and listed -- before a save and after one.
     virtual Result<InsertedPages> replacePages(const std::vector<int>& pages, const QString& key, const QByteArray& graph) = 0;
     virtual Status restoreReplacedPages(const std::vector<int>& pages, const QString& key) = 0;
+
+    // A PAGE'S BOXES, CONTENT, LABEL AND THUMBNAIL -- Stage 7 T9 (`Stage7-Assembly-Plan.md` D7-15, D7-32). Four pairs, each
+    // over a set and all or nothing, each set KEEPING what it replaced under `key`, so its restore with the same key puts
+    // back exactly that -- before a save and after one, when the values a save wrote are written back as they were.
+    // Refused, with nothing changed, for a set that is not one, sizes that differ, a key already holding a change of the
+    // same kind, and a restore whose key holds none.
+    //
+    // `setPageBoxes`: page `pages[i]` shows `boxes[i]` -- each box set where it is given, and an absent one REMOVED so it
+    // defaults (`PageBoxes`). Which keys that means is the sink's: a box the page would inherit from its tree is written
+    // on the page itself only where the inherited one differs. Already clipped to the MediaBox -- the command's job.
+    virtual Status setPageBoxes(const std::vector<int>& pages, const std::vector<PageBoxes>& boxes, const QString& key) = 0;
+    virtual Status restorePageBoxes(const std::vector<int>& pages, const QString& key) = 0;
+    // `wrapPageContents`: page `pages[i]`'s content drawn through `wraps[i]` -- a marked stream before it and one after
+    // (D7-7), so `unwrapPageContents` takes exactly those two out again, by list, with no content stream parsed.
+    virtual Status wrapPageContents(const std::vector<int>& pages, const std::vector<PageContentWrap>& wraps,
+                                    const QString& key) = 0;
+    virtual Status unwrapPageContents(const std::vector<int>& pages, const QString& key) = 0;
+    // `setPageLabels`: page `pages[i]` labelled `labels[i]`; every other page KEEPS the label it shows. Answers EVERY
+    // page's label afterwards, as a reader shows it -- a document that had no labels now has one on every page, its
+    // own number where nothing else numbers it. `restorePageLabels` puts back the whole numbering the key replaced, and
+    // answers every page's label likewise (empty where the document then has none).
+    virtual Result<std::vector<QString>> setPageLabels(const std::vector<int>& pages, const std::vector<PageLabelSpec>& labels,
+                                                       const QString& key) = 0;
+    virtual Result<std::vector<QString>> restorePageLabels(const QString& key) = 0;
+    // `setPageThumbnails`: page `pages[i]` carries `thumbnails[i]` as its `/Thumb` -- or none, for an empty one.
+    virtual Status setPageThumbnails(const std::vector<int>& pages, const std::vector<PageThumbnail>& thumbnails,
+                                     const QString& key) = 0;
+    virtual Status restorePageThumbnails(const std::vector<int>& pages, const QString& key) = 0;
 };
 
 // =======================================================================================

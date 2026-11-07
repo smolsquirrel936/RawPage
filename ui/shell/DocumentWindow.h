@@ -428,6 +428,8 @@ signals:
     // forwarded from `PageView` for the same reason as the five above.
     void snapshotCopied(int width, int height, int dpi, bool reduced, int askedDpi);
     void snapshotFailed();
+    // S7 T9: a crop box dragged in any of this window's panes (`PageView::cropAsked`).
+    void cropAsked(int page, core::PdfRect box);
 
 private:
     void build(const Recovery* recovery);

@@ -228,6 +228,50 @@ const std::map<std::string, std::function<std::vector<std::unique_ptr<Command>>(
              out.push_back(std::make_unique<core::ReplacePagesCommand>(std::vector<int>{1, 7}, blank.value()));
              return out;
          }},
+        // Stage 7 T9 (D7-15, D7-32): one box set for every page, and a box per page with every box stated; a resize each
+        // way; labels in two styles, one with a prefix in another script; thumbnails set, and taken away.
+        {"page.crop",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             const core::PdfRect letter{core::PdfPoint{0, 0}, core::PdfSize{612, 792}};
+             out.push_back(std::make_unique<core::CropPagesCommand>(
+                 std::vector<int>{0, 3}, std::vector<core::PageBoxes>{core::PageBoxes{letter, core::PdfRect{{36.5, 36}, {540, 720.25}}, {}, {}, {}}}));
+             out.push_back(std::make_unique<core::CropPagesCommand>(
+                 std::vector<int>{1, 2},
+                 std::vector<core::PageBoxes>{core::PageBoxes{letter, {}, letter, letter, letter},
+                                              core::PageBoxes{core::PdfRect{{-10, -10}, {632, 812}}, letter, {}, core::PdfRect{{9, 9}, {594, 774}}, {}}},
+                 QString(32, QLatin1Char('c'))));
+             return out;
+         }},
+        {"page.resize",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             out.push_back(std::make_unique<core::ResizePagesCommand>(std::vector<int>{0}, core::PdfSize{595.276, 841.89}, true,
+                                                                      core::ResizeAnchor::Centre));
+             out.push_back(std::make_unique<core::ResizePagesCommand>(std::vector<int>{0, 1, 2}, core::PdfSize{612, 1008}, false,
+                                                                      core::ResizeAnchor::BottomRight, QString(32, QLatin1Char('d'))));
+             return out;
+         }},
+        {"page.renumber",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             out.push_back(std::make_unique<core::RenumberPagesCommand>(std::vector<int>{0, 1, 2}, core::PageLabelStyle::RomanLower,
+                                                                        QString(), 1));
+             out.push_back(std::make_unique<core::RenumberPagesCommand>(std::vector<int>{3, 7}, core::PageLabelStyle::LettersUpper,
+                                                                        QStringLiteral("附錄-"), 26, QString(32, QLatin1Char('e'))));
+             return out;
+         }},
+        {"page.thumbnails",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             core::PageThumbnail thumbnail{3, 2, QByteArray()};
+             for (int b = 0; b < 18; ++b) thumbnail.rgb.append(static_cast<char>(b * 14));
+             out.push_back(std::make_unique<core::SetEmbeddedThumbnailsCommand>(std::vector<int>{0, 4},
+                                                                                std::vector<core::PageThumbnail>{thumbnail, thumbnail}));
+             out.push_back(std::make_unique<core::SetEmbeddedThumbnailsCommand>(std::vector<int>{0, 1, 2}, std::vector<core::PageThumbnail>{},
+                                                                                QString(32, QLatin1Char('f'))));
+             return out;
+         }},
         // Stage 6 T13 (D6-20): an import that only adds -- an exchange's names, an Acrobat-shaped one among them --
         // one that only replaces, and one that does both.
         {"annot.import",
@@ -275,7 +319,7 @@ bool catalogHas(const char* file, QLatin1String key)
 // A-42 -- the registry round-trips what it registered and refuses what it did not
 // ==========================================================================================
 
-TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][serialize][serialize:RotatePageCommand][serialize:AddAnnotationCommand][serialize:DeleteAnnotationCommand][serialize:EditAnnotationCommand][serialize:MoveAnnotationCommand][serialize:SetAnnotationAppearanceCommand][serialize:LockAnnotationCommand][serialize:ReplyToAnnotationCommand][serialize:SetAnnotationStatusCommand][serialize:AddAttachmentCommand][serialize:DeleteAttachmentCommand][serialize:ImportAnnotationsCommand][serialize:MovePagesCommand][serialize:DeletePagesCommand][serialize:DuplicatePagesCommand][serialize:InsertPagesCommand][serialize:ReplacePagesCommand]")
+TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][serialize][serialize:RotatePageCommand][serialize:AddAnnotationCommand][serialize:DeleteAnnotationCommand][serialize:EditAnnotationCommand][serialize:MoveAnnotationCommand][serialize:SetAnnotationAppearanceCommand][serialize:LockAnnotationCommand][serialize:ReplyToAnnotationCommand][serialize:SetAnnotationStatusCommand][serialize:AddAttachmentCommand][serialize:DeleteAttachmentCommand][serialize:ImportAnnotationsCommand][serialize:MovePagesCommand][serialize:DeletePagesCommand][serialize:DuplicatePagesCommand][serialize:InsertPagesCommand][serialize:ReplacePagesCommand][serialize:CropPagesCommand][serialize:ResizePagesCommand][serialize:RenumberPagesCommand][serialize:SetEmbeddedThumbnailsCommand]")
 {
     const auto typeIds = CommandRegistry::typeIds();
     REQUIRE_FALSE(typeIds.empty());
@@ -311,7 +355,8 @@ TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][s
         CHECK(registered);
     }
     // page.rotate: 16 one-page samples and, since Stage 7 T8, 3 sets.
-    CHECK(roundTrips == 16 + 3 + 3 + 2 + 2 + 2 + 2 + 2 + 2 + 3 + 2 + 2 + 3 + 3 + 2 + 2 + 2 + 1);
+    // Stage 7 T9: crop, resize, renumber and thumbnails, two each.
+    CHECK(roundTrips == 16 + 3 + 3 + 2 + 2 + 2 + 2 + 2 + 2 + 3 + 2 + 2 + 3 + 3 + 2 + 2 + 2 + 1 + 2 + 2 + 2 + 2);
 }
 
 // Stage 6 T13 (D6-20): an import is a journal line carrying two sets -- what it adds must be what an add accepts,
@@ -519,6 +564,95 @@ TEST_CASE("CommandRegistry refuses every malformed page-order command by Result"
         auto copied = CommandRegistry::deserialize(QJsonObject{{"type", "page.duplicate"}, {"pages", QJsonArray{4}}, {"key", key}});
         REQUIRE(copied);
         CHECK(dynamic_cast<core::DuplicatePagesCommand*>(copied.value().get())->copyName(2) == key + QStringLiteral("-2"));
+    }
+}
+
+TEST_CASE("CommandRegistry refuses every malformed box, resize, label or thumbnail command by Result", "[cmd][serialize][hostile][pages][T9]")
+{
+    // Stage 7 T9: each field checked for presence, type and range before a command exists -- the recovery journal is a
+    // file on disk (guide A-45's argument) -- and a thumbnail's compressed bytes checked against the size they CLAIM
+    // before anything is decompressed: `qUncompress` allocates what the first four bytes say.
+    const QString key(32, QLatin1Char('b'));
+    const QJsonArray letter{0, 0, 612, 792};
+    const auto crop = [&](QJsonValue boxes) {
+        return QJsonObject{{"type", "page.crop"}, {"pages", QJsonArray{0, 1}}, {"key", key}, {"boxes", boxes}};
+    };
+    const auto resize = [&](const char* field, QJsonValue value) {
+        QJsonObject json{{"type", "page.resize"}, {"pages", QJsonArray{0}}, {"key", key}, {"width", 595}, {"height", 842},
+                         {"scale", true}, {"anchor", 4}};
+        if (value.isUndefined()) json.remove(QLatin1String(field));
+        else json.insert(QLatin1String(field), value);
+        return json;
+    };
+    const auto renumber = [&](const char* field, QJsonValue value) {
+        QJsonObject json{{"type", "page.renumber"}, {"pages", QJsonArray{0, 1}}, {"key", key}, {"style", "D"}, {"prefix", ""}, {"start", 1}};
+        if (value.isUndefined()) json.remove(QLatin1String(field));
+        else json.insert(QLatin1String(field), value);
+        return json;
+    };
+    // 2 x 1 pixels claimed as 6 bytes, and the same bytes claiming 4 GB.
+    const QByteArray pixels = qCompress(QByteArray(6, '\x40'));
+    QByteArray lying = pixels;
+    lying[0] = '\xff';
+    const auto thumbnails = [&](QJsonValue value) {
+        return QJsonObject{{"type", "page.thumbnails"}, {"pages", QJsonArray{0}}, {"key", key}, {"thumbnails", value}};
+    };
+    const auto one = [&](int width, int height, QByteArray bytes) {
+        return QJsonArray{QJsonObject{{"width", width}, {"height", height}, {"rgb", QString::fromLatin1(bytes.toBase64())}}};
+    };
+    const std::vector<std::pair<const char*, QJsonObject>> hostile{
+        {"crop: boxes missing", QJsonObject{{"type", "page.crop"}, {"pages", QJsonArray{0}}, {"key", key}}},
+        {"crop: boxes empty", crop(QJsonArray{})},
+        {"crop: three boxes for two pages", crop(QJsonArray{QJsonObject{{"media", letter}}, QJsonObject{{"media", letter}}, QJsonObject{{"media", letter}}})},
+        {"crop: no media", crop(QJsonArray{QJsonObject{{"crop", letter}}})},
+        {"crop: media three numbers", crop(QJsonArray{QJsonObject{{"media", QJsonArray{0, 0, 612}}}})},
+        {"crop: media inverted", crop(QJsonArray{QJsonObject{{"media", QJsonArray{612, 792, 0, 0}}}})},
+        {"crop: media a string", crop(QJsonArray{QJsonObject{{"media", "0 0 612 792"}}})},
+        {"crop: an edge past the bound", crop(QJsonArray{QJsonObject{{"media", QJsonArray{0, 0, 1.0e8, 792}}}})},
+        {"crop: a box no box has", crop(QJsonArray{QJsonObject{{"media", letter}, {"bleeed", letter}}})},
+        {"crop: a box not an object", crop(QJsonArray{7})},
+        {"resize: width missing", resize("width", QJsonValue::Undefined)},
+        {"resize: width 2", resize("width", 2)},
+        {"resize: height 14401", resize("height", 14401)},
+        {"resize: height a string", resize("height", "842")},
+        {"resize: scale a number", resize("scale", 1)},
+        {"resize: anchor 9", resize("anchor", 9)},
+        {"resize: anchor -1", resize("anchor", -1)},
+        {"resize: anchor 4.5", resize("anchor", 4.5)},
+        {"renumber: style unknown", renumber("style", "X")},
+        {"renumber: style missing", renumber("style", QJsonValue::Undefined)},
+        {"renumber: prefix a number", renumber("prefix", 3)},
+        {"renumber: prefix 257 characters", renumber("prefix", QString(257, QLatin1Char('p')))},
+        {"renumber: start 0", renumber("start", 0)},
+        {"renumber: start past the bound", renumber("start", core::RenumberPagesCommand::kMaxStart)},
+        {"renumber: start a string", renumber("start", "1")},
+        {"thumbnails: not an array", thumbnails(7)},
+        {"thumbnails: two for one page", thumbnails(QJsonArray{one(2, 1, pixels).at(0), one(2, 1, pixels).at(0)})},
+        {"thumbnails: width 0", thumbnails(one(0, 1, pixels))},
+        {"thumbnails: width past the bound", thumbnails(one(core::kMaxThumbnailEdge + 1, 1, pixels))},
+        {"thumbnails: bytes claiming 4 GB", thumbnails(one(2, 1, lying))},
+        {"thumbnails: bytes claiming another size", thumbnails(one(1, 1, pixels))},
+        {"thumbnails: bytes not base64", thumbnails(QJsonArray{QJsonObject{{"width", 2}, {"height", 1}, {"rgb", "!!!!"}}})},
+        {"thumbnails: bytes missing", thumbnails(QJsonArray{QJsonObject{{"width", 2}, {"height", 1}}})},
+    };
+    for (const auto& [label, json] : hostile) {
+        INFO("input: " << label);
+        auto result = CommandRegistry::deserialize(json);
+        REQUIRE_FALSE(result);
+        CHECK(result.error().code == core::ErrorCode::ParseFailure);
+        CHECK(keyOf(result.error()) == "error.command.malformed");
+    }
+    SECTION("THE CONTROL: the same shapes, right, are read")
+    {
+        CHECK(CommandRegistry::deserialize(crop(QJsonArray{QJsonObject{{"media", letter}, {"crop", QJsonArray{10, 10, 600, 780}}}})));
+        CHECK(CommandRegistry::deserialize(resize("anchor", 8)));
+        CHECK(CommandRegistry::deserialize(renumber("start", core::RenumberPagesCommand::kMaxStart - 1)));
+        auto read = CommandRegistry::deserialize(thumbnails(one(2, 1, pixels)));
+        REQUIRE(read);
+        const auto* command = dynamic_cast<const core::SetEmbeddedThumbnailsCommand*>(read.value().get());
+        REQUIRE(command != nullptr);
+        REQUIRE(command->thumbnails().size() == 1);
+        CHECK(command->thumbnails().front().rgb == QByteArray(6, '\x40'));
     }
 }
 

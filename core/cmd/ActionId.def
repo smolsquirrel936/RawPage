@@ -444,6 +444,12 @@ RAWPAGE_ACTION(PageSplit,              "page.split",              Global,       
 RAWPAGE_ACTION(PageCrop,               "page.crop",               Viewer,         "action.page.crop")
 RAWPAGE_ACTION(PageResize,             "page.resize",             Global,         "action.page.resize")
 RAWPAGE_ACTION(PageRenumber,           "page.renumber",           Global,         "action.page.renumber")
+// Stage 7 T9 (`Stage7-Assembly-Plan.md` §4: *minted where a surface needs one §8 does not*): the Set Page Boxes dialog,
+// which `page.crop` -- its tool -- fills in from a dragged box and which is reached on its own for numbers; and the
+// embedded thumbnails, put in and taken out (`Features.md` §5.2).
+RAWPAGE_ACTION(PageSetBoxes,           "page.setBoxes",           Global,         "action.page.setBoxes")
+RAWPAGE_ACTION(PageEmbedThumbnails,    "page.embedThumbnails",    Global,         "action.page.embedThumbnails")
+RAWPAGE_ACTION(PageRemoveThumbnails,   "page.removeThumbnails",   Global,         "action.page.removeThumbnails")
 RAWPAGE_ACTION(PageDuplicate,          "page.duplicate",          PageThumbnails, "action.page.duplicate")
 RAWPAGE_ACTION(PageMoveEarlier,        "page.moveEarlier",        PageThumbnails, "action.page.moveEarlier")
 RAWPAGE_ACTION(PageMoveLater,          "page.moveLater",          PageThumbnails, "action.page.moveLater")

@@ -101,9 +101,11 @@ enum class ToolKind {
     // Stage 6 T5 (D6-9): one of the fourteen annotation tools is armed -- which one is
     // `ToolController::armedAnnotation()` (`ui/viewer/tools/AnnotationTool.h`).
     Annotate,
+    // Stage 7 T9 (D7-15): `page.crop`'s box, dragged on the page (`ui/viewer/tools/CropTool.h`).
+    Crop,
 };
 
-inline constexpr int kToolKindCount = 6;
+inline constexpr int kToolKindCount = 7;
 
 const char* toolKindName(ToolKind kind) noexcept;
 
@@ -189,6 +191,16 @@ public:
     virtual bool takeSnapshot(const QRect& band)
     {
         (void)band;
+        return false;
+    }
+
+    // ---- The Crop tool's one (S7 T9, D7-15) --------------------------------------------------------
+    // Crop page `page` to `box` -- the page's own points, as dragged and snapped. The host decides what a person is
+    // asked; the tool makes no command. Returns whether anything was asked for: false in a host with no document.
+    virtual bool cropToBox(int page, core::PdfRect box)
+    {
+        (void)page;
+        (void)box;
         return false;
     }
 

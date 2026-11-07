@@ -205,10 +205,17 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // `.moveLater`, `.duplicate`, `.insert` and `.replace`, all declared since Stage 1 (`MainWindowPages.cpp`). 389 ids
     // are declared.
     //
+    // **Six more at Stage 7 T9** (D7-15, D7-32): `page.crop` (the crop tool), `page.resize` and `page.renumber`, declared
+    // since Stage 1, and the three it MINTED -- `page.setBoxes`, `page.embedThumbnails` and `page.removeThumbnails`
+    // (`Stage7-Assembly-Plan.md` §4's *minted where a surface needs one*). 392 ids are declared.
+    //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 186);
+    CHECK(fixture.actions.registeredCount() == 192);
+    CHECK(fixture.actions.isRegistered(core::ActionId::PageCrop));               // S7 T9
+    CHECK(fixture.actions.isRegistered(core::ActionId::PageSetBoxes));           // S7 T9, minted
+    CHECK(fixture.actions.isRegistered(core::ActionId::PageEmbedThumbnails));    // S7 T9, minted
     CHECK(fixture.actions.isRegistered(core::ActionId::PageDelete));             // S7 T8
     CHECK(fixture.actions.isRegistered(core::ActionId::PageReplace));            // S7 T8
     CHECK(fixture.actions.isRegistered(core::ActionId::PageExtract));            // S7 T7

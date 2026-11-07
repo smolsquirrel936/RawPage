@@ -158,6 +158,95 @@ public:
         ++calls;
         return {};
     }
+    // Stage 7 T9: boxes, wrappers, labels and thumbnails, accepted and recorded -- the last of each, by page, for a case
+    // that asks; a label command answers every page's label as its number in the style asked, a crude stand-in that
+    // keeps a page's label a string a person could read.
+    core::Status setPageBoxes(const std::vector<int>& pages, const std::vector<core::PageBoxes>& boxes, const QString& key) override
+    {
+        ++pageCommands;
+        ++calls;
+        std::vector<std::pair<int, std::optional<core::PageBoxes>>> before;
+        for (std::size_t i = 0; i < pages.size(); ++i) {
+            const auto found = pageBoxes.find(pages[i]);
+            before.emplace_back(pages[i], found == pageBoxes.end() ? std::nullopt : std::optional<core::PageBoxes>(found->second));
+            pageBoxes.insert_or_assign(pages[i], boxes[i]);
+        }
+        boxStash.insert_or_assign(key, std::move(before));
+        return {};
+    }
+    core::Status restorePageBoxes(const std::vector<int>&, const QString& key) override
+    {
+        ++pageCommands;
+        ++calls;
+        const auto found = boxStash.find(key);
+        if (found == boxStash.end()) return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.command.malformed"), QString()};
+        for (const auto& [page, boxes] : found->second) {
+            if (boxes) pageBoxes.insert_or_assign(page, *boxes);
+            else pageBoxes.erase(page);
+        }
+        boxStash.erase(found);
+        return {};
+    }
+    core::Status wrapPageContents(const std::vector<int>& pages, const std::vector<core::PageContentWrap>&, const QString&) override
+    {
+        ++pageCommands;
+        ++calls;
+        wrapped += static_cast<int>(pages.size());
+        return {};
+    }
+    core::Status unwrapPageContents(const std::vector<int>& pages, const QString&) override
+    {
+        ++pageCommands;
+        ++calls;
+        wrapped -= static_cast<int>(pages.size());
+        return {};
+    }
+    core::Result<std::vector<QString>> setPageLabels(const std::vector<int>& pages, const std::vector<core::PageLabelSpec>& labels,
+                                                     const QString& key) override
+    {
+        ++pageCommands;
+        ++calls;
+        labelStash.insert_or_assign(key, shownLabels);
+        if (shownLabels.size() < static_cast<std::size_t>(labelPageCount)) shownLabels.resize(static_cast<std::size_t>(labelPageCount));
+        if (!pages.empty() && shownLabels.size() <= static_cast<std::size_t>(pages.back()))
+            return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.pdf.pageOutOfRange"), QString()};
+        for (std::size_t i = 0; i < pages.size(); ++i)
+            shownLabels[static_cast<std::size_t>(pages[i])] = labels[i].prefix + QString::number(labels[i].value);
+        return shownLabels;
+    }
+    core::Result<std::vector<QString>> restorePageLabels(const QString& key) override
+    {
+        ++pageCommands;
+        ++calls;
+        const auto found = labelStash.find(key);
+        if (found == labelStash.end()) return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.command.malformed"), QString()};
+        shownLabels = found->second;
+        labelStash.erase(found);
+        std::vector<QString> out = shownLabels;
+        out.resize(static_cast<std::size_t>(labelPageCount));
+        return out;
+    }
+    core::Status setPageThumbnails(const std::vector<int>& pages, const std::vector<core::PageThumbnail>& thumbnails, const QString&) override
+    {
+        ++pageCommands;
+        ++calls;
+        for (std::size_t i = 0; i < pages.size(); ++i) thumbnailsSet.insert_or_assign(pages[i], thumbnails[i]);
+        return {};
+    }
+    core::Status restorePageThumbnails(const std::vector<int>& pages, const QString&) override
+    {
+        ++pageCommands;
+        ++calls;
+        for (const int page : pages) thumbnailsSet.erase(page);
+        return {};
+    }
+    std::map<int, core::PageBoxes> pageBoxes;
+    std::map<QString, std::vector<std::pair<int, std::optional<core::PageBoxes>>>> boxStash;
+    int wrapped = 0;
+    std::vector<QString> shownLabels;
+    std::map<QString, std::vector<QString>> labelStash;
+    int labelPageCount = 0;   // the document's page count, for a label command's answer
+    std::map<int, core::PageThumbnail> thumbnailsSet;
     core::InsertedPages insertedPages() const
     {
         core::InsertedPages out;

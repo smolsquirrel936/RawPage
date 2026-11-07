@@ -116,6 +116,8 @@ struct PageReference {
         RemoteGoTo,         // a GoToR: a page NUMBER in another file -- never repaired from here
         IndexDestination,   // a local destination naming its page by integer -- a producer's error
         WidgetNotCopied,    // a duplicated page's form field widget: fields are D7-16's
+        PageBox,            // S7 T9: a box asked outside the MediaBox -- clipped to it (D7-15)
+        PageComments,       // S7 T9: comments on a page resized with scaling, which keep their rectangles (D7-32)
     };
     enum class Treatment : std::uint8_t {
         Cleared,    // kept, its destination or action removed (an outline item, a link)
@@ -123,6 +125,7 @@ struct PageReference {
         Unlinked,   // taken out of its chain (a bead)
         Reported,   // left exactly as written, and said so
         NotCopied,  // left behind on purpose
+        Clipped,    // S7 T9: cut down to what the page can hold
     };
 
     Kind kind = Kind::OutlineItem;

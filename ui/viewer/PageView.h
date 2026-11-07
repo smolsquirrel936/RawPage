@@ -462,6 +462,9 @@ signals:
     // shell's (`ui/viewer/` holds no catalog key); `snapshotFailed` is the raster coming back invalid.
     void snapshotCopied(int width, int height, int dpi, bool reduced, int askedDpi);
     void snapshotFailed();
+    // S7 T9 (D7-15): the Crop tool's box, dragged on page `page` (zero-based) in its own points -- the shell decides
+    // what a person is asked; `ui/viewer/` constructs no command.
+    void cropAsked(int page, core::PdfRect box);
 
     // S6 T12 (D6-14): a measurement was made, reading `reading`; and a distance was measured to CALIBRATE, `points`
     // long on the page -- the shell asks what it is known to be (`ui/dialogs/MeasurementScaleDialog`).
@@ -624,6 +627,8 @@ private:
         PagePoint iconPointAt(QPoint pos, core::CommentingTool tool) const override { return view_.iconPointAt(pos, tool); }
         // A FROZEN PANE SNAPSHOTS WHAT IT SHOWS (S5 T10): the band is in this pane's coordinates.
         bool takeSnapshot(const QRect& band) override { return view_.takeSnapshot(band); }
+        // S7 T9: a crop box dragged in this pane is the window's to ask about.
+        bool cropToBox(int page, core::PdfRect box) override { return view_.cropToBox(page, box); }
         // S6 T6: the annotation tools make into the window's overlay, and type into this pane's editor.
         AnnotationOverlay* annotationOverlay() const override { return view_.annotationOverlay(); }
         using ToolHost::requestAnnotationText;
@@ -712,6 +717,7 @@ public:
     // `ToolHost`'s: asks for `band`'s region and returns whether it did. The image reaches the clipboard
     // when the raster arrives, and `snapshotCopied` says so.
     bool takeSnapshot(const QRect& band) override;
+    bool cropToBox(int page, core::PdfRect box);
 
     // The snapshot's scheduler client, read-only, for the cases.
     const LoupeRaster& snapshotRaster() const noexcept { return *snapshotRaster_; }

@@ -797,6 +797,7 @@ void DocumentWindow::handDocumentTo(PageView* pane)
     // never a lambda, which is where `Qt::UniqueConnection` is a debug-only fail-fast (S4 guide I-09).
     connect(pane, &PageView::snapshotCopied, this, &DocumentWindow::snapshotCopied, Qt::UniqueConnection);
     connect(pane, &PageView::snapshotFailed, this, &DocumentWindow::snapshotFailed, Qt::UniqueConnection);
+    connect(pane, &PageView::cropAsked, this, &DocumentWindow::cropAsked, Qt::UniqueConnection);   // S7 T9
 
     core::IDocumentBackend& backend = services_.backend;
     const core::DocumentHandle handle = handle_;

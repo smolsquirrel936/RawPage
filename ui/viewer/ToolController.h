@@ -69,6 +69,7 @@
 #include "ui/viewer/tools/TypewriterTool.h"
 #include "ui/viewer/tools/SelectTool.h"
 #include "ui/viewer/tools/SnapshotTool.h"
+#include "ui/viewer/tools/CropTool.h"
 #include "ui/viewer/tools/Tool.h"
 
 #include <QObject>
@@ -203,6 +204,7 @@ private:
     MarqueeZoomTool marquee_;
     LoupeTool       loupe_;
     SnapshotTool    snapshot_;
+    CropTool        crop_;       // S7 T9: page.crop's box
     AnnotationTool  annotation_;
     MarkupTool      markup_;     // S6 T6
     NoteTool        note_;       // S6 T6

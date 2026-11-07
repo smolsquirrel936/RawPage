@@ -35,8 +35,11 @@
 
 #include "core/Geometry.h"
 
+#include <QByteArray>
 #include <QString>
 
+#include <array>
+#include <cstdint>
 #include <optional>
 
 namespace rawpage::core {
@@ -104,6 +107,58 @@ private:
 // the box-resolution rule above is "intersect with the MediaBox" and a second implementation of
 // that is a second place to get an inverted rectangle.
 PdfRect intersect(PdfRect a, PdfRect b) noexcept;
+
+// -------------------------------------------------------------------------------------------
+// WHAT A PAGE-BOX, LABEL OR THUMBNAIL COMMAND WRITES -- Stage 7 T9 (`Stage7-Assembly-Plan.md` D7-15, D7-32)
+// -------------------------------------------------------------------------------------------
+// A page's five boxes as a page-box command leaves them: the MediaBox, and each other box the page STATES -- an
+// absent one defaults through the chain above. What the sink is told and what the model holds, so the two say the
+// same thing in the same words.
+struct PageBoxes {
+    PdfRect media;
+    std::optional<PdfRect> crop;
+    std::optional<PdfRect> bleed;
+    std::optional<PdfRect> trim;
+    std::optional<PdfRect> art;
+    friend bool operator==(const PageBoxes&, const PageBoxes&) = default;
+};
+// The boxes `page` holds, and `page` given `boxes` -- its rotation, label and index kept.
+PageBoxes boxesOf(const Page& page);
+void setBoxes(Page& page, const PageBoxes& boxes);
+
+// A page label's numbering style (ISO 32000-1 §12.4.2, Table 159's /S): none -- the prefix alone -- decimal, roman
+// upper and lower, letters upper and lower.
+enum class PageLabelStyle : std::uint8_t { None, Decimal, RomanUpper, RomanLower, LettersUpper, LettersLower };
+// One page's label as a range states it: the style, the prefix, and this page's number in its range (from 1).
+struct PageLabelSpec {
+    PageLabelStyle style = PageLabelStyle::Decimal;
+    QString prefix;
+    int value = 1;
+    friend bool operator==(const PageLabelSpec&, const PageLabelSpec&) = default;
+};
+
+// A page's embedded thumbnail image (ISO 32000-1 §12.3.4, `/Thumb`): `width` x `height` pixels of 8-bit RGB, row by
+// row from the top, no padding. EMPTY means the page carries none -- what a removal writes.
+struct PageThumbnail {
+    int width = 0;
+    int height = 0;
+    QByteArray rgb;
+    bool isEmpty() const noexcept { return width <= 0 || height <= 0 || rgb.isEmpty(); }
+    // A thumbnail whose bytes are exactly `width * height * 3` and whose edges are inside `kMaxThumbnailEdge`.
+    bool isWellFormed() const noexcept;
+    friend bool operator==(const PageThumbnail&, const PageThumbnail&) = default;
+};
+// The longest edge a thumbnail is made at, and the most a command accepts -- Acrobat writes about 106 pixels.
+inline constexpr int kThumbnailEdge = 128;
+inline constexpr int kMaxThumbnailEdge = 1024;
+
+// A page's content WRAPPED by a resize with scaling (D7-7): drawn through `matrix` (a b c d e f) and clipped to
+// `clip`, a rectangle in the page's OLD coordinates -- what it showed before.
+struct PageContentWrap {
+    std::array<double, 6> matrix{1.0, 0.0, 0.0, 1.0, 0.0, 0.0};
+    PdfRect clip;
+    friend bool operator==(const PageContentWrap&, const PageContentWrap&) = default;
+};
 
 } // namespace rawpage::core
 

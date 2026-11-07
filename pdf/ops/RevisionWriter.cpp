@@ -259,6 +259,37 @@ core::Status verifyModel(cos::OpenedFile& opened, const MutationSinkImpl& sink)
                              QStringLiteral("rotation:%1").arg(index + 1));
         }
     }
+    // Stage 7 T9: every page a box command changed SHOWS the boxes it was given -- its MediaBox and CropBox as the walk
+    // resolves them (inherited where it inherits), the three others its own -- and the labels are the ones composed.
+    // SHOWS, resolved as a reader resolves them (`core::Page`): a CropBox removed from a page that would inherit one is
+    // written as its MediaBox, which shows exactly what an absent one would.
+    {
+        const auto resolved = [](const core::PageBoxes& boxes) {
+            core::Page page(0, boxes.media);
+            core::setBoxes(page, boxes);
+            return std::array<core::PdfRect, 5>{page.mediaBox(), page.cropBox(), page.bleedBox(), page.trimBox(), page.artBox()};
+        };
+        const std::vector<std::optional<core::PageBoxes>> boxes = sink.drawnBoxes();
+        for (int index = 0; index < sink.pageCount(); ++index) {
+            const std::optional<core::PageBoxes>& want = boxes[static_cast<std::size_t>(index)];
+            if (!want) continue;
+            const PageEntry& entry = walk.value().pages[static_cast<std::size_t>(index)];
+            auto page = opened.table.fetch(entry.number);
+            if (!page || !page.value().object.isDictionary())
+                return saveError(core::ErrorCode::Corrupted, "error.save.verifyFailed", QStringLiteral("boxes:%1").arg(index + 1));
+            std::map<std::string, cos::CosObject> inherited;
+            const auto asObject = [](const std::array<double, 4>& b) {
+                return cos::CosObject::makeArray({cos::CosObject::makeReal(b[0]), cos::CosObject::makeReal(b[1]),
+                                                  cos::CosObject::makeReal(b[2]), cos::CosObject::makeReal(b[3])});
+            };
+            if (entry.mediaBox) inherited.emplace("MediaBox", asObject(*entry.mediaBox));
+            if (entry.cropBox) inherited.emplace("CropBox", asObject(*entry.cropBox));
+            if (resolved(PageOps::shownBoxes(page.value().object, inherited)) != resolved(*want))
+                return saveError(core::ErrorCode::Corrupted, "error.save.verifyFailed", QStringLiteral("boxes:%1").arg(index + 1));
+        }
+        if (sink.labelsChanged() && PageOps::readLabels(opened.table, sink.pageCount()) != sink.desiredLabels())
+            return saveError(core::ErrorCode::Corrupted, "error.save.verifyFailed", QStringLiteral("labels"));
+    }
 
     // Every page's /Annots reads back as the sink composed it (Stage 6 T3) -- a created annotation as a
     // dictionary with its /NM, its /Subtype, its page and a well-formed appearance, every other entry

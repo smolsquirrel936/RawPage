@@ -527,6 +527,9 @@ core::Result<cos::ObjectDelta> MutationSinkImpl::delta()
         if (dictionary.value())
             pageDictionaries.emplace(page.number, std::move(*dictionary.value()));
     }
+    // S7 T9: boxes, a resize's wrapper and the thumbnail -- last of what a page dictionary carries, onto whatever the
+    // steps above made of it.
+    if (core::Status edits = composePageEdits(delta, pageDictionaries); !edits) return edits.error();
     if (core::Status labels = composeLabels(pageDictionaries); !labels) return labels.error();
     if (core::Status repairs = composeRepairs(pageDictionaries); !repairs) return repairs.error();
     if (core::Status annotations = composeAnnotations(delta, pageDictionaries); !annotations)
@@ -1803,6 +1806,39 @@ core::Status MutationSinkImpl::adopt(std::string_view bytes)
     // revision is reused, so the references read from them go.
     if (!retired_.empty()) table_.setRetired(retired_.front()->table.get());
     writtenReferences_.clear();
+    // S7 T9: each page's boxes, wrapper and thumbnail follow it to the number the save gave it; an image the save
+    // WROTE is the file's now, so nothing writes it again; and what an undo would put back for a page the save first
+    // wrote -- "as the page it is drawn from has it" -- is said as what that was: none, for a page drawn from one
+    // carrying no thumbnail (a page whose source carried one keeps the new one on such an undo -- a bound, D7-32).
+    {
+        std::map<long long, long long> numbers;
+        for (std::size_t at = 0; at < walk_.pages.size(); ++at) {
+            const long long was = walk_.pages[at].number;
+            if (was < 0) numbers.emplace(was, walk.value().pages[at].number);
+            if (const auto thumb = thumbs_.find(was); thumb != thumbs_.end() && thumb->second.image) thumbs_.erase(thumb);
+        }
+        for (auto& [key, entries] : thumbStash_) {
+            for (auto& [number, state] : entries) {
+                if (!state.keep || (number >= 0 && replaced_.count(number) == 0)) continue;
+                bool carries = false;
+                const auto made = newPages_.find(number);
+                std::optional<GraphPage> drawnFrom;
+                if (made != newPages_.end()) drawnFrom = made->second.graph;
+                else if (const auto replacing = replaced_.find(number); replacing != replaced_.end()) drawnFrom = replacing->second;
+                if (drawnFrom) {
+                    if (const auto graph = graphs_.find(drawnFrom->key); graph != graphs_.end()) {
+                        auto fetched = graph->second.table.fetch(drawnFrom->local);
+                        carries = fetched && fetched.value().object.has("Thumb");
+                    }
+                } else if (made != newPages_.end()) {
+                    auto fetched = table_.fetch(made->second.source);
+                    carries = fetched && fetched.value().object.has("Thumb");
+                }
+                if (!carries) state = ThumbState{};
+            }
+        }
+        renumberPageEdits(numbers);
+    }
     // S7 T2: the new pages are now objects the file holds; what the repair wrote joins the ledger -- an older
     // value it holds stays, being the one before RawPage changed anything -- and a value back as it was
     // leaves it; and the scan and the shape, read from the old revision, go.
@@ -2260,6 +2296,10 @@ core::Result<core::DuplicatedPages> MutationSinkImpl::duplicatePages(const std::
             newPages_.emplace(slot.entry.number, std::move(drawsFrom));
             if (const auto drawn = drawnAs_.find(source.number); drawn != drawnAs_.end())
                 drawnAs_.insert_or_assign(slot.entry.number, drawn->second);
+            // S7 T9: a copy of the page as it is now -- its boxes, its resize's wrapper and its thumbnail with it.
+            if (const auto boxes = boxes_.find(source.number); boxes != boxes_.end()) boxes_.insert_or_assign(slot.entry.number, boxes->second);
+            if (const auto wraps = wraps_.find(source.number); wraps != wraps_.end()) wraps_.insert_or_assign(slot.entry.number, wraps->second);
+            if (const auto thumb = thumbs_.find(source.number); thumb != thumbs_.end()) thumbs_.insert_or_assign(slot.entry.number, thumb->second);
             if (const auto turned = desired_.find(page); turned != desired_.end()) slot.rotation = turned->second;
             if (!labels_.empty()) {
                 slot.label = labels_[static_cast<std::size_t>(page)];
@@ -2445,12 +2485,12 @@ core::Status MutationSinkImpl::composePageOrder(cos::ObjectDelta&, std::map<long
 
 core::Status MutationSinkImpl::composeLabels(std::map<long long, cos::CosObject>& pending)
 {
-    if (labels_.empty()) return core::Status{};
+    // S7 T9: NO LABELS after a label command -- one undone after a save that wrote them -- takes /PageLabels away.
+    if (labels_.empty() && !labelsTouched_) return core::Status{};
     if (PageOps::readLabels(table_, pageCount()) == labels_) return core::Status{};   // the disk already says it
     const cos::CosObject& root = table_.trailer().get("Root");
     if (!root.isReference()) return sinkError(core::ErrorCode::Corrupted, "error.pdf.objectMissing", -1);
     const long long catalogNumber = root.reference().number;
-    cos::CosObject tree = PageOps::labelTree(labels_);
 
     auto catalog = pending.find(catalogNumber);
     if (catalog == pending.end()) {
@@ -2461,6 +2501,11 @@ core::Status MutationSinkImpl::composeLabels(std::map<long long, cos::CosObject>
         value.clearSpansRecursively();
         catalog = pending.emplace(catalogNumber, std::move(value)).first;
     }
+    if (labels_.empty()) {
+        catalog->second = AnnotationOps::withoutEntry(catalog->second, "PageLabels");
+        return core::Status{};
+    }
+    cos::CosObject tree = PageOps::labelTree(labels_);
     // Into the number tree's own object when the catalog names one, else into the catalog.
     const cos::CosObject* labels = catalog->second.find("PageLabels");
     if (labels != nullptr && labels->isReference()) {
@@ -2816,6 +2861,9 @@ core::Result<core::InsertedPages> MutationSinkImpl::replacePages(const std::vect
         if (const auto r = restored_.find(slot.number); r != restored_.end()) slot.restored = r->second;
         if (const auto d = drawnAs_.find(slot.number); d != drawnAs_.end()) slot.drawnAs = d->second;
         if (const auto g = graphOfPage_.find(slot.number); g != graphOfPage_.end()) slot.graphOf = g->second;
+        if (const auto b = boxes_.find(slot.number); b != boxes_.end()) slot.boxes = b->second;
+        if (const auto w = wraps_.find(slot.number); w != wraps_.end()) slot.wraps = w->second;
+        if (const auto t = thumbs_.find(slot.number); t != thumbs_.end()) slot.thumb = t->second;
         if (auto current = table_.fetch(slot.number); current && current.value().object.isDictionary())
             slot.onDisk = withoutSpans(current.value().object);
         // What it drew no longer matches its structure: said, and its /StructParents dropped when it is written.
@@ -2839,6 +2887,9 @@ core::Result<core::InsertedPages> MutationSinkImpl::replacePages(const std::vect
         replaced_.insert_or_assign(entry.number, GraphPage{key, local});
         restored_.erase(entry.number);
         graphOfPage_.erase(entry.number);
+        boxes_.erase(entry.number);   // S7 T9: what it draws is the payload page's now
+        wraps_.erase(entry.number);
+        thumbs_.erase(entry.number);
         core::Page facts = pageFactsOf(payload, static_cast<int>(i));
         drawnAs_.insert_or_assign(entry.number, facts);
         if (!copies.listings[i].empty()) {
@@ -2887,6 +2938,12 @@ core::Status MutationSinkImpl::restoreReplacedPages(const std::vector<int>& page
         else drawnAs_.erase(slot.number);
         if (slot.graphOf) graphOfPage_.insert_or_assign(slot.number, *slot.graphOf);
         else graphOfPage_.erase(slot.number);
+        if (slot.boxes) boxes_.insert_or_assign(slot.number, *slot.boxes);
+        else boxes_.erase(slot.number);
+        if (slot.wraps) wraps_.insert_or_assign(slot.number, *slot.wraps);
+        else wraps_.erase(slot.number);
+        if (slot.thumb) thumbs_.insert_or_assign(slot.number, *slot.thumb);
+        else thumbs_.erase(slot.number);
     }
     replacedStash_.erase(found);
     return core::Status{};
@@ -3268,6 +3325,358 @@ core::Status MutationSinkImpl::composeReplacements(std::map<long long, cos::CosO
         if (core::Status done = finish(number, at->second, std::move(out)); !done) return done;
     }
     return core::Status{};
+}
+
+
+// ==========================================================================================
+// Boxes, content, labels and thumbnails (Stage 7 T9) -- the header's last section
+// ==========================================================================================
+// Four kinds of per-page value, each keyed by the page OBJECT so a page command carries them with no work, each set
+// from a command and KEPT under its key so the restore puts back exactly what was there. Each compose writes, for every
+// page in the order one of them touches, the page dictionary as it would be written anyway with these applied last --
+// and nothing when that is the dictionary it already has, which is what makes an undo before a save write nothing.
+
+namespace {
+
+core::Error editsError(const char* key, long long detail = -1)
+{
+    return core::Error{core::ErrorCode::InvalidArgument, QLatin1String(key),
+                       detail < 0 ? QString() : QString::number(static_cast<qlonglong>(detail))};
+}
+
+} // namespace
+
+std::string MutationSinkImpl::pageBookName(int index) const
+{
+    const long long number = walk_.pages[static_cast<std::size_t>(index)].number;
+    return number >= 0 ? "p" + std::to_string(number) : newPageName(number);
+}
+
+std::optional<cos::CosObject> MutationSinkImpl::baseDictionary(int index)
+{
+    long long number = walk_.pages[static_cast<std::size_t>(index)].number;
+    if (const auto back = restored_.find(number); back != restored_.end()) return back->second;
+    if (number < 0) {
+        const auto made = newPages_.find(number);
+        if (made == newPages_.end() || made->second.graph) return std::nullopt;   // drawn from a payload: `drawnAs_` says
+        number = made->second.source;
+        if (const auto back = restored_.find(number); back != restored_.end()) return back->second;
+    }
+    auto current = currentPage(table_, number);
+    if (!current) return std::nullopt;
+    return withoutSpans(current.value());
+}
+
+core::PageBoxes MutationSinkImpl::shownBoxes(int index)
+{
+    const long long number = walk_.pages[static_cast<std::size_t>(index)].number;
+    if (const auto found = boxes_.find(number); found != boxes_.end()) return found->second;
+    // A page that arrived from elsewhere, or was replaced by one, shows what it was drawn with.
+    if (const auto drawn = drawnAs_.find(number); drawn != drawnAs_.end()) return core::boxesOf(drawn->second);
+    if (std::optional<cos::CosObject> page = baseDictionary(index))
+        return PageOps::shownBoxes(*page, inheritedThrough(table_, page->get("Parent")));
+    return core::PageBoxes{core::PdfRect{core::PdfPoint{0.0, 0.0}, core::PdfSize{612.0, 792.0}}, {}, {}, {}, {}};
+}
+
+MutationSinkImpl::ThumbState MutationSinkImpl::thumbOf(int index)
+{
+    const long long number = walk_.pages[static_cast<std::size_t>(index)].number;
+    if (const auto found = thumbs_.find(number); found != thumbs_.end()) return found->second;
+    ThumbState state;
+    if (number < 0 || replaced_.count(number) != 0) {
+        state.keep = true;   // a page no save has written: whatever it is drawn from has (see `adopt`)
+        return state;
+    }
+    if (std::optional<cos::CosObject> page = baseDictionary(index)) {
+        if (const cos::CosObject* thumb = page->find("Thumb")) state.value = withoutSpans(*thumb);
+    }
+    return state;
+}
+
+core::Status MutationSinkImpl::setPageBoxes(const std::vector<int>& pages, const std::vector<core::PageBoxes>& boxes,
+                                            const QString& key)
+{
+    if (!core::PageMap::isPageSet(pageCount(), pages) || boxes.size() != pages.size())
+        return editsError("error.pdf.pageOutOfRange", static_cast<long long>(pages.size()));
+    if (key.isEmpty() || boxStash_.count(key) != 0) return editsError("error.command.malformed");
+    for (const core::PageBoxes& box : boxes) {
+        if (box.media.size.width <= 0.0 || box.media.size.height <= 0.0) return editsError("error.pages.boxTooSmall");
+    }
+    std::vector<std::pair<long long, core::PageBoxes>> before;
+    for (const int page : pages) before.emplace_back(walk_.pages[static_cast<std::size_t>(page)].number, shownBoxes(page));
+    for (std::size_t i = 0; i < pages.size(); ++i) boxes_.insert_or_assign(before[i].first, boxes[i]);
+    boxStash_.emplace(key, std::move(before));
+    return core::Status{};
+}
+
+core::Status MutationSinkImpl::restorePageBoxes(const std::vector<int>& pages, const QString& key)
+{
+    const auto found = boxStash_.find(key);
+    if (found == boxStash_.end() || found->second.size() != pages.size())
+        return editsError("error.command.malformed", static_cast<long long>(pages.size()));
+    // What each page SHOWED is put back as what it shows -- an override equal to what the dictionary says writes
+    // nothing, and after a save writes the boxes it had.
+    for (const auto& [number, shown] : found->second) boxes_.insert_or_assign(number, shown);
+    boxStash_.erase(found);
+    return core::Status{};
+}
+
+core::Status MutationSinkImpl::wrapPageContents(const std::vector<int>& pages, const std::vector<core::PageContentWrap>& wraps,
+                                                const QString& key)
+{
+    if (!core::PageMap::isPageSet(pageCount(), pages) || wraps.size() != pages.size())
+        return editsError("error.pdf.pageOutOfRange", static_cast<long long>(pages.size()));
+    if (key.isEmpty()) return editsError("error.command.malformed");
+    for (const int page : pages) {
+        const long long number = walk_.pages[static_cast<std::size_t>(page)].number;
+        if (const auto found = wraps_.find(number); found != wraps_.end()) {
+            if (std::any_of(found->second.begin(), found->second.end(), [&key](const WrapLayer& l) { return l.id == key; }))
+                return editsError("error.command.malformed", page);
+        }
+    }
+    for (std::size_t i = 0; i < pages.size(); ++i) {
+        const int page = pages[i];
+        const long long number = walk_.pages[static_cast<std::size_t>(page)].number;
+        auto found = wraps_.find(number);
+        if (found == wraps_.end()) {
+            // THE WRAPPERS THE PAGE ALREADY HAS come first -- read from its contents, innermost first.
+            std::vector<WrapLayer> layers;
+            if (std::optional<cos::CosObject> base = baseDictionary(page)) {
+                const PageOps::ContentLayers read = PageOps::contentLayers(table_, base->get("Contents"));
+                for (auto layer = read.layers.rbegin(); layer != read.layers.rend(); ++layer)
+                    layers.push_back(WrapLayer{layer->id, std::nullopt});
+            }
+            found = wraps_.emplace(number, std::move(layers)).first;
+        }
+        found->second.push_back(WrapLayer{key, wraps[i]});
+    }
+    return core::Status{};
+}
+
+core::Status MutationSinkImpl::unwrapPageContents(const std::vector<int>& pages, const QString& key)
+{
+    if (!core::PageMap::isPageSet(pageCount(), pages)) return editsError("error.pdf.pageOutOfRange", static_cast<long long>(pages.size()));
+    for (const int page : pages) {
+        const auto found = wraps_.find(walk_.pages[static_cast<std::size_t>(page)].number);
+        if (found == wraps_.end()
+            || std::none_of(found->second.begin(), found->second.end(), [&key](const WrapLayer& l) { return l.id == key; }))
+            return editsError("error.command.malformed", page);
+    }
+    for (const int page : pages) {
+        std::vector<WrapLayer>& layers = wraps_.at(walk_.pages[static_cast<std::size_t>(page)].number);
+        layers.erase(std::remove_if(layers.begin(), layers.end(), [&key](const WrapLayer& l) { return l.id == key; }), layers.end());
+    }
+    return core::Status{};
+}
+
+core::Result<std::vector<QString>> MutationSinkImpl::setPageLabels(const std::vector<int>& pages,
+                                                                   const std::vector<core::PageLabelSpec>& labels, const QString& key)
+{
+    if (!core::PageMap::isPageSet(pageCount(), pages) || labels.size() != pages.size())
+        return editsError("error.pdf.pageOutOfRange", static_cast<long long>(pages.size()));
+    if (key.isEmpty() || labelStash_.count(key) != 0) return editsError("error.command.malformed");
+    for (const core::PageLabelSpec& label : labels) {
+        if (label.value < 1) return editsError("error.command.malformed", label.value);
+    }
+    labelStash_.emplace(key, labels_);
+    if (labels_.empty()) {
+        // A DOCUMENT WITH NO LABELS: every page is numbered as a reader numbers it -- its own number -- before these.
+        labels_.resize(walk_.pages.size());
+        for (std::size_t page = 0; page < labels_.size(); ++page)
+            labels_[page] = PageLabelRange{"D", std::nullopt, static_cast<long long>(page) + 1};
+    }
+    for (std::size_t i = 0; i < pages.size(); ++i) labels_[static_cast<std::size_t>(pages[i])] = PageOps::labelRange(labels[i]);
+    // A LABEL WITH NO NUMBER counts nothing, but a reader counts it within its range all the same (`readLabels`): each
+    // such page is numbered as the range that will be written numbers it, so what is composed is what reads back.
+    for (std::size_t page = 0; page < labels_.size(); ++page) {
+        PageLabelRange& label = labels_[page];
+        if (!label.style.empty()) continue;
+        const bool continues = page > 0 && labels_[page - 1].style.empty() && labels_[page - 1].prefix == label.prefix;
+        label.value = continues ? labels_[page - 1].value + 1 : 1;
+    }
+    labelsTouched_ = true;
+    std::vector<QString> out;
+    for (int page = 0; page < pageCount(); ++page) out.push_back(pageLabel(page));
+    return out;
+}
+
+core::Result<std::vector<QString>> MutationSinkImpl::restorePageLabels(const QString& key)
+{
+    const auto found = labelStash_.find(key);
+    if (found == labelStash_.end() || (!found->second.empty() && found->second.size() != walk_.pages.size()))
+        return editsError("error.command.malformed");
+    labels_ = std::move(found->second);
+    labelStash_.erase(found);
+    std::vector<QString> out;
+    for (int page = 0; page < pageCount(); ++page) out.push_back(pageLabel(page));
+    return out;
+}
+
+core::Status MutationSinkImpl::setPageThumbnails(const std::vector<int>& pages, const std::vector<core::PageThumbnail>& thumbnails,
+                                                 const QString& key)
+{
+    if (!core::PageMap::isPageSet(pageCount(), pages) || thumbnails.size() != pages.size())
+        return editsError("error.pdf.pageOutOfRange", static_cast<long long>(pages.size()));
+    if (key.isEmpty() || thumbStash_.count(key) != 0) return editsError("error.command.malformed");
+    std::vector<ThumbState> made;
+    made.reserve(pages.size());
+    for (const core::PageThumbnail& thumbnail : thumbnails) {
+        ThumbState state;
+        if (!thumbnail.isEmpty()) {
+            if (!thumbnail.isWellFormed()) return editsError("error.command.malformed");
+            // COMPRESSED ONCE, here, as an attached file is: every compose after this one writes these bytes again.
+            auto flate = cos::filters::flateEncode(std::string_view(thumbnail.rgb.constData(), static_cast<std::size_t>(thumbnail.rgb.size())));
+            if (!flate) return flate.error();
+            state.image = true;
+            state.width = thumbnail.width;
+            state.height = thumbnail.height;
+            state.flate.assign(flate.value().begin(), flate.value().end());
+            state.key = key;
+        }
+        made.push_back(std::move(state));
+    }
+    std::vector<std::pair<long long, ThumbState>> before;
+    for (const int page : pages) before.emplace_back(walk_.pages[static_cast<std::size_t>(page)].number, thumbOf(page));
+    for (std::size_t i = 0; i < pages.size(); ++i) thumbs_.insert_or_assign(before[i].first, std::move(made[i]));
+    thumbStash_.emplace(key, std::move(before));
+    return core::Status{};
+}
+
+core::Status MutationSinkImpl::restorePageThumbnails(const std::vector<int>& pages, const QString& key)
+{
+    const auto found = thumbStash_.find(key);
+    if (found == thumbStash_.end() || found->second.size() != pages.size())
+        return editsError("error.command.malformed", static_cast<long long>(pages.size()));
+    for (auto& [number, state] : found->second) {
+        if (state.keep) thumbs_.erase(number);
+        else thumbs_.insert_or_assign(number, std::move(state));
+    }
+    thumbStash_.erase(found);
+    return core::Status{};
+}
+
+std::vector<std::optional<core::PageBoxes>> MutationSinkImpl::drawnBoxes() const
+{
+    std::vector<std::optional<core::PageBoxes>> out;
+    out.reserve(walk_.pages.size());
+    for (const PageEntry& page : walk_.pages) {
+        const auto found = boxes_.find(page.number);
+        out.push_back(found != boxes_.end() ? std::optional<core::PageBoxes>(found->second) : std::nullopt);
+    }
+    return out;
+}
+
+core::Status MutationSinkImpl::composePageEdits(cos::ObjectDelta& delta, std::map<long long, cos::CosObject>& pending)
+{
+    if (boxes_.empty() && wraps_.empty() && thumbs_.empty()) return core::Status{};
+    for (int index = 0; index < pageCount(); ++index) {
+        const long long number = walk_.pages[static_cast<std::size_t>(index)].number;
+        const auto boxes = boxes_.find(number);
+        const auto wraps = wraps_.find(number);
+        const auto thumb = thumbs_.find(number);
+        if (boxes == boxes_.end() && wraps == wraps_.end() && thumb == thumbs_.end()) continue;
+
+        const long long written = objectOf(index);
+        cos::CosObject base;
+        if (const auto held = pending.find(written); held != pending.end()) {
+            base = held->second;
+        } else {
+            if (number < 0) return sinkError(core::ErrorCode::Corrupted, "error.pdf.pageTreeChanged", index);
+            auto current = currentPage(table_, number);
+            if (!current) return current.error();
+            base = withoutSpans(current.value());
+        }
+        cos::CosObject page = base;
+
+        if (boxes != boxes_.end()) page = PageOps::withBoxes(page, inheritedThrough(table_, page.get("Parent")), boxes->second);
+
+        if (wraps != wraps_.end()) {
+            const PageOps::ContentLayers read = PageOps::contentLayers(table_, page.get("Contents"));
+            std::vector<QString> have;   // outermost first, as read
+            for (const PageOps::ContentLayers::Layer& layer : read.layers) have.push_back(layer.id);
+            std::vector<QString> want;
+            for (auto layer = wraps->second.rbegin(); layer != wraps->second.rend(); ++layer) want.push_back(layer->id);
+            if (have != want) {
+                std::map<QString, const PageOps::ContentLayers::Layer*> onDisk;
+                for (const PageOps::ContentLayers::Layer& layer : read.layers) onDisk.emplace(layer.id, &layer);
+                std::vector<cos::CosObject> before;
+                std::vector<cos::CosObject> after;
+                for (auto layer = wraps->second.rbegin(); layer != wraps->second.rend(); ++layer) {   // outermost first
+                    cos::CosObject front;
+                    cos::CosObject back;
+                    if (const auto disk = onDisk.find(layer->id); disk != onDisk.end()) {
+                        front = disk->second->before;
+                        back = disk->second->after;
+                    } else if (layer->wrap) {
+                        const std::string name = "wrap:" + layer->id.toStdString() + ":" + pageBookName(index);
+                        const cos::CosObject marked = PageOps::wrapDictionary(layer->id);
+                        std::vector<cos::CosObject::Entry> entries(marked.entries().begin(), marked.entries().end());
+                        front = cos::CosObject::makeReference(
+                            delta.add(name + ":q", cos::CosObject::makeStream(entries, cos::CosStreamData{}), PageOps::wrapPrefix(*layer->wrap)), 0);
+                        back = cos::CosObject::makeReference(
+                            delta.add(name + ":Q", cos::CosObject::makeStream(entries, cos::CosStreamData{}), PageOps::wrapSuffix()), 0);
+                    } else {
+                        continue;   // a wrapper on disk that the contents no longer hold: nothing to list
+                    }
+                    before.push_back(std::move(front));
+                    after.insert(after.begin(), std::move(back));
+                }
+                std::vector<cos::CosObject> items = std::move(before);
+                items.insert(items.end(), read.content.begin(), read.content.end());
+                items.insert(items.end(), after.begin(), after.end());
+                // NO WRAPPER LEFT around a single stream: written as the one reference -- the form most files use.
+                if (items.size() == 1 && items.front().isReference()) page = AnnotationOps::withEntry(page, "Contents", items.front());
+                else if (items.empty()) page = AnnotationOps::withoutEntry(page, "Contents");
+                else page = AnnotationOps::withEntry(page, "Contents", cos::CosObject::makeArray(std::move(items)));
+            }
+        }
+
+        if (thumb != thumbs_.end() && !thumb->second.keep) {
+            const ThumbState& state = thumb->second;
+            if (state.image) {
+                const long long image = delta.add("thumb:" + state.key.toStdString() + ":" + pageBookName(index),
+                                                  cos::CosObject::makeStream(PageOps::thumbnailDictionary(core::PageThumbnail{
+                                                                                 state.width, state.height, QByteArray()}),
+                                                                             cos::CosStreamData{}),
+                                                  state.flate);
+                page = AnnotationOps::withEntry(page, "Thumb", cos::CosObject::makeReference(image, 0));
+            } else if (state.value) {
+                if (!(page.get("Thumb") == *state.value)) page = AnnotationOps::withEntry(page, "Thumb", *state.value);
+            } else {
+                page = AnnotationOps::withoutEntry(page, "Thumb");
+            }
+        }
+
+        if (page == base) continue;   // the dictionary already says it: nothing to write
+        pending.insert_or_assign(written, std::move(page));
+    }
+    return core::Status{};
+}
+
+void MutationSinkImpl::renumberPageEdits(const std::map<long long, long long>& numbers)
+{
+    const auto follow = [&numbers](auto& map) {
+        for (const auto& [was, now] : numbers) {
+            auto node = map.extract(was);
+            if (!node.empty()) {
+                node.key() = now;
+                map.insert(std::move(node));
+            }
+        }
+    };
+    follow(boxes_);
+    follow(wraps_);
+    follow(thumbs_);
+    for (auto& [key, entries] : boxStash_) {
+        for (auto& [number, shown] : entries) {
+            if (const auto now = numbers.find(number); now != numbers.end()) number = now->second;
+        }
+    }
+    for (auto& [key, entries] : thumbStash_) {
+        for (auto& [number, state] : entries) {
+            if (const auto now = numbers.find(number); now != numbers.end()) number = now->second;
+        }
+    }
 }
 
 } // namespace rawpage::pdf::ops

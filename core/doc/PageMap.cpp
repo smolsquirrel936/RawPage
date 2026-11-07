@@ -183,6 +183,8 @@ const char* pageReferenceKindName(PageReference::Kind kind) noexcept
     case PageReference::Kind::RemoteGoTo: return "RemoteGoTo";
     case PageReference::Kind::IndexDestination: return "IndexDestination";
     case PageReference::Kind::WidgetNotCopied: return "WidgetNotCopied";
+    case PageReference::Kind::PageBox: return "PageBox";
+    case PageReference::Kind::PageComments: return "PageComments";
     }
     return "?";
 }
@@ -195,6 +197,7 @@ const char* pageReferenceTreatmentName(PageReference::Treatment treatment) noexc
     case PageReference::Treatment::Unlinked: return "Unlinked";
     case PageReference::Treatment::Reported: return "Reported";
     case PageReference::Treatment::NotCopied: return "NotCopied";
+    case PageReference::Treatment::Clipped: return "Clipped";
     }
     return "?";
 }

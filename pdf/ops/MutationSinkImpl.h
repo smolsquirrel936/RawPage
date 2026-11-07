@@ -259,6 +259,27 @@ public:
     // holds for it (D7-3's tree, in which a page carries the facts it was first drawn with).
     std::vector<std::optional<core::Page>> drawnFacts() const;
 
+    // --- Boxes, content, labels and thumbnails (Stage 7 T9) -- see the header -------------------------------
+    core::Status setPageBoxes(const std::vector<int>& pages, const std::vector<core::PageBoxes>& boxes,
+                              const QString& key) override;
+    core::Status restorePageBoxes(const std::vector<int>& pages, const QString& key) override;
+    core::Status wrapPageContents(const std::vector<int>& pages, const std::vector<core::PageContentWrap>& wraps,
+                                  const QString& key) override;
+    core::Status unwrapPageContents(const std::vector<int>& pages, const QString& key) override;
+    core::Result<std::vector<QString>> setPageLabels(const std::vector<int>& pages, const std::vector<core::PageLabelSpec>& labels,
+                                                     const QString& key) override;
+    core::Result<std::vector<QString>> restorePageLabels(const QString& key) override;
+    core::Status setPageThumbnails(const std::vector<int>& pages, const std::vector<core::PageThumbnail>& thumbnails,
+                                   const QString& key) override;
+    core::Status restorePageThumbnails(const std::vector<int>& pages, const QString& key) override;
+    // For each page of the desired order: the boxes a box command gave it, nullopt for every other -- what the backend's
+    // page tree must say the engine draws (D7-3's tree), and what verify reads back.
+    std::vector<std::optional<core::PageBoxes>> drawnBoxes() const;
+    // The labels every page will carry once the desired state is written, as `PageOps::readLabels` reads them back;
+    // and whether a label command has run since the sink opened -- verify's question.
+    const std::vector<PageLabelRange>& desiredLabels() const noexcept { return labels_; }
+    bool labelsChanged() const noexcept { return labelsTouched_; }
+
     // --- Annotations (Stage 6 T3) --------------------------------------------------------------
     // Whether a CREATED annotation can be written new: a kind this build draws (D6-6) or one with no appearance at
     // all, and a FileAttachment carrying its file. What `insertAnnotations` asks of each, and -- Stage 6 T13 -- what
@@ -627,6 +648,23 @@ private:
     // A page ON DISK that draws a graph's page -- inserted, or replaced, and saved -- by the graph's key: what keeps that
     // graph's layers in the document after the save (`liveGraphs`).
     std::map<long long, QString> graphOfPage_;
+    // --- Stage 7 T9's per-page values (see below), declared before the replace's slot that keeps them ---
+    // A resize's wrapper: its command's key, and its matrix and clip for one not yet written (none: one on disk).
+    struct WrapLayer {
+        QString id;
+        std::optional<core::PageContentWrap> wrap;
+    };
+    // A page's `/Thumb`: an image a command set (`flate` its pixels, compressed once), or a value as written --
+    // a reference, or none -- or, for a page no save has written, whatever the page it is drawn from has (`keep`).
+    struct ThumbState {
+        bool image = false;
+        bool keep = false;
+        int width = 0;
+        int height = 0;
+        std::string flate;
+        QString key;                                   // the command that set the image: names its stream
+        std::optional<cos::CosObject> value;
+    };
     // What a replace took, per page, so its undo puts it back.
     struct ReplacedSlot {
         int index = 0;
@@ -640,8 +678,33 @@ private:
         std::optional<cos::CosObject> onDisk;             // a page on disk: its dictionary when replaced
         std::optional<core::Page> drawnAs;
         std::optional<QString> graphOf;                   // its `graphOfPage_` entry before
+        // S7 T9: what a box, wrap or thumbnail command had given it -- the old page's, put back by the undo.
+        std::optional<core::PageBoxes> boxes;
+        std::optional<std::vector<WrapLayer>> wraps;
+        std::optional<ThumbState> thumb;
     };
     std::map<QString, std::vector<ReplacedSlot>> replacedStash_;
+
+    // --- Boxes, content, labels and thumbnails (Stage 7 T9) -- see the header -------------------------------
+    // Each keyed by the page OBJECT -- negative for a new page until a save numbers it -- so a page command that
+    // moves, removes or puts back pages carries them with no work: a page not in the order is simply not composed.
+    std::map<long long, core::PageBoxes> boxes_;          // what a box command made the page show
+    std::map<QString, std::vector<std::pair<long long, core::PageBoxes>>> boxStash_;   // what each showed before
+    std::map<long long, std::vector<WrapLayer>> wraps_;   // INNERMOST first; only pages a wrap touched
+    std::map<long long, ThumbState> thumbs_;
+    std::map<QString, std::vector<std::pair<long long, ThumbState>>> thumbStash_;
+    std::map<QString, std::vector<PageLabelRange>> labelStash_;   // the whole numbering each label command replaced
+    bool labelsTouched_ = false;
+    // What page `index` shows now, its `/Thumb` as the compose would write it, and the dictionary those are read from.
+    core::PageBoxes shownBoxes(int index);
+    ThumbState thumbOf(int index);
+    std::optional<cos::CosObject> baseDictionary(int index);
+    // A book name for page `index`'s objects: stable from one compose to the next.
+    std::string pageBookName(int index) const;
+    // Every page a box, wrap or thumbnail command touched, its dictionary changed into `pending` where it differs.
+    core::Status composePageEdits(cos::ObjectDelta& delta, std::map<long long, cos::CosObject>& pending);
+    // After a save renumbered new pages: each map above follows its page.
+    void renumberPageEdits(const std::map<long long, long long>& numbers);
 };
 
 } // namespace rawpage::pdf::ops

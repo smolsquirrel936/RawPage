@@ -995,6 +995,36 @@ core::Status DocumentBackendImpl::showEdits(core::DocumentHandle document,
         drawnOriginals(entry->sink.get(), entry->diskOriginal, entry->document->pages().count(), entry->openObjects);
     // S7 T5: and each page the engine never opened, as it was first drawn.
     std::vector<std::optional<core::Page>> facts = entry->sink->drawnFacts();
+    // S7 T9: and each page a box command changed, as it shows now -- the engine draws its new boxes, and a tile sized
+    // for the old ones would stretch the page into them. Its rotation stays the one it was drawn with (D3-15). EACH EDGE
+    // AS THE ENGINE READS IT, a float: a box 141.89 ... 841.89 is 700 points tall in doubles and 700.000015 to PDFium, and
+    // the tile a page is drawn into is that height rounded UP -- 700 pixels on screen, 701 from the saved file opened
+    // fresh (Stage 7 guide A-65's first run).
+    const std::vector<std::optional<core::PageBoxes>> boxes = entry->sink->drawnBoxes();
+    const auto asEngineReads = [](core::PdfRect box) {
+        // THROUGH A VOLATILE: the plain `double(float(value))` came back UNCHANGED from this translation unit at -O3
+        // under GCC 13.1 (measured on A-65's page: 141.89 stayed 141.88999999999999), though a file of its own kept it.
+        const auto edge = [](double value) {
+            volatile float narrowed = static_cast<float>(value);
+            return static_cast<double>(narrowed);
+        };
+        const double x0 = edge(box.left());
+        const double y0 = edge(box.bottom());
+        return core::PdfRect{core::PdfPoint{x0, y0}, core::PdfSize{edge(box.right()) - x0, edge(box.top()) - y0}};
+    };
+    for (std::size_t i = 0; i < boxes.size() && i < facts.size() && i < from.size(); ++i) {
+        if (!boxes[i]) continue;
+        core::Page page;
+        if (facts[i]) page = *facts[i];
+        else if (const core::Page* opened = entry->document->pages().at(from[i])) page = *opened;
+        core::PageBoxes read = *boxes[i];
+        read.media = asEngineReads(read.media);
+        for (std::optional<core::PdfRect>* box : {&read.crop, &read.bleed, &read.trim, &read.art}) {
+            if (*box) **box = asEngineReads(**box);
+        }
+        core::setBoxes(page, read);
+        facts[i] = std::move(page);
+    }
     if (std::none_of(facts.begin(), facts.end(), [](const std::optional<core::Page>& page) { return page.has_value(); }))
         facts.clear();
     std::vector<Open::Replaced> replaced;

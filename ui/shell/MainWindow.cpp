@@ -4,6 +4,7 @@
 #include "core/cmd/commands/AnnotationCommands.h"
 #include "core/cmd/commands/AttachmentCommands.h"
 #include "core/cmd/commands/PageCommands.h"
+#include "core/doc/PageWorkRunner.h"
 #include "core/doc/SplitRunner.h"
 #include "core/Log.h"
 #include "core/Units.h"
@@ -955,6 +956,11 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
                                                   .arg(height)
                                                   .arg(dpi));
             });
+    // S7 T9 (D7-15): a crop box dragged in the tab in front -- its dialog, or with nobody to ask its one command.
+    connect(document, &DocumentWindow::cropAsked, this, [this, document](int page, core::PdfRect box) {
+        if (document != currentDocument()) return;
+        (void)cropToBox(document, page, box);
+    });
     connect(document, &DocumentWindow::snapshotFailed, this, [this, document] {
         if (document != currentDocument() || !status_) return;
         status_->setMessage(catalog::translate(catalog::key::StatusSnapshotFailed));

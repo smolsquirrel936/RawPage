@@ -155,6 +155,7 @@ add_library(rawpage_core STATIC
     doc/SplitPlan.cpp
     doc/SplitRunner.h
     doc/SplitRunner.cpp
+    doc/PageWorkRunner.cpp
 
     # Stage 3 T4 -- the rest of D3-8's list, and no more: a type with no Stage 3 caller is tested only
     # against its own idea of what a caller wants. Document is the model CommandJournal (T5) will be

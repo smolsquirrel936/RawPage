@@ -6,6 +6,7 @@
 
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDoubleSpinBox>
 #include <QDialogButtonBox>
 #include <QFileDialog>
 #include <QGridLayout>
@@ -666,6 +667,374 @@ std::optional<ReplacePagesDialog::Choice> ReplacePagesDialog::ask(QWidget* paren
 void ReplacePagesDialog::setAnswerForTesting(Answer answer)
 {
     installedReplace() = std::move(answer);
+}
+
+// --- Crop / page boxes (S7 T9) ---------------------------------------------------------------------------------
+
+namespace {
+
+CropPagesDialog::Answer& installedCrop()
+{
+    static CropPagesDialog::Answer answer;
+    return answer;
+}
+
+ResizePagesDialog::Answer& installedResize()
+{
+    static ResizePagesDialog::Answer answer;
+    return answer;
+}
+
+RenumberPagesDialog::Answer& installedRenumber()
+{
+    static RenumberPagesDialog::Answer answer;
+    return answer;
+}
+
+QDoubleSpinBox* pointsField(QWidget* parent, double value, double low, double high, const QString& name)
+{
+    auto* field = new QDoubleSpinBox(parent);
+    field->setObjectName(name);
+    field->setDecimals(2);
+    field->setRange(low, high);
+    field->setValue(value);
+    field->setSuffix(catalog::translate(catalog::key::PagesPointsSuffix));
+    return field;
+}
+
+// A range field and its "of n" -- what every T8 and T9 dialog starts with.
+QLineEdit* rangeRow(QWidget* parent, QVBoxLayout* column, const std::vector<int>& initial, int pageCount)
+{
+    auto* row = new QHBoxLayout();
+    row->addWidget(new QLabel(catalog::translate(catalog::key::ExtractPages), parent));
+    auto* range = new QLineEdit(startingRange(initial, pageCount), parent);
+    range->setObjectName(QStringLiteral("rangeField"));
+    range->setPlaceholderText(catalog::translate(catalog::key::ExtractPagesHint));
+    row->addWidget(range, 1);
+    row->addWidget(new QLabel(catalog::translate(catalog::key::ExtractOfPages).arg(pageCount), parent));
+    column->addLayout(row);
+    return range;
+}
+
+} // namespace
+
+CropPagesDialog::CropPagesDialog(int pageCount, const std::vector<int>& initial, std::array<double, 4> margins, double padding,
+                                 QWidget* parent)
+    : QDialog(parent), pageCount_(pageCount)
+{
+    setObjectName(QStringLiteral("cropPagesDialog"));
+    setWindowTitle(catalog::translate(catalog::key::PagesCropTitle));
+    setModal(true);
+    auto* column = new QVBoxLayout(this);
+    column->setContentsMargins(16, 16, 16, 16);
+    column->setSpacing(10);
+
+    range_ = rangeRow(this, column, initial, pageCount);
+    sameSize_ = new QCheckBox(catalog::translate(catalog::key::PagesCropSameSize), this);
+    sameSize_->setObjectName(QStringLiteral("sameSizeBox"));
+    column->addWidget(sameSize_);
+
+    auto* kindRow = new QHBoxLayout();
+    kindRow->addWidget(new QLabel(catalog::translate(catalog::key::PagesCropBox), this));
+    kind_ = new QComboBox(this);
+    kind_->setObjectName(QStringLiteral("boxKindBox"));
+    for (const auto& [kind, name] : {std::pair{core::PageBoxKind::Crop, "crop"}, std::pair{core::PageBoxKind::Trim, "trim"},
+                                     std::pair{core::PageBoxKind::Bleed, "bleed"}, std::pair{core::PageBoxKind::Art, "art"},
+                                     std::pair{core::PageBoxKind::Media, "media"}})
+        kind_->addItem(catalog::translate(QStringLiteral("pages.crop.box.") + QLatin1String(name)), static_cast<int>(kind));
+    kindRow->addWidget(kind_, 1);
+    column->addLayout(kindRow);
+
+    auto* how = new QGroupBox(this);
+    auto* grid = new QGridLayout(how);
+    const auto addHow = [&](How which, const QString& text, int row) {
+        auto* button = new QRadioButton(text, how);
+        hows_.emplace_back(which, button);
+        grid->addWidget(button, row, 0, 1, 4);
+        return button;
+    };
+    QRadioButton* byMargins = addHow(How::Margins, catalog::translate(catalog::key::PagesCropMargins), 0);
+    const char* const edges[] = {"left", "bottom", "right", "top"};
+    for (int edge = 0; edge < 4; ++edge) {
+        grid->addWidget(new QLabel(catalog::translate(QStringLiteral("pages.crop.edge.") + QLatin1String(edges[edge])), how), 1 + edge / 2,
+                        (edge % 2) * 2);
+        margins_[static_cast<std::size_t>(edge)] =
+            pointsField(how, margins[static_cast<std::size_t>(edge)], -14400.0, 14400.0, QStringLiteral("marginField%1").arg(edge));
+        grid->addWidget(margins_[static_cast<std::size_t>(edge)], 1 + edge / 2, (edge % 2) * 2 + 1);
+    }
+    QRadioButton* white = addHow(How::WhiteMargins, catalog::translate(catalog::key::PagesCropWhiteMargins), 3);
+    grid->addWidget(new QLabel(catalog::translate(catalog::key::PagesCropPadding), how), 4, 0);
+    padding_ = pointsField(how, padding, 0.0, 72.0, QStringLiteral("paddingField"));
+    grid->addWidget(padding_, 4, 1);
+    addHow(How::Remove, catalog::translate(catalog::key::PagesCropRemove), 5);
+    byMargins->setChecked(true);
+    const auto follow = [this](QRadioButton* button, std::vector<QWidget*> fields) {
+        for (QWidget* field : fields) field->setEnabled(button->isChecked());
+        QObject::connect(button, &QRadioButton::toggled, this, [fields](bool on) {
+            for (QWidget* field : fields) field->setEnabled(on);
+        });
+    };
+    follow(byMargins, {margins_[0], margins_[1], margins_[2], margins_[3]});
+    follow(white, {padding_});
+    column->addWidget(how);
+
+    refusal_ = refusalLine(this);
+    column->addWidget(refusal_);
+    column->addWidget(okCancel(this));
+}
+
+QRadioButton* CropPagesDialog::howButton(How how) const
+{
+    for (const auto& [which, button] : hows_)
+        if (which == how) return button;
+    return nullptr;
+}
+
+core::Result<CropPagesDialog::Choice> CropPagesDialog::choice() const
+{
+    core::Result<std::vector<int>> pages = core::parsePageRanges(range_->text(), pageCount_);
+    if (!pages) return pages.error();
+    Choice out;
+    out.pages = std::move(pages).value();
+    out.sameSize = sameSize_->isChecked();
+    out.box = static_cast<core::PageBoxKind>(kind_->currentData().toInt());
+    for (const auto& [which, button] : hows_)
+        if (button->isChecked()) out.how = which;
+    out.left = margins_[0]->value();
+    out.bottom = margins_[1]->value();
+    out.right = margins_[2]->value();
+    out.top = margins_[3]->value();
+    out.padding = padding_->value();
+    if (out.how == How::Remove && out.box == core::PageBoxKind::Media)
+        return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.pages.mediaBoxRequired"), QString()};
+    return out;
+}
+
+void CropPagesDialog::accept()
+{
+    const core::Result<Choice> chosen = choice();
+    if (!chosen) {
+        showRefusal(refusal_, chosen.error());
+        return;
+    }
+    QDialog::accept();
+}
+
+bool CropPagesDialog::canAsk()
+{
+    return static_cast<bool>(installedCrop()) || aPersonCanAnswer();
+}
+
+std::optional<CropPagesDialog::Choice> CropPagesDialog::ask(QWidget* parent, int pageCount, const std::vector<int>& initial,
+                                                            std::array<double, 4> margins, double padding)
+{
+    if (installedCrop()) return installedCrop()(pageCount, initial, margins, padding);
+    if (!aPersonCanAnswer()) return std::nullopt;
+    CropPagesDialog dialog(pageCount, initial, margins, padding, parent);
+    if (dialog.exec() != QDialog::Accepted) return std::nullopt;
+    core::Result<Choice> chosen = dialog.choice();
+    if (!chosen) return std::nullopt;
+    return std::move(chosen).value();
+}
+
+void CropPagesDialog::setAnswerForTesting(Answer answer)
+{
+    installedCrop() = std::move(answer);
+}
+
+// --- Resize (S7 T9) --------------------------------------------------------------------------------------------
+
+ResizePagesDialog::ResizePagesDialog(int pageCount, const std::vector<int>& initial, core::PaperSize paperSize, QWidget* parent)
+    : QDialog(parent), pageCount_(pageCount)
+{
+    setObjectName(QStringLiteral("resizePagesDialog"));
+    setWindowTitle(catalog::translate(catalog::key::PagesResizeTitle));
+    setModal(true);
+    auto* column = new QVBoxLayout(this);
+    column->setContentsMargins(16, 16, 16, 16);
+    column->setSpacing(10);
+    range_ = rangeRow(this, column, initial, pageCount);
+
+    auto* grid = new QGridLayout();
+    grid->addWidget(new QLabel(catalog::translate(catalog::key::PagesResizeSize), this), 0, 0);
+    size_ = new QComboBox(this);
+    size_->setObjectName(QStringLiteral("sizeBox"));
+    for (const core::PaperSize size : core::kPaperSizes) {
+        const std::string_view name = core::paperSizeName(size);
+        size_->addItem(catalog::translate(QStringLiteral("prefs.choice.paperSize.") + QString::fromLatin1(name.data(), static_cast<qsizetype>(name.size()))),
+                       static_cast<int>(size));
+    }
+    size_->addItem(catalog::translate(catalog::key::PagesResizeCustom), -1);
+    grid->addWidget(size_, 0, 1, 1, 3);
+    const core::PdfSize start = core::paperSizePoints(paperSize);
+    width_ = pointsField(this, start.width, 3.0, 14400.0, QStringLiteral("widthField"));
+    height_ = pointsField(this, start.height, 3.0, 14400.0, QStringLiteral("heightField"));
+    grid->addWidget(new QLabel(catalog::translate(catalog::key::PagesResizeWidth), this), 1, 0);
+    grid->addWidget(width_, 1, 1);
+    grid->addWidget(new QLabel(catalog::translate(catalog::key::PagesResizeHeight), this), 1, 2);
+    grid->addWidget(height_, 1, 3);
+    landscape_ = new QCheckBox(catalog::translate(catalog::key::PagesInsertLandscape), this);
+    landscape_->setObjectName(QStringLiteral("landscapeBox"));
+    grid->addWidget(landscape_, 2, 0, 1, 4);
+    column->addLayout(grid);
+    // A NAMED SIZE FILLS THE FIELDS, turned by the landscape box; Custom leaves them to be typed.
+    const auto fill = [this] {
+        const int named = size_->currentData().toInt();
+        width_->setEnabled(named < 0);
+        height_->setEnabled(named < 0);
+        landscape_->setEnabled(named >= 0);
+        if (named < 0) return;
+        const core::PdfSize points = core::paperSizePoints(static_cast<core::PaperSize>(named));
+        width_->setValue(landscape_->isChecked() ? points.height : points.width);
+        height_->setValue(landscape_->isChecked() ? points.width : points.height);
+    };
+    connect(size_, &QComboBox::currentIndexChanged, this, fill);
+    connect(landscape_, &QCheckBox::toggled, this, fill);
+    size_->setCurrentIndex(size_->findData(static_cast<int>(paperSize)));
+    fill();
+
+    scale_ = new QCheckBox(catalog::translate(catalog::key::PagesResizeScale), this);
+    scale_->setObjectName(QStringLiteral("scaleBox"));
+    scale_->setChecked(true);
+    column->addWidget(scale_);
+    auto* anchorRow = new QHBoxLayout();
+    anchorRow->addWidget(new QLabel(catalog::translate(catalog::key::PagesResizeAnchor), this));
+    anchor_ = new QComboBox(this);
+    anchor_->setObjectName(QStringLiteral("anchorBox"));
+    const char* const anchors[] = {"topLeft", "top", "topRight", "left", "centre", "right", "bottomLeft", "bottom", "bottomRight"};
+    for (int at = 0; at < 9; ++at) anchor_->addItem(catalog::translate(QStringLiteral("pages.anchor.") + QLatin1String(anchors[at])), at);
+    anchor_->setCurrentIndex(static_cast<int>(core::ResizeAnchor::Centre));
+    anchorRow->addWidget(anchor_, 1);
+    column->addLayout(anchorRow);
+
+    refusal_ = refusalLine(this);
+    column->addWidget(refusal_);
+    column->addWidget(okCancel(this));
+}
+
+core::Result<ResizePagesDialog::Choice> ResizePagesDialog::choice() const
+{
+    core::Result<std::vector<int>> pages = core::parsePageRanges(range_->text(), pageCount_);
+    if (!pages) return pages.error();
+    Choice out;
+    out.pages = std::move(pages).value();
+    out.size = core::PdfSize{width_->value(), height_->value()};
+    out.scale = scale_->isChecked();
+    out.anchor = static_cast<core::ResizeAnchor>(anchor_->currentData().toInt());
+    if (out.size.width < core::kMinPageBoxPoints || out.size.height < core::kMinPageBoxPoints || out.size.width > 14400.0
+        || out.size.height > 14400.0)
+        return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.pages.badSize"), QString()};
+    return out;
+}
+
+void ResizePagesDialog::accept()
+{
+    const core::Result<Choice> chosen = choice();
+    if (!chosen) {
+        showRefusal(refusal_, chosen.error());
+        return;
+    }
+    QDialog::accept();
+}
+
+bool ResizePagesDialog::canAsk()
+{
+    return static_cast<bool>(installedResize()) || aPersonCanAnswer();
+}
+
+std::optional<ResizePagesDialog::Choice> ResizePagesDialog::ask(QWidget* parent, int pageCount, const std::vector<int>& initial,
+                                                                core::PaperSize paperSize)
+{
+    if (installedResize()) return installedResize()(pageCount, initial);
+    if (!aPersonCanAnswer()) return std::nullopt;
+    ResizePagesDialog dialog(pageCount, initial, paperSize, parent);
+    if (dialog.exec() != QDialog::Accepted) return std::nullopt;
+    core::Result<Choice> chosen = dialog.choice();
+    if (!chosen) return std::nullopt;
+    return std::move(chosen).value();
+}
+
+void ResizePagesDialog::setAnswerForTesting(Answer answer)
+{
+    installedResize() = std::move(answer);
+}
+
+// --- Renumber (S7 T9) ------------------------------------------------------------------------------------------
+
+RenumberPagesDialog::RenumberPagesDialog(int pageCount, const std::vector<int>& initial, QWidget* parent)
+    : QDialog(parent), pageCount_(pageCount)
+{
+    setObjectName(QStringLiteral("renumberPagesDialog"));
+    setWindowTitle(catalog::translate(catalog::key::PagesRenumberTitle));
+    setModal(true);
+    auto* column = new QVBoxLayout(this);
+    column->setContentsMargins(16, 16, 16, 16);
+    column->setSpacing(10);
+    range_ = rangeRow(this, column, initial, pageCount);
+
+    auto* grid = new QGridLayout();
+    grid->addWidget(new QLabel(catalog::translate(catalog::key::PagesRenumberStyle), this), 0, 0);
+    style_ = new QComboBox(this);
+    style_->setObjectName(QStringLiteral("styleBox"));
+    for (const auto& [style, name] : {std::pair{core::PageLabelStyle::Decimal, "decimal"}, std::pair{core::PageLabelStyle::RomanUpper, "romanUpper"},
+                                      std::pair{core::PageLabelStyle::RomanLower, "romanLower"}, std::pair{core::PageLabelStyle::LettersUpper, "lettersUpper"},
+                                      std::pair{core::PageLabelStyle::LettersLower, "lettersLower"}, std::pair{core::PageLabelStyle::None, "none"}})
+        style_->addItem(catalog::translate(QStringLiteral("pages.renumber.style.") + QLatin1String(name)), static_cast<int>(style));
+    grid->addWidget(style_, 0, 1);
+    grid->addWidget(new QLabel(catalog::translate(catalog::key::PagesRenumberPrefix), this), 1, 0);
+    prefix_ = new QLineEdit(this);
+    prefix_->setObjectName(QStringLiteral("prefixField"));
+    prefix_->setMaxLength(core::RenumberPagesCommand::kMaxPrefix);
+    grid->addWidget(prefix_, 1, 1);
+    grid->addWidget(new QLabel(catalog::translate(catalog::key::PagesRenumberStart), this), 2, 0);
+    start_ = new QSpinBox(this);
+    start_->setObjectName(QStringLiteral("startField"));
+    start_->setRange(1, core::RenumberPagesCommand::kMaxStart - pageCount);
+    grid->addWidget(start_, 2, 1);
+    column->addLayout(grid);
+
+    refusal_ = refusalLine(this);
+    column->addWidget(refusal_);
+    column->addWidget(okCancel(this));
+}
+
+core::Result<RenumberPagesDialog::Choice> RenumberPagesDialog::choice() const
+{
+    core::Result<std::vector<int>> pages = core::parsePageRanges(range_->text(), pageCount_);
+    if (!pages) return pages.error();
+    return Choice{std::move(pages).value(), static_cast<core::PageLabelStyle>(style_->currentData().toInt()), prefix_->text(),
+                  start_->value()};
+}
+
+void RenumberPagesDialog::accept()
+{
+    const core::Result<Choice> chosen = choice();
+    if (!chosen) {
+        showRefusal(refusal_, chosen.error());
+        return;
+    }
+    QDialog::accept();
+}
+
+bool RenumberPagesDialog::canAsk()
+{
+    return static_cast<bool>(installedRenumber()) || aPersonCanAnswer();
+}
+
+std::optional<RenumberPagesDialog::Choice> RenumberPagesDialog::ask(QWidget* parent, int pageCount, const std::vector<int>& initial)
+{
+    if (installedRenumber()) return installedRenumber()(pageCount, initial);
+    if (!aPersonCanAnswer()) return std::nullopt;
+    RenumberPagesDialog dialog(pageCount, initial, parent);
+    if (dialog.exec() != QDialog::Accepted) return std::nullopt;
+    core::Result<Choice> chosen = dialog.choice();
+    if (!chosen) return std::nullopt;
+    return std::move(chosen).value();
+}
+
+void RenumberPagesDialog::setAnswerForTesting(Answer answer)
+{
+    installedRenumber() = std::move(answer);
 }
 
 } // namespace rawpage::ui

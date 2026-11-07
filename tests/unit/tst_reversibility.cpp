@@ -177,6 +177,56 @@ const Generators& registeredGenerators()
                                                                        payloadOf("assembly/inherit-resources.pdf", 0)));
              return out;
          }},
+        // Stage 7 T9 (D7-15, D7-32): the page cropped to its middle, and given all five boxes; resized to A4 with its content
+        // scaled and centred, and to a smaller size without; renumbered in roman numerals, and the page and the last with a
+        // prefix; given a thumbnail. Each changes the page -- a removal of what a page does not have would change nothing,
+        // and the harness refuses a command that does nothing (convention 22).
+        {"page.crop",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             if (!document.permissions().mayEditPage(page)) return out;
+             const core::Page& shown = *document.pages().at(page);
+             const core::PdfRect crop = shown.cropBox();
+             const core::PdfRect middle{core::PdfPoint{crop.left() + crop.size.width / 4, crop.bottom() + crop.size.height / 4},
+                                        core::PdfSize{crop.size.width / 2, crop.size.height / 2}};
+             if (middle.size.width < core::kMinPageBoxPoints || middle.size.height < core::kMinPageBoxPoints) return out;
+             out.push_back(std::make_unique<core::CropPagesCommand>(
+                 std::vector<int>{page}, std::vector<core::PageBoxes>{core::PageBoxes{shown.mediaBox(), middle, {}, {}, {}}}));
+             out.push_back(std::make_unique<core::CropPagesCommand>(
+                 std::vector<int>{page}, std::vector<core::PageBoxes>{core::PageBoxes{shown.mediaBox(), crop, middle, middle, middle}}));
+             return out;
+         }},
+        {"page.resize",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             if (!document.permissions().mayEditPage(page)) return out;
+             out.push_back(std::make_unique<core::ResizePagesCommand>(std::vector<int>{page}, core::PdfSize{595.276, 841.89}, true,
+                                                                      core::ResizeAnchor::Centre));
+             out.push_back(std::make_unique<core::ResizePagesCommand>(std::vector<int>{page}, core::PdfSize{300, 400}, false,
+                                                                      core::ResizeAnchor::TopLeft));
+             return out;
+         }},
+        {"page.renumber",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             if (!document.permissions().mayEditPage(page)) return out;
+             out.push_back(std::make_unique<core::RenumberPagesCommand>(std::vector<int>{page}, core::PageLabelStyle::RomanLower,
+                                                                        QString(), 4));
+             const int last = document.pages().count() - 1;
+             if (last > page)
+                 out.push_back(std::make_unique<core::RenumberPagesCommand>(std::vector<int>{page, last}, core::PageLabelStyle::Decimal,
+                                                                            QStringLiteral("A-"), 7));
+             return out;
+         }},
+        {"page.thumbnails",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             if (!document.permissions().mayEditPage(page)) return out;
+             core::PageThumbnail thumbnail{4, 5, QByteArray(4 * 5 * 3, '\x7f')};
+             out.push_back(std::make_unique<core::SetEmbeddedThumbnailsCommand>(std::vector<int>{page},
+                                                                                std::vector<core::PageThumbnail>{thumbnail}));
+             return out;
+         }},
         // Stage 6 T3: a highlight on the page -- a set of one, and a set of two on one page.
         {"annot.add",
          [](const core::Document& document, int page) {
@@ -812,7 +862,8 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
                                                                           "annot.reply", "annot.setStatus", "annot.import",
                                                                           "attachment.add", "attachment.delete", "page.move",
                                                                           "page.delete", "page.duplicate", "page.insert",
-                                                                          "page.replace"});
+                                                                          "page.replace", "page.crop", "page.resize",
+                                                                          "page.renumber", "page.thumbnails"});
     }
 }
 
@@ -820,7 +871,7 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
 // A-43 -- reversibility over the corpus
 // ==========================================================================================
 
-TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand][revert:AddAnnotationCommand][revert:DeleteAnnotationCommand][revert:EditAnnotationCommand][revert:MoveAnnotationCommand][revert:SetAnnotationAppearanceCommand][revert:LockAnnotationCommand][revert:ReplyToAnnotationCommand][revert:SetAnnotationStatusCommand][revert:AddAttachmentCommand][revert:DeleteAttachmentCommand][revert:ImportAnnotationsCommand][revert:MovePagesCommand][revert:DeletePagesCommand][revert:DuplicatePagesCommand][revert:InsertPagesCommand][revert:ReplacePagesCommand]")
+TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand][revert:AddAnnotationCommand][revert:DeleteAnnotationCommand][revert:EditAnnotationCommand][revert:MoveAnnotationCommand][revert:SetAnnotationAppearanceCommand][revert:LockAnnotationCommand][revert:ReplyToAnnotationCommand][revert:SetAnnotationStatusCommand][revert:AddAttachmentCommand][revert:DeleteAttachmentCommand][revert:ImportAnnotationsCommand][revert:MovePagesCommand][revert:DeletePagesCommand][revert:DuplicatePagesCommand][revert:InsertPagesCommand][revert:ReplacePagesCommand][revert:CropPagesCommand][revert:ResizePagesCommand][revert:RenumberPagesCommand][revert:SetEmbeddedThumbnailsCommand]")
 {
     const std::vector<std::string> missing = missingGenerators(registeredGenerators());
     INFO("registered type ids with no generator: " << missing.size());

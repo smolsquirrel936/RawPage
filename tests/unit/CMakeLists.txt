@@ -147,6 +147,9 @@ add_executable(rawpage_tests
     tst_pagesedit.cpp             # Stage 7 T8  -- rotation over a set and its filters, Stage 3's line replaying, the
                                   #   clipboard's payload, what each page carries, the snapshot's copy, defaultPageSize
                                   #   (S7 guide A-59, A-55's codec, A-57's data, A-45's key)
+    tst_pageedits.cpp             # Stage 7 T9  -- boxes, crop, resize, renumber and thumbnails through the shipped sink,
+                                  #   read back first-party; undone before and after a save (S7 guide A-58, A-60 ...
+                                  #   A-63, headless halves)
     tst_splitplan.cpp             # Stage 7 T7  -- the six split rules and the page-range syntax, pure, against hand
                                   #   values and the split-blanks labels (S7 guide A-49's planning half)
     tst_dpipolicy.cpp             # Stage 2 T10 -- guide cases A-28, A-29, A-30

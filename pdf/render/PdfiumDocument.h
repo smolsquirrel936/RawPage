@@ -209,6 +209,11 @@ public:
     // process-global (I-05).
     core::Result<core::PdfRect> contentBox(int pageIndex) const;
 
+    // A PAGE'S EMBEDDED THUMBNAIL as the engine decodes it (`/Thumb`, ISO 32000-1 §12.3.4) -- Stage 7 T9, the oracle
+    // guide A-58 reads a written thumbnail back through, never our own reader. `Bgrx8888`, its own size. `NotFound`
+    // (`error.render.noThumbnail`) for a page that carries none; `InvalidArgument` for an index outside the tree.
+    core::Result<core::RasterImage> embeddedThumbnail(int pageIndex) const;
+
     // ONE PART OF THE DOCUMENT'S SEARCH UNITS -- Stage 5 T8, decision **D5-12**; `core/text/SearchUnit.h`
     // says what a part is and why a document is never read whole.
     //

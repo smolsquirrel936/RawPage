@@ -657,9 +657,11 @@ TEST_CASE("the Documents page's recovery folder redirects the next journal and t
     REQUIRE(page != nullptr);
     // ... and since Stage 5 T13 the four comparison rows (D5-20), which join this page rather than make one.
     // ... and since Stage 7 T6 `documents/saveMode` (D7-25), after the two Stage 3 rows, in table order.
+    // ... and since Stage 7 T9 `documents/cropRemoveWhiteMargins` (D7-15), after T8's page size.
     CHECK(page->rowPaths() == QStringList{QStringLiteral("documents/recentCount"), QStringLiteral("documents/recentPinned"),
                                           QStringLiteral("documents/recoveryDir"), QStringLiteral("documents/warnOnRepairedSave"),
                                           QStringLiteral("documents/saveMode"), QStringLiteral("documents/defaultPageSize"),
+                                          QStringLiteral("documents/cropRemoveWhiteMargins"),
                                           QStringLiteral("documents/compareSensitivity"),
                                           QStringLiteral("documents/compareIgnoreHeaderFooter"),
                                           QStringLiteral("documents/compareIgnorePageNumbers"),

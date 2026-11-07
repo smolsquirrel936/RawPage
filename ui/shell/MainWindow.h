@@ -74,6 +74,7 @@ class QVBoxLayout;
 
 namespace rawpage::core {
 class SplitRunner;
+class PageWorkRunner;
 }
 
 namespace rawpage::ui {
@@ -221,6 +222,25 @@ public:
     // The insert, delete and replace dialogs' answers, as commands.
     core::Status insertPages(DocumentWindow* document, const InsertPagesDialog::Choice& choice);
     core::Status replacePages(DocumentWindow* document, const ReplacePagesDialog::Choice& choice);
+
+    // ---------------------------------------------------------------------------------------
+    // BOXES, CROP, RESIZE, RENUMBER, THUMBNAILS -- Stage 7 T9 (`Stage7-Assembly-Plan.md` D7-15, D7-32).
+    // `ui/shell/MainWindowPages.cpp`, through `runPageCommand` like every page command.
+    // ---------------------------------------------------------------------------------------
+    // The Crop Pages dialog's answer as ONE `CropPagesCommand`: each page's box inset from ITS OWN MediaBox, removed, or
+    // -- *remove white margins* -- its content box padded, which the ENGINE measures page by page on the render thread
+    // (`core::PageWorkRunner`), so the command runs later, from the pump; a page with no content keeps its box.
+    core::Status cropPages(DocumentWindow* document, const CropPagesDialog::Choice& choice);
+    // The Crop tool's box on page `page`: the dialog with the box filled in, or with nobody to ask, ONE crop of that page.
+    core::Status cropToBox(DocumentWindow* document, int page, core::PdfRect box);
+    core::Status resizePages(DocumentWindow* document, const ResizePagesDialog::Choice& choice);
+    core::Status renumberPages(DocumentWindow* document, const RenumberPagesDialog::Choice& choice);
+    // `page.embedThumbnails`: every page drawn at `core::kThumbnailEdge` on the render thread, then ONE
+    // `SetEmbeddedThumbnailsCommand`; `page.removeThumbnails`: one taking every page's away.
+    core::Status embedThumbnails(DocumentWindow* document);
+    core::Status removeThumbnails(DocumentWindow* document);
+    // Whether a white-margin crop or a thumbnail embedding started here is still drawing its pages.
+    bool isMeasuringPages() const;
 
     // Save in place, through `SaveCoordinator`. A document that must be saved as a new file -- repaired,
     // changed on disk since it was opened, or refused by the file system (read-only, held by another
@@ -704,6 +724,8 @@ private:
 
     // S7 T7: the split in progress, if any -- made on the first split, one per window.
     std::unique_ptr<core::SplitRunner> splitRunner_;
+    // S7 T9: a white-margin crop's or a thumbnail embedding's pages being read by the engine -- one at a time, per window.
+    std::unique_ptr<core::PageWorkRunner> pageWork_;
 
     Ribbon*             ribbon_ = nullptr;
     QuickAccessToolbar* qat_ = nullptr;

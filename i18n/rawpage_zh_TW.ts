@@ -1020,6 +1020,18 @@
         <translation>重新編號</translation>
     </message>
     <message>
+        <source>action.page.setBoxes</source>
+        <translation>設定頁面方塊…</translation>
+    </message>
+    <message>
+        <source>action.page.embedThumbnails</source>
+        <translation>內嵌縮圖</translation>
+    </message>
+    <message>
+        <source>action.page.removeThumbnails</source>
+        <translation>移除內嵌縮圖</translation>
+    </message>
+    <message>
         <source>action.page.duplicate</source>
         <translation>再製頁面</translation>
     </message>
@@ -2562,6 +2574,10 @@
         <translation>第 %1 頁沒有可量測的內容。</translation>
     </message>
     <message>
+        <source>error.render.noThumbnail</source>
+        <translation>第 %1 頁沒有內嵌縮圖。</translation>
+    </message>
+    <message>
         <source>error.backend.notImplemented</source>
         <translation>此版本尚無法執行該項作業：%1 尚未實作。</translation>
     </message>
@@ -3458,6 +3474,34 @@
         <translation>該頁面集合中沒有符合篩選條件的頁面。</translation>
     </message>
     <message>
+        <source>error.pages.boxTooSmall</source>
+        <translation>頁面方塊每邊至少須為 3 點。</translation>
+    </message>
+    <message>
+        <source>error.pages.boxOutside</source>
+        <translation>該方塊完全位於頁面的媒體方塊之外。</translation>
+    </message>
+    <message>
+        <source>error.pages.badSize</source>
+        <translation>頁面每邊最多為 14,400 點（200 英吋）。</translation>
+    </message>
+    <message>
+        <source>error.pages.mediaBoxRequired</source>
+        <translation>頁面一定有媒體方塊：可以變更，但不能移除。</translation>
+    </message>
+    <message>
+        <source>error.pages.busy</source>
+        <translation>另一項頁面作業仍在讀取此文件的頁面。</translation>
+    </message>
+    <message>
+        <source>error.pages.unreadable</source>
+        <translation>無法讀取第 %1 頁。</translation>
+    </message>
+    <message>
+        <source>error.pages.documentChanged</source>
+        <translation>讀取頁面期間文件已變更；未做任何變更。</translation>
+    </message>
+    <message>
         <source>error.pages.noFile</source>
         <translation>請選擇頁面來源的 PDF。</translation>
     </message>
@@ -4292,6 +4336,10 @@
         <translation>新空白頁的大小</translation>
     </message>
     <message>
+        <source>prefs.setting.documents.cropRemoveWhiteMargins</source>
+        <translation>移除白邊時保留的邊距（點）</translation>
+    </message>
+    <message>
         <source>prefs.setting.documents.compareSensitivity</source>
         <translation>比較的範圍</translation>
     </message>
@@ -4569,6 +4617,26 @@
     <message>
         <source>command.page.replace</source>
         <translation>取代 %1 頁</translation>
+    </message>
+    <message>
+        <source>command.page.crop</source>
+        <translation>設定 %1 頁的頁面方塊</translation>
+    </message>
+    <message>
+        <source>command.page.resize</source>
+        <translation>調整 %1 頁的大小</translation>
+    </message>
+    <message>
+        <source>command.page.renumber</source>
+        <translation>重新編號 %1 頁</translation>
+    </message>
+    <message>
+        <source>command.page.embedThumbnails</source>
+        <translation>在 %1 頁內嵌縮圖</translation>
+    </message>
+    <message>
+        <source>command.page.removeThumbnails</source>
+        <translation>移除 %1 頁的內嵌縮圖</translation>
     </message>
     <message>
         <source>command.page.rotate</source>
@@ -6086,6 +6154,186 @@
         <translation>已將 %1 頁複製到剪貼簿。</translation>
     </message>
     <message>
+        <source>pages.pointsSuffix</source>
+        <translation> 點</translation>
+    </message>
+    <message>
+        <source>pages.crop.title</source>
+        <translation>設定頁面方塊</translation>
+    </message>
+    <message>
+        <source>pages.crop.sameSize</source>
+        <translation>與範圍內第一頁大小相同的所有頁面</translation>
+    </message>
+    <message>
+        <source>pages.crop.box</source>
+        <translation>方塊：</translation>
+    </message>
+    <message>
+        <source>pages.crop.box.crop</source>
+        <translation>裁切方塊（閱讀器顯示的範圍）</translation>
+    </message>
+    <message>
+        <source>pages.crop.box.trim</source>
+        <translation>修剪方塊</translation>
+    </message>
+    <message>
+        <source>pages.crop.box.bleed</source>
+        <translation>出血方塊</translation>
+    </message>
+    <message>
+        <source>pages.crop.box.art</source>
+        <translation>作品方塊</translation>
+    </message>
+    <message>
+        <source>pages.crop.box.media</source>
+        <translation>媒體方塊（紙張）</translation>
+    </message>
+    <message>
+        <source>pages.crop.margins</source>
+        <translation>自媒體方塊內縮：</translation>
+    </message>
+    <message>
+        <source>pages.crop.edge.left</source>
+        <translation>左</translation>
+    </message>
+    <message>
+        <source>pages.crop.edge.bottom</source>
+        <translation>下</translation>
+    </message>
+    <message>
+        <source>pages.crop.edge.right</source>
+        <translation>右</translation>
+    </message>
+    <message>
+        <source>pages.crop.edge.top</source>
+        <translation>上</translation>
+    </message>
+    <message>
+        <source>pages.crop.whiteMargins</source>
+        <translation>移除白邊：裁至每頁的內容</translation>
+    </message>
+    <message>
+        <source>pages.crop.padding</source>
+        <translation>保留邊距</translation>
+    </message>
+    <message>
+        <source>pages.crop.remove</source>
+        <translation>移除方塊（移除裁切方塊即顯示媒體方塊）</translation>
+    </message>
+    <message>
+        <source>pages.resize.title</source>
+        <translation>調整頁面大小</translation>
+    </message>
+    <message>
+        <source>pages.resize.size</source>
+        <translation>新尺寸：</translation>
+    </message>
+    <message>
+        <source>pages.resize.custom</source>
+        <translation>自訂</translation>
+    </message>
+    <message>
+        <source>pages.resize.width</source>
+        <translation>寬度</translation>
+    </message>
+    <message>
+        <source>pages.resize.height</source>
+        <translation>高度</translation>
+    </message>
+    <message>
+        <source>pages.resize.scale</source>
+        <translation>縮放內容以符合</translation>
+    </message>
+    <message>
+        <source>pages.resize.anchor</source>
+        <translation>內容位置：</translation>
+    </message>
+    <message>
+        <source>pages.anchor.topLeft</source>
+        <translation>左上</translation>
+    </message>
+    <message>
+        <source>pages.anchor.top</source>
+        <translation>上方置中</translation>
+    </message>
+    <message>
+        <source>pages.anchor.topRight</source>
+        <translation>右上</translation>
+    </message>
+    <message>
+        <source>pages.anchor.left</source>
+        <translation>左側置中</translation>
+    </message>
+    <message>
+        <source>pages.anchor.centre</source>
+        <translation>置中</translation>
+    </message>
+    <message>
+        <source>pages.anchor.right</source>
+        <translation>右側置中</translation>
+    </message>
+    <message>
+        <source>pages.anchor.bottomLeft</source>
+        <translation>左下</translation>
+    </message>
+    <message>
+        <source>pages.anchor.bottom</source>
+        <translation>下方置中</translation>
+    </message>
+    <message>
+        <source>pages.anchor.bottomRight</source>
+        <translation>右下</translation>
+    </message>
+    <message>
+        <source>pages.renumber.title</source>
+        <translation>重新編號頁面</translation>
+    </message>
+    <message>
+        <source>pages.renumber.style</source>
+        <translation>樣式：</translation>
+    </message>
+    <message>
+        <source>pages.renumber.style.decimal</source>
+        <translation>1, 2, 3</translation>
+    </message>
+    <message>
+        <source>pages.renumber.style.romanUpper</source>
+        <translation>I, II, III</translation>
+    </message>
+    <message>
+        <source>pages.renumber.style.romanLower</source>
+        <translation>i, ii, iii</translation>
+    </message>
+    <message>
+        <source>pages.renumber.style.lettersUpper</source>
+        <translation>A, B, C</translation>
+    </message>
+    <message>
+        <source>pages.renumber.style.lettersLower</source>
+        <translation>a, b, c</translation>
+    </message>
+    <message>
+        <source>pages.renumber.style.none</source>
+        <translation>不編號（僅前綴）</translation>
+    </message>
+    <message>
+        <source>pages.renumber.prefix</source>
+        <translation>前綴：</translation>
+    </message>
+    <message>
+        <source>pages.renumber.start</source>
+        <translation>起始值：</translation>
+    </message>
+    <message>
+        <source>pages.measuringMargins</source>
+        <translation>正在測量 %1 頁的白邊…</translation>
+    </message>
+    <message>
+        <source>pages.drawingThumbnails</source>
+        <translation>正在繪製 %1 頁的縮圖…</translation>
+    </message>
+    <message>
         <source>pages.tooltip.needsClipboardPages</source>
         <translation>請先複製頁面：剪貼簿中沒有 RawPage 頁面。</translation>
     </message>
@@ -6126,6 +6374,14 @@
         <translation>表單欄位</translation>
     </message>
     <message>
+        <source>pages.reference.PageBox</source>
+        <translation>頁面方塊</translation>
+    </message>
+    <message>
+        <source>pages.reference.PageComments</source>
+        <translation>已調整大小頁面上的註解</translation>
+    </message>
+    <message>
         <source>pages.treatment.Cleared</source>
         <translation>%1 個失去目的地</translation>
     </message>
@@ -6144,6 +6400,10 @@
     <message>
         <source>pages.treatment.NotCopied</source>
         <translation>%1 個未複製</translation>
+    </message>
+    <message>
+        <source>pages.treatment.Clipped</source>
+        <translation>%1 已裁切至媒體方塊</translation>
     </message>
 </context>
 </TS>

@@ -60,11 +60,25 @@
 // keeps the label it had (D7-2) and a copy takes the next number of its range (guide A-21). Both follow
 // PDFium, which is what the model's labels came from: a page no range covers is labelled with its own
 // 1-based number, and `formatLabel()` spells roman numerals and letters as PDFium does.
+//
+// -------------------------------------------------------------------------------------------
+// BOXES, CONTENT, LABELS AND THUMBNAILS -- Stage 7 T9 (D7-15, D7-7, D7-32)
+// -------------------------------------------------------------------------------------------
+// A box command says what a page SHOWS (`core::PageBoxes`); `withBoxes()` decides which keys of the page dictionary
+// say it, against what the page would inherit, writing nothing that would not change what is shown -- so an undo
+// before a save writes nothing, and a box the page inherits is not restated on it. A RESIZE WITH SCALING wraps the
+// page's content in two marked streams, `q ... cm ... re W n` before and `Q` after, each dictionary carrying
+// `/RawPageDecoration << /Kind /Resize /Id <key> >>` (D7-7); `contentLayers()` finds them again in `/Contents` by that
+// mark alone -- a list operation, no content stream parsed -- so taking one out is exact. A content stream that
+// restores more than it saves (more `Q` than `q`) pops the wrapper's `q` and draws what follows unscaled, in every
+// reader; nothing short of Stage 10's parser could see that coming. A thumbnail is an RGB image stream
+// (`thumbnailDictionary`).
 
 #ifndef RAWPAGE_PDF_OPS_PAGEOPS_H
 #define RAWPAGE_PDF_OPS_PAGEOPS_H
 
 #include "core/Result.h"
+#include "core/doc/Page.h"
 #include "pdf/cos/CosObject.h"
 
 #include <QString>
@@ -183,6 +197,45 @@ public:
     static QString formatLabel(const PageLabelRange& label);
     // The /PageLabels number tree that gives each page `labels[i]` -- one range per run that counts on.
     static cos::CosObject labelTree(const std::vector<PageLabelRange>& labels);
+
+    // --- Boxes, content, labels and thumbnails (Stage 7 T9) -- see the header --------------------------------------
+    // A box as written, normalized (the smaller corner first); nullopt for anything that is not four numbers.
+    static std::optional<core::PdfRect> rectOf(const cos::CosObject& value);
+    static cos::CosObject boxObject(core::PdfRect box);
+    // What `page` SHOWS: its MediaBox and CropBox, its own or those `inherited` passes down (`inheritedValues`), US
+    // Letter for a page with no MediaBox anywhere; and the three boxes no page inherits, its own.
+    static core::PageBoxes shownBoxes(const cos::CosObject& page, const std::map<std::string, cos::CosObject>& inherited);
+    // `page` changed so it shows `boxes` -- each key written only where what is shown would differ: a CropBox the page
+    // would inherit is not restated, and one it must stop inheriting is stated as its MediaBox. `page` itself when it
+    // already shows them.
+    static cos::CosObject withBoxes(const cos::CosObject& page, const std::map<std::string, cos::CosObject>& inherited,
+                                    const core::PageBoxes& boxes);
+
+    // A RESIZE'S WRAPPER (D7-7): the two marked streams a page's content is drawn between. `id` is the command's key.
+    static std::string wrapPrefix(const core::PageContentWrap& wrap);   // q a b c d e f cm x y w h re W n
+    static std::string wrapSuffix();                                    // Q
+    static cos::CosObject wrapDictionary(const QString& id);
+    // The id a stream dictionary's `/RawPageDecoration` names for a resize's wrapper; empty for any other.
+    static QString wrapId(const cos::CosObject& stream);
+    // A page's `/Contents` as layers: the wrappers RawPage wrote around it, OUTERMOST first -- each the matching pair
+    // of a marked stream at the front and one at the back -- and the content they wrap. `contents` is the value as
+    // written (a stream reference, an array, or a reference to one); a value that is none of them is all content.
+    struct ContentLayers {
+        struct Layer {
+            QString id;
+            cos::CosObject before;   // the reference at the front
+            cos::CosObject after;    // the reference at the back
+        };
+        std::vector<Layer> layers;
+        std::vector<cos::CosObject> content;
+    };
+    static ContentLayers contentLayers(cos::XrefTable& table, const cos::CosObject& contents);
+
+    // A label as `core::RenumberPagesCommand` says it, as the range that numbers it states it.
+    static PageLabelRange labelRange(const core::PageLabelSpec& label);
+
+    // A thumbnail's image dictionary (ISO 32000-1 §12.3.4): 8-bit RGB, `/FlateDecode`d.
+    static cos::CosObject thumbnailDictionary(const core::PageThumbnail& thumbnail);
 };
 
 } // namespace rawpage::pdf::ops

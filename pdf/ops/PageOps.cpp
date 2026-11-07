@@ -2,7 +2,9 @@
 
 #include "pdf/ops/PageOps.h"
 
+#include "pdf/cos/ContentStreamBuilder.h"
 #include "pdf/cos/XrefTable.h"
+#include "pdf/ops/AnnotationOps.h"
 #include "pdf/ops/EmbeddedFileReader.h"
 
 #include <algorithm>
@@ -485,6 +487,174 @@ CosObject PageOps::labelTree(const std::vector<PageLabelRange>& labels)
         nums.push_back(CosObject::makeDictionary(std::move(range)));
     }
     return CosObject::makeDictionary({{"Nums", CosObject::makeArray(std::move(nums))}});
+}
+
+// ==========================================================================================
+// Boxes, content, labels and thumbnails -- Stage 7 T9. See the header.
+// ==========================================================================================
+
+namespace {
+
+const core::PdfRect kLetter{core::PdfPoint{0.0, 0.0}, core::PdfSize{612.0, 792.0}};
+
+std::optional<core::PdfRect> inheritedBox(const std::map<std::string, CosObject>& inherited, const char* key)
+{
+    const auto found = inherited.find(key);
+    return found == inherited.end() ? std::nullopt : PageOps::rectOf(found->second);
+}
+
+} // namespace
+
+std::optional<core::PdfRect> PageOps::rectOf(const CosObject& value)
+{
+    const std::optional<std::array<double, 4>> edges = ops::boxOf(value);
+    if (!edges) return std::nullopt;
+    const std::array<double, 4>& b = *edges;
+    const double x0 = std::min(b[0], b[2]);
+    const double y0 = std::min(b[1], b[3]);
+    return core::PdfRect{core::PdfPoint{x0, y0}, core::PdfSize{std::max(b[0], b[2]) - x0, std::max(b[1], b[3]) - y0}};
+}
+
+CosObject PageOps::boxObject(core::PdfRect box)
+{
+    const auto number = [](double value) {
+        // A whole number written as one, so a box RawPage writes reads as a person would type it.
+        return std::trunc(value) == value && std::abs(value) < 1.0e9 ? CosObject::makeInteger(static_cast<long long>(value))
+                                                                       : CosObject::makeReal(value);
+    };
+    return CosObject::makeArray({number(box.left()), number(box.bottom()), number(box.right()), number(box.top())});
+}
+
+core::PageBoxes PageOps::shownBoxes(const CosObject& page, const std::map<std::string, CosObject>& inherited)
+{
+    core::PageBoxes boxes;
+    std::optional<core::PdfRect> media = rectOf(page.get("MediaBox"));
+    if (!media) media = inheritedBox(inherited, "MediaBox");
+    boxes.media = media.value_or(kLetter);
+    boxes.crop = rectOf(page.get("CropBox"));
+    if (!page.has("CropBox")) boxes.crop = inheritedBox(inherited, "CropBox");
+    boxes.bleed = rectOf(page.get("BleedBox"));
+    boxes.trim = rectOf(page.get("TrimBox"));
+    boxes.art = rectOf(page.get("ArtBox"));
+    return boxes;
+}
+
+CosObject PageOps::withBoxes(const CosObject& page, const std::map<std::string, CosObject>& inherited, const core::PageBoxes& boxes)
+{
+    const core::PageBoxes now = shownBoxes(page, inherited);
+    CosObject out = page;
+    if (!(now.media == boxes.media)) out = AnnotationOps::withEntry(out, "MediaBox", boxObject(boxes.media));
+    if (!(now.crop == boxes.crop)) {
+        if (boxes.crop) {
+            out = AnnotationOps::withEntry(out, "CropBox", boxObject(*boxes.crop));
+        } else {
+            // NO CROPBOX: the page's own goes, and one it would inherit is stated as its MediaBox -- which is what an
+            // absent one would default to (ISO 32000-1 §14.11.2).
+            out = AnnotationOps::withoutEntry(out, "CropBox");
+            if (inheritedBox(inherited, "CropBox")) out = AnnotationOps::withEntry(out, "CropBox", boxObject(boxes.media));
+        }
+    }
+    const std::pair<const char*, const std::optional<core::PdfRect>*> others[] = {
+        {"BleedBox", &boxes.bleed}, {"TrimBox", &boxes.trim}, {"ArtBox", &boxes.art}};
+    const std::optional<core::PdfRect>* nowOthers[] = {&now.bleed, &now.trim, &now.art};
+    for (int i = 0; i < 3; ++i) {
+        if (*nowOthers[i] == *others[i].second) continue;
+        out = *others[i].second ? AnnotationOps::withEntry(out, others[i].first, boxObject(**others[i].second))
+                                : AnnotationOps::withoutEntry(out, others[i].first);
+    }
+    return out;
+}
+
+std::string PageOps::wrapPrefix(const core::PageContentWrap& wrap)
+{
+    using cos::ContentStreamBuilder;
+    std::string out = "q ";
+    for (const double value : wrap.matrix) out += ContentStreamBuilder::number(value) + ' ';
+    out += "cm ";
+    out += ContentStreamBuilder::number(wrap.clip.left()) + ' ' + ContentStreamBuilder::number(wrap.clip.bottom()) + ' '
+           + ContentStreamBuilder::number(wrap.clip.size.width) + ' ' + ContentStreamBuilder::number(wrap.clip.size.height)
+           + " re W n\n";
+    return out;
+}
+
+std::string PageOps::wrapSuffix()
+{
+    return "Q\n";
+}
+
+CosObject PageOps::wrapDictionary(const QString& id)
+{
+    return CosObject::makeDictionary(
+        {{"RawPageDecoration", CosObject::makeDictionary({{"Kind", CosObject::makeName("Resize")},
+                                                          {"Id", CosObject::makeString(id.toStdString(), cos::StringForm::Hex)}})}});
+}
+
+QString PageOps::wrapId(const CosObject& stream)
+{
+    const CosObject& mark = stream.get("RawPageDecoration");
+    if (!mark.isDictionary()) return {};
+    const CosObject& kind = mark.get("Kind");
+    const CosObject& id = mark.get("Id");
+    if (!kind.isName() || kind.text() != "Resize" || !id.isString() || id.text().empty()) return {};
+    return QString::fromLatin1(id.text().data(), static_cast<qsizetype>(id.text().size()));
+}
+
+PageOps::ContentLayers PageOps::contentLayers(cos::XrefTable& table, const CosObject& contents)
+{
+    ContentLayers out;
+    CosObject value = contents;
+    if (value.isReference()) {
+        auto fetched = table.fetch(value.reference().number);
+        if (fetched && fetched.value().object.isArray()) value = fetched.value().object;
+    }
+    if (!value.isArray()) {
+        if (!value.isNull()) out.content.push_back(contents);
+        return out;
+    }
+    std::vector<CosObject> items(value.items().begin(), value.items().end());
+    for (CosObject& item : items) item.clearSpansRecursively();
+    const auto idOf = [&table](const CosObject& item) -> QString {
+        if (!item.isReference()) return {};
+        auto fetched = table.fetch(item.reference().number);
+        return fetched && fetched.value().object.isStream() ? wrapId(fetched.value().object) : QString();
+    };
+    // From the outside in: a marked pair, the same id at both ends.
+    std::size_t front = 0;
+    std::size_t back = items.size();
+    while (back - front >= 2) {
+        const QString id = idOf(items[front]);
+        if (id.isEmpty() || idOf(items[back - 1]) != id) break;
+        out.layers.push_back(ContentLayers::Layer{id, items[front], items[back - 1]});
+        ++front;
+        --back;
+    }
+    out.content.assign(items.begin() + static_cast<std::ptrdiff_t>(front), items.begin() + static_cast<std::ptrdiff_t>(back));
+    return out;
+}
+
+PageLabelRange PageOps::labelRange(const core::PageLabelSpec& label)
+{
+    PageLabelRange out;
+    switch (label.style) {
+    case core::PageLabelStyle::None: out.style.clear(); break;
+    case core::PageLabelStyle::Decimal: out.style = "D"; break;
+    case core::PageLabelStyle::RomanUpper: out.style = "R"; break;
+    case core::PageLabelStyle::RomanLower: out.style = "r"; break;
+    case core::PageLabelStyle::LettersUpper: out.style = "A"; break;
+    case core::PageLabelStyle::LettersLower: out.style = "a"; break;
+    }
+    if (!label.prefix.isEmpty()) out.prefix = AnnotationOps::textString(label.prefix);
+    out.value = std::max(1, label.value);
+    return out;
+}
+
+CosObject PageOps::thumbnailDictionary(const core::PageThumbnail& thumbnail)
+{
+    return CosObject::makeDictionary({{"Width", CosObject::makeInteger(thumbnail.width)},
+                                      {"Height", CosObject::makeInteger(thumbnail.height)},
+                                      {"ColorSpace", CosObject::makeName("DeviceRGB")},
+                                      {"BitsPerComponent", CosObject::makeInteger(8)},
+                                      {"Filter", CosObject::makeName("FlateDecode")}});
 }
 
 } // namespace rawpage::pdf::ops

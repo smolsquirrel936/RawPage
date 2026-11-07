@@ -45,5 +45,9 @@ RAWPAGE_COMMAND(DeletePagesCommand, "page.delete", "core/cmd/commands/PageComman
 RAWPAGE_COMMAND(DuplicatePagesCommand, "page.duplicate", "core/cmd/commands/PageCommands.h")
 RAWPAGE_COMMAND(InsertPagesCommand, "page.insert", "core/cmd/commands/PageCommands.h")
 RAWPAGE_COMMAND(ReplacePagesCommand, "page.replace", "core/cmd/commands/PageCommands.h")
+RAWPAGE_COMMAND(CropPagesCommand, "page.crop", "core/cmd/commands/PageCommands.h")
+RAWPAGE_COMMAND(ResizePagesCommand, "page.resize", "core/cmd/commands/PageCommands.h")
+RAWPAGE_COMMAND(RenumberPagesCommand, "page.renumber", "core/cmd/commands/PageCommands.h")
+RAWPAGE_COMMAND(SetEmbeddedThumbnailsCommand, "page.thumbnails", "core/cmd/commands/PageCommands.h")
 
 #undef RAWPAGE_COMMAND

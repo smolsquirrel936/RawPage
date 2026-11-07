@@ -1020,6 +1020,18 @@
         <translation>Renumber</translation>
     </message>
     <message>
+        <source>action.page.setBoxes</source>
+        <translation>Set Page Boxes…</translation>
+    </message>
+    <message>
+        <source>action.page.embedThumbnails</source>
+        <translation>Embed Thumbnails</translation>
+    </message>
+    <message>
+        <source>action.page.removeThumbnails</source>
+        <translation>Remove Embedded Thumbnails</translation>
+    </message>
+    <message>
         <source>action.page.duplicate</source>
         <translation>Duplicate</translation>
     </message>
@@ -2562,6 +2574,10 @@
         <translation>Page %1 has no content to measure.</translation>
     </message>
     <message>
+        <source>error.render.noThumbnail</source>
+        <translation>Page %1 carries no embedded thumbnail.</translation>
+    </message>
+    <message>
         <source>error.backend.notImplemented</source>
         <translation>This build cannot do that yet: %1 is not implemented.</translation>
     </message>
@@ -3458,6 +3474,34 @@
         <translation>No page in that set passes the filters.</translation>
     </message>
     <message>
+        <source>error.pages.boxTooSmall</source>
+        <translation>A page box must be at least 3 points on each side.</translation>
+    </message>
+    <message>
+        <source>error.pages.boxOutside</source>
+        <translation>That box lies entirely outside the page's media box.</translation>
+    </message>
+    <message>
+        <source>error.pages.badSize</source>
+        <translation>A page may be at most 14,400 points (200 inches) on a side.</translation>
+    </message>
+    <message>
+        <source>error.pages.mediaBoxRequired</source>
+        <translation>A page always has a media box: it can be changed, not removed.</translation>
+    </message>
+    <message>
+        <source>error.pages.busy</source>
+        <translation>Another page operation is still reading this document's pages.</translation>
+    </message>
+    <message>
+        <source>error.pages.unreadable</source>
+        <translation>Page %1 could not be read.</translation>
+    </message>
+    <message>
+        <source>error.pages.documentChanged</source>
+        <translation>The document changed while its pages were being read; nothing was changed.</translation>
+    </message>
+    <message>
         <source>error.pages.noFile</source>
         <translation>Choose the PDF the pages come from.</translation>
     </message>
@@ -4292,6 +4336,10 @@
         <translation>Size of a new blank page</translation>
     </message>
     <message>
+        <source>prefs.setting.documents.cropRemoveWhiteMargins</source>
+        <translation>Margin kept when removing white margins (points)</translation>
+    </message>
+    <message>
         <source>prefs.setting.documents.compareSensitivity</source>
         <translation>Comparison sensitivity</translation>
     </message>
@@ -4569,6 +4617,26 @@
     <message>
         <source>command.page.replace</source>
         <translation>Replace %1 page(s)</translation>
+    </message>
+    <message>
+        <source>command.page.crop</source>
+        <translation>Set the boxes of %1 page(s)</translation>
+    </message>
+    <message>
+        <source>command.page.resize</source>
+        <translation>Resize %1 page(s)</translation>
+    </message>
+    <message>
+        <source>command.page.renumber</source>
+        <translation>Renumber %1 page(s)</translation>
+    </message>
+    <message>
+        <source>command.page.embedThumbnails</source>
+        <translation>Embed thumbnails in %1 page(s)</translation>
+    </message>
+    <message>
+        <source>command.page.removeThumbnails</source>
+        <translation>Remove embedded thumbnails from %1 page(s)</translation>
     </message>
     <message>
         <source>command.page.rotate</source>
@@ -6086,6 +6154,186 @@
         <translation>Copied %1 page(s) to the clipboard.</translation>
     </message>
     <message>
+        <source>pages.pointsSuffix</source>
+        <translation> pt</translation>
+    </message>
+    <message>
+        <source>pages.crop.title</source>
+        <translation>Set Page Boxes</translation>
+    </message>
+    <message>
+        <source>pages.crop.sameSize</source>
+        <translation>All pages the size of the first page in the range</translation>
+    </message>
+    <message>
+        <source>pages.crop.box</source>
+        <translation>Box:</translation>
+    </message>
+    <message>
+        <source>pages.crop.box.crop</source>
+        <translation>Crop box (what a reader shows)</translation>
+    </message>
+    <message>
+        <source>pages.crop.box.trim</source>
+        <translation>Trim box</translation>
+    </message>
+    <message>
+        <source>pages.crop.box.bleed</source>
+        <translation>Bleed box</translation>
+    </message>
+    <message>
+        <source>pages.crop.box.art</source>
+        <translation>Art box</translation>
+    </message>
+    <message>
+        <source>pages.crop.box.media</source>
+        <translation>Media box (the sheet)</translation>
+    </message>
+    <message>
+        <source>pages.crop.margins</source>
+        <translation>Inset from the media box by:</translation>
+    </message>
+    <message>
+        <source>pages.crop.edge.left</source>
+        <translation>Left</translation>
+    </message>
+    <message>
+        <source>pages.crop.edge.bottom</source>
+        <translation>Bottom</translation>
+    </message>
+    <message>
+        <source>pages.crop.edge.right</source>
+        <translation>Right</translation>
+    </message>
+    <message>
+        <source>pages.crop.edge.top</source>
+        <translation>Top</translation>
+    </message>
+    <message>
+        <source>pages.crop.whiteMargins</source>
+        <translation>Remove white margins: to each page's content</translation>
+    </message>
+    <message>
+        <source>pages.crop.padding</source>
+        <translation>Keep a margin of</translation>
+    </message>
+    <message>
+        <source>pages.crop.remove</source>
+        <translation>Remove the box (a removed crop box shows the media box)</translation>
+    </message>
+    <message>
+        <source>pages.resize.title</source>
+        <translation>Resize Pages</translation>
+    </message>
+    <message>
+        <source>pages.resize.size</source>
+        <translation>New size:</translation>
+    </message>
+    <message>
+        <source>pages.resize.custom</source>
+        <translation>Custom</translation>
+    </message>
+    <message>
+        <source>pages.resize.width</source>
+        <translation>Width</translation>
+    </message>
+    <message>
+        <source>pages.resize.height</source>
+        <translation>Height</translation>
+    </message>
+    <message>
+        <source>pages.resize.scale</source>
+        <translation>Scale the content to fit</translation>
+    </message>
+    <message>
+        <source>pages.resize.anchor</source>
+        <translation>Place the content:</translation>
+    </message>
+    <message>
+        <source>pages.anchor.topLeft</source>
+        <translation>Top left</translation>
+    </message>
+    <message>
+        <source>pages.anchor.top</source>
+        <translation>Top centre</translation>
+    </message>
+    <message>
+        <source>pages.anchor.topRight</source>
+        <translation>Top right</translation>
+    </message>
+    <message>
+        <source>pages.anchor.left</source>
+        <translation>Middle left</translation>
+    </message>
+    <message>
+        <source>pages.anchor.centre</source>
+        <translation>Centre</translation>
+    </message>
+    <message>
+        <source>pages.anchor.right</source>
+        <translation>Middle right</translation>
+    </message>
+    <message>
+        <source>pages.anchor.bottomLeft</source>
+        <translation>Bottom left</translation>
+    </message>
+    <message>
+        <source>pages.anchor.bottom</source>
+        <translation>Bottom centre</translation>
+    </message>
+    <message>
+        <source>pages.anchor.bottomRight</source>
+        <translation>Bottom right</translation>
+    </message>
+    <message>
+        <source>pages.renumber.title</source>
+        <translation>Renumber Pages</translation>
+    </message>
+    <message>
+        <source>pages.renumber.style</source>
+        <translation>Style:</translation>
+    </message>
+    <message>
+        <source>pages.renumber.style.decimal</source>
+        <translation>1, 2, 3</translation>
+    </message>
+    <message>
+        <source>pages.renumber.style.romanUpper</source>
+        <translation>I, II, III</translation>
+    </message>
+    <message>
+        <source>pages.renumber.style.romanLower</source>
+        <translation>i, ii, iii</translation>
+    </message>
+    <message>
+        <source>pages.renumber.style.lettersUpper</source>
+        <translation>A, B, C</translation>
+    </message>
+    <message>
+        <source>pages.renumber.style.lettersLower</source>
+        <translation>a, b, c</translation>
+    </message>
+    <message>
+        <source>pages.renumber.style.none</source>
+        <translation>No number (the prefix alone)</translation>
+    </message>
+    <message>
+        <source>pages.renumber.prefix</source>
+        <translation>Prefix:</translation>
+    </message>
+    <message>
+        <source>pages.renumber.start</source>
+        <translation>Start at:</translation>
+    </message>
+    <message>
+        <source>pages.measuringMargins</source>
+        <translation>Measuring the white margins of %1 page(s)…</translation>
+    </message>
+    <message>
+        <source>pages.drawingThumbnails</source>
+        <translation>Drawing thumbnails of %1 page(s)…</translation>
+    </message>
+    <message>
         <source>pages.tooltip.needsClipboardPages</source>
         <translation>Copy pages first: the clipboard holds no RawPage pages.</translation>
     </message>
@@ -6126,6 +6374,14 @@
         <translation>Form fields</translation>
     </message>
     <message>
+        <source>pages.reference.PageBox</source>
+        <translation>Page boxes</translation>
+    </message>
+    <message>
+        <source>pages.reference.PageComments</source>
+        <translation>Comments on resized pages</translation>
+    </message>
+    <message>
         <source>pages.treatment.Cleared</source>
         <translation>%1 lost their destination</translation>
     </message>
@@ -6144,6 +6400,10 @@
     <message>
         <source>pages.treatment.NotCopied</source>
         <translation>%1 not copied</translation>
+    </message>
+    <message>
+        <source>pages.treatment.Clipped</source>
+        <translation>%1 clipped to the media box</translation>
     </message>
 </context>
 </TS>

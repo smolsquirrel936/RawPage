@@ -2172,6 +2172,13 @@ bool PageView::takeSnapshot(const QRect& band)
     return true;
 }
 
+bool PageView::cropToBox(int page, core::PdfRect box)
+{
+    if (!document_.isValid()) return false;
+    emit cropAsked(page, box);
+    return true;
+}
+
 void PageView::deliverSnapshot()
 {
     const QImage* held = snapshotRaster_->imageFor(snapshotRaster_->aimed());

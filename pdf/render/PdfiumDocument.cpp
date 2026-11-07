@@ -16,6 +16,7 @@
 #include <fpdf_doc.h>
 #include <fpdf_edit.h>
 #include <fpdf_formfill.h>
+#include <fpdf_thumbnail.h>
 #include <fpdf_transformpage.h>
 #include <fpdfview.h>
 
@@ -756,6 +757,48 @@ core::Result<core::PdfRect> PdfiumDocument::contentBox(int pageIndex) const
                            QString::number(pageIndex)};
     }
     return *computed;
+}
+
+core::Result<core::RasterImage> PdfiumDocument::embeddedThumbnail(int pageIndex) const
+{
+    const std::lock_guard<EngineMutex> guard(engineLock());
+    auto* document = static_cast<FPDF_DOCUMENT>(engineHandle());
+    if (document == nullptr) return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.render.documentClosed")};
+    if (drawnPagesLocked().at(pageIndex) == nullptr)
+        return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.render.noSuchPage"), QString::number(pageIndex)};
+    FPDF_PAGE page = FPDF_LoadPage(document, pageIndex);
+    if (page == nullptr)
+        return core::Error{core::ErrorCode::NotFound, QLatin1String("error.render.noThumbnail"), QString::number(pageIndex)};
+    FPDF_BITMAP bitmap = FPDFPage_GetThumbnailAsBitmap(page);
+    if (bitmap == nullptr) {
+        FPDF_ClosePage(page);
+        return core::Error{core::ErrorCode::NotFound, QLatin1String("error.render.noThumbnail"), QString::number(pageIndex)};
+    }
+    // Whatever format the engine decoded it into -- grey, BGR, BGRx, BGRA -- as four bytes a pixel.
+    core::RasterImage image;
+    image.width = FPDFBitmap_GetWidth(bitmap);
+    image.height = FPDFBitmap_GetHeight(bitmap);
+    image.bytesPerLine = image.width * 4;
+    image.format = core::PixelFormat::Bgrx8888;
+    image.pixels = QByteArray(static_cast<qsizetype>(image.bytesPerLine) * image.height, '\0');
+    const int format = FPDFBitmap_GetFormat(bitmap);
+    const int stride = FPDFBitmap_GetStride(bitmap);
+    const auto* source = static_cast<const unsigned char*>(FPDFBitmap_GetBuffer(bitmap));
+    const int bytes = format == FPDFBitmap_Gray ? 1 : (format == FPDFBitmap_BGR ? 3 : 4);
+    for (int y = 0; y < image.height && source != nullptr; ++y) {
+        const unsigned char* row = source + static_cast<std::ptrdiff_t>(y) * stride;
+        auto* out = reinterpret_cast<unsigned char*>(image.pixels.data()) + static_cast<std::ptrdiff_t>(y) * image.bytesPerLine;
+        for (int x = 0; x < image.width; ++x) {
+            const unsigned char* at = row + static_cast<std::ptrdiff_t>(x) * bytes;
+            out[x * 4 + 0] = at[0];
+            out[x * 4 + 1] = bytes == 1 ? at[0] : at[1];
+            out[x * 4 + 2] = bytes == 1 ? at[0] : at[2];
+            out[x * 4 + 3] = 0xff;
+        }
+    }
+    FPDFBitmap_Destroy(bitmap);
+    FPDF_ClosePage(page);
+    return image;
 }
 
 // =============================================================================================

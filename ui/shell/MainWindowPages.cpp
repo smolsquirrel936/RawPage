@@ -1,5 +1,6 @@
 // ui/shell/MainWindowPages -- the thumbnails pane's edits: the page actions §8's Page Thumbnails table names, the drag,
-// the clipboard and the insert, delete and replace dialogs. Stage 7 T8 (`Stage7-Assembly-Plan.md` §6, D7-13, D7-20).
+// the clipboard and the insert, delete and replace dialogs. Stage 7 T8 (`Stage7-Assembly-Plan.md` §6, D7-13, D7-20); and
+// Stage 7 T9's boxes, crop tool, resize, renumber and embedded thumbnails (D7-15, D7-32).
 // A translation unit of `MainWindow` for `MainWindowExchange.cpp`'s reason: one feature's registrations and handlers
 // in one place, the window's own file already the size it is.
 //
@@ -23,6 +24,8 @@
 #include "core/doc/PageMap.h"
 #include "core/doc/PageRanges.h"
 #include "core/doc/PageTree.h"
+#include "core/doc/PageWorkRunner.h"
+#include "core/render/RenderRequest.h"
 #include "core/settings/Settings.h"
 #include "ui/panes/ThumbnailsPane.h"
 #include "ui/shell/Catalog.h"
@@ -35,10 +38,15 @@
 #include <QClipboard>
 #include <QGuiApplication>
 #include <QMimeData>
+#include <QPointer>
 #include <QStringList>
 
 #include <algorithm>
+#include <chrono>
+#include <cmath>
 #include <map>
+#include <memory>
+#include <mutex>
 
 namespace rawpage::ui {
 
@@ -336,6 +344,266 @@ void MainWindow::updatePageBadges()
     thumbnails_->setBadges(std::move(badges));
 }
 
+// ==========================================================================================
+// Boxes, crop, resize, renumber, thumbnails -- Stage 7 T9 (D7-15, D7-32)
+// ==========================================================================================
+
+namespace {
+
+// Where `box` sits inside `media`: its inset from each edge -- left, bottom, right, top -- in points.
+std::array<double, 4> marginsOf(core::PdfRect box, core::PdfRect media)
+{
+    return {box.left() - media.left(), box.bottom() - media.bottom(), media.right() - box.right(), media.top() - box.top()};
+}
+
+// `media` inset by the four margins.
+core::PdfRect inset(core::PdfRect media, double left, double bottom, double right, double top)
+{
+    const double x0 = media.left() + left;
+    const double y0 = media.bottom() + bottom;
+    return core::PdfRect{core::PdfPoint{x0, y0}, core::PdfSize{media.right() - right - x0, media.top() - top - y0}};
+}
+
+void assign(core::PageBoxes& boxes, core::PageBoxKind kind, std::optional<core::PdfRect> box)
+{
+    switch (kind) {
+    case core::PageBoxKind::Media: if (box) boxes.media = *box; break;
+    case core::PageBoxKind::Crop: boxes.crop = box; break;
+    case core::PageBoxKind::Bleed: boxes.bleed = box; break;
+    case core::PageBoxKind::Trim: boxes.trim = box; break;
+    case core::PageBoxKind::Art: boxes.art = box; break;
+    }
+}
+
+core::Error pagesChanged()
+{
+    return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.pages.documentChanged"), QString()};
+}
+
+} // namespace
+
+bool MainWindow::isMeasuringPages() const
+{
+    return pageWork_ && pageWork_->isRunning();
+}
+
+core::Status MainWindow::cropPages(DocumentWindow* document, const CropPagesDialog::Choice& choice)
+{
+    const auto refuse = [this](const core::Error& error) {
+        RAWPAGE_LOG_WARNING(LogSubsystem::Ui) << "crop refused --" << error.messageKey << error.context;
+        if (status_) status_->setMessage(catalog::translateError(QString(error.messageKey), error.context));
+        return core::Status(error);
+    };
+    if (document == nullptr || document->journal() == nullptr || choice.pages.empty())
+        return refuse(core::Error{core::ErrorCode::Unavailable, QLatin1String("error.command.noSink"), QString()});
+    const core::PageTree& model = document->journal()->document().pages();
+    const std::vector<int> pages = choice.sameSize ? core::pagesOfSameSize(model, choice.pages.front()) : choice.pages;
+    if (pages.empty()) return refuse(core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.pages.noneMatch"), QString()});
+
+    if (choice.how != CropPagesDialog::How::WhiteMargins) {
+        // EACH PAGE FROM ITS OWN MEDIABOX: a range of pages of different sizes keeps each one's margins.
+        std::vector<core::PageBoxes> boxes;
+        for (const int page : pages) {
+            core::PageBoxes made = core::boxesOf(*model.at(page));
+            if (choice.how == CropPagesDialog::How::Remove) assign(made, choice.box, std::nullopt);
+            else assign(made, choice.box, inset(made.media, choice.left, choice.bottom, choice.right, choice.top));
+            boxes.push_back(made);
+        }
+        return runPageCommand(document, std::make_unique<core::CropPagesCommand>(pages, std::move(boxes)));
+    }
+
+    // REMOVE WHITE MARGINS: each page's CONTENT box, which the engine measures, page by page, on the render thread.
+    if (!pageWork_) pageWork_ = std::make_unique<core::PageWorkRunner>(services_.renderScheduler);
+    if (pageWork_->isRunning()) return refuse(core::Error{core::ErrorCode::Unavailable, QLatin1String("error.pages.busy"), QString()});
+    struct Found {
+        std::mutex mutex;
+        std::map<int, std::optional<core::PdfRect>> content;
+    };
+    auto found = std::make_shared<Found>();
+    core::IDocumentBackend* backend = &services_.backend;
+    const core::DocumentHandle handle = document->handle();
+    const core::Revision revision = document->journal()->revision();
+    const QPointer<MainWindow> self(this);
+    const QPointer<DocumentWindow> target(document);
+    const double padding = choice.padding;
+    const auto began = std::chrono::steady_clock::now();
+    const core::Status started = pageWork_->start(
+        handle, pages,
+        [backend, handle, found](int page) {
+            // A page with nothing on it, or one the engine will not read, keeps the box it has.
+            const core::Result<core::PdfRect> box = backend->contentBox(handle, page);
+            const std::lock_guard<std::mutex> guard(found->mutex);
+            found->content[page] = box ? std::optional<core::PdfRect>(box.value()) : std::nullopt;
+        },
+        [self, target, pages, found, padding, revision, began](core::Status done) {
+            if (!self || !target) return;
+            const auto refused = [&](const core::Error& error) {
+                if (self->status_) self->status_->setMessage(catalog::translateError(QString(error.messageKey), error.context));
+            };
+            if (!done) return refused(done.error());
+            // A COMMAND IN BETWEEN made these the boxes of other pages: nothing is cropped.
+            if (target->journal() == nullptr || target->journal()->revision() != revision) return refused(pagesChanged());
+            const core::PageTree& now = target->journal()->document().pages();
+            std::vector<core::PageBoxes> boxes;
+            int measured = 0;
+            {
+                const std::lock_guard<std::mutex> guard(found->mutex);
+                for (const int page : pages) {
+                    core::PageBoxes made = core::boxesOf(*now.at(page));
+                    const auto content = found->content.find(page);
+                    if (content != found->content.end() && content->second) {
+                        made.crop = core::whiteMarginBox(*content->second, padding, now.at(page)->cropBox());
+                        ++measured;
+                    }
+                    boxes.push_back(made);
+                }
+            }
+            RAWPAGE_LOG_INFO(LogSubsystem::Ui) << "pages: white margins of" << static_cast<int>(pages.size()) << "page(s) measured in"
+                                               << std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - began).count()
+                                               << "ms;" << measured << "with content";
+            (void)self->runPageCommand(target, std::make_unique<core::CropPagesCommand>(pages, std::move(boxes)));
+        });
+    if (!started) return refuse(started.error());
+    connect(document, &QObject::destroyed, this, [this, handle] {
+        if (pageWork_ && pageWork_->isRunning() && pageWork_->runningFor() == handle) pageWork_->cancel();
+    }, Qt::SingleShotConnection);
+    if (pageWork_->isRunning() && status_)
+        status_->setMessage(catalog::translate(catalog::key::PagesMeasuringMargins).arg(static_cast<int>(pages.size())));
+    return {};
+}
+
+core::Status MainWindow::cropToBox(DocumentWindow* document, int page, core::PdfRect box)
+{
+    if (document == nullptr || document->journal() == nullptr || page < 0 || page >= document->pageCount())
+        return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.command.noSink"), QString()};
+    const core::Page& shown = *document->journal()->document().pages().at(page);
+    const std::array<double, 4> margins = marginsOf(box, shown.mediaBox());
+    if (CropPagesDialog::canAsk()) {
+        const std::optional<CropPagesDialog::Choice> choice = CropPagesDialog::ask(
+            this, document->pageCount(), {page}, margins, services_.settings.get(core::keys::documents::cropRemoveWhiteMargins));
+        return choice ? cropPages(document, *choice) : core::Status{};
+    }
+    // NOBODY TO ASK (convention 16): the box dragged is the crop, of the page it was dragged on.
+    core::PageBoxes boxes = core::boxesOf(shown);
+    boxes.crop = box;
+    return runPageCommand(document, std::make_unique<core::CropPagesCommand>(std::vector<int>{page}, std::vector<core::PageBoxes>{boxes}));
+}
+
+core::Status MainWindow::resizePages(DocumentWindow* document, const ResizePagesDialog::Choice& choice)
+{
+    return runPageCommand(document, std::make_unique<core::ResizePagesCommand>(choice.pages, choice.size, choice.scale, choice.anchor));
+}
+
+core::Status MainWindow::renumberPages(DocumentWindow* document, const RenumberPagesDialog::Choice& choice)
+{
+    return runPageCommand(document,
+                          std::make_unique<core::RenumberPagesCommand>(choice.pages, choice.style, choice.prefix, choice.start));
+}
+
+core::Status MainWindow::removeThumbnails(DocumentWindow* document)
+{
+    if (document == nullptr) return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.command.noSink"), QString()};
+    std::vector<int> pages;
+    for (int page = 0; page < document->pageCount(); ++page) pages.push_back(page);
+    return runPageCommand(document, std::make_unique<core::SetEmbeddedThumbnailsCommand>(pages, std::vector<core::PageThumbnail>{}));
+}
+
+core::Status MainWindow::embedThumbnails(DocumentWindow* document)
+{
+    const auto refuse = [this](const core::Error& error) {
+        RAWPAGE_LOG_WARNING(LogSubsystem::Ui) << "thumbnails refused --" << error.messageKey << error.context;
+        if (status_) status_->setMessage(catalog::translateError(QString(error.messageKey), error.context));
+        return core::Status(error);
+    };
+    if (document == nullptr || document->journal() == nullptr || document->pageCount() <= 0)
+        return refuse(core::Error{core::ErrorCode::Unavailable, QLatin1String("error.command.noSink"), QString()});
+    if (!pageWork_) pageWork_ = std::make_unique<core::PageWorkRunner>(services_.renderScheduler);
+    if (pageWork_->isRunning()) return refuse(core::Error{core::ErrorCode::Unavailable, QLatin1String("error.pages.busy"), QString()});
+    core::IDocumentBackend* backend = &services_.backend;
+    const core::DocumentHandle handle = document->handle();
+    const core::PageTree& model = document->journal()->document().pages();
+    const core::PageTree* engine = backend->pages(handle);
+    if (engine == nullptr || backend->rasterizer(handle) == nullptr)
+        return refuse(core::Error{core::ErrorCode::Unavailable, QLatin1String("error.command.noSink"), QString()});
+
+    // EACH PAGE'S REQUEST IS MADE HERE, on the UI thread, from the model as the screen shows it -- an unsaved rotation as
+    // the delta the screen asks for (D3-15) -- and only the raster happens on the render thread.
+    std::vector<int> pages;
+    auto requests = std::make_shared<std::map<int, core::render::RenderRequest>>();
+    for (int page = 0; page < model.count(); ++page) {
+        const core::PdfSize shown = model.displaySize(page);
+        const double longest = std::max(shown.width, shown.height);
+        if (longest <= 0.0) continue;
+        core::render::RenderRequest request;
+        request.document = handle;
+        request.pageIndex = page;
+        request.deviceScale = static_cast<double>(core::kThumbnailEdge) / longest;
+        request.revision = core::Revision::initial();
+        request.flags = core::render::RenderFlags::Annotations;
+        const int delta = (((static_cast<int>(model.rotation(page)) - static_cast<int>(engine->rotation(page))) % 360) + 360) % 360;
+        request.pageRotationDelta = core::rotateBy(core::PageRotation::None, delta / 90);
+        request.tile = core::render::TileRect{0, 0, std::max(1, static_cast<int>(std::ceil(shown.width * request.deviceScale))),
+                                              std::max(1, static_cast<int>(std::ceil(shown.height * request.deviceScale)))};
+        requests->emplace(page, request);
+        pages.push_back(page);
+    }
+    struct Drawn {
+        std::mutex mutex;
+        std::map<int, core::PageThumbnail> images;
+    };
+    auto drawn = std::make_shared<Drawn>();
+    const core::Revision revision = document->journal()->revision();
+    const QPointer<MainWindow> self(this);
+    const QPointer<DocumentWindow> target(document);
+    const core::Status started = pageWork_->start(
+        handle, pages,
+        [backend, handle, requests, drawn](int page) {
+            core::IPageRasterizer* rasterizer = backend->rasterizer(handle);
+            if (rasterizer == nullptr) return;
+            const core::Result<core::RasterImage> image = rasterizer->raster(requests->at(page));
+            if (!image) return;
+            // FOUR BYTES A PIXEL TO THREE, IN /Thumb's ORDER: red, green, blue (BGRx from the engine).
+            core::PageThumbnail thumbnail{image.value().width, image.value().height, QByteArray()};
+            thumbnail.rgb.reserve(static_cast<qsizetype>(thumbnail.width) * thumbnail.height * 3);
+            for (int y = 0; y < image.value().height; ++y) {
+                const auto* row = reinterpret_cast<const unsigned char*>(image.value().pixels.constData()) + static_cast<std::ptrdiff_t>(y) * image.value().bytesPerLine;
+                for (int x = 0; x < image.value().width; ++x) {
+                    thumbnail.rgb.append(static_cast<char>(row[x * 4 + 2]));
+                    thumbnail.rgb.append(static_cast<char>(row[x * 4 + 1]));
+                    thumbnail.rgb.append(static_cast<char>(row[x * 4 + 0]));
+                }
+            }
+            const std::lock_guard<std::mutex> guard(drawn->mutex);
+            drawn->images[page] = std::move(thumbnail);
+        },
+        [self, target, pages, drawn, revision](core::Status done) {
+            if (!self || !target) return;
+            const auto refused = [&](const core::Error& error) {
+                if (self->status_) self->status_->setMessage(catalog::translateError(QString(error.messageKey), error.context));
+            };
+            if (!done) return refused(done.error());
+            if (target->journal() == nullptr || target->journal()->revision() != revision) return refused(pagesChanged());
+            std::vector<core::PageThumbnail> images;
+            {
+                const std::lock_guard<std::mutex> guard(drawn->mutex);
+                for (const int page : pages) {
+                    const auto image = drawn->images.find(page);
+                    if (image == drawn->images.end())
+                        return refused(core::Error{core::ErrorCode::IoFailure, QLatin1String("error.pages.unreadable"), QString::number(page + 1)});
+                    images.push_back(std::move(image->second));
+                }
+            }
+            (void)self->runPageCommand(target, std::make_unique<core::SetEmbeddedThumbnailsCommand>(pages, std::move(images)));
+        });
+    if (!started) return refuse(started.error());
+    connect(document, &QObject::destroyed, this, [this, handle] {
+        if (pageWork_ && pageWork_->isRunning() && pageWork_->runningFor() == handle) pageWork_->cancel();
+    }, Qt::SingleShotConnection);
+    if (pageWork_->isRunning() && status_)
+        status_->setMessage(catalog::translate(catalog::key::PagesDrawingThumbnails).arg(static_cast<int>(pages.size())));
+    return {};
+}
+
 void MainWindow::registerPageActions()
 {
     const auto registerOne = [this](ActionId id, core::ActionRegistry::Handler handler, core::ActionRegistry::Enable enable,
@@ -471,6 +739,68 @@ void MainWindow::registerPageActions()
                     if (choice) (void)window.replacePages(document, *choice);
                 }),
                 [editable] { return editable() && ReplacePagesDialog::canAsk(); }, "shell.tooltip.needsDocument");
+
+    // --- Stage 7 T9 (D7-15, D7-32): boxes, crop, resize, renumber, thumbnails --------------------------------------
+    // `page.crop` ARMS THE CROP TOOL, as `S` arms the snapshot -- a box dragged on a page; `page.setBoxes` (minted) is
+    // the dialog the dragged box fills in, reached on its own for numbers, white margins, removal and the other boxes.
+    if (!services_.actions.isRegistered(ActionId::PageCrop)) {
+        core::ActionRegistry::Registration crop;
+        crop.handler = [](KeyContext) {
+            MainWindow* window = activeShell();
+            PageView* view = window ? window->currentView() : nullptr;
+            if (view == nullptr) return;
+            view->setTool(ToolKind::Crop);
+            window->updateViewChrome();
+        };
+        crop.enable = [editable] {
+            MainWindow* window = activeShell();
+            return editable() && window->currentView() != nullptr;
+        };
+        crop.checked = [] {
+            MainWindow* window = activeShell();
+            const PageView* view = window ? window->currentView() : nullptr;
+            return view != nullptr && view->tool() == ToolKind::Crop;
+        };
+        crop.unavailableKey = "shell.tooltip.needsDocument";
+        (void)services_.actions.register_(ActionId::PageCrop, std::move(crop));
+    }
+    registerOne(ActionId::PageSetBoxes,
+                withDocument([](MainWindow& window, DocumentWindow* document, KeyContext) {
+                    const std::vector<int> pages = window.selectedPagesOf(*document);
+                    const core::Page& first = *document->journal()->document().pages().at(pages.empty() ? 0 : pages.front());
+                    const std::optional<CropPagesDialog::Choice> choice = CropPagesDialog::ask(
+                        &window, document->pageCount(), pages, marginsOf(first.cropBox(), first.mediaBox()),
+                        window.services_.settings.get(core::keys::documents::cropRemoveWhiteMargins));
+                    if (choice) (void)window.cropPages(document, *choice);
+                }),
+                [editable] { return editable() && CropPagesDialog::canAsk(); }, "shell.tooltip.needsDocument");
+    registerOne(ActionId::PageResize,
+                withDocument([](MainWindow& window, DocumentWindow* document, KeyContext) {
+                    const std::optional<ResizePagesDialog::Choice> choice =
+                        ResizePagesDialog::ask(&window, document->pageCount(), window.selectedPagesOf(*document),
+                                               window.services_.settings.get(core::keys::documents::defaultPageSize));
+                    if (choice) (void)window.resizePages(document, *choice);
+                }),
+                [editable] { return editable() && ResizePagesDialog::canAsk(); }, "shell.tooltip.needsDocument");
+    registerOne(ActionId::PageRenumber,
+                withDocument([](MainWindow& window, DocumentWindow* document, KeyContext) {
+                    const std::optional<RenumberPagesDialog::Choice> choice =
+                        RenumberPagesDialog::ask(&window, document->pageCount(), window.selectedPagesOf(*document));
+                    if (choice) (void)window.renumberPages(document, *choice);
+                }),
+                [editable] { return editable() && RenumberPagesDialog::canAsk(); }, "shell.tooltip.needsDocument");
+    // EVERY PAGE, with no question (`Features.md` §5.2: *embed page thumbnails into the file, or remove embedded
+    // thumbnails*) -- the embedding drawn on the render thread first, and refused while another such run reads pages.
+    registerOne(ActionId::PageEmbedThumbnails,
+                withDocument([](MainWindow& window, DocumentWindow* document, KeyContext) { (void)window.embedThumbnails(document); }),
+                [editable] {
+                    const MainWindow* window = activeShell();
+                    return editable() && !window->isMeasuringPages();
+                },
+                "shell.tooltip.needsDocument");
+    registerOne(ActionId::PageRemoveThumbnails,
+                withDocument([](MainWindow& window, DocumentWindow* document, KeyContext) { (void)window.removeThumbnails(document); }),
+                editable, "shell.tooltip.needsDocument");
 }
 
 } // namespace rawpage::ui

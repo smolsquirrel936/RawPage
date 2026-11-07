@@ -7,8 +7,8 @@
 //
 // WHAT THIS DOES NOT COVER (convention 19): THE COMMAND IS CONSTRUCTED HERE, not made by a surface -- no surface
 // runs a page command before Stage 7 T8, whose pane makes them, and §3.3 asks for the commands through their
-// surfaces: A-29 is re-run then (guide A-119). And the commands are T2's three; an insert, a decoration and a crop
-// join this sweep with the tasks that build them.
+// surfaces: A-29 is re-run then (guide A-119). The commands are T2's three, T5's insert and replace, and since T9 a
+// crop, two resizes, a renumbering and thumbnails (guide A-65); a decoration joins this sweep with the task that builds it.
 
 #include <catch2/catch_test_macros.hpp>
 
@@ -31,6 +31,7 @@
 #include <QTreeWidget>
 
 #include <cmath>
+#include <iomanip>
 #include <functional>
 #include <memory>
 #include <set>
@@ -101,6 +102,9 @@ int compareEveryPage(Product& product, const QString& path, const char* step)
     REQUIRE(fresh.pages(opened.value())->count() == count);
     REQUIRE(document->journal()->document().pages().count() == count);
     for (int page = 0; page < count; ++page) {
+        INFO("PROBE live " << std::setprecision(17) << backend.pages(document->handle())->at(page)->cropBox().size.height << " bottom "
+             << backend.pages(document->handle())->at(page)->cropBox().bottom() << " fresh " << fresh.pages(opened.value())->at(page)->cropBox().size.height
+             << " bottom " << fresh.pages(opened.value())->at(page)->cropBox().bottom());
         for (const View& view : kViews) {
             INFO("page " << page << ", " << view.name);
             CHECK(differingBytes(pageOf(backend, document->handle(), &document->journal()->document().pages(), page, view),
@@ -155,6 +159,29 @@ TEST_CASE("assembly_shown: every page command is shown as it is saved and each u
     auto annotated = backend.copyPages(test_oracle::corpusPath("assembly/annots-on-pages.pdf"), {3});
     REQUIRE(annotated);
     steps.emplace_back("a page replaced", std::make_unique<core::ReplacePagesCommand>(std::vector<int>{2}, annotated.value()));
+    // Stage 7 T9 (guide A-65): a page cropped, two resized to A4 -- one scaled and centred, one not -- and every page
+    // renumbered and given a thumbnail, which draw nothing and are saved all the same.
+    {
+        const core::PdfRect media{core::PdfPoint{0, 0}, core::PdfSize{612, 792}};
+        steps.emplace_back("a page cropped", std::make_unique<core::CropPagesCommand>(
+                                                 std::vector<int>{6}, std::vector<core::PageBoxes>{core::PageBoxes{
+                                                                          media, core::PdfRect{core::PdfPoint{90, 120}, core::PdfSize{400, 500}}, {}, {}, {}}}));
+    }
+    steps.emplace_back("a page resized, scaled", std::make_unique<core::ResizePagesCommand>(std::vector<int>{7}, core::PdfSize{595.276, 841.89},
+                                                                                           true, core::ResizeAnchor::Centre));
+    steps.emplace_back("a page resized, unscaled", std::make_unique<core::ResizePagesCommand>(std::vector<int>{8}, core::PdfSize{500, 700},
+                                                                                             false, core::ResizeAnchor::TopLeft));
+    steps.emplace_back("pages renumbered", std::make_unique<core::RenumberPagesCommand>(std::vector<int>{0, 1, 2}, core::PageLabelStyle::RomanLower,
+                                                                                        QString(), 1));
+    {
+        std::vector<int> every;
+        std::vector<core::PageThumbnail> images;
+        for (int page = 0; page < 16; ++page) {
+            every.push_back(page);
+            images.push_back(core::PageThumbnail{2, 2, QByteArray(12, static_cast<char>(0x55))});
+        }
+        steps.emplace_back("thumbnails embedded", std::make_unique<core::SetEmbeddedThumbnailsCommand>(every, images));
+    }
 
     int compared = 0;
     int n = 0;
@@ -166,7 +193,7 @@ TEST_CASE("assembly_shown: every page command is shown as it is saved and each u
         product.settle();
         compared += compareEveryPage(product, saveCopy(product, ++n), name);
     }
-    CHECK(compared == 12 + 12 + 14 + 13 + 16 + 16);
+    CHECK(compared == 12 + 12 + 14 + 13 + 16 + 16 + 16 * 5);   // S7 T9: five more steps over the sixteen pages
 
     // EACH UNDONE, after the saves: every page as the ORIGINAL file draws it.
     for (std::size_t i = 0; i < steps.size(); ++i) {

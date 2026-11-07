@@ -71,6 +71,29 @@ PdfSize Page::displaySize() const noexcept
     return quarterTurn ? PdfSize{size.height, size.width} : size;
 }
 
+PageBoxes boxesOf(const Page& page)
+{
+    return PageBoxes{page.mediaBox(), page.hasExplicitCropBox() ? std::optional<PdfRect>(page.cropBox()) : std::nullopt,
+                     page.bleedBox() == page.cropBox() ? std::nullopt : std::optional<PdfRect>(page.bleedBox()),
+                     page.trimBox() == page.cropBox() ? std::nullopt : std::optional<PdfRect>(page.trimBox()),
+                     page.artBox() == page.cropBox() ? std::nullopt : std::optional<PdfRect>(page.artBox())};
+}
+
+void setBoxes(Page& page, const PageBoxes& boxes)
+{
+    page.setMediaBox(boxes.media);
+    page.setCropBox(boxes.crop);
+    page.setBleedBox(boxes.bleed);
+    page.setTrimBox(boxes.trim);
+    page.setArtBox(boxes.art);
+}
+
+bool PageThumbnail::isWellFormed() const noexcept
+{
+    if (width <= 0 || height <= 0 || width > kMaxThumbnailEdge || height > kMaxThumbnailEdge) return false;
+    return rgb.size() == static_cast<qsizetype>(width) * height * 3;
+}
+
 bool operator==(const Page& a, const Page& b)
 {
     // Compares the RESOLVED boxes rather than the optionals, because two pages that display

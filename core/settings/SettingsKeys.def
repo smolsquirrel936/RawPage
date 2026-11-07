@@ -304,6 +304,13 @@ RAWPAGE_SETTING(documents, saveMode, SaveMode,
 RAWPAGE_SETTING(documents, defaultPageSize, PaperSize,
                 "documents/defaultPageSize", PaperSize::A4, Documents, true)
 
+// The white a *remove white margins* crop leaves around a page's content, in POINTS -- Stage 7 T9 (`Stage7-Assembly-
+// Plan.md` D7-15, D7-22, guide A-61). 0 by default: the crop is the content box itself, Stage 4's union of what the
+// page draws, so Fit Visible and the crop agree on what the ink is. Read by `ui/dialogs/PageOpsDialogs`'
+// `CropPagesDialog` when it opens, which offers it as the margin; the crop the dialog asks for is the command's.
+RAWPAGE_SETTING_RANGED(documents, cropRemoveWhiteMargins, double,
+                       "documents/cropRemoveWhiteMargins", 0.0, Documents, true, 0.0, 72.0)
+
 // =============================================================================================
 // The eleven Stage 4 `units/` rows -- S4 T8, D4-5 and D4-6. They fill the `UnitsAndGuides` group,
 // which has existed in `SettingsGroup` since Stage 1 with NO KEYS, and adding them is the whole of
