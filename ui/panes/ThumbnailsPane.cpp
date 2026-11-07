@@ -7,10 +7,21 @@
 #include "ui/shell/Catalog.h"
 #include "ui/shell/ShortcutBinder.h"
 
+#include <QApplication>
+#include <QDrag>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QHelpEvent>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QKeyEvent>
+#include <QMimeData>
 #include <QMouseEvent>
 #include <QPainter>
+#include <QPainterPath>
 #include <QScrollBar>
+#include <QToolTip>
 
 #include <algorithm>
 #include <cmath>
@@ -50,6 +61,7 @@ ThumbnailsPane::ThumbnailsPane(core::render::RenderScheduler& scheduler, QWidget
     setFocusPolicy(Qt::StrongFocus);
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     viewport()->setAutoFillBackground(true);
+    setAcceptDrops(true);   // S7 T8: pages dragged here (D7-13); `QAbstractScrollArea` hands the viewport's drag events on
 
     subscription_ = scheduler_.subscribeReady(
         [this](const RenderRequest& request, const core::RasterImage& image) {
@@ -110,6 +122,11 @@ void ThumbnailsPane::setDocument(core::DocumentHandle document, core::Revision r
     pages_ = pages;
     enginePages_ = enginePages;
     currentPage_ = 0;
+    anchor_ = 0;
+    press_.reset();
+    dropIndex_ = -1;
+    badges_.clear();
+    select(pageCount() > 0 ? std::vector<int>{0} : std::vector<int>{});
 
     verticalScrollBar()->setValue(0);
     refresh();
@@ -132,7 +149,20 @@ void ThumbnailsPane::modelChanged(core::Revision revision)
     }
     entries_.clear();
 
+    // A COUNT THAT CHANGED is a remap's to describe (`remapPages`, called first); what is left past the end is
+    // dropped here, so no path leaves the set naming a page the document no longer has.
+    const int count = pageCount();
+    currentPage_ = std::clamp(currentPage_, 0, std::max(0, count - 1));
+    anchor_ = std::clamp(anchor_, 0, std::max(0, count - 1));
+    std::vector<int> kept;
+    for (const int page : selected_)
+        if (page < count) kept.push_back(page);
+    if (kept.empty() && count > 0) kept.push_back(currentPage_);
+    select(std::move(kept));
+    badges_.resize(std::min(badges_.size(), static_cast<std::size_t>(std::max(0, count))));
+
     rebuildSlots();
+    updateScrollBar();
     requestVisible();
     viewport()->update();
 }
@@ -142,15 +172,36 @@ void ThumbnailsPane::remapPages(const core::PageMap& map)
     // THE SELECTION FOLLOWS ITS PAGE (S7 T3, D7-3); a page the command removed hands it to the page that took
     // its place. The thumbnails themselves are dropped by the `modelChanged` that follows and asked for again,
     // and the cache, which moved what it held, answers them.
-    const int to = map.newIndexOf(currentPage_);
-    if (to != core::PageMap::kNone) {
-        currentPage_ = to;
-        return;
+    const auto follow = [&map](int page) {
+        const int to = map.newIndexOf(page);
+        if (to != core::PageMap::kNone) return to;
+        int kept = 0;
+        for (int before = 0; before < page && before < map.oldCount(); ++before)
+            if (map.newIndexOf(before) != core::PageMap::kNone) ++kept;
+        return std::clamp(kept, 0, std::max(0, map.newCount() - 1));
+    };
+    currentPage_ = follow(currentPage_);
+    anchor_ = follow(anchor_);
+
+    // THE SET IS THE SAME PAGES (S7 T8, guide A-53): each where it went, a deleted one gone. A set the command emptied
+    // becomes the page that took the current page's place, so a command always has something to act on next.
+    std::vector<int> moved;
+    for (const int page : selected_) {
+        const int to = map.newIndexOf(page);
+        if (to != core::PageMap::kNone) moved.push_back(to);
     }
-    int kept = 0;
-    for (int before = 0; before < currentPage_ && before < map.oldCount(); ++before)
-        if (map.newIndexOf(before) != core::PageMap::kNone) ++kept;
-    currentPage_ = std::clamp(kept, 0, std::max(0, map.newCount() - 1));
+    if (moved.empty() && map.newCount() > 0) moved.push_back(currentPage_);
+    std::sort(moved.begin(), moved.end());
+    // The model already counts the new pages, and `select` drops what it does not hold -- so the map's count is
+    // checked here rather than the pane's tree, which a caller may not have re-pointed yet.
+    std::vector<int> inside;
+    for (const int page : moved)
+        if (page < map.newCount()) inside.push_back(page);
+    if (inside != selected_) {
+        selected_ = std::move(inside);
+        viewport()->update();
+        emit selectionChanged();
+    }
 }
 
 void ThumbnailsPane::setCurrentPage(int pageIndex)
@@ -162,8 +213,14 @@ void ThumbnailsPane::setCurrentPage(int pageIndex)
     }
 
     const int clamped = std::clamp(pageIndex, 0, count - 1);
-    if (clamped == currentPage_) return;
+    // A SELECTION OF ONE PAGE FOLLOWS THE VIEW; a set of several stays (see the header).
+    const bool single = selected_.size() <= 1;
+    if (clamped == currentPage_ && (!single || (selected_.size() == 1 && selected_.front() == clamped))) return;
     currentPage_ = clamped;
+    if (single) {
+        anchor_ = clamped;
+        select({clamped});
+    }
 
     // Scroll it into view, which may change what is requested -- but emit nothing. See the header:
     // this is the programmatic path and a gesture is the only thing that navigates.
@@ -178,6 +235,273 @@ void ThumbnailsPane::setCurrentPage(int pageIndex)
 
     requestVisible();
     viewport()->update();
+}
+
+// =============================================================================================
+// The set -- Stage 7 T8 (D7-13)
+// =============================================================================================
+
+std::vector<int> ThumbnailsPane::commandPages() const
+{
+    if (!selected_.empty()) return selected_;
+    if (pageCount() > 0) return {currentPage_};
+    return {};
+}
+
+void ThumbnailsPane::select(std::vector<int> pages)
+{
+    const int count = pageCount();
+    std::sort(pages.begin(), pages.end());
+    pages.erase(std::unique(pages.begin(), pages.end()), pages.end());
+    pages.erase(std::remove_if(pages.begin(), pages.end(), [count](int page) { return page < 0 || page >= count; }),
+                pages.end());
+    if (pages == selected_) return;
+    selected_ = std::move(pages);
+    viewport()->update();
+    emit selectionChanged();
+}
+
+void ThumbnailsPane::setSelectedPages(std::vector<int> pages)
+{
+    select(std::move(pages));
+    if (selected_.empty()) return;
+    // The current page moves INTO the set, so the keyboard's place is one of the pages a command will act on.
+    if (!std::binary_search(selected_.begin(), selected_.end(), currentPage_)) {
+        currentPage_ = selected_.front();
+        anchor_ = currentPage_;
+    }
+    viewport()->update();
+}
+
+void ThumbnailsPane::selectAll()
+{
+    std::vector<int> every(static_cast<std::size_t>(std::max(0, pageCount())));
+    for (std::size_t page = 0; page < every.size(); ++page) every[page] = static_cast<int>(page);
+    select(std::move(every));
+}
+
+void ThumbnailsPane::pressPage(int page, Qt::KeyboardModifiers modifiers)
+{
+    const bool control = modifiers.testFlag(Qt::ControlModifier);
+    if (modifiers.testFlag(Qt::ShiftModifier)) {
+        // A RUN FROM THE ANCHOR, which stays where it was: a second `Shift`+click re-draws the run from the same
+        // place, as a file manager does.
+        std::vector<int> run;
+        for (int at = std::min(anchor_, page); at <= std::max(anchor_, page); ++at) run.push_back(at);
+        if (control) run.insert(run.end(), selected_.begin(), selected_.end());
+        select(std::move(run));
+    } else if (control) {
+        std::vector<int> toggled = selected_;
+        const auto found = std::lower_bound(toggled.begin(), toggled.end(), page);
+        if (found != toggled.end() && *found == page) toggled.erase(found);
+        else toggled.insert(found, page);
+        select(std::move(toggled));
+        anchor_ = page;
+    } else {
+        select({page});
+        anchor_ = page;
+    }
+    currentPage_ = page;
+    viewport()->update();
+}
+
+void ThumbnailsPane::setBadges(std::vector<core::AnnotationStore::PageCarries> badges)
+{
+    badges_ = std::move(badges);
+    viewport()->update();
+}
+
+core::AnnotationStore::PageCarries ThumbnailsPane::badgesOf(int pageIndex) const
+{
+    if (pageIndex < 0 || pageIndex >= static_cast<int>(badges_.size())) return {};
+    return badges_[static_cast<std::size_t>(pageIndex)];
+}
+
+namespace {
+
+// The badges, left to right along the sheet's bottom edge: comments, fields, links -- each a square of this side.
+constexpr int kBadge = 14;
+constexpr int kBadgeInset = 3;
+
+std::vector<int> badgeKinds(const core::AnnotationStore::PageCarries& carries)
+{
+    std::vector<int> kinds;
+    if (carries.comments) kinds.push_back(0);
+    if (carries.fields) kinds.push_back(1);
+    if (carries.links) kinds.push_back(2);
+    return kinds;
+}
+
+} // namespace
+
+QRect ThumbnailsPane::badgeRect(int pageIndex) const
+{
+    const std::size_t kinds = badgeKinds(badgesOf(pageIndex)).size();
+    if (kinds == 0 || pageIndex < 0 || pageIndex >= static_cast<int>(slots_.size())) return {};
+    const QRect image = slots_[static_cast<std::size_t>(pageIndex)].imageRect.translated(0, -verticalScrollBar()->value());
+    const int width = static_cast<int>(kinds) * kBadge + static_cast<int>(kinds - 1) * 2;
+    return QRect(image.left() + kBadgeInset, image.bottom() - kBadgeInset - kBadge + 1, width, kBadge);
+}
+
+void ThumbnailsPane::paintBadges(QPainter& painter, int pageIndex, const QRect& imageRect) const
+{
+    const std::vector<int> kinds = badgeKinds(badgesOf(pageIndex));
+    if (kinds.empty()) return;
+    // PALETTE COLOURS, so a badge reads in both themes (convention 20): the window's own background and text,
+    // which every theme keeps apart, on a sheet that is always white.
+    const QColor fill = palette().color(QPalette::Window);
+    const QColor ink = palette().color(QPalette::WindowText);
+    painter.save();
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    int x = imageRect.left() + kBadgeInset;
+    const int y = imageRect.bottom() - kBadgeInset - kBadge + 1;
+    for (const int kind : kinds) {
+        const QRectF box(x, y, kBadge, kBadge);
+        painter.setPen(QPen(ink, 1.0));
+        painter.setBrush(fill);
+        painter.drawRoundedRect(box.adjusted(0.5, 0.5, -0.5, -0.5), 3.0, 3.0);
+        painter.setBrush(Qt::NoBrush);
+        const QRectF in = box.adjusted(3.5, 3.5, -3.5, -3.5);
+        if (kind == 0) {
+            // A comment: a speech bubble with its tail.
+            QPainterPath bubble;
+            bubble.addRoundedRect(QRectF(in.left(), in.top(), in.width(), in.height() * 0.7), 1.5, 1.5);
+            bubble.moveTo(in.left() + in.width() * 0.3, in.top() + in.height() * 0.7);
+            bubble.lineTo(in.left() + in.width() * 0.2, in.bottom());
+            bubble.lineTo(in.left() + in.width() * 0.55, in.top() + in.height() * 0.7);
+            painter.drawPath(bubble);
+        } else if (kind == 1) {
+            // A form field: a box with a text cursor in it.
+            painter.drawRect(in);
+            painter.drawLine(QPointF(in.left() + 2.0, in.top() + 1.5), QPointF(in.left() + 2.0, in.bottom() - 1.5));
+        } else {
+            // A link: two links of a chain.
+            painter.drawRoundedRect(QRectF(in.left(), in.center().y() - 1.75, in.width() * 0.6, 3.5), 1.75, 1.75);
+            painter.drawRoundedRect(QRectF(in.left() + in.width() * 0.4, in.center().y() - 1.75, in.width() * 0.6, 3.5), 1.75, 1.75);
+        }
+        x += kBadge + 2;
+    }
+    painter.restore();
+}
+
+// =============================================================================================
+// Dragging -- Stage 7 T8 (D7-13)
+// =============================================================================================
+
+int ThumbnailsPane::slotAt(QPoint viewportPos) const
+{
+    const QPoint content = viewportPos + QPoint(0, verticalScrollBar()->value());
+    for (const Slot& slot : slots_)
+        if (slot.rect.contains(content)) return slot.pageIndex;
+    return -1;
+}
+
+int ThumbnailsPane::insertionIndexAt(QPoint viewportPos) const
+{
+    if (!document_.isValid() || slots_.empty()) return -1;
+    const int y = viewportPos.y() + verticalScrollBar()->value();
+    for (const Slot& slot : slots_)
+        if (y < slot.rect.center().y()) return slot.pageIndex;
+    return static_cast<int>(slots_.size());
+}
+
+QMimeData* ThumbnailsPane::dragData() const
+{
+    QJsonArray pages;
+    for (const int page : commandPages()) pages.append(page);
+    const QJsonObject payload{{QStringLiteral("pid"), static_cast<qint64>(QCoreApplication::applicationPid())},
+                              {QStringLiteral("document"), QString::number(static_cast<qulonglong>(document_.id))},
+                              {QStringLiteral("pages"), pages}};
+    auto* mime = new QMimeData;
+    mime->setData(QLatin1String(kDragMimeType), QJsonDocument(payload).toJson(QJsonDocument::Compact));
+    return mime;
+}
+
+std::optional<std::pair<core::DocumentHandle, std::vector<int>>> ThumbnailsPane::readDrag(const QMimeData* mime) const
+{
+    // A HANDLE MEANS SOMETHING ONLY IN THE PROCESS THAT MADE IT: a drag from another RawPage is refused here, and
+    // pages travel between processes on the clipboard instead (`page.copy`).
+    if (mime == nullptr || !mime->hasFormat(QLatin1String(kDragMimeType))) return std::nullopt;
+    const QJsonDocument parsed = QJsonDocument::fromJson(mime->data(QLatin1String(kDragMimeType)));
+    if (!parsed.isObject()) return std::nullopt;
+    const QJsonObject root = parsed.object();
+    if (root.value(QStringLiteral("pid")).toInteger(-1) != static_cast<qint64>(QCoreApplication::applicationPid()))
+        return std::nullopt;
+    bool ok = false;
+    const core::DocumentHandle source{root.value(QStringLiteral("document")).toString().toULongLong(&ok)};
+    if (!ok || !source.isValid()) return std::nullopt;
+    std::vector<int> pages;
+    for (const QJsonValue item : root.value(QStringLiteral("pages")).toArray()) {
+        const int page = item.toInt(-1);
+        if (page < 0 || (!pages.empty() && page <= pages.back())) return std::nullopt;
+        pages.push_back(page);
+    }
+    if (pages.empty()) return std::nullopt;
+    return std::make_pair(source, std::move(pages));
+}
+
+void ThumbnailsPane::dragEnterEvent(QDragEnterEvent* event)
+{
+    const auto drag = readDrag(event->mimeData());
+    if (!drag || pageCount() <= 0) {
+        event->ignore();
+        return;
+    }
+    event->setDropAction(drag->first == document_ ? Qt::MoveAction : Qt::CopyAction);
+    event->accept();
+    dropIndex_ = insertionIndexAt(event->position().toPoint());
+    viewport()->update();
+}
+
+void ThumbnailsPane::dragMoveEvent(QDragMoveEvent* event)
+{
+    const auto drag = readDrag(event->mimeData());
+    if (!drag || pageCount() <= 0) {
+        event->ignore();
+        return;
+    }
+    // THE COLUMN SCROLLS under a drag held near its top or bottom edge, so a page can be carried past what fits.
+    const int y = event->position().toPoint().y();
+    const int edge = std::max(8, viewport()->height() / 12);
+    if (y < edge) verticalScrollBar()->setValue(verticalScrollBar()->value() - verticalScrollBar()->singleStep());
+    else if (y > viewport()->height() - edge)
+        verticalScrollBar()->setValue(verticalScrollBar()->value() + verticalScrollBar()->singleStep());
+    event->setDropAction(drag->first == document_ ? Qt::MoveAction : Qt::CopyAction);
+    event->accept();
+    const int index = insertionIndexAt(event->position().toPoint());
+    if (index != dropIndex_) {
+        dropIndex_ = index;
+        viewport()->update();
+    }
+}
+
+void ThumbnailsPane::dragLeaveEvent(QDragLeaveEvent* event)
+{
+    dropIndex_ = -1;
+    viewport()->update();
+    event->accept();
+}
+
+void ThumbnailsPane::dropEvent(QDropEvent* event)
+{
+    const auto drag = readDrag(event->mimeData());
+    const int index = insertionIndexAt(event->position().toPoint());
+    dropIndex_ = -1;
+    viewport()->update();
+    if (!drag || index < 0) {
+        event->ignore();
+        return;
+    }
+    // A REQUEST, NOT A CHANGE: the window runs the command (see the header).
+    if (drag->first == document_) {
+        event->setDropAction(Qt::MoveAction);
+        event->accept();
+        emit movePagesRequested(drag->second, index);
+    } else {
+        event->setDropAction(Qt::CopyAction);
+        event->accept();
+        emit pagesDropped(drag->first, drag->second, index);
+    }
 }
 
 void ThumbnailsPane::setThumbnailWidth(int width)
@@ -479,38 +803,48 @@ void ThumbnailsPane::keyPressEvent(QKeyEvent* event)
                          || event->key() == Qt::Key_Left || event->key() == Qt::Key_Right;
 
     // A MODIFIED ARROW IS SOMEBODY ELSE'S CHORD, AND THIS BRANCH IS LOAD-BEARING. `Alt+Up` and
-    // `Alt+Down` are §8's *move the selected pages earlier / later* -- Stage 7's
-    // `page.moveEarlier` and `page.moveLater`, unregistered here, so `ShortcutBinder` answers
-    // `NotImplemented` and deliberately leaves the key UNCONSUMED for whatever else would have had
-    // it. Two things then try to take it, and BOTH had to be stopped: the selection walk below,
-    // which would move the selection on a chord that means reorder; and
+    // `Alt+Down` are §8's *move the selected pages earlier / later* -- `page.moveEarlier` and
+    // `page.moveLater`, registered at Stage 7 T8, so `ShortcutBinder` takes them before this widget
+    // sees them; and where they are DISABLED (the set already first or last, a document that cannot
+    // be edited) the binder leaves the key unconsumed, and two things would then try to take it: the
+    // selection walk below, which would move the selection on a chord that means reorder, and
     // `QAbstractScrollArea::keyPressEvent`, which scrolls on an arrow and does not look at the
-    // modifiers at all. So this ignores the event rather than passing it to the base -- *leave the
-    // key alone* means the widget lets go of it too, not only the binder.
+    // modifiers at all. So this ignores the event rather than passing it to the base.
     //
-    // Both halves were found by the CONTROL case, not by the case (conventions 7 and 22): the
-    // first fix looked right, and the control was still red because Qt was eating what the pane had
-    // just stopped eating.
-    if (isArrow && event->modifiers() != Qt::NoModifier) {
+    // Both halves were found by the CONTROL case at Stage 4, not by the case (conventions 7 and 22):
+    // the first fix looked right, and the control was still red because Qt was eating what the pane
+    // had just stopped eating. `Shift`, alone, is the one modifier this widget owns (S7 T8): it
+    // extends the set from the anchor, as a file manager's does.
+    const Qt::KeyboardModifiers modifiers = event->modifiers() & ~Qt::KeypadModifier;
+    if (isArrow && modifiers != Qt::NoModifier && modifiers != Qt::ShiftModifier) {
         event->ignore();
         return;
     }
 
+    int step = 0;
     switch (event->key()) {
     case Qt::Key_Up:
     case Qt::Key_Left:
-        setCurrentPage(currentPage_ - 1);
-        event->accept();
-        return;
+        step = -1;
+        break;
     case Qt::Key_Down:
     case Qt::Key_Right:
-        setCurrentPage(currentPage_ + 1);
-        event->accept();
-        return;
-    default:
+        step = 1;
         break;
+    default:
+        QAbstractScrollArea::keyPressEvent(event);
+        return;
     }
-    QAbstractScrollArea::keyPressEvent(event);
+    // THE CURRENT PAGE MOVES, and the set with it -- alone, or the run from the anchor with `Shift`. No navigation:
+    // `Enter` (`page.goToSelected`) is the key that goes to the page.
+    const int next = std::clamp(currentPage_ + step, 0, count - 1);
+    pressPage(next, modifiers);
+    const QRect& rect = slots_[static_cast<std::size_t>(next)].rect;
+    const int top = verticalScrollBar()->value();
+    if (rect.top() < top) verticalScrollBar()->setValue(rect.top());
+    else if (rect.bottom() > top + viewport()->height()) verticalScrollBar()->setValue(rect.bottom() - viewport()->height());
+    requestVisible();
+    event->accept();
 }
 
 void ThumbnailsPane::mousePressEvent(QMouseEvent* event)
@@ -520,17 +854,81 @@ void ThumbnailsPane::mousePressEvent(QMouseEvent* event)
         return;
     }
 
-    const QPoint content = event->pos() + QPoint(0, verticalScrollBar()->value());
-    for (const Slot& slot : slots_) {
-        if (!slot.rect.contains(content)) continue;
-        setCurrentPage(slot.pageIndex);
-        // A GESTURE. This is the one path besides `page.goToSelected` that emits, and it is why
-        // `setCurrentPage` above cannot be allowed to emit as well -- see the header.
-        emit activated(slot.pageIndex);
+    const int page = slotAt(event->pos());
+    if (page < 0) {
+        QAbstractScrollArea::mousePressEvent(event);
+        return;
+    }
+    const Qt::KeyboardModifiers modifiers = event->modifiers() & (Qt::ControlModifier | Qt::ShiftModifier);
+    event->accept();
+
+    // A PLAIN PRESS INSIDE A SET OF SEVERAL keeps the set until the release, so the set can be dragged; the
+    // release makes it this page alone if no drag began (see the header).
+    if (modifiers == Qt::NoModifier && selected_.size() > 1 && std::binary_search(selected_.begin(), selected_.end(), page)) {
+        currentPage_ = page;
+        press_ = Drag{event->pos(), page, true};
+        viewport()->update();
+        return;
+    }
+
+    pressPage(page, modifiers);
+    if (std::binary_search(selected_.begin(), selected_.end(), page)) press_ = Drag{event->pos(), page, false};
+    else press_.reset();
+    // A GESTURE -- and only a plain one navigates. This is the one path besides `page.goToSelected` that
+    // emits, and it is why `setCurrentPage` cannot be allowed to emit as well -- see the header.
+    if (modifiers == Qt::NoModifier) emit activated(page);
+}
+
+void ThumbnailsPane::mouseMoveEvent(QMouseEvent* event)
+{
+    if (!press_ || !(event->buttons() & Qt::LeftButton)
+        || (event->pos() - press_->origin).manhattanLength() < QApplication::startDragDistance()) {
+        QAbstractScrollArea::mouseMoveEvent(event);
+        return;
+    }
+    // THE DRAG BEGINS: the set as it stands. `exec` runs its own event loop until the drop; what the drop means is
+    // the TARGET pane's to say (a move here, an insert in another window), so the result is not read here.
+    press_.reset();
+    auto* drag = new QDrag(this);
+    drag->setMimeData(dragData());
+    drag->exec(Qt::MoveAction | Qt::CopyAction, Qt::MoveAction);
+    event->accept();
+}
+
+void ThumbnailsPane::mouseReleaseEvent(QMouseEvent* event)
+{
+    if (press_ && press_->collapse && event->button() == Qt::LeftButton) {
+        const int page = press_->page;
+        press_.reset();
+        pressPage(page, Qt::NoModifier);
+        emit activated(page);
         event->accept();
         return;
     }
-    QAbstractScrollArea::mousePressEvent(event);
+    press_.reset();
+    QAbstractScrollArea::mouseReleaseEvent(event);
+}
+
+bool ThumbnailsPane::viewportEvent(QEvent* event)
+{
+    // WHAT THE BADGES MEAN, in words, under the pointer -- a mark nobody can name is a mark nobody reads.
+    if (event->type() == QEvent::ToolTip) {
+        const auto* help = static_cast<QHelpEvent*>(event);
+        const int page = slotAt(help->pos());
+        if (page >= 0 && badgeRect(page).contains(help->pos())) {
+            const core::AnnotationStore::PageCarries carries = badgesOf(page);
+            QStringList words;
+            if (carries.comments) words << catalog::translate(catalog::key::PagesBadgeComments);
+            if (carries.fields) words << catalog::translate(catalog::key::PagesBadgeFields);
+            if (carries.links) words << catalog::translate(catalog::key::PagesBadgeLinks);
+            QToolTip::showText(help->globalPos(), words.join(QLatin1Char('\n')), viewport());
+            return true;
+        }
+        QToolTip::hideText();
+        event->ignore();
+        return true;
+    }
+    return QAbstractScrollArea::viewportEvent(event);
 }
 
 void ThumbnailsPane::paintEvent(QPaintEvent* event)
@@ -556,8 +954,18 @@ void ThumbnailsPane::paintEvent(QPaintEvent* event)
         const QRect imageRect = slot.imageRect.translated(0, -top);
         const QRect slotRect = slot.rect.translated(0, -top);
 
-        if (index == currentPage_) {
+        // THE SET FILLED, THE CURRENT PAGE FRAMED (S7 T8): the frame is where the arrows move from, and it is drawn
+        // only while the pane has the focus -- the keyboard's place means nothing to a pane the keys do not reach.
+        const bool selected = std::binary_search(selected_.begin(), selected_.end(), index);
+        if (selected) {
             painter.fillRect(slotRect.adjusted(-4, -4, 4, 4), palette().highlight());
+        }
+        if (index == currentPage_ && hasFocus()) {
+            painter.save();
+            painter.setPen(QPen(palette().color(QPalette::WindowText), 1.0, Qt::DotLine));
+            painter.setBrush(Qt::NoBrush);
+            painter.drawRect(slotRect.adjusted(-6, -6, 5, 5));
+            painter.restore();
         }
 
         // THE SHEET FIRST, ALWAYS. A thumbnail that has not arrived is drawn as a blank page rather
@@ -580,10 +988,22 @@ void ThumbnailsPane::paintEvent(QPaintEvent* event)
         const QString label = (page != nullptr && !page->label().isEmpty())
                                   ? page->label()
                                   : QString::number(index + 1);
-        painter.setPen(index == currentPage_ ? palette().color(QPalette::HighlightedText)
-                                             : palette().color(QPalette::WindowText));
+        painter.setPen(selected ? palette().color(QPalette::HighlightedText)
+                                : palette().color(QPalette::WindowText));
         painter.drawText(QRect(slotRect.left(), imageRect.bottom(), slotRect.width(), kLabelHeight),
                          Qt::AlignHCenter | Qt::AlignVCenter, label);
+
+        paintBadges(painter, index, imageRect);
+    }
+
+    // THE DROP MARKER: a bar across the column in the gap the drop will land in (S7 T8) -- the insertion point,
+    // drawn in the selection's colour so it reads as "your pages go here".
+    if (dropIndex_ >= 0 && !slots_.empty()) {
+        const int count = static_cast<int>(slots_.size());
+        const int y = (dropIndex_ < count ? slots_[static_cast<std::size_t>(dropIndex_)].rect.top() - kSlotSpacing / 2
+                                          : slots_.back().rect.bottom() + kSlotSpacing / 2)
+                      - top;
+        painter.fillRect(QRect(kColumnMargin - 6, y - 1, thumbnailWidth_ + 12, 3), palette().highlight());
     }
 }
 

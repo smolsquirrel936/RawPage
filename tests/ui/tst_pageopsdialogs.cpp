@@ -81,8 +81,10 @@ std::string keyOf(const core::Result<T>& result)
 
 TEST_CASE("pageops the extract dialog reads a range and keeps itself open on a bad one", "[pageops][extract][A-48]")
 {
-    ui::ExtractPagesDialog dialog(9, 3, true, QStringLiteral("C:/out"));
-    CHECK(dialog.rangeField()->text() == QStringLiteral("4"));   // the current page, as a person counts it
+    ui::ExtractPagesDialog dialog(9, {3}, true, QStringLiteral("C:/out"));
+    CHECK(dialog.rangeField()->text() == QStringLiteral("4"));   // the page it was handed, as a person counts it
+    // S7 T8: a SET starts it as ranges (guide A-52, Ctrl+Shift+X with the thumbnails' selection).
+    CHECK(ui::ExtractPagesDialog(9, {0, 1, 2, 6}, true, QString()).rangeField()->text() == QStringLiteral("1-3, 7"));
     dialog.rangeField()->setText(QStringLiteral("2-4, 9"));
     dialog.deleteBox()->setChecked(true);
     auto chosen = dialog.choice();
@@ -102,7 +104,7 @@ TEST_CASE("pageops the extract dialog reads a range and keeps itself open on a b
     CHECK(keyOf(dialog.choice()) == std::string("error.assembly.noFolder"));
 
     // A document this build will not edit: the delete box is greyed and never chosen.
-    ui::ExtractPagesDialog readOnly(9, 0, false, QString());
+    ui::ExtractPagesDialog readOnly(9, {0}, false, QString());
     readOnly.deleteBox()->setChecked(true);
     CHECK_FALSE(readOnly.deleteBox()->isEnabled());
     CHECK_FALSE(readOnly.choice().value().deleteAfter);
@@ -147,7 +149,7 @@ TEST_CASE("pageops extract and split are disabled where nobody can answer", "[pa
     // Offscreen with no twin installed: nobody to ask (convention 16).
     CHECK_FALSE(shell.fixture.actions.isEnabled(ActionId::PageExtract));
     CHECK_FALSE(shell.fixture.actions.isEnabled(ActionId::PageSplit));
-    ui::ExtractPagesDialog::setAnswerForTesting([](int, int) { return std::nullopt; });
+    ui::ExtractPagesDialog::setAnswerForTesting([](int, const std::vector<int>&) { return std::nullopt; });
     ui::SplitDocumentDialog::setAnswerForTesting([](int) { return std::nullopt; });
     CHECK(shell.fixture.actions.isEnabled(ActionId::PageExtract));
     CHECK(shell.fixture.actions.isEnabled(ActionId::PageSplit));
@@ -159,7 +161,7 @@ TEST_CASE("pageops extract and delete deletes nothing when the extract is refuse
     Shell shell;
     shell.fixture.backend.writeFails = "error.assembly.writeFailed";
     const QString folder = QDir(shell.fixture.directory.path()).filePath(QStringLiteral("pages"));
-    ui::ExtractPagesDialog::setAnswerForTesting([folder](int, int) -> std::optional<ui::ExtractPagesDialog::Choice> {
+    ui::ExtractPagesDialog::setAnswerForTesting([folder](int, const std::vector<int>&) -> std::optional<ui::ExtractPagesDialog::Choice> {
         return ui::ExtractPagesDialog::Choice{{0, 2}, true, true, folder};
     });
     REQUIRE(shell.fixture.actions.dispatch(ActionId::PageExtract, core::KeyContext::PageThumbnails));

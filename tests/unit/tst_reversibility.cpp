@@ -115,10 +115,13 @@ const Generators& registeredGenerators()
 {
     static const Generators table{
         {"page.rotate",
-         [](const core::Document&, int page) {
+         [](const core::Document& document, int page) {
              std::vector<std::unique_ptr<Command>> out;
              for (int degrees : {90, 180, 270})
                  out.push_back(std::make_unique<RotatePageCommand>(page, degrees));
+             // Stage 7 T8: the page and the last as a SET, one command (guide A-59).
+             const int last = document.pages().count() - 1;
+             if (last > page) out.push_back(std::make_unique<RotatePageCommand>(std::vector<int>{page, last}, 90));
              return out;
          }},
         // Stage 7 T2: the page order -- the page moved to the other end, deleted, duplicated, and the first and

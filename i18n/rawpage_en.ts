@@ -3370,6 +3370,10 @@
         <translation>What is on the clipboard is not comments RawPage can read.</translation>
     </message>
     <message>
+        <source>error.clipboard.noPages</source>
+        <translation>The clipboard holds no RawPage pages.</translation>
+    </message>
+    <message>
         <source>error.clipboard.nothingPastable</source>
         <translation>None of the copied comments can be pasted here.</translation>
     </message>
@@ -3448,6 +3452,14 @@
     <message>
         <source>error.pages.badRange</source>
         <translation>“%1” is not a page range of this document.</translation>
+    </message>
+    <message>
+        <source>error.pages.noneMatch</source>
+        <translation>No page in that set passes the filters.</translation>
+    </message>
+    <message>
+        <source>error.pages.noFile</source>
+        <translation>Choose the PDF the pages come from.</translation>
     </message>
     <message>
         <source>error.split.noBoundary</source>
@@ -4084,6 +4096,26 @@
         <translation>Rewrite the whole file (compacts it)</translation>
     </message>
     <message>
+        <source>prefs.choice.paperSize.a4</source>
+        <translation>A4</translation>
+    </message>
+    <message>
+        <source>prefs.choice.paperSize.letter</source>
+        <translation>Letter</translation>
+    </message>
+    <message>
+        <source>prefs.choice.paperSize.legal</source>
+        <translation>Legal</translation>
+    </message>
+    <message>
+        <source>prefs.choice.paperSize.a3</source>
+        <translation>A3</translation>
+    </message>
+    <message>
+        <source>prefs.choice.paperSize.a5</source>
+        <translation>A5</translation>
+    </message>
+    <message>
         <source>prefs.setting.pageDisplay.layoutMode</source>
         <translation>Page layout</translation>
     </message>
@@ -4254,6 +4286,10 @@
     <message>
         <source>prefs.setting.documents.saveMode</source>
         <translation>How Save writes the file</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.defaultPageSize</source>
+        <translation>Size of a new blank page</translation>
     </message>
     <message>
         <source>prefs.setting.documents.compareSensitivity</source>
@@ -4539,8 +4575,8 @@
         <translation>Rotate page %1 by %2 degrees</translation>
     </message>
     <message>
-        <source>command.page.rotateAll</source>
-        <translation>Rotate all %1 pages by %2 degrees</translation>
+        <source>command.page.rotatePages</source>
+        <translation>Rotate %1 pages by %2 degrees</translation>
     </message>
     <message>
         <source>command.annot.reply</source>
@@ -5897,6 +5933,217 @@
     <message>
         <source>audio.status.playing</source>
         <translation>Playing an audio comment (%1).</translation>
+    </message>
+</context>
+<context>
+    <name>pages</name>
+    <message>
+        <source>pages.badge.comments</source>
+        <translation>Comments on this page</translation>
+    </message>
+    <message>
+        <source>pages.badge.fields</source>
+        <translation>Form fields on this page</translation>
+    </message>
+    <message>
+        <source>pages.badge.links</source>
+        <translation>Links on this page</translation>
+    </message>
+    <message>
+        <source>pages.rotate.selected</source>
+        <translation>Selected pages (%1)</translation>
+    </message>
+    <message>
+        <source>pages.rotate.range</source>
+        <translation>Pages:</translation>
+    </message>
+    <message>
+        <source>pages.parity</source>
+        <translation>Of those:</translation>
+    </message>
+    <message>
+        <source>pages.parity.any</source>
+        <translation>All of them</translation>
+    </message>
+    <message>
+        <source>pages.parity.odd</source>
+        <translation>Odd pages only</translation>
+    </message>
+    <message>
+        <source>pages.parity.even</source>
+        <translation>Even pages only</translation>
+    </message>
+    <message>
+        <source>pages.orientation</source>
+        <translation>Orientation:</translation>
+    </message>
+    <message>
+        <source>pages.orientation.any</source>
+        <translation>Any</translation>
+    </message>
+    <message>
+        <source>pages.orientation.portrait</source>
+        <translation>Portrait pages only</translation>
+    </message>
+    <message>
+        <source>pages.orientation.landscape</source>
+        <translation>Landscape pages only</translation>
+    </message>
+    <message>
+        <source>pages.chooseFile</source>
+        <translation>Choose a PDF</translation>
+    </message>
+    <message>
+        <source>pages.insert.title</source>
+        <translation>Insert Pages</translation>
+    </message>
+    <message>
+        <source>pages.insert.from</source>
+        <translation>Insert</translation>
+    </message>
+    <message>
+        <source>pages.insert.fromFile</source>
+        <translation>Pages from a PDF file</translation>
+    </message>
+    <message>
+        <source>pages.insert.allPages</source>
+        <translation>every page</translation>
+    </message>
+    <message>
+        <source>pages.insert.blank</source>
+        <translation>Blank pages</translation>
+    </message>
+    <message>
+        <source>pages.insert.landscape</source>
+        <translation>Landscape</translation>
+    </message>
+    <message>
+        <source>pages.insert.clipboard</source>
+        <translation>The %1 page(s) on the clipboard</translation>
+    </message>
+    <message>
+        <source>pages.insert.where</source>
+        <translation>Where:</translation>
+    </message>
+    <message>
+        <source>pages.insert.after</source>
+        <translation>After page</translation>
+    </message>
+    <message>
+        <source>pages.insert.before</source>
+        <translation>Before page</translation>
+    </message>
+    <message>
+        <source>pages.insert.first</source>
+        <translation>Before the first page</translation>
+    </message>
+    <message>
+        <source>pages.insert.last</source>
+        <translation>After the last page</translation>
+    </message>
+    <message>
+        <source>pages.delete.title</source>
+        <translation>Delete Pages</translation>
+    </message>
+    <message>
+        <source>pages.replace.title</source>
+        <translation>Replace Pages</translation>
+    </message>
+    <message>
+        <source>pages.replace.pages</source>
+        <translation>Replace pages:</translation>
+    </message>
+    <message>
+        <source>pages.replace.with</source>
+        <translation>With pages of:</translation>
+    </message>
+    <message>
+        <source>pages.replace.startingAt</source>
+        <translation>Starting at its page:</translation>
+    </message>
+    <message>
+        <source>pages.report.entry</source>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
+        <source>pages.signedWarning</source>
+        <translation>This document carries %1 signature(s). Changing its pages will be reported as a modification by signature validators.</translation>
+    </message>
+    <message>
+        <source>pages.refused</source>
+        <translation>%1 was refused: %2</translation>
+    </message>
+    <message>
+        <source>pages.done</source>
+        <translation>%1.</translation>
+    </message>
+    <message>
+        <source>pages.doneReported</source>
+        <translation>%1. %2</translation>
+    </message>
+    <message>
+        <source>pages.copied</source>
+        <translation>Copied %1 page(s) to the clipboard.</translation>
+    </message>
+    <message>
+        <source>pages.tooltip.needsClipboardPages</source>
+        <translation>Copy pages first: the clipboard holds no RawPage pages.</translation>
+    </message>
+    <message>
+        <source>pages.reference.OutlineItem</source>
+        <translation>Bookmarks</translation>
+    </message>
+    <message>
+        <source>pages.reference.Link</source>
+        <translation>Links</translation>
+    </message>
+    <message>
+        <source>pages.reference.NamedDestination</source>
+        <translation>Named destinations</translation>
+    </message>
+    <message>
+        <source>pages.reference.StructureElement</source>
+        <translation>Tagged content</translation>
+    </message>
+    <message>
+        <source>pages.reference.ThreadBead</source>
+        <translation>Article threads</translation>
+    </message>
+    <message>
+        <source>pages.reference.OpenAction</source>
+        <translation>The opening view</translation>
+    </message>
+    <message>
+        <source>pages.reference.RemoteGoTo</source>
+        <translation>Links into other files</translation>
+    </message>
+    <message>
+        <source>pages.reference.IndexDestination</source>
+        <translation>Destinations by page number</translation>
+    </message>
+    <message>
+        <source>pages.reference.WidgetNotCopied</source>
+        <translation>Form fields</translation>
+    </message>
+    <message>
+        <source>pages.treatment.Cleared</source>
+        <translation>%1 lost their destination</translation>
+    </message>
+    <message>
+        <source>pages.treatment.Removed</source>
+        <translation>%1 removed</translation>
+    </message>
+    <message>
+        <source>pages.treatment.Unlinked</source>
+        <translation>%1 unlinked</translation>
+    </message>
+    <message>
+        <source>pages.treatment.Reported</source>
+        <translation>%1 left as written</translation>
+    </message>
+    <message>
+        <source>pages.treatment.NotCopied</source>
+        <translation>%1 not copied</translation>
     </message>
 </context>
 </TS>

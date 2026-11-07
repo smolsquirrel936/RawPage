@@ -1,5 +1,18 @@
 // ui/dialogs/PageOpsDialogs -- what `page.extract` and `page.split` open. Stage 7 T7 (`Stage7-Assembly-Plan.md` §6,
-// D7-5, D7-30); T8 and T9 add insert, delete, replace, crop, resize, renumber and rotate's ranges to this family.
+// D7-5, D7-30); T8 added insert, delete and replace -- rotate's ranges went into `RotatePagesDialog`, which Stage 3 had
+// already made -- and T9 adds crop, resize and renumber.
+//
+// STAGE 7 T8'S THREE. Each starts at the pages a person picked -- the thumbnails' set, or the current page (D7-13):
+//   * INSERT: where (before or after a page, first, last) and from what -- the pages of another PDF (a range, or every
+//     page), `n` BLANK pages of a named size (`documents/defaultPageSize` first, guide A-45), or the pages ON THE
+//     CLIPBOARD (`page.copy`'s, D7-13). Pages only: an IMAGE on the clipboard made into a page is not built here
+//     (Q5(d) names it; see `Implementation-Plan.md` § Stage 7, T8's row).
+//   * DELETE: a range. `Delete` in the thumbnails pane deletes the set with no question (`Features.md` §8); this is the
+//     ribbon's and the tool finder's.
+//   * REPLACE: this document's pages, and the file and FIRST page their replacements start at -- as many as are
+//     replaced, so the two counts cannot disagree (D7-28's command refuses a mismatch all the same).
+// The source file's page count is not the dialog's to know (it holds no backend), so a FILE's range is kept as typed
+// and read by `MainWindow` once the file is counted; this document's ranges are checked before the dialog closes.
 //
 // THE RULE THEY LIVE UNDER (CLAUDE.md): *every dialog collects parameters*. Neither holds a document. Extract answers a
 // page set and where it goes; split answers a rule and a folder. `MainWindow` turns each into the assembler's work --
@@ -17,6 +30,8 @@
 #ifndef RAWPAGE_UI_DIALOGS_PAGEOPSDIALOGS_H
 #define RAWPAGE_UI_DIALOGS_PAGEOPSDIALOGS_H
 
+#include "core/Geometry.h"
+#include "core/doc/PaperSize.h"
 #include "core/doc/SplitPlan.h"
 
 #include <QDialog>
@@ -24,9 +39,11 @@
 
 #include <functional>
 #include <optional>
+#include <utility>
 #include <vector>
 
 class QCheckBox;
+class QComboBox;
 class QLabel;
 class QLineEdit;
 class QRadioButton;
@@ -48,9 +65,10 @@ public:
         friend bool operator==(const Choice&, const Choice&) = default;
     };
 
-    // `pageCount` bounds the range; `currentPage` (zero-based) is what the field starts with; `folder` what the folder
-    // field does (the document's own folder). `mayDelete` false -- a document this build will not edit -- greys the box.
-    ExtractPagesDialog(int pageCount, int currentPage, bool mayDelete, const QString& folder, QWidget* parent = nullptr);
+    // `pageCount` bounds the range; `initial` (zero-based) is what the field starts with -- the thumbnails' set, or the
+    // current page (S7 T8, `Ctrl+Shift+X`); `folder` what the folder field does (the document's own folder).
+    // `mayDelete` false -- a document this build will not edit -- greys the box.
+    ExtractPagesDialog(int pageCount, const std::vector<int>& initial, bool mayDelete, const QString& folder, QWidget* parent = nullptr);
 
     // The choice the widgets hold, or the refusal that keeps the dialog open (`error.pages.badRange`, or
     // `error.assembly.badName` for a per-page extract with no folder).
@@ -65,8 +83,9 @@ public:
     QLabel* refusalLabel() const { return refusal_; }
 
     static bool canAsk();
-    static std::optional<Choice> ask(QWidget* parent, int pageCount, int currentPage, bool mayDelete, const QString& folder);
-    using Answer = std::function<std::optional<Choice>(int pageCount, int currentPage)>;
+    static std::optional<Choice> ask(QWidget* parent, int pageCount, const std::vector<int>& initial, bool mayDelete,
+                                     const QString& folder);
+    using Answer = std::function<std::optional<Choice>(int pageCount, const std::vector<int>& initial)>;
     static void setAnswerForTesting(Answer answer);
 
     void accept() override;
@@ -129,6 +148,132 @@ private:
     QCheckBox* regex_ = nullptr;
     QCheckBox* case_ = nullptr;
     QLineEdit* folder_ = nullptr;
+    QLabel* refusal_ = nullptr;
+};
+
+// --- Insert (S7 T8) --------------------------------------------------------------------------------------------
+
+class InsertPagesDialog : public QDialog {
+    Q_OBJECT
+
+public:
+    enum class Source { File, Blank, Clipboard };
+    enum class Where { Before, After, First, Last };
+
+    struct Choice {
+        Source source = Source::File;
+        QString path;                 // File: the PDF
+        QString range;                // File: its pages as typed, page numbers from 1; empty for every page
+        int blankCount = 1;           // Blank
+        core::PdfSize blankSize;      // Blank: points, as the size and orientation chose
+        int at = 0;                   // where the first lands, as the document counts before the insert
+        friend bool operator==(const Choice&, const Choice&) = default;
+    };
+
+    // `pageCount` bounds the position; `page` (zero-based) is the page *before* and *after* name -- the set's last;
+    // `paperSize` what the blank size starts at; `clipboardPages` the pages `page.copy` left on the clipboard, 0 for
+    // none (the choice is then greyed).
+    InsertPagesDialog(int pageCount, int page, core::PaperSize paperSize, int clipboardPages, QWidget* parent = nullptr);
+
+    core::Result<Choice> choice() const;
+
+    QRadioButton* sourceButton(Source source) const;
+    QLineEdit* fileField() const { return file_; }
+    QLineEdit* fileRangeField() const { return fileRange_; }
+    QSpinBox* blankCountField() const { return blankCount_; }
+    QComboBox* blankSizeBox() const { return blankSize_; }
+    QCheckBox* landscapeBox() const { return landscape_; }
+    QComboBox* whereBox() const { return where_; }
+    QSpinBox* pageField() const { return page_; }
+    QLabel* refusalLabel() const { return refusal_; }
+
+    static bool canAsk();
+    static std::optional<Choice> ask(QWidget* parent, int pageCount, int page, core::PaperSize paperSize, int clipboardPages);
+    using Answer = std::function<std::optional<Choice>(int pageCount, int page, core::PaperSize paperSize, int clipboardPages)>;
+    static void setAnswerForTesting(Answer answer);
+
+    void accept() override;
+
+private:
+    int pageCount_ = 0;
+    std::vector<std::pair<Source, QRadioButton*>> sources_;
+    QLineEdit* file_ = nullptr;
+    QLineEdit* fileRange_ = nullptr;
+    QSpinBox* blankCount_ = nullptr;
+    QComboBox* blankSize_ = nullptr;
+    QCheckBox* landscape_ = nullptr;
+    QComboBox* where_ = nullptr;
+    QSpinBox* page_ = nullptr;
+    QLabel* refusal_ = nullptr;
+};
+
+// --- Delete (S7 T8) --------------------------------------------------------------------------------------------
+
+class DeletePagesDialog : public QDialog {
+    Q_OBJECT
+
+public:
+    struct Choice {
+        std::vector<int> pages;   // zero-based, strictly ascending
+        friend bool operator==(const Choice&, const Choice&) = default;
+    };
+
+    DeletePagesDialog(int pageCount, const std::vector<int>& initial, QWidget* parent = nullptr);
+
+    // Refused: a range that does not parse, and EVERY page (`error.edit.noPagesLeft` -- the command's own key, said
+    // before the dialog closes rather than after).
+    core::Result<Choice> choice() const;
+
+    QLineEdit* rangeField() const { return range_; }
+    QLabel* refusalLabel() const { return refusal_; }
+
+    static bool canAsk();
+    static std::optional<Choice> ask(QWidget* parent, int pageCount, const std::vector<int>& initial);
+    using Answer = std::function<std::optional<Choice>(int pageCount, const std::vector<int>& initial)>;
+    static void setAnswerForTesting(Answer answer);
+
+    void accept() override;
+
+private:
+    int pageCount_ = 0;
+    QLineEdit* range_ = nullptr;
+    QLabel* refusal_ = nullptr;
+};
+
+// --- Replace (S7 T8) -------------------------------------------------------------------------------------------
+
+class ReplacePagesDialog : public QDialog {
+    Q_OBJECT
+
+public:
+    struct Choice {
+        std::vector<int> pages;   // this document's, zero-based, strictly ascending
+        QString path;             // the PDF the replacements come from
+        int sourceFirst = 0;      // its first page used, zero-based; the next `pages.size()` follow it
+        friend bool operator==(const Choice&, const Choice&) = default;
+    };
+
+    ReplacePagesDialog(int pageCount, const std::vector<int>& initial, QWidget* parent = nullptr);
+
+    core::Result<Choice> choice() const;
+
+    QLineEdit* rangeField() const { return range_; }
+    QLineEdit* fileField() const { return file_; }
+    QSpinBox* sourceFirstField() const { return sourceFirst_; }
+    QLabel* refusalLabel() const { return refusal_; }
+
+    static bool canAsk();
+    static std::optional<Choice> ask(QWidget* parent, int pageCount, const std::vector<int>& initial);
+    using Answer = std::function<std::optional<Choice>(int pageCount, const std::vector<int>& initial)>;
+    static void setAnswerForTesting(Answer answer);
+
+    void accept() override;
+
+private:
+    int pageCount_ = 0;
+    QLineEdit* range_ = nullptr;
+    QLineEdit* file_ = nullptr;
+    QSpinBox* sourceFirst_ = nullptr;
     QLabel* refusal_ = nullptr;
 };
 

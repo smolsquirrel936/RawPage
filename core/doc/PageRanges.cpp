@@ -2,6 +2,8 @@
 
 #include "core/doc/PageRanges.h"
 
+#include "core/doc/PageTree.h"
+
 #include <QStringList>
 
 #include <optional>
@@ -67,6 +69,23 @@ QString formatPageRanges(const std::vector<int>& pages)
         at = end + 1;
     }
     return runs.join(QStringLiteral(", "));
+}
+
+std::vector<int> filterPages(const std::vector<int>& pages, PageParity parity, PageOrientation orientation, const PageTree& tree)
+{
+    std::vector<int> kept;
+    for (const int page : pages) {
+        if (page < 0 || page >= tree.count()) continue;
+        const bool odd = page % 2 == 0;   // page NUMBER page + 1
+        if ((parity == PageParity::Odd && !odd) || (parity == PageParity::Even && odd)) continue;
+        if (orientation != PageOrientation::Any) {
+            const PdfSize shown = tree.displaySize(page);
+            const bool landscape = shown.width > shown.height;
+            if (landscape != (orientation == PageOrientation::Landscape)) continue;
+        }
+        kept.push_back(page);
+    }
+    return kept;
 }
 
 } // namespace rawpage::core

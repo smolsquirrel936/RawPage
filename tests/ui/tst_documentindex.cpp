@@ -264,7 +264,7 @@ TEST_CASE("a rotation drops the rotated page from the index and the next search 
     REQUIRE(document->selection()->ensurePage(0, core::render::RenderPriority::Visible));
 
     // `Ctrl+R`'s command, on the current page (page 1), through the journal -- as a person runs it.
-    ui::RotatePagesDialog::setAnswerForTesting([] { return ui::RotatePagesDialog::Choice{90, false}; });
+    ui::RotatePagesDialog::setAnswerForTesting([] { return ui::RotatePagesDialog::Choice{90, ui::RotatePagesDialog::Pages::Current}; });
     REQUIRE(desk.fixture.actions.dispatch(ActionId::PageRotate, core::KeyContext::Viewer));
     ui::RotatePagesDialog::setAnswerForTesting({});
 

@@ -76,7 +76,7 @@ TEST_CASE("ui.untitled_assembly an extract opens untitled, unsaved, and Save ask
     ui::DocumentWindow* source = product.document();
     const QStringList before = filesUnder(product.scratch.path());
 
-    ui::ExtractPagesDialog::setAnswerForTesting([](int pageCount, int) -> std::optional<ui::ExtractPagesDialog::Choice> {
+    ui::ExtractPagesDialog::setAnswerForTesting([](int pageCount, const std::vector<int>&) -> std::optional<ui::ExtractPagesDialog::Choice> {
         REQUIRE(pageCount == 9);
         return ui::ExtractPagesDialog::Choice{{1, 2}, false, false, QString()};
     });
@@ -139,7 +139,7 @@ TEST_CASE("extract and delete removes the pages in one undo step after the new d
     Product product;
     product.open("assembly/odd-count-9.pdf");
     ui::DocumentWindow* source = product.document();
-    ui::ExtractPagesDialog::setAnswerForTesting([](int, int) -> std::optional<ui::ExtractPagesDialog::Choice> {
+    ui::ExtractPagesDialog::setAnswerForTesting([](int, const std::vector<int>&) -> std::optional<ui::ExtractPagesDialog::Choice> {
         return ui::ExtractPagesDialog::Choice{{1, 4}, false, true, QString()};
     });
     REQUIRE(dispatch(product, ActionId::PageExtract));
@@ -160,7 +160,7 @@ TEST_CASE("extract and delete a planted write failure leaves the source untouche
     product.open("assembly/odd-count-9.pdf");
     ui::DocumentWindow* source = product.document();
     const QString folder = QDir(product.scratch.path()).filePath(QStringLiteral("pages"));
-    ui::ExtractPagesDialog::setAnswerForTesting([folder](int, int) -> std::optional<ui::ExtractPagesDialog::Choice> {
+    ui::ExtractPagesDialog::setAnswerForTesting([folder](int, const std::vector<int>&) -> std::optional<ui::ExtractPagesDialog::Choice> {
         return ui::ExtractPagesDialog::Choice{{1, 4, 6}, true, true, folder};
     });
     // THE CONTROL: the third file's bytes corrupted between its build and its write -- two files are on disk by then.

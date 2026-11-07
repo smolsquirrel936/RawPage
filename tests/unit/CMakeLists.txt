@@ -144,6 +144,9 @@ add_executable(rawpage_tests
     tst_assembler.cpp             # Stage 7 T7  -- new documents: one revision, a fresh /ID, a balanced tree, the pages
                                   #   as they stand; the folder write refused whole on a collision and taken back on a
                                   #   failed verify (S7 guide A-47, A-48's control, A-50, headless halves)
+    tst_pagesedit.cpp             # Stage 7 T8  -- rotation over a set and its filters, Stage 3's line replaying, the
+                                  #   clipboard's payload, what each page carries, the snapshot's copy, defaultPageSize
+                                  #   (S7 guide A-59, A-55's codec, A-57's data, A-45's key)
     tst_splitplan.cpp             # Stage 7 T7  -- the six split rules and the page-range syntax, pure, against hand
                                   #   values and the split-blanks labels (S7 guide A-49's planning half)
     tst_dpipolicy.cpp             # Stage 2 T10 -- guide cases A-28, A-29, A-30

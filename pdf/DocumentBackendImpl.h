@@ -120,6 +120,7 @@ public:
     core::Status annotationWritable(const core::Annotation& annotation) const override;
     // Stage 7 T5 (D7-4, D7-6) -- see core/backend.h.
     core::Result<core::CopiedPages> copyPages(const QString& path, const std::vector<int>& pages) override;
+    core::Result<int> filePageCount(const QString& path) override;
     core::Result<core::CopiedPages> blankPages(core::PdfSize size, int count) override;
     // Stage 7 T7 (D7-5, D7-30): the document as it stands, composed as a save would compose it, through
     // `pdf/ops/DocumentAssembler` -- see core/backend.h.

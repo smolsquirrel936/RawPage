@@ -1333,6 +1333,10 @@ void DocumentWindow::discardRecovery()
 
 int DocumentWindow::pageCount() const
 {
+    // THE MODEL'S COUNT where there is a model (S7 T8): a page command changes it at once, while the backend's tree is
+    // the one the ENGINE draws and is swapped in after the verify (D7-3 as amended, D7-27) -- so a second `Alt+Down`, a
+    // paste or a dialog's range read straight after a command would otherwise count the pages before it.
+    if (journal_) return journal_->document().pages().count();
     const core::PageTree* pages = services_.backend.pages(handle_);
     return pages != nullptr ? pages->count() : 0;
 }

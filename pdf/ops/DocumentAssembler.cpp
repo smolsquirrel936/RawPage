@@ -350,6 +350,19 @@ core::Result<core::AssembledDocument> DocumentAssembler::Source::assemble(const 
     return out;
 }
 
+core::Result<core::CopiedPages> DocumentAssembler::Source::copy(const std::vector<int>& pages)
+{
+    // THE COPIER'S PAYLOAD, NOTHING BUILT ROUND IT (S7 T8, D7-13): an insert's sink renumbers and verifies it at every
+    // compose, as it does a payload from `IDocumentBackend::copyPages`.
+    auto copied = ObjectGraphCopier::copy(opened_->table, walk_, pages);
+    if (!copied) return copied.error();
+    core::CopiedPages out;
+    out.graph = QByteArray(copied.value().pdf.data(), static_cast<qsizetype>(copied.value().pdf.size()));
+    out.pageCount = copied.value().pageCount;
+    out.report = std::move(copied.value().report);
+    return out;
+}
+
 core::Result<std::vector<core::WrittenDocument>> DocumentAssembler::Source::write(const std::vector<core::AssemblyOutput>& outputs,
                                                                                   const QString& folder)
 {

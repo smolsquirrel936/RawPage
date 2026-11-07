@@ -23,6 +23,7 @@
 #define RAWPAGE_CORE_DOC_ASSEMBLY_H
 
 #include "core/Result.h"
+#include "core/doc/CopiedPages.h"
 #include "core/doc/PageMap.h"
 
 #include <QByteArray>
@@ -64,6 +65,12 @@ public:
     // `pages` (strictly ascending, each inside the snapshot) as one new document. Refused by the copier's keys
     // (`error.pdf.pageOutOfRange`, `error.copy.tooLarge`) or the verify's (`error.assembly.verifyFailed`).
     virtual Result<AssembledDocument> assemble(const std::vector<int>& pages) = 0;
+
+    // `pages` as the PAYLOAD an `InsertPagesCommand` carries -- `ObjectGraphCopier`'s copy, no document built round it.
+    // Stage 7 T8 (D7-13): what `page.copy` puts on the clipboard and what a thumbnail dragged into another window's pane
+    // inserts there -- the pages as the screen shows them, unsaved edits included, which `IDocumentBackend::copyPages`
+    // (a FILE's pages) cannot give. Refused by the copier's keys.
+    virtual Result<CopiedPages> copy(const std::vector<int>& pages) = 0;
 
     // Every output assembled and written into `folder`, which is created when absent, in order. REFUSED, with
     // nothing written: a name that is not a bare file name (`error.assembly.badName`), two outputs of one name

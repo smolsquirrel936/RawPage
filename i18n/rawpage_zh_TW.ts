@@ -3370,6 +3370,10 @@
         <translation>剪貼簿上的內容不是 RawPage 可讀取的註解。</translation>
     </message>
     <message>
+        <source>error.clipboard.noPages</source>
+        <translation>剪貼簿中沒有 RawPage 頁面。</translation>
+    </message>
+    <message>
         <source>error.clipboard.nothingPastable</source>
         <translation>複製的註解都無法貼到這裡。</translation>
     </message>
@@ -3448,6 +3452,14 @@
     <message>
         <source>error.pages.badRange</source>
         <translation>「%1」不是此文件的頁面範圍。</translation>
+    </message>
+    <message>
+        <source>error.pages.noneMatch</source>
+        <translation>該頁面集合中沒有符合篩選條件的頁面。</translation>
+    </message>
+    <message>
+        <source>error.pages.noFile</source>
+        <translation>請選擇頁面來源的 PDF。</translation>
     </message>
     <message>
         <source>error.split.noBoundary</source>
@@ -4084,6 +4096,26 @@
         <translation>重寫整個檔案（使其精簡）</translation>
     </message>
     <message>
+        <source>prefs.choice.paperSize.a4</source>
+        <translation>A4</translation>
+    </message>
+    <message>
+        <source>prefs.choice.paperSize.letter</source>
+        <translation>Letter</translation>
+    </message>
+    <message>
+        <source>prefs.choice.paperSize.legal</source>
+        <translation>Legal</translation>
+    </message>
+    <message>
+        <source>prefs.choice.paperSize.a3</source>
+        <translation>A3</translation>
+    </message>
+    <message>
+        <source>prefs.choice.paperSize.a5</source>
+        <translation>A5</translation>
+    </message>
+    <message>
         <source>prefs.setting.pageDisplay.layoutMode</source>
         <translation>頁面配置</translation>
     </message>
@@ -4254,6 +4286,10 @@
     <message>
         <source>prefs.setting.documents.saveMode</source>
         <translation>「儲存」寫入檔案的方式</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.defaultPageSize</source>
+        <translation>新空白頁的大小</translation>
     </message>
     <message>
         <source>prefs.setting.documents.compareSensitivity</source>
@@ -4539,8 +4575,8 @@
         <translation>將第 %1 頁旋轉 %2 度</translation>
     </message>
     <message>
-        <source>command.page.rotateAll</source>
-        <translation>將全部 %1 頁旋轉 %2 度</translation>
+        <source>command.page.rotatePages</source>
+        <translation>將 %1 頁旋轉 %2 度</translation>
     </message>
     <message>
         <source>command.annot.reply</source>
@@ -5897,6 +5933,217 @@
     <message>
         <source>audio.status.playing</source>
         <translation>正在播放語音註解（%1）。</translation>
+    </message>
+</context>
+<context>
+    <name>pages</name>
+    <message>
+        <source>pages.badge.comments</source>
+        <translation>此頁有註解</translation>
+    </message>
+    <message>
+        <source>pages.badge.fields</source>
+        <translation>此頁有表單欄位</translation>
+    </message>
+    <message>
+        <source>pages.badge.links</source>
+        <translation>此頁有連結</translation>
+    </message>
+    <message>
+        <source>pages.rotate.selected</source>
+        <translation>選取的頁面（%1）</translation>
+    </message>
+    <message>
+        <source>pages.rotate.range</source>
+        <translation>頁面：</translation>
+    </message>
+    <message>
+        <source>pages.parity</source>
+        <translation>其中：</translation>
+    </message>
+    <message>
+        <source>pages.parity.any</source>
+        <translation>全部</translation>
+    </message>
+    <message>
+        <source>pages.parity.odd</source>
+        <translation>僅奇數頁</translation>
+    </message>
+    <message>
+        <source>pages.parity.even</source>
+        <translation>僅偶數頁</translation>
+    </message>
+    <message>
+        <source>pages.orientation</source>
+        <translation>方向：</translation>
+    </message>
+    <message>
+        <source>pages.orientation.any</source>
+        <translation>任何方向</translation>
+    </message>
+    <message>
+        <source>pages.orientation.portrait</source>
+        <translation>僅直向頁面</translation>
+    </message>
+    <message>
+        <source>pages.orientation.landscape</source>
+        <translation>僅橫向頁面</translation>
+    </message>
+    <message>
+        <source>pages.chooseFile</source>
+        <translation>選擇 PDF</translation>
+    </message>
+    <message>
+        <source>pages.insert.title</source>
+        <translation>插入頁面</translation>
+    </message>
+    <message>
+        <source>pages.insert.from</source>
+        <translation>插入</translation>
+    </message>
+    <message>
+        <source>pages.insert.fromFile</source>
+        <translation>來自 PDF 檔案的頁面</translation>
+    </message>
+    <message>
+        <source>pages.insert.allPages</source>
+        <translation>所有頁面</translation>
+    </message>
+    <message>
+        <source>pages.insert.blank</source>
+        <translation>空白頁</translation>
+    </message>
+    <message>
+        <source>pages.insert.landscape</source>
+        <translation>橫向</translation>
+    </message>
+    <message>
+        <source>pages.insert.clipboard</source>
+        <translation>剪貼簿上的 %1 頁</translation>
+    </message>
+    <message>
+        <source>pages.insert.where</source>
+        <translation>位置：</translation>
+    </message>
+    <message>
+        <source>pages.insert.after</source>
+        <translation>在此頁之後</translation>
+    </message>
+    <message>
+        <source>pages.insert.before</source>
+        <translation>在此頁之前</translation>
+    </message>
+    <message>
+        <source>pages.insert.first</source>
+        <translation>在第一頁之前</translation>
+    </message>
+    <message>
+        <source>pages.insert.last</source>
+        <translation>在最後一頁之後</translation>
+    </message>
+    <message>
+        <source>pages.delete.title</source>
+        <translation>刪除頁面</translation>
+    </message>
+    <message>
+        <source>pages.replace.title</source>
+        <translation>取代頁面</translation>
+    </message>
+    <message>
+        <source>pages.replace.pages</source>
+        <translation>取代頁面：</translation>
+    </message>
+    <message>
+        <source>pages.replace.with</source>
+        <translation>以此檔案的頁面：</translation>
+    </message>
+    <message>
+        <source>pages.replace.startingAt</source>
+        <translation>從其第幾頁開始：</translation>
+    </message>
+    <message>
+        <source>pages.report.entry</source>
+        <translation>%1：%2</translation>
+    </message>
+    <message>
+        <source>pages.signedWarning</source>
+        <translation>此文件含有 %1 個簽章。變更其頁面將會被簽章驗證程式回報為修改。</translation>
+    </message>
+    <message>
+        <source>pages.refused</source>
+        <translation>%1 遭到拒絕：%2</translation>
+    </message>
+    <message>
+        <source>pages.done</source>
+        <translation>%1。</translation>
+    </message>
+    <message>
+        <source>pages.doneReported</source>
+        <translation>%1。%2</translation>
+    </message>
+    <message>
+        <source>pages.copied</source>
+        <translation>已將 %1 頁複製到剪貼簿。</translation>
+    </message>
+    <message>
+        <source>pages.tooltip.needsClipboardPages</source>
+        <translation>請先複製頁面：剪貼簿中沒有 RawPage 頁面。</translation>
+    </message>
+    <message>
+        <source>pages.reference.OutlineItem</source>
+        <translation>書籤</translation>
+    </message>
+    <message>
+        <source>pages.reference.Link</source>
+        <translation>連結</translation>
+    </message>
+    <message>
+        <source>pages.reference.NamedDestination</source>
+        <translation>具名目的地</translation>
+    </message>
+    <message>
+        <source>pages.reference.StructureElement</source>
+        <translation>標記內容</translation>
+    </message>
+    <message>
+        <source>pages.reference.ThreadBead</source>
+        <translation>文章串</translation>
+    </message>
+    <message>
+        <source>pages.reference.OpenAction</source>
+        <translation>開啟時的檢視</translation>
+    </message>
+    <message>
+        <source>pages.reference.RemoteGoTo</source>
+        <translation>連往其他檔案的連結</translation>
+    </message>
+    <message>
+        <source>pages.reference.IndexDestination</source>
+        <translation>以頁碼指定的目的地</translation>
+    </message>
+    <message>
+        <source>pages.reference.WidgetNotCopied</source>
+        <translation>表單欄位</translation>
+    </message>
+    <message>
+        <source>pages.treatment.Cleared</source>
+        <translation>%1 個失去目的地</translation>
+    </message>
+    <message>
+        <source>pages.treatment.Removed</source>
+        <translation>%1 個已移除</translation>
+    </message>
+    <message>
+        <source>pages.treatment.Unlinked</source>
+        <translation>%1 個已解除連結</translation>
+    </message>
+    <message>
+        <source>pages.treatment.Reported</source>
+        <translation>%1 個保持原樣</translation>
+    </message>
+    <message>
+        <source>pages.treatment.NotCopied</source>
+        <translation>%1 個未複製</translation>
     </message>
 </context>
 </TS>

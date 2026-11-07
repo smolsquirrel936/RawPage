@@ -664,6 +664,10 @@ public:
     // a page set that is not one, and a graph past the copy's budget (`error.copy.tooLarge`). A file opened by a
     // repair is copied as the repair read it. Never changes an open document; the file is read once, here.
     virtual Result<CopiedPages> copyPages(const QString& path, const std::vector<int>& pages) = 0;
+    // HOW MANY PAGES the PDF at `path` has, read as `copyPages` reads it (Stage 7 T8): what a page range typed against
+    // a FILE is checked against before its pages are copied -- an insert's *pages 3-* or *every page*, a replace's
+    // source run. Refused by `copyPages`' keys.
+    virtual Result<int> filePageCount(const QString& path) = 0;
     // `count` BLANK pages of `size` points -- no content stream, an empty `/Resources` -- as the same payload (guide
     // A-45). Refused for a size outside ISO 32000-1 Annex C's 3 ... 14,400 units.
     virtual Result<CopiedPages> blankPages(PdfSize size, int count) = 0;

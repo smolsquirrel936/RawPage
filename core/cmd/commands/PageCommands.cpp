@@ -26,38 +26,59 @@ Error badCommand(const char* field)
                  QLatin1String(RotatePageCommand::kTypeId) + QLatin1Char('.') + QLatin1String(field)};
 }
 
+// `{"pages": [...]}` as every page command writes it -- defined with the page-order commands below.
+Result<std::vector<int>> pagesFrom(const QJsonObject& json, QLatin1String type);
+
 } // namespace
 
 RotatePageCommand::RotatePageCommand(int pageIndex, int degreesClockwise)
-    : pageIndex_(pageIndex), degrees_(degreesClockwise % 90 == 0 ? normalizeTurn(degreesClockwise) : -1)
+    : RotatePageCommand(std::vector<int>{pageIndex}, degreesClockwise)
+{
+}
+
+RotatePageCommand::RotatePageCommand(std::vector<int> pages, int degreesClockwise)
+    : pages_(std::move(pages)), degrees_(degreesClockwise % 90 == 0 ? normalizeTurn(degreesClockwise) : -1)
 {
 }
 
 bool RotatePageCommand::isValid() const noexcept
 {
-    return pageIndex_ >= 0 && pageIndex_ <= kMaxPageIndex
-           && (degrees_ == 90 || degrees_ == 180 || degrees_ == 270);
+    if (pages_.empty() || static_cast<long long>(pages_.size()) > kMaxPagesPerCommand) return false;
+    for (std::size_t at = 0; at < pages_.size(); ++at) {
+        if (pages_[at] < 0 || pages_[at] > kMaxPageIndex) return false;
+        if (at > 0 && pages_[at] <= pages_[at - 1]) return false;
+    }
+    return degrees_ == 90 || degrees_ == 180 || degrees_ == 270;
 }
 
 CatalogText RotatePageCommand::name() const
 {
-    return CatalogText{QLatin1String("command.page.rotate"),
-                       {QString::number(pageIndex_ + 1), QString::number(degrees_)}};
+    if (pages_.size() == 1)
+        return CatalogText{QLatin1String("command.page.rotate"), {QString::number(pageIndex() + 1), QString::number(degrees_)}};
+    return CatalogText{QLatin1String("command.page.rotatePages"),
+                       {QString::number(static_cast<qulonglong>(pages_.size())), QString::number(degrees_)}};
 }
 
 bool RotatePageCommand::turn(Document& document, MutationSink& sink, int degrees)
 {
     // Validate first: nothing below may run for a page that does not exist.
-    if (!isValid() || pageIndex_ >= document.pages().count())
+    if (!isValid() || pages_.back() >= document.pages().count())
         return false;
 
-    const int target = normalizeTurn(static_cast<int>(document.pages().rotation(pageIndex_)) + degrees);
-    if (!sink.setPageRotation(pageIndex_, target))
-        return false;                       // the engine side refused; the model is untouched
+    std::vector<int> before;
+    before.reserve(pages_.size());
+    for (const int page : pages_) before.push_back(static_cast<int>(document.pages().rotation(page)));
+    for (std::size_t at = 0; at < pages_.size(); ++at) {
+        if (sink.setPageRotation(pages_[at], normalizeTurn(before[at] + degrees))) continue;
+        // THE ENGINE SIDE REFUSED part-way: the pages already turned are turned back, so the sink holds what it held
+        // and the model was never touched -- `Command.h`'s contract for a `false` return.
+        for (std::size_t back = 0; back < at; ++back) (void)sink.setPageRotation(pages_[back], before[back]);
+        return false;
+    }
 
     // Cannot fail for an index checked above -- and if it ever could, the sink would already hold the
     // new rotation, which is exactly the partial application CommandJournal exists to report.
-    document.pages().setRotation(pageIndex_, target);
+    for (std::size_t at = 0; at < pages_.size(); ++at) document.pages().setRotation(pages_[at], normalizeTurn(before[at] + degrees));
     return true;
 }
 
@@ -73,8 +94,15 @@ bool RotatePageCommand::revert(Document& document, MutationSink& sink)
 
 QJsonObject RotatePageCommand::serialize() const
 {
+    // ONE PAGE IS STAGE 3'S LINE, byte for byte; a set is the page-order commands' `pages` array (S7 T8).
+    if (pages_.size() == 1)
+        return QJsonObject{{QStringLiteral("type"), QLatin1String(kTypeId)},
+                           {QStringLiteral("page"), pages_.front()},
+                           {QStringLiteral("degrees"), degrees_}};
+    QJsonArray pages;
+    for (const int page : pages_) pages.append(page);
     return QJsonObject{{QStringLiteral("type"), QLatin1String(kTypeId)},
-                       {QStringLiteral("page"), pageIndex_},
+                       {QStringLiteral("pages"), pages},
                        {QStringLiteral("degrees"), degrees_}};
 }
 
@@ -86,20 +114,30 @@ Result<std::unique_ptr<Command>> RotatePageCommand::deserialize(const QJsonObjec
     if (!type.isString() || type.toString() != QLatin1String(kTypeId))
         return badCommand("type");
 
-    const QJsonValue page = json.value(QStringLiteral("page"));
     const QJsonValue degrees = json.value(QStringLiteral("degrees"));
-    if (!page.isDouble() || !degrees.isDouble())
-        return badCommand(!page.isDouble() ? "page" : "degrees");
+    if (!degrees.isDouble()) return badCommand("degrees");
+    const double degreeValue = degrees.toDouble();
+    if (degreeValue != 90.0 && degreeValue != 180.0 && degreeValue != 270.0)
+        return badCommand("degrees");
+
+    // EITHER FORM, NEVER BOTH (S7 T8): a line naming a page and a set at once says two things, and neither is taken.
+    const bool hasPage = json.contains(QStringLiteral("page"));
+    if (hasPage == json.contains(QStringLiteral("pages")))
+        return badCommand("page");
+    if (!hasPage) {
+        Result<std::vector<int>> pages = pagesFrom(json, kTypeId);
+        if (!pages) return pages.error();
+        return std::unique_ptr<Command>(new RotatePageCommand(std::move(pages).value(), static_cast<int>(degreeValue)));
+    }
 
     // A JSON number is a double: it must be a whole number in range before it becomes an int.
+    const QJsonValue page = json.value(QStringLiteral("page"));
+    if (!page.isDouble()) return badCommand("page");
     const double pageValue = page.toDouble();
     if (!std::isfinite(pageValue) || std::trunc(pageValue) != pageValue || pageValue < 0.0
         || pageValue > static_cast<double>(kMaxPageIndex)) {
         return badCommand("page");
     }
-    const double degreeValue = degrees.toDouble();
-    if (degreeValue != 90.0 && degreeValue != 180.0 && degreeValue != 270.0)
-        return badCommand("degrees");
 
     return std::unique_ptr<Command>(
         new RotatePageCommand(static_cast<int>(pageValue), static_cast<int>(degreeValue)));

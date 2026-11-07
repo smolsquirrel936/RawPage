@@ -29,7 +29,8 @@ namespace keys = core::keys;
 
 TEST_CASE("the two Stage 3 keys are declared in the Documents group and only Stage 5's four joined it", "[settings][stage3]")
 // ... and, since Stage 7 T6, `documents/saveMode` -- the key D3-9 sent to Stage 8, declared by D7-25 with the writer it
-// needed. The case keeps its name (convention: a case is found by its name across stages).
+// needed -- and, since Stage 7 T8, `documents/defaultPageSize` (guide A-45). The case keeps its name (convention: a
+// case is found by its name across stages).
 {
     std::vector<std::string> documents;
     for (const core::SettingsKeyInfo& info : core::SettingsSchema::allKeys())
@@ -40,7 +41,7 @@ TEST_CASE("the two Stage 3 keys are declared in the Documents group and only Sta
     // arrived in place of another.
     CHECK(documents == std::vector<std::string>{"documents/recentCount", "documents/recentPinned",
                                                 "documents/recoveryDir", "documents/warnOnRepairedSave",
-                                                "documents/saveMode",
+                                                "documents/saveMode", "documents/defaultPageSize",
                                                 "documents/compareSensitivity", "documents/compareIgnoreHeaderFooter",
                                                 "documents/compareIgnorePageNumbers", "documents/compareIgnoreWhitespace"});
 

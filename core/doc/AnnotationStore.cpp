@@ -131,6 +131,44 @@ std::vector<std::size_t> AnnotationStore::onPage(int page) const
     return out;
 }
 
+AnnotationStore::PageCarries AnnotationStore::carries(int page) const
+{
+    PageCarries out;
+    for (const std::size_t index : onPage(page)) {
+        switch (annotations_[index].subtype) {
+        case AnnotationSubtype::Text:
+        case AnnotationSubtype::FreeText:
+        case AnnotationSubtype::Line:
+        case AnnotationSubtype::Square:
+        case AnnotationSubtype::Circle:
+        case AnnotationSubtype::Polygon:
+        case AnnotationSubtype::PolyLine:
+        case AnnotationSubtype::Highlight:
+        case AnnotationSubtype::Underline:
+        case AnnotationSubtype::Squiggly:
+        case AnnotationSubtype::StrikeOut:
+        case AnnotationSubtype::Stamp:
+        case AnnotationSubtype::Caret:
+        case AnnotationSubtype::Ink:
+        case AnnotationSubtype::FileAttachment:
+        case AnnotationSubtype::Sound:
+        case AnnotationSubtype::Redact:
+            out.comments = true;
+            break;
+        case AnnotationSubtype::Widget:
+        case AnnotationSubtype::XfaWidget:
+            out.fields = true;
+            break;
+        case AnnotationSubtype::Link:
+            out.links = true;
+            break;
+        default:
+            break;
+        }
+    }
+    return out;
+}
+
 std::vector<std::vector<AnnotationFact>> AnnotationStore::listingFacts() const
 {
     std::vector<std::vector<AnnotationFact>> out(pages_.size());

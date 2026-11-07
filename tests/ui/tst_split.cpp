@@ -163,7 +163,7 @@ struct Split {
     void rotateCurrentPage(int degrees = 90)
     {
         ui::RotatePagesDialog::setAnswerForTesting(
-            [degrees] { return ui::RotatePagesDialog::Choice{degrees, false}; });
+            [degrees] { return ui::RotatePagesDialog::Choice{degrees, ui::RotatePagesDialog::Pages::Current}; });
         REQUIRE(fixture.actions.dispatch(ActionId::PageRotate, core::KeyContext::Viewer));
         ui::RotatePagesDialog::setAnswerForTesting({});
     }

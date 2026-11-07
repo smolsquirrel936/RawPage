@@ -1,9 +1,11 @@
 #include "ui/dialogs/PageOpsDialogs.h"
 
+#include "core/cmd/commands/PageCommands.h"
 #include "core/doc/PageRanges.h"
 #include "ui/shell/Catalog.h"
 
 #include <QCheckBox>
+#include <QComboBox>
 #include <QDialogButtonBox>
 #include <QFileDialog>
 #include <QGridLayout>
@@ -74,11 +76,68 @@ void showRefusal(QLabel* label, const core::Error& error)
     label->show();
 }
 
+// What a range field starts with: the pages a person picked, kept inside the document, or page 1 (S7 T8).
+QString startingRange(const std::vector<int>& initial, int pageCount)
+{
+    std::vector<int> inside;
+    for (const int page : initial)
+        if (page >= 0 && page < pageCount) inside.push_back(page);
+    if (inside.empty()) inside.push_back(0);
+    return core::formatPageRanges(inside);
+}
+
+// A PDF field and its Browse button, in one row (S7 T8: insert's and replace's source).
+QWidget* pdfRow(QWidget* parent, QLineEdit*& field)
+{
+    auto* row = new QWidget(parent);
+    auto* layout = new QHBoxLayout(row);
+    layout->setContentsMargins(0, 0, 0, 0);
+    field = new QLineEdit(row);
+    field->setObjectName(QStringLiteral("fileField"));
+    auto* browse = new QPushButton(catalog::translate(catalog::key::AssemblyBrowse), row);
+    QLineEdit* target = field;
+    QObject::connect(browse, &QPushButton::clicked, row, [row, target] {
+        const QString chosen = QFileDialog::getOpenFileName(row, catalog::translate(catalog::key::PagesChooseFile), target->text(),
+                                                            catalog::translate(catalog::key::DialogPdfFilter));
+        if (!chosen.isEmpty()) target->setText(chosen);
+    });
+    layout->addWidget(field, 1);
+    layout->addWidget(browse);
+    return row;
+}
+
+InsertPagesDialog::Answer& installedInsert()
+{
+    static InsertPagesDialog::Answer answer;
+    return answer;
+}
+
+DeletePagesDialog::Answer& installedDelete()
+{
+    static DeletePagesDialog::Answer answer;
+    return answer;
+}
+
+ReplacePagesDialog::Answer& installedReplace()
+{
+    static ReplacePagesDialog::Answer answer;
+    return answer;
+}
+
+QDialogButtonBox* okCancel(QDialog* dialog)
+{
+    auto* buttons = new QDialogButtonBox(QDialogButtonBox::Ok | QDialogButtonBox::Cancel, dialog);
+    QObject::connect(buttons, &QDialogButtonBox::accepted, dialog, &QDialog::accept);
+    QObject::connect(buttons, &QDialogButtonBox::rejected, dialog, &QDialog::reject);
+    return buttons;
+}
+
 } // namespace
 
 // --- Extract ---------------------------------------------------------------------------------------------------
 
-ExtractPagesDialog::ExtractPagesDialog(int pageCount, int currentPage, bool mayDelete, const QString& folder, QWidget* parent)
+ExtractPagesDialog::ExtractPagesDialog(int pageCount, const std::vector<int>& initial, bool mayDelete, const QString& folder,
+                                       QWidget* parent)
     : QDialog(parent), pageCount_(pageCount)
 {
     setObjectName(QStringLiteral("extractPagesDialog"));
@@ -91,7 +150,7 @@ ExtractPagesDialog::ExtractPagesDialog(int pageCount, int currentPage, bool mayD
 
     auto* rangeRow = new QHBoxLayout();
     rangeRow->addWidget(new QLabel(catalog::translate(catalog::key::ExtractPages), this));
-    range_ = new QLineEdit(QString::number(std::clamp(currentPage, 0, std::max(0, pageCount - 1)) + 1), this);
+    range_ = new QLineEdit(startingRange(initial, pageCount), this);
     range_->setObjectName(QStringLiteral("rangeField"));
     range_->setPlaceholderText(catalog::translate(catalog::key::ExtractPagesHint));
     rangeRow->addWidget(range_, 1);
@@ -154,12 +213,12 @@ bool ExtractPagesDialog::canAsk()
     return static_cast<bool>(installedExtract()) || aPersonCanAnswer();
 }
 
-std::optional<ExtractPagesDialog::Choice> ExtractPagesDialog::ask(QWidget* parent, int pageCount, int currentPage, bool mayDelete,
-                                                                 const QString& folder)
+std::optional<ExtractPagesDialog::Choice> ExtractPagesDialog::ask(QWidget* parent, int pageCount, const std::vector<int>& initial,
+                                                                 bool mayDelete, const QString& folder)
 {
-    if (installedExtract()) return installedExtract()(pageCount, currentPage);
+    if (installedExtract()) return installedExtract()(pageCount, initial);
     if (!aPersonCanAnswer()) return std::nullopt;
-    ExtractPagesDialog dialog(pageCount, currentPage, mayDelete, folder, parent);
+    ExtractPagesDialog dialog(pageCount, initial, mayDelete, folder, parent);
     if (dialog.exec() != QDialog::Accepted) return std::nullopt;
     core::Result<Choice> chosen = dialog.choice();
     if (!chosen) return std::nullopt;
@@ -302,6 +361,311 @@ std::optional<SplitDocumentDialog::Choice> SplitDocumentDialog::ask(QWidget* par
 void SplitDocumentDialog::setAnswerForTesting(Answer answer)
 {
     installedSplit() = std::move(answer);
+}
+
+
+// --- Insert (S7 T8) --------------------------------------------------------------------------------------------
+
+InsertPagesDialog::InsertPagesDialog(int pageCount, int page, core::PaperSize paperSize, int clipboardPages, QWidget* parent)
+    : QDialog(parent), pageCount_(pageCount)
+{
+    setObjectName(QStringLiteral("insertPagesDialog"));
+    setWindowTitle(catalog::translate(catalog::key::PagesInsertTitle));
+    setModal(true);
+
+    auto* column = new QVBoxLayout(this);
+    column->setContentsMargins(16, 16, 16, 16);
+    column->setSpacing(10);
+
+    auto* from = new QGroupBox(catalog::translate(catalog::key::PagesInsertFrom), this);
+    auto* grid = new QGridLayout(from);
+    const auto addSource = [&](Source source, const QString& text, int row) {
+        auto* button = new QRadioButton(text, from);
+        sources_.emplace_back(source, button);
+        grid->addWidget(button, row, 0, 1, 2);
+        return button;
+    };
+
+    QRadioButton* file = addSource(Source::File, catalog::translate(catalog::key::PagesInsertFromFile), 0);
+    QWidget* fileLine = pdfRow(from, file_);
+    grid->addWidget(fileLine, 1, 0, 1, 2);
+    grid->addWidget(new QLabel(catalog::translate(catalog::key::ExtractPages), from), 2, 0);
+    fileRange_ = new QLineEdit(from);
+    fileRange_->setObjectName(QStringLiteral("fileRangeField"));
+    fileRange_->setPlaceholderText(catalog::translate(catalog::key::PagesInsertAllPages));
+    grid->addWidget(fileRange_, 2, 1);
+
+    QRadioButton* blank = addSource(Source::Blank, catalog::translate(catalog::key::PagesInsertBlank), 3);
+    auto* blankLine = new QWidget(from);
+    auto* blankLayout = new QHBoxLayout(blankLine);
+    blankLayout->setContentsMargins(0, 0, 0, 0);
+    blankCount_ = new QSpinBox(blankLine);
+    blankCount_->setObjectName(QStringLiteral("blankCountField"));
+    blankCount_->setRange(1, 1000);
+    blankSize_ = new QComboBox(blankLine);
+    blankSize_->setObjectName(QStringLiteral("blankSizeBox"));
+    for (const core::PaperSize size : core::kPaperSizes) {
+        const std::string_view name = core::paperSizeName(size);
+        // THE SETTING'S OWN WORDS for each size: the Preferences page and this box cannot name one size two ways.
+        blankSize_->addItem(catalog::translate(QStringLiteral("prefs.choice.paperSize.") + QString::fromLatin1(name.data(), static_cast<qsizetype>(name.size()))),
+                            static_cast<int>(size));
+        if (size == paperSize) blankSize_->setCurrentIndex(blankSize_->count() - 1);
+    }
+    landscape_ = new QCheckBox(catalog::translate(catalog::key::PagesInsertLandscape), blankLine);
+    blankLayout->addWidget(blankCount_);
+    blankLayout->addWidget(blankSize_, 1);
+    blankLayout->addWidget(landscape_);
+    grid->addWidget(blankLine, 4, 0, 1, 2);
+
+    QRadioButton* clipboard = addSource(Source::Clipboard,
+                                        catalog::translate(catalog::key::PagesInsertClipboard).arg(std::max(0, clipboardPages)), 5);
+    clipboard->setEnabled(clipboardPages > 0);
+
+    const auto enableFor = [](QRadioButton* button, std::vector<QWidget*> fields) {
+        for (QWidget* field : fields) field->setEnabled(false);
+        QObject::connect(button, &QRadioButton::toggled, button, [fields](bool on) {
+            for (QWidget* field : fields) field->setEnabled(on);
+        });
+    };
+    enableFor(file, {fileLine, fileRange_});
+    enableFor(blank, {blankLine});
+    file->setChecked(true);
+    column->addWidget(from);
+
+    auto* whereRow = new QHBoxLayout();
+    where_ = new QComboBox(this);
+    where_->setObjectName(QStringLiteral("whereBox"));
+    where_->addItem(catalog::translate(catalog::key::PagesInsertAfter), static_cast<int>(Where::After));
+    where_->addItem(catalog::translate(catalog::key::PagesInsertBefore), static_cast<int>(Where::Before));
+    where_->addItem(catalog::translate(catalog::key::PagesInsertFirst), static_cast<int>(Where::First));
+    where_->addItem(catalog::translate(catalog::key::PagesInsertLast), static_cast<int>(Where::Last));
+    page_ = new QSpinBox(this);
+    page_->setObjectName(QStringLiteral("pageField"));
+    page_->setRange(1, std::max(1, pageCount));
+    page_->setValue(std::clamp(page + 1, 1, std::max(1, pageCount)));
+    connect(where_, &QComboBox::currentIndexChanged, page_, [this] {
+        const auto where = static_cast<Where>(where_->currentData().toInt());
+        page_->setEnabled(where == Where::Before || where == Where::After);
+    });
+    whereRow->addWidget(new QLabel(catalog::translate(catalog::key::PagesInsertWhere), this));
+    whereRow->addWidget(where_, 1);
+    whereRow->addWidget(page_);
+    whereRow->addWidget(new QLabel(catalog::translate(catalog::key::ExtractOfPages).arg(pageCount), this));
+    column->addLayout(whereRow);
+
+    refusal_ = refusalLine(this);
+    column->addWidget(refusal_);
+    column->addWidget(okCancel(this));
+}
+
+QRadioButton* InsertPagesDialog::sourceButton(Source source) const
+{
+    for (const auto& [kind, button] : sources_)
+        if (kind == source) return button;
+    return nullptr;
+}
+
+core::Result<InsertPagesDialog::Choice> InsertPagesDialog::choice() const
+{
+    Choice choice;
+    for (const auto& [kind, button] : sources_)
+        if (button->isChecked()) choice.source = kind;
+    switch (static_cast<Where>(where_->currentData().toInt())) {
+    case Where::Before: choice.at = page_->value() - 1; break;
+    case Where::After:  choice.at = page_->value(); break;
+    case Where::First:  choice.at = 0; break;
+    case Where::Last:   choice.at = pageCount_; break;
+    }
+    choice.at = std::clamp(choice.at, 0, std::max(0, pageCount_));
+    switch (choice.source) {
+    case Source::File:
+        choice.path = file_->text().trimmed();
+        choice.range = fileRange_->text().trimmed();
+        if (choice.path.isEmpty())
+            return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.pages.noFile"), QString()};
+        break;
+    case Source::Blank: {
+        choice.blankCount = blankCount_->value();
+        const core::PdfSize size = core::paperSizePoints(static_cast<core::PaperSize>(blankSize_->currentData().toInt()));
+        choice.blankSize = landscape_->isChecked() ? core::PdfSize{size.height, size.width} : size;
+        break;
+    }
+    case Source::Clipboard:
+        break;
+    }
+    return choice;
+}
+
+void InsertPagesDialog::accept()
+{
+    const core::Result<Choice> chosen = choice();
+    if (!chosen) {
+        showRefusal(refusal_, chosen.error());
+        return;
+    }
+    QDialog::accept();
+}
+
+bool InsertPagesDialog::canAsk()
+{
+    return static_cast<bool>(installedInsert()) || aPersonCanAnswer();
+}
+
+std::optional<InsertPagesDialog::Choice> InsertPagesDialog::ask(QWidget* parent, int pageCount, int page, core::PaperSize paperSize,
+                                                               int clipboardPages)
+{
+    if (installedInsert()) return installedInsert()(pageCount, page, paperSize, clipboardPages);
+    if (!aPersonCanAnswer()) return std::nullopt;
+    InsertPagesDialog dialog(pageCount, page, paperSize, clipboardPages, parent);
+    if (dialog.exec() != QDialog::Accepted) return std::nullopt;
+    core::Result<Choice> chosen = dialog.choice();
+    if (!chosen) return std::nullopt;
+    return std::move(chosen).value();
+}
+
+void InsertPagesDialog::setAnswerForTesting(Answer answer)
+{
+    installedInsert() = std::move(answer);
+}
+
+// --- Delete (S7 T8) --------------------------------------------------------------------------------------------
+
+DeletePagesDialog::DeletePagesDialog(int pageCount, const std::vector<int>& initial, QWidget* parent)
+    : QDialog(parent), pageCount_(pageCount)
+{
+    setObjectName(QStringLiteral("deletePagesDialog"));
+    setWindowTitle(catalog::translate(catalog::key::PagesDeleteTitle));
+    setModal(true);
+
+    auto* column = new QVBoxLayout(this);
+    column->setContentsMargins(16, 16, 16, 16);
+    column->setSpacing(10);
+    auto* rangeRow = new QHBoxLayout();
+    rangeRow->addWidget(new QLabel(catalog::translate(catalog::key::ExtractPages), this));
+    range_ = new QLineEdit(startingRange(initial, pageCount), this);
+    range_->setObjectName(QStringLiteral("rangeField"));
+    range_->setPlaceholderText(catalog::translate(catalog::key::ExtractPagesHint));
+    rangeRow->addWidget(range_, 1);
+    rangeRow->addWidget(new QLabel(catalog::translate(catalog::key::ExtractOfPages).arg(pageCount), this));
+    column->addLayout(rangeRow);
+    refusal_ = refusalLine(this);
+    column->addWidget(refusal_);
+    column->addWidget(okCancel(this));
+}
+
+core::Result<DeletePagesDialog::Choice> DeletePagesDialog::choice() const
+{
+    core::Result<std::vector<int>> pages = core::parsePageRanges(range_->text(), pageCount_);
+    if (!pages) return pages.error();
+    if (static_cast<int>(pages.value().size()) >= pageCount_)
+        return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.edit.noPagesLeft"), QString()};
+    return Choice{std::move(pages).value()};
+}
+
+void DeletePagesDialog::accept()
+{
+    const core::Result<Choice> chosen = choice();
+    if (!chosen) {
+        showRefusal(refusal_, chosen.error());
+        return;
+    }
+    QDialog::accept();
+}
+
+bool DeletePagesDialog::canAsk()
+{
+    return static_cast<bool>(installedDelete()) || aPersonCanAnswer();
+}
+
+std::optional<DeletePagesDialog::Choice> DeletePagesDialog::ask(QWidget* parent, int pageCount, const std::vector<int>& initial)
+{
+    if (installedDelete()) return installedDelete()(pageCount, initial);
+    if (!aPersonCanAnswer()) return std::nullopt;
+    DeletePagesDialog dialog(pageCount, initial, parent);
+    if (dialog.exec() != QDialog::Accepted) return std::nullopt;
+    core::Result<Choice> chosen = dialog.choice();
+    if (!chosen) return std::nullopt;
+    return std::move(chosen).value();
+}
+
+void DeletePagesDialog::setAnswerForTesting(Answer answer)
+{
+    installedDelete() = std::move(answer);
+}
+
+// --- Replace (S7 T8) -------------------------------------------------------------------------------------------
+
+ReplacePagesDialog::ReplacePagesDialog(int pageCount, const std::vector<int>& initial, QWidget* parent)
+    : QDialog(parent), pageCount_(pageCount)
+{
+    setObjectName(QStringLiteral("replacePagesDialog"));
+    setWindowTitle(catalog::translate(catalog::key::PagesReplaceTitle));
+    setModal(true);
+
+    auto* column = new QVBoxLayout(this);
+    column->setContentsMargins(16, 16, 16, 16);
+    column->setSpacing(10);
+    auto* grid = new QGridLayout();
+    grid->addWidget(new QLabel(catalog::translate(catalog::key::PagesReplacePages), this), 0, 0);
+    range_ = new QLineEdit(startingRange(initial, pageCount), this);
+    range_->setObjectName(QStringLiteral("rangeField"));
+    range_->setPlaceholderText(catalog::translate(catalog::key::ExtractPagesHint));
+    grid->addWidget(range_, 0, 1);
+    grid->addWidget(new QLabel(catalog::translate(catalog::key::ExtractOfPages).arg(pageCount), this), 0, 2);
+    grid->addWidget(new QLabel(catalog::translate(catalog::key::PagesReplaceWith), this), 1, 0);
+    grid->addWidget(pdfRow(this, file_), 1, 1, 1, 2);
+    grid->addWidget(new QLabel(catalog::translate(catalog::key::PagesReplaceStartingAt), this), 2, 0);
+    sourceFirst_ = new QSpinBox(this);
+    sourceFirst_->setObjectName(QStringLiteral("sourceFirstField"));
+    sourceFirst_->setRange(1, core::kMaxPagesPerCommand);
+    grid->addWidget(sourceFirst_, 2, 1);
+    column->addLayout(grid);
+    refusal_ = refusalLine(this);
+    column->addWidget(refusal_);
+    column->addWidget(okCancel(this));
+}
+
+core::Result<ReplacePagesDialog::Choice> ReplacePagesDialog::choice() const
+{
+    core::Result<std::vector<int>> pages = core::parsePageRanges(range_->text(), pageCount_);
+    if (!pages) return pages.error();
+    Choice choice;
+    choice.pages = std::move(pages).value();
+    choice.path = file_->text().trimmed();
+    if (choice.path.isEmpty()) return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.pages.noFile"), QString()};
+    choice.sourceFirst = sourceFirst_->value() - 1;
+    return choice;
+}
+
+void ReplacePagesDialog::accept()
+{
+    const core::Result<Choice> chosen = choice();
+    if (!chosen) {
+        showRefusal(refusal_, chosen.error());
+        return;
+    }
+    QDialog::accept();
+}
+
+bool ReplacePagesDialog::canAsk()
+{
+    return static_cast<bool>(installedReplace()) || aPersonCanAnswer();
+}
+
+std::optional<ReplacePagesDialog::Choice> ReplacePagesDialog::ask(QWidget* parent, int pageCount, const std::vector<int>& initial)
+{
+    if (installedReplace()) return installedReplace()(pageCount, initial);
+    if (!aPersonCanAnswer()) return std::nullopt;
+    ReplacePagesDialog dialog(pageCount, initial, parent);
+    if (dialog.exec() != QDialog::Accepted) return std::nullopt;
+    core::Result<Choice> chosen = dialog.choice();
+    if (!chosen) return std::nullopt;
+    return std::move(chosen).value();
+}
+
+void ReplacePagesDialog::setAnswerForTesting(Answer answer)
+{
+    installedReplace() = std::move(answer);
 }
 
 } // namespace rawpage::ui

@@ -17,6 +17,13 @@
 // and only when the sink accepts does it change the model -- which, for an index already checked,
 // cannot fail. So a `false` return has changed neither, which is the contract `Command.h` states and
 // `CommandJournal` checks.
+//
+// OVER A PAGE SET SINCE STAGE 7 T8 (`Stage7-Assembly-Plan.md` D7-13, §4): `Ctrl+R` on the thumbnails' selection, a
+// range, odd or even pages, one orientation -- ONE command and one undo step, where Stage 3 ran one command per page
+// inside a group (D3-13). Its line GREW rather than changed: one page is still written `{"page": n}`, byte for byte
+// Stage 3's, and several are `{"pages": [...]}`; both are read, so a journal Stage 3 wrote still replays (guide A-59).
+// A sink that refuses part-way through the set is told the pages it already turned turn back, so a refusal changes
+// nothing.
 
 #ifndef RAWPAGE_CORE_CMD_COMMANDS_PAGECOMMANDS_H
 #define RAWPAGE_CORE_CMD_COMMANDS_PAGECOMMANDS_H
@@ -48,26 +55,32 @@ public:
     // `quarterTurns` is 90, 180 or 270 -- clockwise. -90 is accepted and normalized to 270; anything
     // that is not a whole quarter turn, or is a full turn, is not a rotation, and `isValid()` says so.
     RotatePageCommand(int pageIndex, int degreesClockwise);
+    // A page SET, strictly ascending and not empty -- anything else is not valid (S7 T8).
+    RotatePageCommand(std::vector<int> pages, int degreesClockwise);
 
     bool isValid() const noexcept;
-    int pageIndex() const noexcept { return pageIndex_; }
+    int pageIndex() const noexcept { return pages_.empty() ? -1 : pages_.front(); }   // the first page of the set
+    const std::vector<int>& pages() const noexcept { return pages_; }
     int degrees() const noexcept { return degrees_; }
 
     QLatin1String typeId() const override { return kTypeId; }
-    CatalogText name() const override;      // command.page.rotate: %1 page number, %2 degrees
-    Scope scope() const override { return Scope::page(pageIndex_); }
+    // command.page.rotate: %1 page number, %2 degrees; for several, command.page.rotatePages: %1 page count, %2 degrees
+    CatalogText name() const override;
+    Scope scope() const override { return Scope::pages(pages_); }
     Operation operation() const override { return Operation::EditPages; }
 
     bool apply(Document& document, MutationSink& sink) override;
     bool revert(Document& document, MutationSink& sink) override;
 
-    QJsonObject serialize() const override;   // {"type": "page.rotate", "page": n, "degrees": d}
+    // {"type": "page.rotate", "page": n, "degrees": d} for one page -- Stage 3's line -- and
+    // {"type": "page.rotate", "pages": [...], "degrees": d} for several
+    QJsonObject serialize() const override;
     static Result<std::unique_ptr<Command>> deserialize(const QJsonObject& json);
 
 private:
     bool turn(Document& document, MutationSink& sink, int degrees);
 
-    int pageIndex_ = -1;
+    std::vector<int> pages_;
     int degrees_ = 0;
 };
 

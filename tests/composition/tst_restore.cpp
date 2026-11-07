@@ -282,7 +282,7 @@ TEST_CASE("a document closed with dont save comes back clean and unrotated", "[r
         ui::DocumentWindow* document = first.window->currentDocument();
         REQUIRE(document != nullptr);
         REQUIRE(document->isEditable());
-        REQUIRE(first.window->rotatePages(document, {90, false}));
+        REQUIRE(first.window->rotatePages(document, {90, ui::RotatePagesDialog::Pages::Current}));
         CHECK(document->isDirty());
         CHECK(rotationOf(*document, 0) == 90);
         REQUIRE(document->recovery() != nullptr);

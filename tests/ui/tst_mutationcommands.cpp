@@ -153,7 +153,7 @@ struct Editor {
     // before the thing they are about.
     void rotateCurrentPage(int degrees = 90)
     {
-        RotatePagesDialog::setAnswerForTesting([degrees] { return RotatePagesDialog::Choice{degrees, false}; });
+        RotatePagesDialog::setAnswerForTesting([degrees] { return RotatePagesDialog::Choice{degrees, ui::RotatePagesDialog::Pages::Current}; });
         const core::Result<void> dispatched = fixture.actions.dispatch(ActionId::PageRotate, core::KeyContext::Viewer);
         INFO("refused: " << (dispatched ? std::string() : std::string(dispatched.error().messageKey.data(), dispatched.error().messageKey.size()))
              << " active shell is this window: " << (ui::MainWindow::activeShell() == window.get())
@@ -182,7 +182,7 @@ TEST_CASE("the mutation chords dispatch their commands from key events in the vi
     int rotateAsked = 0;
     RotatePagesDialog::setAnswerForTesting([&rotateAsked] {
         ++rotateAsked;
-        return RotatePagesDialog::Choice{90, false};
+        return RotatePagesDialog::Choice{90, ui::RotatePagesDialog::Pages::Current};
     });
     QStringList saveAsAsked;
     const QString saveAsTarget = QDir(editor.fixture.directory.path()).filePath(QStringLiteral("saved-as.pdf"));
@@ -255,7 +255,7 @@ TEST_CASE("Ctrl+R in a widget declaring Page Thumbnails dispatches page.rotate t
     RotatePagesDialog::setAnswerForTesting([&] {
         ++asked;
         askedIn = editor.window->shortcutBinder()->activeContext();
-        return RotatePagesDialog::Choice{90, false};
+        return RotatePagesDialog::Choice{90, ui::RotatePagesDialog::Pages::Current};
     });
 
     CHECK(press(thumbnails, Qt::Key_R, Qt::ControlModifier));
@@ -277,7 +277,7 @@ TEST_CASE("Ctrl+R in a widget declaring Page Thumbnails dispatches page.rotate t
 // A-73 -- the Rotate Pages dialog constructs commands and nothing else.
 // =============================================================================================
 
-TEST_CASE("the Rotate Pages dialog answers a choice and the plan is one command or one group", "[mutationcommands]")
+TEST_CASE("the Rotate Pages dialog answers a choice and the plan is one command over the set", "[mutationcommands]")
 {
     Answers answers;
     Fixture fixture;
@@ -290,9 +290,9 @@ TEST_CASE("the Rotate Pages dialog answers a choice and the plan is one command 
     core::CommandJournal journal(std::move(model), fixture.backend.mutationSink(opened.value()));
 
     // THE WIDGET, driven. It holds radio buttons and nothing else: its constructor takes no document and no
-    // journal -- only the zero-based page it names -- which is what "constructs commands and nothing else"
-    // means in a type.
-    RotatePagesDialog dialog(2);
+    // journal -- only the zero-based page it names, the thumbnails' set and the page count (S7 T8) -- which is
+    // what "constructs commands and nothing else" means in a type.
+    RotatePagesDialog dialog(2, {}, 4);
 
     // "Current page" says WHICH page, one-based (M-01's walk: a person could not tell which page was current).
     // NOT COVERED here (convention 19): that the product passes the page the viewer counts as current --
@@ -305,37 +305,34 @@ TEST_CASE("the Rotate Pages dialog answers a choice and the plan is one command 
 
     dialog.currentPageButton()->setChecked(true);
     dialog.clockwiseButton()->setChecked(true);
-    CHECK(dialog.choice() == RotatePagesDialog::Choice{90, false});
+    CHECK_FALSE(dialog.selectedPagesButton()->isVisibleTo(&dialog));   // no set of several: not offered
+    CHECK(dialog.choice().value() == RotatePagesDialog::Choice{90, ui::RotatePagesDialog::Pages::Current});
 
-    // Current page, 90 degrees clockwise: ONE command, ungrouped, ONE step.
-    ui::RotationPlan current = ui::planRotation(dialog.choice(), 2, 4);
-    CHECK_FALSE(current.group.has_value());
-    REQUIRE(current.commands.size() == 1);
-    REQUIRE(journal.run(std::move(current.commands.front())));
+    // Current page, 90 degrees clockwise: ONE command, ONE step.
+    auto current = ui::planRotation(dialog.choice().value(), 2, {}, journal.document().pages());
+    REQUIRE(current);
+    REQUIRE(journal.run(std::move(current).value()));
     CHECK(journal.historySize() == 1);
     CHECK(journal.undoStep().size() == 1);
     CHECK(static_cast<int>(journal.document().pages().pages().at(2).rotation()) == 90);
 
-    // All pages, 180 degrees: ONE group of n commands, ONE undo step.
+    // All pages, 180 degrees: since Stage 7 T8 ONE command over the set (Stage 3 made a group of n), ONE undo step.
     dialog.allPagesButton()->setChecked(true);
     dialog.halfTurnButton()->setChecked(true);
-    CHECK(dialog.choice() == RotatePagesDialog::Choice{180, true});
-    ui::RotationPlan all = ui::planRotation(dialog.choice(), 2, 4);
-    REQUIRE(all.group.has_value());
-    CHECK(all.group->key == QLatin1String("command.page.rotateAll"));
-    REQUIRE(all.commands.size() == 4);
-    journal.beginGroup(*all.group);
-    for (auto& command : all.commands) REQUIRE(journal.run(std::move(command)));
-    REQUIRE(journal.endGroup());
+    CHECK(dialog.choice().value() == RotatePagesDialog::Choice{180, ui::RotatePagesDialog::Pages::All});
+    auto all = ui::planRotation(dialog.choice().value(), 2, {}, journal.document().pages());
+    REQUIRE(all);
+    CHECK(all.value()->name().key == QLatin1String("command.page.rotatePages"));
+    REQUIRE(journal.run(std::move(all).value()));
     CHECK(journal.historySize() == 2);
-    CHECK(journal.undoStep().size() == 4);
+    CHECK(journal.undoStep().size() == 1);
     REQUIRE(journal.undo());
     CHECK(static_cast<int>(journal.document().pages().pages().at(0).rotation()) == 0);
     CHECK(static_cast<int>(journal.document().pages().pages().at(2).rotation()) == 90);
 
     // Counter-clockwise is 270 clockwise.
     dialog.counterClockwiseButton()->setChecked(true);
-    CHECK(dialog.choice().degrees == 270);
+    CHECK(dialog.choice().value().degrees == 270);
 
     // Cancel, through the product's command: nothing is run.
     Editor editor;
@@ -815,7 +812,7 @@ TEST_CASE("an encrypted document disables rotate with the encryption reason", "[
     int asked = 0;
     RotatePagesDialog::setAnswerForTesting([&asked] {
         ++asked;
-        return RotatePagesDialog::Choice{90, false};
+        return RotatePagesDialog::Choice{90, ui::RotatePagesDialog::Pages::Current};
     });
 
     CHECK_FALSE(editor.document->isEditable());

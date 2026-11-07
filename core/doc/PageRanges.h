@@ -23,11 +23,22 @@
 
 namespace rawpage::core {
 
+class PageTree;
+
 Result<std::vector<int>> parsePageRanges(const QString& text, int pageCount);
 
 // The shortest text `parsePageRanges` reads back as `pages` (zero-based, ascending): runs as `a-b`, single pages
 // alone -- `{0, 1, 2, 4}` is `1-3, 5`.
 QString formatPageRanges(const std::vector<int>& pages);
+
+// ROTATION'S FILTERS -- Stage 7 T8 (`Features.md` §5.1: *restrict a rotation to a page range, to odd or even pages, or to
+// pages of one orientation*; guide A-59). ODD and EVEN are page NUMBERS as a person counts them -- page 1 is odd, so
+// index 0 -- never labels. ORIENTATION is the page AS SHOWN, its `/Rotate` and any unsaved turn included
+// (`PageTree::displaySize`): landscape is wider than tall, portrait everything else, so a square page is portrait. The
+// result keeps `pages`' order and drops what does not pass; a page outside `tree` is dropped.
+enum class PageParity { Any, Odd, Even };
+enum class PageOrientation { Any, Portrait, Landscape };
+std::vector<int> filterPages(const std::vector<int>& pages, PageParity parity, PageOrientation orientation, const PageTree& tree);
 
 } // namespace rawpage::core
 

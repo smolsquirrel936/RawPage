@@ -127,7 +127,7 @@ ui::DocumentWindow* openIn(ui::MainWindow& window, const QString& path)
 
 void rotateCurrentPage(Fixture& fixture, int degrees, bool allPages = false)
 {
-    ui::RotatePagesDialog::setAnswerForTesting([degrees, allPages] { return ui::RotatePagesDialog::Choice{degrees, allPages}; });
+    ui::RotatePagesDialog::setAnswerForTesting([degrees, allPages] { return ui::RotatePagesDialog::Choice{degrees, allPages ? ui::RotatePagesDialog::Pages::All : ui::RotatePagesDialog::Pages::Current}; });
     REQUIRE(fixture.actions.dispatch(ActionId::PageRotate, core::KeyContext::Viewer));
 }
 
@@ -224,7 +224,7 @@ TEST_CASE("a crashed session is offered at launch and Recover restores the docum
     Fixture fixture;
     const QString path = fixture.writePdf(QStringLiteral("edit.pdf"));
 
-    // SESSION ONE: rotate page 1; rotate all pages 180 as one group; undo it; rotate page 2. Not saved.
+    // SESSION ONE: rotate page 1; rotate all pages 180 as one command over the set (one group of four until Stage 7 T8); undo it; rotate page 2. Not saved.
     auto first = launch(fixture);
     ui::DocumentWindow* before = openIn(*first, path);
     rotateCurrentPage(fixture, 90);
@@ -271,7 +271,7 @@ TEST_CASE("a crashed session is offered at launch and Recover restores the docum
 
     // The banner says it was recovered, and how many steps.
     REQUIRE(recovered->recoveryReport().has_value());
-    CHECK(recovered->recoveryReport()->stepsApplied == 4);      // a run, a group, an undo, a run
+    CHECK(recovered->recoveryReport()->stepsApplied == 4);      // a run, a set, an undo, a run
     REQUIRE(second->messageBar()->isShowing(MessageBar::Kind::Recovered));
     CHECK(text(second->messageBar()->textFor(MessageBar::Kind::Recovered))
           == text(ui::catalog::translate(ui::catalog::key::MessageBarRecovered)
@@ -281,7 +281,9 @@ TEST_CASE("a crashed session is offered at launch and Recover restores the docum
     CHECK_FALSE(QDir(crashedDirectory).exists());
     REQUIRE(recovered->recovery() != nullptr);
     CHECK(QDir(recovered->recovery()->directory()).absolutePath() != QDir(crashedDirectory).absolutePath());
-    CHECK(operationLinesIn(recovered->recovery()->directory()) == 8);
+    // FOUR LINES SINCE STAGE 7 T8 (eight before): *all pages* is one `RotatePageCommand` over the set, one line, where
+    // Stage 3 wrote a group of one command per page (D7-31(h)).
+    CHECK(operationLinesIn(recovered->recovery()->directory()) == 4);
 
     // `Ctrl+Z` twice walks back through the same history: page 2, then page 1, and the document is clean.
     REQUIRE(fixture.actions.dispatch(ActionId::EditUndo, core::KeyContext::Viewer));
@@ -657,7 +659,7 @@ TEST_CASE("the Documents page's recovery folder redirects the next journal and t
     // ... and since Stage 7 T6 `documents/saveMode` (D7-25), after the two Stage 3 rows, in table order.
     CHECK(page->rowPaths() == QStringList{QStringLiteral("documents/recentCount"), QStringLiteral("documents/recentPinned"),
                                           QStringLiteral("documents/recoveryDir"), QStringLiteral("documents/warnOnRepairedSave"),
-                                          QStringLiteral("documents/saveMode"),
+                                          QStringLiteral("documents/saveMode"), QStringLiteral("documents/defaultPageSize"),
                                           QStringLiteral("documents/compareSensitivity"),
                                           QStringLiteral("documents/compareIgnoreHeaderFooter"),
                                           QStringLiteral("documents/compareIgnorePageNumbers"),

@@ -475,7 +475,7 @@ TEST_CASE("a rotation in one window appears in the second view of the same docum
     // journal is. Raising it first is what makes `activeShell()` -- and therefore the command --
     // resolve there.
     desk.first->raiseToForeground();
-    ui::RotatePagesDialog::setAnswerForTesting([] { return ui::RotatePagesDialog::Choice{90, false}; });
+    ui::RotatePagesDialog::setAnswerForTesting([] { return ui::RotatePagesDialog::Choice{90, ui::RotatePagesDialog::Pages::Current}; });
     REQUIRE(desk.fixture.actions.dispatch(ActionId::PageRotate, core::KeyContext::Viewer));
     ui::RotatePagesDialog::setAnswerForTesting({});
 

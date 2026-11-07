@@ -215,6 +215,13 @@ public:
         return pdf::ops::ObjectGraphCopier::copyFile(std::string_view(bytes.constData(), static_cast<std::size_t>(bytes.size())),
                                                      pages);
     }
+    core::Result<int> filePageCount(const QString& path) override
+    {
+        QFile file(path);
+        if (!file.open(QIODevice::ReadOnly)) return core::Error{core::ErrorCode::IoFailure, QLatin1String("error.open.notFound"), path};
+        const QByteArray bytes = file.readAll();
+        return pdf::ops::ObjectGraphCopier::countFile(std::string_view(bytes.constData(), static_cast<std::size_t>(bytes.size())));
+    }
     core::Result<core::CopiedPages> blankPages(core::PdfSize size, int count) override
     {
         return pdf::ops::ObjectGraphCopier::blankPages(size, count);

@@ -726,6 +726,17 @@ core::Result<core::CopiedPages> DocumentBackendImpl::copyPages(const QString& pa
     return copied;
 }
 
+// Stage 7 T8: as `copyPages` reads -- the first-party reader, the page walk -- and nothing copied.
+core::Result<int> DocumentBackendImpl::filePageCount(const QString& path)
+{
+    QFile file(path);
+    if (!file.open(QIODevice::ReadOnly))
+        return core::Error{core::ErrorCode::IoFailure, QLatin1String("error.open.notFound"), path};
+    const QByteArray bytes = file.readAll();
+    file.close();
+    return ops::ObjectGraphCopier::countFile(std::string_view(bytes.constData(), static_cast<std::size_t>(bytes.size())));
+}
+
 core::Result<core::CopiedPages> DocumentBackendImpl::blankPages(core::PdfSize size, int count)
 {
     return ops::ObjectGraphCopier::blankPages(size, count);

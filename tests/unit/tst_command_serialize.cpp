@@ -57,6 +57,9 @@ const std::map<std::string, std::function<std::vector<std::unique_ptr<Command>>(
              for (int page : {0, 1, 899, RotatePageCommand::kMaxPageIndex})
                  for (int degrees : {90, 180, 270, -90})
                      out.push_back(std::make_unique<RotatePageCommand>(page, degrees));
+             // Stage 7 T8: a SET -- the `pages` form -- including its limit.
+             for (int degrees : {90, 180, 270})
+                 out.push_back(std::make_unique<RotatePageCommand>(std::vector<int>{0, 2, 5, RotatePageCommand::kMaxPageIndex}, degrees));
              return out;
          }},
         // Stage 6 T3: one annotation, a set across pages, and the limit of a page index.
@@ -307,7 +310,8 @@ TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][s
             registered = registered || typeId == QLatin1String(id.c_str());
         CHECK(registered);
     }
-    CHECK(roundTrips == 16 + 3 + 2 + 2 + 2 + 2 + 2 + 2 + 3 + 2 + 2 + 3 + 3 + 2 + 2 + 2 + 1);
+    // page.rotate: 16 one-page samples and, since Stage 7 T8, 3 sets.
+    CHECK(roundTrips == 16 + 3 + 3 + 2 + 2 + 2 + 2 + 2 + 2 + 3 + 2 + 2 + 3 + 3 + 2 + 2 + 2 + 1);
 }
 
 // Stage 6 T13 (D6-20): an import is a journal line carrying two sets -- what it adds must be what an add accepts,
@@ -548,6 +552,15 @@ TEST_CASE("CommandRegistry refuses every malformed page rotation by Result", "[c
         {"degrees 90.5", QJsonObject{{"type", "page.rotate"}, {"page", 0}, {"degrees", 90.5}}},
         {"page a 10 MB string", QJsonObject{{"type", "page.rotate"}, {"page", huge}, {"degrees", 90}}},
         {"degrees a 10 MB string", QJsonObject{{"type", "page.rotate"}, {"page", 0}, {"degrees", huge}}},
+        // Stage 7 T8: the set form -- never both forms, never an empty, unordered or out-of-range set.
+        {"page and pages", QJsonObject{{"type", "page.rotate"}, {"page", 0}, {"pages", QJsonArray{0, 1}}, {"degrees", 90}}},
+        {"pages empty", QJsonObject{{"type", "page.rotate"}, {"pages", QJsonArray{}}, {"degrees", 90}}},
+        {"pages descending", QJsonObject{{"type", "page.rotate"}, {"pages", QJsonArray{3, 1}}, {"degrees", 90}}},
+        {"pages repeated", QJsonObject{{"type", "page.rotate"}, {"pages", QJsonArray{1, 1}}, {"degrees", 90}}},
+        {"pages a string", QJsonObject{{"type", "page.rotate"}, {"pages", "0-3"}, {"degrees", 90}}},
+        {"pages past the limit",
+         QJsonObject{{"type", "page.rotate"}, {"pages", QJsonArray{0, RotatePageCommand::kMaxPageIndex + 1}}, {"degrees", 90}}},
+        {"pages without degrees", QJsonObject{{"type", "page.rotate"}, {"pages", QJsonArray{0, 1}}}},
     };
 
     for (const auto& [label, json] : hostile) {

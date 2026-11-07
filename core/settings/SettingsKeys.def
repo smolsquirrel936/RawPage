@@ -297,6 +297,13 @@ RAWPAGE_SETTING(documents, warnOnRepairedSave, bool,
 RAWPAGE_SETTING(documents, saveMode, SaveMode,
                 "documents/saveMode", SaveMode::Incremental, Documents, true)
 
+// The size a blank page is inserted at when nobody says otherwise -- Stage 7 T8 (`Stage7-Assembly-Plan.md` D7-22, guide
+// A-45): what the Insert Pages dialog offers first for *blank pages*. A4, for `core/doc/PaperSize.h`'s reason. Read
+// by `ui/dialogs/PageOpsDialogs`' `InsertPagesDialog` when it opens; the dialog's choice is the command's, and
+// changing this key changes no page already made.
+RAWPAGE_SETTING(documents, defaultPageSize, PaperSize,
+                "documents/defaultPageSize", PaperSize::A4, Documents, true)
+
 // =============================================================================================
 // The eleven Stage 4 `units/` rows -- S4 T8, D4-5 and D4-6. They fill the `UnitsAndGuides` group,
 // which has existed in `SettingsGroup` since Stage 1 with NO KEYS, and adding them is the whole of

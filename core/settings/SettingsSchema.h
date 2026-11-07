@@ -34,6 +34,7 @@
 #include "core/cmd/ActionId.h"
 #include "core/cmd/KeyContext.h"
 #include "core/settings/CommentingTypes.h"
+#include "core/doc/PaperSize.h"
 #include "core/doc/SaveMode.h"
 #include "core/text/CompareSensitivity.h"
 
@@ -414,6 +415,20 @@ template <> struct SettingsCodec<SaveMode> {
     static SaveMode fromDefault(SaveMode value) { return value; }
 };
 
+// The S7 T8 enum -- `documents/defaultPageSize` (guide A-45). The token is `core/doc/PaperSize.h`'s name.
+template <> struct SettingsCodec<PaperSize> {
+    static QVariant toVariant(PaperSize value)
+    {
+        const std::string_view name = paperSizeName(value);
+        return QVariant(QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size())));
+    }
+    static std::optional<PaperSize> fromVariant(const QVariant& variant)
+    {
+        return paperSizeFromName(settingsVariantText(variant).trimmed().toStdString());
+    }
+    static PaperSize fromDefault(PaperSize value) { return value; }
+};
+
 // The S6 T12 enum -- `measuring/displayUnit` (D6-14). The token is the unit's SYMBOL, `core/Measure.h`'s one table:
 // "ft" in the settings file, after a reading's number and as a measure dictionary's `/U`.
 template <> struct SettingsCodec<MeasureUnit> {
@@ -679,6 +694,19 @@ template <> struct SettingsEditorTraits<SaveMode> {
         for (const SaveMode mode : {SaveMode::Incremental, SaveMode::Full}) {
             const std::string token(saveModeName(mode));
             out.push_back(SettingsChoice{token, "prefs.choice.saveMode." + token});
+        }
+        return out;
+    }
+};
+
+template <> struct SettingsEditorTraits<PaperSize> {
+    static constexpr SettingsEditor editor = SettingsEditor::Choice;
+    static std::vector<SettingsChoice> choices()
+    {
+        std::vector<SettingsChoice> out;
+        for (const PaperSize size : kPaperSizes) {
+            const std::string token(paperSizeName(size));
+            out.push_back(SettingsChoice{token, "prefs.choice.paperSize." + token});
         }
         return out;
     }

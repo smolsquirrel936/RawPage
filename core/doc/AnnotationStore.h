@@ -113,6 +113,18 @@ public:
     const std::vector<AnnotationListingEntry>& listing(int page) const;
     // The annotations a page OWNS, in its listing order.
     std::vector<std::size_t> onPage(int page) const;
+
+    // WHAT A PAGE CARRIES -- Stage 7 T8, the thumbnails' badges (`Features.md` §5.2, D7-13, guide A-57). A COMMENT is a
+    // markup annotation (ISO 32000-1 Table 170: a note, a free text, the shapes and lines, the four text markups, a
+    // stamp, a caret, ink, a file attachment, a sound, a redaction) -- never a pop-up, which belongs to one, nor a link
+    // or a widget, which are what the other two badges say. A FIELD is a widget the page owns; a LINK, a `Link`.
+    struct PageCarries {
+        bool comments = false;
+        bool fields = false;
+        bool links = false;
+        bool operator==(const PageCarries&) const = default;
+    };
+    PageCarries carries(int page) const;
     // Each page's listing reduced to what D6-3 compares.
     std::vector<std::vector<AnnotationFact>> listingFacts() const;
     const std::vector<AnnotationNote>& notes() const noexcept { return notes_; }

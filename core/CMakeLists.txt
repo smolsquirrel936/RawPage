@@ -144,6 +144,8 @@ add_library(rawpage_core STATIC
     doc/PageMap.h                 # Stage 7 T2 -- where every page went (D7-3), and what a page command found (D7-2)
     doc/PageMap.cpp
     doc/CopiedPages.h             # Stage 7 T5 -- pages copied out of another document, as a command carries them
+    doc/CopiedPages.cpp           # Stage 7 T8 -- and as the clipboard carries them (D7-13)
+    doc/PaperSize.h               # Stage 7 T8 -- `documents/defaultPageSize`'s sizes (guide A-45)
     # Stage 7 T7 (D7-5, D7-30) -- new documents from an open one: the snapshot extract and split make them from, a page
     # set as a person types it, the six splits' rules over facts, and the run that gathers those facts and writes.
     doc/Assembly.h

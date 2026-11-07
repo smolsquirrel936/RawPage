@@ -254,15 +254,15 @@ TEST_CASE("Ctrl+R in the pane reaches Stage 3's page.rotate and the pane constru
     CHECK(document->journal()->canUndo() == false);
 }
 
-TEST_CASE("the page operations in the table stay unregistered and leave their keys alone",
+TEST_CASE("the page operations in the table are registered since Stage 7",
           "[panes]")
 {
     Pane thumbs(12, /*editable=*/true);
 
-    // THE CONTROL FOR D4-1 AND FOR §11's out-of-scope table. Every §8 Page Thumbnails row whose
-    // command is Stage 7's must be `NotImplemented`, which deliberately does NOT consume the key:
-    // a handler that did nothing would be indistinguishable from one that is broken, and would
-    // swallow the key from whatever else would have had it.
+    // STAGE 4'S CONTROL FOR D4-1, TURNED ROUND AT STAGE 7 T8. Until T8 every §8 Page Thumbnails row whose command
+    // was Stage 7's had to be `NotImplemented` and leave its key alone; T8 registered all of them
+    // (`MainWindowPages.cpp`). What each DOES, from its key, is `tst_thumbnailsedit`'s (guide A-52); this case keeps
+    // only the census, so a row that loses its registration is still caught here.
     struct Row {
         Qt::Key                 key;
         Qt::KeyboardModifiers   modifiers;
@@ -281,14 +281,15 @@ TEST_CASE("the page operations in the table stay unregistered and leave their ke
 
     for (const Row& row : rows) {
         INFO(std::string(core::actionStringId(row.id)));
-        CHECK_FALSE(thumbs.fixture.actions.isRegistered(row.id));
-        CHECK_FALSE(thumbs.press(row.key, row.modifiers));
+        CHECK(thumbs.fixture.actions.isRegistered(row.id));
+        (void)row.key;
+        (void)row.modifiers;
     }
 
     // `Ctrl+Shift+X` LEFT THE TABLE AT STAGE 7 T7: `page.extract` is registered (D7-5), and the pane's chord opens its
-    // dialog -- at the current page until T8 fills in the selection (A-52). Asked through the dialog's twin.
+    // dialog -- at the pane's set since T8 (A-52). Asked through the dialog's twin.
     int asked = 0;
-    ui::ExtractPagesDialog::setAnswerForTesting([&asked](int pageCount, int) -> std::optional<ui::ExtractPagesDialog::Choice> {
+    ui::ExtractPagesDialog::setAnswerForTesting([&asked](int pageCount, const std::vector<int>&) -> std::optional<ui::ExtractPagesDialog::Choice> {
         CHECK(pageCount == 12);
         ++asked;
         return std::nullopt;   // cancelled: nothing extracted

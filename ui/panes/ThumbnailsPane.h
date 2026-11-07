@@ -39,9 +39,12 @@
 // `CommandJournal`. `mutation-lint` reports one command on the last day of Stage 4 as it did on the
 // first, and that number is this stage's evidence that a viewing surface stayed one.
 //
-// The page operations in §8's table that WOULD need a command -- delete, cut, copy, paste, move,
-// extract, duplicate -- are Stage 7's and are deliberately unregistered, so their keys reach this
-// widget and are left alone rather than swallowed.
+// STAGE 7 T8 KEPT IT THAT WAY (`Stage7-Assembly-Plan.md` D7-13). Every §8 row that changes the document --
+// delete, cut, copy, paste, move earlier and later, duplicate, extract, rotate -- is an action `MainWindow`
+// registers, which reads this pane's SELECTION and runs the command; and a DRAG, which is a gesture no chord
+// names, ends here as a REQUEST -- `movePagesRequested` within the document, `pagesDropped` from another
+// window's pane -- that the window turns into one `MovePagesCommand` or one `InsertPagesCommand`. This file
+// still constructs nothing that changes a document.
 //
 // ===========================================================================================
 // SELECTION FOLLOWS THE VIEW; THE VIEW DOES NOT FOLLOW IT BACK. ONE DIRECTION PER GESTURE.
@@ -54,20 +57,53 @@
 // therefore no state in which the two can chase each other, and no flag whose window can be missed.
 //
 // ===========================================================================================
-// SINGLE SELECTION, SAID OUT LOUD (convention 19).
+// THE SELECTION IS A SET -- Stage 7 T8 (D7-13; guide A-53). Stage 4 selected ONE page (D4-2:
+// a set with nothing to act on would be Stage 2's I-11 built by choice), and this stage brought the
+// operations that read one.
 // ===========================================================================================
-// `Features.md` §5.2 asks for multi-select with click, shift-click and ctrl-click. This pane
-// selects ONE page, because at Stage 4 a selection has nothing to act on: every page operation is
-// Stage 7's, `Ctrl+A` (`page.selectAll`) is unregistered, and `Ctrl+R` rotates the current page or
-// all pages rather than a set -- which the guide's own out-of-scope table states. A multi-selection
-// with no operation that reads it would be a control that reads back as set and does nothing,
-// which is Stage 2's **I-11** built by choice rather than met as a constraint (D4-2's argument).
-// Stage 7 adds the set with the operations that need it.
+// A FILE MANAGER'S RULES, because that is what a person's hands already know (M-01): a click
+// selects one page and moves the ANCHOR there; `Ctrl`+click adds or removes one page and moves the
+// anchor; `Shift`+click selects anchor ... page, replacing the set (`Ctrl+Shift` adds the run);
+// an arrow moves the CURRENT page and selects it alone, `Shift`+arrow extends from the anchor.
+// The current page is the keyboard's place, drawn with a focus frame; the selected pages are
+// filled.
+//
+// ONLY A PLAIN CLICK NAVIGATES. `Ctrl`+click and `Shift`+click build a set and leave the page view
+// where it is -- a set built across a 900-page document would otherwise drag the view to every
+// page it touched. A plain press on a page ALREADY IN a set of several keeps the set until the
+// release, so the set can be dragged; a release with no drag makes it that page alone.
+//
+// THE VIEW STILL LEADS A SINGLE SELECTION: `setCurrentPage` (the view's page, silently) makes a
+// selection of one page follow the view as Stage 4's did, and leaves a set of several alone --
+// scrolling to look at the pages a person picked must not unpick them. A page command REMAPS the
+// set through D7-3's map (`remapPages`): the same pages, wherever they went; a deleted page leaves
+// it, and a set left empty becomes the page that took the current page's place.
+//
+// ===========================================================================================
+// A DRAG CARRIES PAGE NUMBERS, NEVER PAGES (D7-13).
+// ===========================================================================================
+// The drag's data is `kDragMimeType`: this process's id, the source document's handle and the
+// page set. A drop on the SAME document's pane is a move; a drop on another window's pane of the
+// same process is an insert, and the window copies the pages out of the source document AS IT
+// STANDS at the drop (`AssemblySource::copy`) -- never at the press, which would pay a copy for
+// every drag that ends as a move. A drag from another process carries a handle that means nothing
+// here and is refused; between processes, pages travel on the clipboard (`page.copy`).
+//
+// WHERE IT LANDS IS WHERE THE MARKER SAID (M-01). The insertion point is the gap nearest the
+// pointer, drawn as a bar across the column while the drag is over the pane, and it is the index
+// in the document BEFORE the drop: `n` means "before page n", the page count means "at the end".
+//
+// ===========================================================================================
+// BADGES (`Features.md` §5.2: *show which pages carry comments, form fields, or links*).
+// ===========================================================================================
+// Three marks along the bottom of each sheet, handed in by the window from the annotation store
+// (`AnnotationStore::carries`) whenever the model changes; the pane reads nothing itself.
 
 #ifndef RAWPAGE_UI_PANES_THUMBNAILSPANE_H
 #define RAWPAGE_UI_PANES_THUMBNAILSPANE_H
 
 #include "core/backend.h"
+#include "core/doc/AnnotationStore.h"
 #include "core/doc/Revision.h"
 #include "core/render/RenderRequest.h"
 #include "core/render/RenderScheduler.h"
@@ -76,8 +112,12 @@
 #include <QAbstractScrollArea>
 #include <QRect>
 
+#include <optional>
 #include <unordered_map>
+#include <utility>
 #include <vector>
+
+class QMimeData;
 
 namespace rawpage::core {
 class PageTree;
@@ -115,9 +155,42 @@ public:
 
     int currentPage() const noexcept { return currentPage_; }
 
-    // THE PROGRAMMATIC PATH. Moves the selection, scrolls it into view, and emits NOTHING -- see
-    // the header on why that is the whole of the loop prevention.
+    // THE PROGRAMMATIC PATH. Moves the current page, scrolls it into view, and emits NOTHING -- see
+    // the header on why that is the whole of the loop prevention. A selection of one page follows
+    // it; a set of several stays (S7 T8).
     void setCurrentPage(int pageIndex);
+
+    // ---- The set -- Stage 7 T8 (D7-13) --------------------------------------------------------
+    // Zero-based, strictly ascending; empty only for an empty document or after a `Ctrl`+click
+    // took the last page out.
+    const std::vector<int>& selectedPages() const noexcept { return selected_; }
+    // The pages a command means: the set, or the current page alone when the set is empty.
+    std::vector<int> commandPages() const;
+    // Programmatic, as `setCurrentPage` is: emits `selectionChanged` and nothing else. Pages
+    // outside the document are dropped; the current page moves to the set's first.
+    void setSelectedPages(std::vector<int> pages);
+    // `Ctrl+A`, through `page.selectAll`.
+    void selectAll();
+    int anchorPage() const noexcept { return anchor_; }
+
+    // ---- Badges ---------------------------------------------------------------------------------
+    void setBadges(std::vector<core::AnnotationStore::PageCarries> badges);
+    core::AnnotationStore::PageCarries badgesOf(int pageIndex) const;
+    // Where page `pageIndex`'s badges are painted, in VIEWPORT coordinates -- empty when it has none
+    // or is not laid out. For a case that grades the paint, not only the data.
+    QRect badgeRect(int pageIndex) const;
+
+    // ---- Dragging -------------------------------------------------------------------------------
+    // The drag's data: this process, the document's handle, the pages. Exposed because a drag's
+    // SOURCE half is `QDrag::exec`, a nested event loop a headless case cannot drive; the drop half
+    // is driven through real drag events (convention 19 -- what that leaves to M-01).
+    static constexpr const char* kDragMimeType = "application/x-rawpage-page-drag";
+    QMimeData* dragData() const;
+    // The insertion index a drop at `viewportPos` lands at: before page n, or the page count for the
+    // end. -1 with no document.
+    int insertionIndexAt(QPoint viewportPos) const;
+    // While a drag is over the pane, the marker's index; -1 otherwise.
+    int dropMarker() const noexcept { return dropIndex_; }
 
     // `+` / `-`, through `page.thumbnailsLarger` / `page.thumbnailsSmaller`. The width is in
     // LOGICAL pixels; the raster scale is derived per page from it and the device pixel ratio.
@@ -164,6 +237,18 @@ signals:
     // wait on delivery without polling, as `TilePresenter::tilesArrived` does for the viewer.
     void thumbnailsArrived();
 
+    // S7 T8: the set changed -- by a gesture, `selectAll`, `setSelectedPages` or a remap. The
+    // window re-asks its actions, whose enablement reads the set.
+    void selectionChanged();
+
+    // S7 T8: a drag ended on THIS document's pane -- `pages` to land before page `insertionIndex`
+    // (indices before the move). The window makes it one `MovePagesCommand`, or nothing for a drop
+    // where the pages already are.
+    void movePagesRequested(const std::vector<int>& pages, int insertionIndex);
+    // ... or on this pane from ANOTHER document of this process: `source`'s `pages`, to be copied in
+    // before page `insertionIndex` -- one `InsertPagesCommand`, the source unchanged.
+    void pagesDropped(core::DocumentHandle source, const std::vector<int>& pages, int insertionIndex);
+
 protected:
     void paintEvent(QPaintEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
@@ -178,6 +263,16 @@ protected:
     void keyPressEvent(QKeyEvent* event) override;
 
     void mousePressEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
+
+    // S7 T8: the drop half of a drag (D7-13), delivered by `QAbstractScrollArea` from the viewport.
+    void dragEnterEvent(QDragEnterEvent* event) override;
+    void dragMoveEvent(QDragMoveEvent* event) override;
+    void dragLeaveEvent(QDragLeaveEvent* event) override;
+    void dropEvent(QDropEvent* event) override;
+
+    bool viewportEvent(QEvent* event) override;   // the badges' tooltip
 
     // A PANE NOBODY CAN SEE ASKS FOR NOTHING. An auto-hidden or closed sidebar is the ordinary
     // case, not an edge one, and a pane that went on streaming from behind a collapsed strip would
@@ -224,6 +319,24 @@ private:
 
     int thumbnailWidth_ = 128;
     int currentPage_ = 0;
+
+    // S7 T8 -- the set, its anchor, and a press that may become a drag.
+    struct Drag {
+        QPoint origin;           // viewport coordinates of the press
+        int page = -1;           // the page pressed
+        bool collapse = false;   // a plain press inside a set of several: the set becomes `page` on release
+    };
+    void select(std::vector<int> pages);           // replaces the set, emits when it changed
+    void pressPage(int page, Qt::KeyboardModifiers modifiers);
+    int slotAt(QPoint viewportPos) const;
+    std::optional<std::pair<core::DocumentHandle, std::vector<int>>> readDrag(const QMimeData* mime) const;
+    void paintBadges(QPainter& painter, int pageIndex, const QRect& imageRect) const;
+
+    std::vector<int> selected_;
+    int anchor_ = 0;
+    std::optional<Drag> press_;
+    int dropIndex_ = -1;
+    std::vector<core::AnnotationStore::PageCarries> badges_;
 
     core::render::RenderScheduler::SubscriptionToken subscription_ = 0;
 };

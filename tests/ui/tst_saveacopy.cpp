@@ -81,7 +81,7 @@ struct Editor {
         document = window->currentDocument();
         REQUIRE(document != nullptr);
         REQUIRE(document->journal() != nullptr);
-        ui::RotatePagesDialog::setAnswerForTesting([] { return ui::RotatePagesDialog::Choice{90, false}; });
+        ui::RotatePagesDialog::setAnswerForTesting([] { return ui::RotatePagesDialog::Choice{90, ui::RotatePagesDialog::Pages::Current}; });
         REQUIRE(fixture.actions.dispatch(ActionId::PageRotate, core::KeyContext::Viewer));
         REQUIRE(document->isDirty());
     }

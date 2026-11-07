@@ -115,6 +115,8 @@ public:
     // whole file, opened through `cos::openWithRepair` (an encrypted one refused, `error.pdf.encrypted`), walked and
     // copied; and the blank payload -- each as the command carries it.
     static core::Result<core::CopiedPages> copyFile(std::string_view bytes, const std::vector<int>& pages);
+    // The pages `copyFile` would find in `bytes` -- refused as it refuses (S7 T8: `IDocumentBackend::filePageCount`).
+    static core::Result<int> countFile(std::string_view bytes);
     static core::Result<core::CopiedPages> blankPages(core::PdfSize size, int count);
 };
 

@@ -190,6 +190,38 @@ public:
     // Whether a split started here is still gathering its facts.
     bool isSplitting() const;
 
+    // ---------------------------------------------------------------------------------------
+    // THE THUMBNAILS PANE'S EDITS -- Stage 7 T8 (`Stage7-Assembly-Plan.md` D7-13, D7-20). `ui/shell/MainWindowPages.cpp`.
+    // ---------------------------------------------------------------------------------------
+    // THE PAGES A COMMAND MEANS: the thumbnails' set when the pane shows `document`, else the page the view counts as
+    // current. One reading, for every page action and every dialog's starting range.
+    std::vector<int> selectedPagesOf(const DocumentWindow& document) const;
+    // EVERY PAGE COMMAND A SURFACE RUNS GOES THROUGH HERE: before the first on a document that carries a signature, the
+    // message bar says what a change will mean to a signature validator (D7-20, once per document) and the command
+    // runs; what it did to references (D7-2, `PageCommandReport`) or why it was refused is said on the status bar.
+    core::Status runPageCommand(DocumentWindow* document, std::unique_ptr<core::Command> command);
+    // `Delete`: the pages, one `DeletePagesCommand`. `Alt+Up` / `Alt+Down`: the set one place earlier or later, one
+    // `MovePagesCommand`. `Ctrl+Shift+D`: one `DuplicatePagesCommand`.
+    core::Status deletePages(DocumentWindow* document, const std::vector<int>& pages);
+    core::Status stepPages(DocumentWindow* document, const std::vector<int>& pages, int step);
+    core::Status duplicatePages(DocumentWindow* document, const std::vector<int>& pages);
+    // A DRAG: `pages` dropped before page `insertionIndex` of the same document -- one move, or nothing where they
+    // already are -- or `source`'s pages dropped into `document` from another window: copied out of `source` as it stands
+    // (`AssemblySource::copy`) and inserted, one `InsertPagesCommand`, `source` unchanged.
+    core::Status movePagesTo(DocumentWindow* document, const std::vector<int>& pages, int insertionIndex);
+    core::Status dropPages(DocumentWindow* document, core::DocumentHandle source, const std::vector<int>& pages, int insertionIndex);
+    // COPY, CUT, PASTE PAGES (D7-13): the copied graph on the system clipboard under `core::kPagesMimeType`; a cut is
+    // that and ONE `DeletePagesCommand`; a paste inserts the clipboard's pages AFTER the set's last page -- from this
+    // process or another.
+    core::Status copyPages(DocumentWindow* document, const std::vector<int>& pages);
+    core::Status cutPages(DocumentWindow* document, const std::vector<int>& pages);
+    core::Status pastePages(DocumentWindow* document, int at);
+    // The page count the clipboard holds under `core::kPagesMimeType`, 0 when it holds none.
+    static int clipboardPageCount();
+    // The insert, delete and replace dialogs' answers, as commands.
+    core::Status insertPages(DocumentWindow* document, const InsertPagesDialog::Choice& choice);
+    core::Status replacePages(DocumentWindow* document, const ReplacePagesDialog::Choice& choice);
+
     // Save in place, through `SaveCoordinator`. A document that must be saved as a new file -- repaired,
     // changed on disk since it was opened, or refused by the file system (read-only, held by another
     // process, a directory that cannot hold the temporary file) -- first shows WHY, as a `SaveAsRequired`
@@ -632,6 +664,8 @@ private:
 
     // `edit.undo`, `edit.redo`, `page.rotate`, `file.save` and `file.saveAs` -- Stage 3 T10.
     void registerMutationActions();
+    void registerPageActions();      // S7 T8 -- `ui/shell/MainWindowPages.cpp`
+    void updatePageBadges();         // S7 T8 -- the thumbnails' badges from the document in front's store
 
     // A failed save, as a banner the document keeps (Stage 3 T10).
     void reportSaveFailure(DocumentWindow* document, const core::Error& error);

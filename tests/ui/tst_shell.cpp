@@ -201,10 +201,16 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // **Two more at Stage 7 T7** (D7-5, D7-30): `page.extract` and `page.split`, both declared since Stage 1, each
     // opening its dialog in `ui/dialogs/PageOpsDialogs`. Neither is a command. 389 ids are declared.
     //
+    // **Ten more at Stage 7 T8** (D7-13): `page.selectAll`, `.delete`, `.cut`, `.copy`, `.paste`, `.moveEarlier`,
+    // `.moveLater`, `.duplicate`, `.insert` and `.replace`, all declared since Stage 1 (`MainWindowPages.cpp`). 389 ids
+    // are declared.
+    //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 176);
+    CHECK(fixture.actions.registeredCount() == 186);
+    CHECK(fixture.actions.isRegistered(core::ActionId::PageDelete));             // S7 T8
+    CHECK(fixture.actions.isRegistered(core::ActionId::PageReplace));            // S7 T8
     CHECK(fixture.actions.isRegistered(core::ActionId::PageExtract));            // S7 T7
     CHECK(fixture.actions.isRegistered(core::ActionId::PageSplit));              // S7 T7
     CHECK(fixture.actions.isRegistered(core::ActionId::FileSaveACopy));          // S7 T6
@@ -345,14 +351,14 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::CommentSummarize));  // S8 (Q4, D6-19)
 
     // S4 T5's FOUR: the Thumbnails pane and the three §8 Page Thumbnails rows it services. The
-    // other nine rows in that table need a `Command` and are Stage 7's, so they stay unregistered
-    // and leave their keys unconsumed -- D4-1, and `tst_panes` presses each of them to prove it.
+    // other nine rows in that table needed a `Command` and were Stage 7's: `page.extract` at T7 and
+    // the other eight at T8, so the two Stage 4 checked are registered now (`tst_thumbnailsedit`).
     CHECK(fixture.actions.isRegistered(core::ActionId::PaneThumbnails));
     CHECK(fixture.actions.isRegistered(core::ActionId::PageGoToSelected));
     CHECK(fixture.actions.isRegistered(core::ActionId::PageThumbnailsLarger));
     CHECK(fixture.actions.isRegistered(core::ActionId::PageThumbnailsSmaller));
-    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PageSelectAll));     // S7
-    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PageDelete));        // S7
+    CHECK(fixture.actions.isRegistered(core::ActionId::PageSelectAll));           // S7 T8
+    CHECK(fixture.actions.isRegistered(core::ActionId::PageDelete));              // S7 T8
 
     // And the five panes whose MODELS do not exist are not registered either (D4-2): a pane
     // cannot precede its model, and a chord that opened an empty dock would be indistinguishable

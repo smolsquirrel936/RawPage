@@ -667,6 +667,16 @@ core::Result<core::CopiedPages> ObjectGraphCopier::copyFile(std::string_view byt
     return carried(std::move(copied).value());
 }
 
+core::Result<int> ObjectGraphCopier::countFile(std::string_view bytes)
+{
+    auto opened = cos::openWithRepair(bytes);
+    if (!opened) return opened.error();
+    if (opened.value().table.isEncrypted()) return copyError(core::ErrorCode::PermissionDenied, "error.pdf.encrypted");
+    auto walk = PageOps::walk(opened.value().table);
+    if (!walk) return walk.error();
+    return static_cast<int>(walk.value().pages.size());
+}
+
 core::Result<core::CopiedPages> ObjectGraphCopier::blankPages(core::PdfSize size, int count)
 {
     auto copied = blank(size.width, size.height, count);

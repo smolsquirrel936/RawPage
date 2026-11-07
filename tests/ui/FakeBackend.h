@@ -124,12 +124,28 @@ public:
         return out;
     }
     // Stage 7 T5: an insert or a replace of `insertedCount` letter-size pages with no annotation, counted.
-    core::Result<core::InsertedPages> insertPages(int, const QString&, const QByteArray&) override
+    // S7 T8: a payload `FakeAssemblySource::copy` made says how many pages it holds, and those are inserted.
+    core::Result<core::InsertedPages> insertPages(int at, const QString&, const QByteArray& graph) override
     {
         ++pageCommands;
         ++calls;
+        insertedGraphs.push_back(graph);
+        insertedAt.push_back(at);
+        const QByteArray marker("%PDF-1.7 fake pages ");
+        if (graph.startsWith(marker)) {
+            const int held = graph.mid(marker.size()).split(' ').value(0).toInt();
+            if (held > 0) {
+                const int kept = insertedCount;
+                insertedCount = held;
+                core::InsertedPages out = insertedPages();
+                insertedCount = kept;
+                return out;
+            }
+        }
         return insertedPages();
     }
+    std::vector<QByteArray> insertedGraphs;
+    std::vector<int> insertedAt;   // where each insert landed, as the document counted before it
     core::Result<core::InsertedPages> replacePages(const std::vector<int>&, const QString&, const QByteArray&) override
     {
         ++pageCommands;
@@ -273,6 +289,7 @@ public:
         ++closes;
         trees.erase(handle.id);
         edits.erase(handle.id);
+        listedStores_.erase(handle.id);
         return {};
     }
 
@@ -354,11 +371,28 @@ public:
     // S6 T2 (D6-3): an EMPTY store that was read -- this fake has no file to read annotations from,
     // and *read, and there are none* is what its documents are. Public and settable as the
     // transitions are, for the cases from T5 that need a document with comments.
-    const core::AnnotationStore* annotations(core::DocumentHandle) const override
+    //
+    // S7 T8: A PAGE COMMAND MAPS THE STORE'S LISTINGS WITH THE TREE'S (`applyPageMapToModel`), and a store read with no
+    // page refuses a map over twelve. So where no case set a store of its own, each document is answered a store
+    // read as EMPTY ON EVERY PAGE -- one empty listing per page -- which is what a file with no annotations reads as.
+    const core::AnnotationStore* annotations(core::DocumentHandle handle) const override
     {
+        if (annotations_.pageCount() == 0) {
+            const auto tree = trees.find(handle.id);
+            if (tree != trees.end() && tree->second && tree->second->count() > 0) {
+                std::unique_ptr<core::AnnotationStore>& listed = listedStores_[handle.id];
+                if (!listed) {
+                    core::AnnotationStore::Reading reading;
+                    reading.pages.resize(static_cast<std::size_t>(tree->second->count()));
+                    listed = std::make_unique<core::AnnotationStore>(core::AnnotationStore::fromReading(std::move(reading)));
+                }
+                return listed.get();
+            }
+        }
         return &annotations_;
     }
     core::AnnotationStore annotations_ = core::AnnotationStore::fromReading({});
+    mutable std::map<std::uint64_t, std::unique_ptr<core::AnnotationStore>> listedStores_;
 
     // S6 T11 (D6-17): the document-level files every document of this fake has -- none, read -- and the bytes
     // `attachmentData` hands out, by key (a document file) or by annotation id string (`obj:12`, `nm:...`).
@@ -436,13 +470,33 @@ public:
     {
         return writable ? writable(annotation) : core::Status{};
     }
-    core::Result<core::CopiedPages> copyPages(const QString&, const std::vector<int>&) override
+    // S7 T8: a file's pages as the fake payload `FakeSink::insertPages` reads back -- every file `filePages` pages long,
+    // a path that does not exist refused as the shipped backend refuses it. Each copy is recorded.
+    int filePages = 4;
+    std::vector<std::pair<QString, std::vector<int>>> fileCopies;
+    core::Result<core::CopiedPages> copyPages(const QString& path, const std::vector<int>& pages) override
     {
-        return core::notImplementedError(core::BackendInterface::DocumentBackend, "copyPages");
+        if (!QFileInfo::exists(path)) return core::Error{core::ErrorCode::IoFailure, QLatin1String("error.open.notFound"), path};
+        fileCopies.emplace_back(path, pages);
+        core::CopiedPages out;
+        out.graph = QByteArray("%PDF-1.7 fake pages ") + QByteArray::number(static_cast<int>(pages.size())) + " of a file";
+        out.pageCount = static_cast<int>(pages.size());
+        return out;
     }
-    core::Result<core::CopiedPages> blankPages(core::PdfSize, int) override
+    core::Result<int> filePageCount(const QString& path) override
     {
-        return core::notImplementedError(core::BackendInterface::DocumentBackend, "blankPages");
+        if (!QFileInfo::exists(path)) return core::Error{core::ErrorCode::IoFailure, QLatin1String("error.open.notFound"), path};
+        return filePages;
+    }
+    // S7 T8: blank pages as the same fake payload, each size asked for recorded (guide A-45's widget half).
+    std::vector<core::PdfSize> blankSizes;
+    core::Result<core::CopiedPages> blankPages(core::PdfSize size, int count) override
+    {
+        blankSizes.push_back(size);
+        core::CopiedPages out;
+        out.graph = QByteArray("%PDF-1.7 fake pages ") + QByteArray::number(count) + " blank";
+        out.pageCount = count;
+        return out;
     }
 
     // S7 T7: a snapshot that RECORDS what it was asked -- `assembled`, each page set made in memory, and `writes`, each
@@ -454,6 +508,7 @@ public:
         std::vector<core::AssemblyOutput> outputs;
     };
     std::vector<std::vector<int>> assembled;
+    std::vector<std::vector<int>> copied;   // S7 T8: each `AssemblySource::copy`'s pages
     std::vector<AssemblyWrite> assemblyWrites;
     const char* assembleFails = nullptr;   // a catalog key, or null
     const char* writeFails = nullptr;
@@ -467,6 +522,16 @@ public:
             if (backend_.assembleFails) return core::Error{core::ErrorCode::Corrupted, QLatin1String(backend_.assembleFails), QString()};
             core::AssembledDocument out;
             out.bytes = QByteArray("%PDF-1.7 fake assembly of ") + QByteArray::number(static_cast<int>(pages.size())) + " page(s)";
+            out.pageCount = static_cast<int>(pages.size());
+            return out;
+        }
+        // S7 T8: the payload a paste or a drop inserts -- `FakeSink::insertPages` reads its count back.
+        core::Result<core::CopiedPages> copy(const std::vector<int>& pages) override
+        {
+            backend_.copied.push_back(pages);
+            if (backend_.assembleFails) return core::Error{core::ErrorCode::Corrupted, QLatin1String(backend_.assembleFails), QString()};
+            core::CopiedPages out;
+            out.graph = QByteArray("%PDF-1.7 fake pages ") + QByteArray::number(static_cast<int>(pages.size())) + " of handle";
             out.pageCount = static_cast<int>(pages.size());
             return out;
         }

@@ -31,6 +31,7 @@ add_library(rawpage_ui STATIC
     # S6 T13 (D6-20, D6-21, D6-22): the window's comments in and out -- MainWindow members in a file of their own --
     # and one migration's run, off the UI thread over the comparison's pipeline.
     shell/MainWindowExchange.cpp
+    shell/MainWindowPages.cpp       # Stage 7 T8 -- the thumbnails pane's edits (D7-13)
     # S6 T14 (D6-18): the window's half of a sound comment -- the recorder and the WAV asked, a sound played.
     shell/MainWindowAudio.cpp
     shell/CommentMigration.h

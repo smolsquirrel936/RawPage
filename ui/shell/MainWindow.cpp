@@ -310,6 +310,18 @@ MainWindow::MainWindow(const app::Services& services, QWidget* parent)
     connect(thumbnails_, &ThumbnailsPane::activated, this, [this](int pageIndex) {
         if (PageView* view = currentView()) view->goToPage(pageIndex);
     });
+    // S7 T8 (D7-13): THE SET IS READ BY THE PAGE ACTIONS, so a change re-asks them; and a DRAG ends as a request this
+    // window makes a command of -- the pane changes nothing itself.
+    connect(thumbnails_, &ThumbnailsPane::selectionChanged, this, [this] {
+        if (actionFactory_) actionFactory_->refresh();
+    });
+    connect(thumbnails_, &ThumbnailsPane::movePagesRequested, this, [this](const std::vector<int>& pages, int insertionIndex) {
+        if (DocumentWindow* document = currentDocument()) (void)movePagesTo(document, pages, insertionIndex);
+    });
+    connect(thumbnails_, &ThumbnailsPane::pagesDropped, this,
+            [this](core::DocumentHandle source, const std::vector<int>& pages, int insertionIndex) {
+                if (DocumentWindow* document = currentDocument()) (void)dropPages(document, source, pages, insertionIndex);
+            });
 
     // S4 · T6 -- the two navigation panes, over the models T4 hydrated at open (D4-3). Both are
     // read-only halves: every editing row in §8's Bookmarks table is Stage 7's and stays
@@ -856,6 +868,7 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
         if (thumbnails_ && document == currentDocument()) {
             if (const core::CommandJournal* journal = document->journal())
                 thumbnails_->modelChanged(journal->revision());
+            updatePageBadges();   // S7 T8: what each page carries, after the command that may have changed it
         }
         // S6 T11: the Attachments pane lists what the document holds now.
         if (attachments_ && document == currentDocument()) attachments_->refresh();
@@ -1172,24 +1185,16 @@ core::Status MainWindow::rotatePages(DocumentWindow* document, const RotatePages
     if (!document || !document->journal())
         return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.command.noSink"), QString()};
 
-    RotationPlan plan = planRotation(choice, rotationPageOf(*document), document->pageCount());
-    core::CommandJournal& journal = *document->journal();
-
-    // ONE GROUP, ONE UNDO STEP (D3-13). A command refused part-way leaves the ones before it applied and in
-    // the step -- `CommandJournal`'s rule -- so the group is still closed, and one `Ctrl+Z` takes it back.
-    if (plan.group) journal.beginGroup(*plan.group);
-    core::Status status;
-    for (std::unique_ptr<core::Command>& command : plan.commands) {
-        status = journal.run(std::move(command));
-        if (!status) break;
+    // ONE COMMAND OVER THE SET, ONE UNDO STEP (S7 T8; Stage 3 grouped one command per page, D3-13), run where every
+    // page command runs so a signed document is warned first (D7-20).
+    core::Result<std::unique_ptr<core::Command>> planned =
+        planRotation(choice, rotationPageOf(*document), selectedPagesOf(*document), document->journal()->document().pages());
+    if (!planned) {
+        RAWPAGE_LOG_WARNING(LogSubsystem::Ui) << "rotate refused for" << document->path() << "--" << planned.error().messageKey;
+        if (status_) status_->setMessage(catalog::translateError(QString(planned.error().messageKey), planned.error().context));
+        return planned.error();
     }
-    if (plan.group) journal.endGroup();
-
-    if (!status) {
-        RAWPAGE_LOG_WARNING(LogSubsystem::Ui) << "rotate refused for" << document->path() << "--"
-                                             << status.error().messageKey;
-    }
-    return status;
+    return runPageCommand(document, std::move(planned).value());
 }
 
 // --- Stage 7 T7: new documents (D7-5, D7-30) ------------------------------------------------------------------
@@ -1249,7 +1254,7 @@ core::Status MainWindow::extractPages(DocumentWindow* document, const ExtractPag
         // THE SOURCE IS DELETED FROM BEFORE THE NEW TAB COMES TO THE FRONT, so the command lands in the document the
         // person extracted from -- and only now, the new document made, verified and open.
         if (choice.deleteAfter && document->journal()) {
-            if (core::Status deleted = document->journal()->run(std::make_unique<core::DeletePagesCommand>(choice.pages)); !deleted) {
+            if (core::Status deleted = runPageCommand(document, std::make_unique<core::DeletePagesCommand>(choice.pages)); !deleted) {
                 adoptDocument(fresh);
                 updateDocumentChrome();
                 return refuse(deleted.error());
@@ -1270,7 +1275,7 @@ core::Status MainWindow::extractPages(DocumentWindow* document, const ExtractPag
         core::Result<std::vector<core::WrittenDocument>> written = source.value()->write(outputs, choice.folder);
         if (!written) return refuse(written.error());
         if (choice.deleteAfter && document->journal()) {
-            if (core::Status deleted = document->journal()->run(std::make_unique<core::DeletePagesCommand>(choice.pages)); !deleted)
+            if (core::Status deleted = runPageCommand(document, std::make_unique<core::DeletePagesCommand>(choice.pages)); !deleted)
                 return refuse(deleted.error());
         }
         told = catalog::translate(catalog::key::AssemblyWrote).arg(static_cast<int>(written.value().size())).arg(choice.folder);
@@ -2767,6 +2772,7 @@ void MainWindow::updateDocumentPanes()
         thumbnails_->setDocument(current->handle(), current->revision(),
                                  services_.backend.pages(current->handle()));
     }
+    updatePageBadges();   // S7 T8 (guide A-57)
 }
 
 void MainWindow::followTool(PageView* view)
@@ -3042,8 +3048,8 @@ void MainWindow::registerActions()
     // which is D4-1's claim made structural rather than promised.
     //
     // The other nine rows in that table -- delete, cut, copy, paste, move earlier/later, extract,
-    // duplicate, select-all -- are Stage 7's and stay unregistered, so their keys reach the widget
-    // unconsumed rather than being swallowed by a handler that does nothing.
+    // duplicate, select-all -- are Stage 7's: `page.extract` registered at T7, the other eight at T8
+    // (`registerPageActions`, `MainWindowPages.cpp`).
     const auto activeThumbnails = []() -> ThumbnailsPane* {
         MainWindow* window = activeShell();
         return window ? window->thumbnailsPane() : nullptr;
@@ -3314,6 +3320,8 @@ void MainWindow::registerActions()
 
     // --- Undo, redo, rotate, save (Stage 3 T10) -----------------------------------------------
     registerMutationActions();
+    // S7 T8: the thumbnails pane's edits (D7-13).
+    registerPageActions();
 
     // --- Documents and windows (T12) --------------------------------------------------------
     // `file.open` raises a file dialog and hands what it collects to `openFiles`, which checks a
@@ -3713,7 +3721,8 @@ void MainWindow::registerMutationActions()
             MainWindow* window = activeShell();
             DocumentWindow* document = window ? window->currentDocument() : nullptr;
             if (!document) return;
-            if (const std::optional<RotatePagesDialog::Choice> choice = RotatePagesDialog::ask(window, rotationPageOf(*document)))
+            if (const std::optional<RotatePagesDialog::Choice> choice = RotatePagesDialog::ask(
+                    window, rotationPageOf(*document), window->selectedPagesOf(*document), document->pageCount()))
                 window->rotatePages(document, *choice);
         };
         rotate.enable = [editableInFront] { return editableInFront() && RotatePagesDialog::canAsk(); };
@@ -3724,8 +3733,8 @@ void MainWindow::registerMutationActions()
     // --- page.extract / page.split (S7 T7, D7-5, D7-30) -------------------------------------------
     // Neither changes the document -- extract-and-delete aside, which asks for an editable one in the dialog -- so
     // both need only a document with pages and somebody to answer the dialog (convention 16). `Ctrl+Shift+X` is the
-    // Page Thumbnails pane's chord (Features.md §8); the selection it fills in is T8's, and until then the dialog
-    // starts at the current page.
+    // Page Thumbnails pane's chord (Features.md §8), and the dialog starts at the pane's set (S7 T8, guide A-52) -- the
+    // current page where the pane shows another document.
     {
         const auto documentWithPages = [currentDocumentOfActiveShell] {
             const DocumentWindow* document = currentDocumentOfActiveShell();
@@ -3743,7 +3752,8 @@ void MainWindow::registerMutationActions()
             DocumentWindow* document = window ? window->currentDocument() : nullptr;
             if (!document) return;
             if (const std::optional<ExtractPagesDialog::Choice> choice =
-                    ExtractPagesDialog::ask(window, document->pageCount(), rotationPageOf(*document), document->isEditable(), folderOf(*document)))
+                    ExtractPagesDialog::ask(window, document->pageCount(), window->selectedPagesOf(*document), document->isEditable(),
+                                            folderOf(*document)))
                 window->extractPages(document, *choice);
         };
         extract.enable = [documentWithPages] { return documentWithPages() && ExtractPagesDialog::canAsk(); };

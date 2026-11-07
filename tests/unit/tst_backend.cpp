@@ -133,6 +133,10 @@ public:
     {
         return core::notImplementedError(core::BackendInterface::DocumentBackend, "blankPages");
     }
+    core::Result<int> filePageCount(const QString&) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "filePageCount");
+    }
     core::Result<std::unique_ptr<core::AssemblySource>> assemblySource(core::DocumentHandle) override
     {
         return core::notImplementedError(core::BackendInterface::DocumentBackend, "assemblySource");

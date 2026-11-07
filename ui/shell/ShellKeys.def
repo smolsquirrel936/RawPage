@@ -807,4 +807,48 @@ RAWPAGE_SHELL_STRING(SplitWorking, "shell.split.working")
 RAWPAGE_SHELL_STRING(SplitOverBound, "shell.split.overBound")
 RAWPAGE_SHELL_STRING(SplitBlankLeftOut, "shell.split.blankLeftOut")
 
+// --- The thumbnails pane's edits (S7 T8, D7-13, D7-20) -- a new family, `pages.` ---------------------------------
+// A new namespace, as `audio.` was at Stage 6 T14, added to `tools/i18n-lint/rules.json` in the same change: the badges,
+// the rotate dialog's ranges and filters, the insert, delete and replace dialogs, and what `MainWindowPages.cpp` says
+// after a page command. NOT `page.`, which every page action id spells (Stage 5's I-08). The report's words per
+// reference are built at run time from `pageReferenceKindName` / `pageReferenceTreatmentName` under the namespaces
+// "pages.reference." and "pages.treatment.", which is how they appear in source.
+RAWPAGE_SHELL_STRING(PagesBadgeComments, "pages.badge.comments")
+RAWPAGE_SHELL_STRING(PagesBadgeFields, "pages.badge.fields")
+RAWPAGE_SHELL_STRING(PagesBadgeLinks, "pages.badge.links")
+RAWPAGE_SHELL_STRING(PagesRotateSelected, "pages.rotate.selected")
+RAWPAGE_SHELL_STRING(PagesRotateRange, "pages.rotate.range")
+RAWPAGE_SHELL_STRING(PagesParity, "pages.parity")
+RAWPAGE_SHELL_STRING(PagesParityAny, "pages.parity.any")
+RAWPAGE_SHELL_STRING(PagesParityOdd, "pages.parity.odd")
+RAWPAGE_SHELL_STRING(PagesParityEven, "pages.parity.even")
+RAWPAGE_SHELL_STRING(PagesOrientation, "pages.orientation")
+RAWPAGE_SHELL_STRING(PagesOrientationAny, "pages.orientation.any")
+RAWPAGE_SHELL_STRING(PagesOrientationPortrait, "pages.orientation.portrait")
+RAWPAGE_SHELL_STRING(PagesOrientationLandscape, "pages.orientation.landscape")
+RAWPAGE_SHELL_STRING(PagesChooseFile, "pages.chooseFile")
+RAWPAGE_SHELL_STRING(PagesInsertTitle, "pages.insert.title")
+RAWPAGE_SHELL_STRING(PagesInsertFrom, "pages.insert.from")
+RAWPAGE_SHELL_STRING(PagesInsertFromFile, "pages.insert.fromFile")
+RAWPAGE_SHELL_STRING(PagesInsertAllPages, "pages.insert.allPages")
+RAWPAGE_SHELL_STRING(PagesInsertBlank, "pages.insert.blank")
+RAWPAGE_SHELL_STRING(PagesInsertLandscape, "pages.insert.landscape")
+RAWPAGE_SHELL_STRING(PagesInsertClipboard, "pages.insert.clipboard")
+RAWPAGE_SHELL_STRING(PagesInsertWhere, "pages.insert.where")
+RAWPAGE_SHELL_STRING(PagesInsertAfter, "pages.insert.after")
+RAWPAGE_SHELL_STRING(PagesInsertBefore, "pages.insert.before")
+RAWPAGE_SHELL_STRING(PagesInsertFirst, "pages.insert.first")
+RAWPAGE_SHELL_STRING(PagesInsertLast, "pages.insert.last")
+RAWPAGE_SHELL_STRING(PagesDeleteTitle, "pages.delete.title")
+RAWPAGE_SHELL_STRING(PagesReplaceTitle, "pages.replace.title")
+RAWPAGE_SHELL_STRING(PagesReplacePages, "pages.replace.pages")
+RAWPAGE_SHELL_STRING(PagesReplaceWith, "pages.replace.with")
+RAWPAGE_SHELL_STRING(PagesReplaceStartingAt, "pages.replace.startingAt")
+RAWPAGE_SHELL_STRING(PagesReportEntry, "pages.report.entry")
+RAWPAGE_SHELL_STRING(PagesSignedWarning, "pages.signedWarning")
+RAWPAGE_SHELL_STRING(PagesRefused, "pages.refused")
+RAWPAGE_SHELL_STRING(PagesDone, "pages.done")
+RAWPAGE_SHELL_STRING(PagesDoneReported, "pages.doneReported")
+RAWPAGE_SHELL_STRING(PagesCopied, "pages.copied")
+
 #undef RAWPAGE_SHELL_STRING
