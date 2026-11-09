@@ -152,6 +152,9 @@ add_executable(rawpage_tests
     tst_pageedits.cpp             # Stage 7 T9  -- boxes, crop, resize, renumber and thumbnails through the shipped sink,
                                   #   read back first-party; undone before and after a save (S7 guide A-58, A-60 ...
                                   #   A-63, headless halves)
+    tst_outlineedit.cpp           # Stage 7 T11 -- the six bookmark commands through the shipped sink, read back
+                                  #   first-party: what a rename writes, the hierarchy's links, every target kind, a page
+                                  #   command's remap, hostile lines (S7 guide A-76 ... A-78, headless halves)
     tst_splitplan.cpp             # Stage 7 T7  -- the six split rules and the page-range syntax, pure, against hand
                                   #   values and the split-blanks labels (S7 guide A-49's planning half)
     tst_dpipolicy.cpp             # Stage 2 T10 -- guide cases A-28, A-29, A-30

@@ -49,5 +49,11 @@ RAWPAGE_COMMAND(CropPagesCommand, "page.crop", "core/cmd/commands/PageCommands.h
 RAWPAGE_COMMAND(ResizePagesCommand, "page.resize", "core/cmd/commands/PageCommands.h")
 RAWPAGE_COMMAND(RenumberPagesCommand, "page.renumber", "core/cmd/commands/PageCommands.h")
 RAWPAGE_COMMAND(SetEmbeddedThumbnailsCommand, "page.thumbnails", "core/cmd/commands/PageCommands.h")
+RAWPAGE_COMMAND(CreateBookmarkCommand, "bookmark.create", "core/cmd/commands/BookmarkCommands.h")
+RAWPAGE_COMMAND(EditBookmarkCommand, "bookmark.edit", "core/cmd/commands/BookmarkCommands.h")
+RAWPAGE_COMMAND(DeleteBookmarkCommand, "bookmark.delete", "core/cmd/commands/BookmarkCommands.h")
+RAWPAGE_COMMAND(ReparentBookmarkCommand, "bookmark.reparent", "core/cmd/commands/BookmarkCommands.h")
+RAWPAGE_COMMAND(SetBookmarkTargetCommand, "bookmark.setTarget", "core/cmd/commands/BookmarkCommands.h")
+RAWPAGE_COMMAND(GenerateBookmarksCommand, "bookmark.generate", "core/cmd/commands/BookmarkCommands.h")
 
 #undef RAWPAGE_COMMAND

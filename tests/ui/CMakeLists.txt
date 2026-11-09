@@ -82,6 +82,7 @@ add_executable(rawpage_ui_tests
     # every "only the visible slots" assertion would pass vacuously (convention 12, guide rule 4).
     tst_panes.cpp
     tst_thumbnailsedit.cpp      # Stage 7 T8 -- the thumbnails pane's edits from key events, sets, drops, dialogs (S7 guide A-52 ... A-57)
+    tst_bookmarksedit.cpp       # Stage 7 T11 -- the bookmarks pane's edits from key events, a drop, a read-only outline, Ctrl+B in the Viewer (S7 guide A-73, A-74)
 
     # Stage 4 T7 -- the tool state machine and the four tools (guide cases A-40 … A-44). Every
     # gesture is sent as a real mouse event to the viewport so it travels PageView -> ToolController

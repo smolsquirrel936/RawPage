@@ -22,6 +22,9 @@
 #include "core/doc/PageTransitions.h"
 #include "core/doc/XfdfCodec.h"
 #include "core/doc/Outline.h"
+#include "core/doc/OutlineExchange.h"
+#include "core/doc/OutlineGenerator.h"
+#include "core/doc/TableOfContents.h"
 #include "core/doc/CopiedPages.h"
 #include "core/backend.h"
 #include "core/doc/Page.h"
@@ -241,6 +244,18 @@ public:
         for (const int page : pages) thumbnailsSet.erase(page);
         return {};
     }
+    // Stage 7 T11: the outline as last handed -- what a case reads back -- and how many times; `refuseOutline` refuses.
+    core::Status setOutline(const core::Outline& outline) override
+    {
+        ++calls;
+        ++outlineCommands;
+        if (refuseOutline) return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.test.unexpected"), QString()};
+        outlineSet = outline;
+        return {};
+    }
+    core::Outline outlineSet;
+    int outlineCommands = 0;
+    bool refuseOutline = false;
     std::map<int, core::PageBoxes> pageBoxes;
     std::map<QString, std::vector<std::pair<int, std::optional<core::PageBoxes>>>> boxStash;
     int wrapped = 0;
@@ -673,6 +688,39 @@ public:
             for (const core::MergeInput& input : inputs) out.report.pageCount += input.pages.empty() ? filePages : static_cast<int>(input.pages.size());
         }
         out.bytes = QByteArray("%PDF-1.7 fake merge of ") + QByteArray::number(static_cast<int>(inputs.size())) + " file(s)";
+        return out;
+    }
+
+    // Stage 7 T11: what a case plants -- each page's structure headings, a bookmark file's items (or its refusal), and
+    // what a contents page was asked for; the files themselves are recorded, not written.
+    std::map<int, std::vector<core::HeadingLine>> structureHeadingsByPage;
+    std::optional<core::Result<std::vector<core::OutlineItem>>> outlineFileItems;
+    std::vector<std::pair<QString, core::OutlineFormat>> outlineFilesWritten;
+    std::vector<std::vector<core::OutlineItem>> outlineItemsWritten;
+    std::vector<core::TableOfContents> contentsAskedFor;
+    core::Status structureHeadings(core::DocumentHandle, int page, std::vector<core::HeadingLine>& into) override
+    {
+        if (const auto found = structureHeadingsByPage.find(page); found != structureHeadingsByPage.end()) into = found->second;
+        return {};
+    }
+    core::Result<std::vector<core::OutlineItem>> readOutlineExchange(const QString&, int, const QString&) override
+    {
+        if (outlineFileItems) return *outlineFileItems;
+        return core::Error{core::ErrorCode::NotFound, QLatin1String("error.outline.importUnreadable"), QString()};
+    }
+    core::Status writeOutlineExchange(const std::vector<core::OutlineItem>& items, core::OutlineFormat format, const QString& path,
+                                      bool) override
+    {
+        outlineFilesWritten.emplace_back(path, format);
+        outlineItemsWritten.push_back(items);
+        return {};
+    }
+    core::Result<core::CopiedPages> tableOfContents(const core::TableOfContents& toc) override
+    {
+        contentsAskedFor.push_back(toc);
+        core::CopiedPages out;
+        out.graph = QByteArray("%PDF-1.7 fake contents");
+        out.pageCount = 1;
         return out;
     }
 

@@ -63,7 +63,7 @@ class PageTree;
 // (D6-3), asked per page through `mayAnnotate`.
 // Stage 6 T11: `Attach` -- a file attached to, or removed from, the document as a whole (D6-17). Not `Annotate`:
 // ISO 32000-1 Table 22 grants annotation and document assembly separately, and Stage 10 answers each by its bit.
-enum class Operation { EditPages, Annotate, Attach };
+enum class Operation { EditPages, Annotate, Attach, EditOutline };   // EditOutline: Stage 7 T11
 
 // One entry of a page's `/Annots`, as either reader sees it -- what D6-3 compares.
 struct AnnotationFact {

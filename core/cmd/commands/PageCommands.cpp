@@ -234,6 +234,7 @@ bool applyPageMapToModel(Document& document, const PageMap& map, std::vector<Pag
     if (!document.pages().apply(map, std::move(insertedPages))) return false;
     if (!document.annotations().applyPageMap(map, std::move(insertedListings))) return false;
     document.permissions().applyPageMap(map);
+    document.outline().applyPageMap(map);   // S7 T11 (D7-3): a bookmark names the page it named
     return true;
 }
 
@@ -334,6 +335,7 @@ bool DeletePagesCommand::apply(Document& document, MutationSink& sink)
     map_ = map;
     removedPages_ = std::move(removed);
     removedListings_ = std::move(listings);
+    outlineBefore_ = document.outline();
     return applyPageMapToModel(document, *map, {}, {});
 }
 
@@ -341,7 +343,10 @@ bool DeletePagesCommand::revert(Document& document, MutationSink& sink)
 {
     if (!map_ || map_->newCount() != document.pages().count()) return false;
     if (!sink.restorePages(pages_, key_)) return false;
-    return applyPageMapToModel(document, map_->inverse(), removedPages_, removedListings_);
+    if (!applyPageMapToModel(document, map_->inverse(), removedPages_, removedListings_)) return false;
+    // The undo runs on the outline the removal left (the journal undoes in order), so the one it replaced is exact.
+    if (outlineBefore_) document.outline() = *outlineBefore_;
+    return true;
 }
 
 QJsonObject DeletePagesCommand::serialize() const

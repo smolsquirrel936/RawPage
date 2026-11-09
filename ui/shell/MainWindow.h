@@ -52,6 +52,7 @@
 #include "ui/dialogs/CustomStampDialog.h"
 #include "ui/dialogs/DocumentPropertiesDialog.h"
 #include "ui/dialogs/ExchangeReportDialog.h"
+#include "ui/dialogs/BookmarkDialogs.h"
 #include "ui/dialogs/MergeDialog.h"
 #include "ui/dialogs/PageOpsDialogs.h"
 #include "ui/dialogs/RotatePagesDialog.h"
@@ -201,6 +202,30 @@ public:
     core::Status mergeDocuments(const MergeDialog::Choice& choice);
     bool isMerging() const;
     void cancelMerge();
+
+    // ---------------------------------------------------------------------------------------
+    // THE BOOKMARKS' EDITS -- Stage 7 T11 (`Stage7-Assembly-Plan.md` D7-10, D7-11). `ui/shell/MainWindowBookmarks.cpp`.
+    // ---------------------------------------------------------------------------------------
+    // The Bookmarks pane handed `document`'s outline: the model's -- editable when the document is and the outline's two
+    // readings agree -- or, for a tab with no journal, the backend's, read-only.
+    void updateBookmarksPane(DocumentWindow* document);
+    // EVERY BOOKMARK COMMAND A SURFACE RUNS GOES THROUGH HERE: what it did or why not on the status bar, and the pane
+    // handed the model again with `select` selected.
+    core::Status runBookmarkCommand(DocumentWindow* document, std::unique_ptr<core::Command> command,
+                                    const core::OutlineItemId& select = {});
+    // What *the current view* means as a destination: the page in front, the view's top-left on it, the zoom.
+    std::optional<core::Destination> currentViewDestination(const DocumentWindow& document) const;
+    // `Ctrl+B`: a bookmark to the current view after the selected one, titled by the text selected -- and, from the
+    // pane, its title opened for typing when there was none.
+    core::Status newBookmark(DocumentWindow* document, bool renameAfter);
+    // The generators (`core::OutlineGenerator`): every page read on the render thread, then ONE `GenerateBookmarksCommand`
+    // from the pump -- refused if a command ran meanwhile, or another page run is going.
+    core::Status generateBookmarks(DocumentWindow* document, const core::OutlineGeneratorOptions& options);
+    // A bookmark file read into ONE `GenerateBookmarksCommand` at the end of the tree; the tree written to one.
+    core::Status importBookmarks(DocumentWindow* document, const QString& path);
+    core::Status exportBookmarks(DocumentWindow* document, const QString& path, core::OutlineFormat format);
+    // D7-11: the contents page, ONE `InsertPagesCommand` before the first page, through `runPageCommand`.
+    core::Status insertTableOfContents(DocumentWindow* document);
 
     // ---------------------------------------------------------------------------------------
     // THE THUMBNAILS PANE'S EDITS -- Stage 7 T8 (`Stage7-Assembly-Plan.md` D7-13, D7-20). `ui/shell/MainWindowPages.cpp`.
@@ -697,6 +722,7 @@ private:
     void registerMutationActions();
     void registerPageActions();      // S7 T8 -- `ui/shell/MainWindowPages.cpp`
     void registerMergeActions();     // S7 T10 -- `ui/shell/MainWindowMerge.cpp`
+    void registerBookmarkActions();  // S7 T11 -- `ui/shell/MainWindowBookmarks.cpp`
     void finishMerge(core::Result<core::MergedDocument> merged, const std::vector<QString>& paths);
     void updatePageBadges();         // S7 T8 -- the thumbnails' badges from the document in front's store
 

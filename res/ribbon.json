@@ -403,6 +403,9 @@
           "controls": [
             { "action": "bookmark.new", "size": "large" },
             { "action": "bookmark.generate", "size": "small" },
+            { "action": "bookmark.tableOfContents", "size": "small" },
+            { "action": "bookmark.import", "size": "small" },
+            { "action": "bookmark.export", "size": "small" },
             { "action": "link.create", "size": "small" },
             { "action": "destination.create", "size": "small" }
           ]

@@ -616,7 +616,7 @@ set(ML_FIX "${FIXTURES}/mutation-lint")
 # `ImportAnnotationsCommand` -- eleven since T11, nine since T9, seven since T5, three since T3, one until then.
 rawpage_add_gate_test(NAME gates.mutation_lint.clean_tree
     COMMAND ${ML} --root ${CMAKE_SOURCE_DIR}
-    EXPECT_EXIT 0 EXPECT_MATCH "clean -- 21 command\\(s\\): AddAnnotationCommand DeleteAnnotationCommand EditAnnotationCommand MoveAnnotationCommand SetAnnotationAppearanceCommand LockAnnotationCommand ReplyToAnnotationCommand SetAnnotationStatusCommand ImportAnnotationsCommand AddAttachmentCommand DeleteAttachmentCommand RotatePageCommand MovePagesCommand DeletePagesCommand DuplicatePagesCommand InsertPagesCommand ReplacePagesCommand CropPagesCommand ResizePagesCommand RenumberPagesCommand SetEmbeddedThumbnailsCommand;")
+    EXPECT_EXIT 0 EXPECT_MATCH "clean -- 27 command\\(s\\): AddAnnotationCommand DeleteAnnotationCommand EditAnnotationCommand MoveAnnotationCommand SetAnnotationAppearanceCommand LockAnnotationCommand ReplyToAnnotationCommand SetAnnotationStatusCommand ImportAnnotationsCommand AddAttachmentCommand DeleteAttachmentCommand CreateBookmarkCommand EditBookmarkCommand DeleteBookmarkCommand ReparentBookmarkCommand SetBookmarkTargetCommand GenerateBookmarksCommand RotatePageCommand MovePagesCommand DeletePagesCommand DuplicatePagesCommand InsertPagesCommand ReplacePagesCommand CropPagesCommand ResizePagesCommand RenumberPagesCommand SetEmbeddedThumbnailsCommand;")
 
 # A-11, THE CONTROL: three spellings of "derives from Command" (plain, qualified across two lines,
 # second of two bases), each complete -- and a CommandHistory base and an `enum class X : int`,

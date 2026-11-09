@@ -978,13 +978,13 @@ TEST_CASE("star and slash expand and collapse the whole tree, from a key event",
     CHECK(panes.bookmarks->visibleRowCount() == 2);   // the two roots only
 }
 
-TEST_CASE("every editing chord in the bookmarks table is unregistered and leaves its key alone",
+TEST_CASE("every editing chord in the bookmarks table is registered, and on a document not edited changes nothing",
           "[panes]")
 {
-    // THE CONTROL A-35 names, and the reason T6 is navigation-only (D4-2, D4-3). Eight rows, each
-    // needing a `Command` that Stage 7 owns. An unregistered id must answer `NotImplemented` and
-    // NOT consume the key: a handler that did nothing would be indistinguishable from one that is
-    // broken, which is Stage 2's I-11 in the shape a pane invites.
+    // THE CONTROL A-35 named at Stage 4, when these eight rows were unregistered (D4-2, D4-3). Since Stage 7 T11 each
+    // is a bookmark command (D7-10); this document is one the fake backend will not edit, so each is DISABLED --
+    // consumed, as a disabled action is, and nothing done. The editing itself is `tst_bookmarksedit`'s (Stage 7 guide
+    // A-73); what stays here is that a pane over a document nobody may edit stays exactly as it was.
     Panes panes(12);
     panes.focusBookmarks();
 
@@ -1004,8 +1004,9 @@ TEST_CASE("every editing chord in the bookmarks table is unregistered and leaves
 
     for (const Row& row : rows) {
         INFO(std::string(core::actionStringId(row.id)));
-        CHECK_FALSE(panes.fixture.actions.isRegistered(row.id));
-        CHECK_FALSE(panes.press(row.key, row.modifiers));
+        CHECK(panes.fixture.actions.isRegistered(row.id));
+        CHECK_FALSE(panes.fixture.actions.isEnabled(row.id));
+        CHECK(panes.press(row.key, row.modifiers));
 
         // `Tab` MOVES THE FOCUS when nobody consumes it, which is exactly what *leaves the key
         // alone* means -- so the focus is put back before the next row rather than letting the

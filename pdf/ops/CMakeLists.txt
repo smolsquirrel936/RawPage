@@ -81,6 +81,15 @@ add_library(rawpage_ops STATIC
     # dictionary parse -- and the one read and one write of an exchange FILE, either syntax (XFDF is core/doc/'s).
     FdfCodec.h
     FdfCodec.cpp
+
+    # S7 T11 (D7-10). The fourth first-party reader: the outline, because editing an item needs its object and its
+    # dictionary as written -- held to agree with PDFium's reading -- and what an edited item's dictionary becomes.
+    OutlineReader.h
+    OutlineReader.cpp
+    OutlineOps.h
+    OutlineOps.cpp
+    OutlineFiles.h
+    OutlineFiles.cpp
 )
 
 target_include_directories(rawpage_ops PUBLIC "${CMAKE_SOURCE_DIR}")

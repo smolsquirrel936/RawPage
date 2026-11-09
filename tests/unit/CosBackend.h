@@ -34,6 +34,9 @@
 #include "core/doc/Permissions.h"
 #include "core/doc/RepairReport.h"
 #include "pdf/ops/MutationSinkImpl.h"
+#include "pdf/ops/OutlineFiles.h"
+#include "pdf/ops/OutlineReader.h"
+#include "core/doc/OutlineGenerator.h"
 #include "pdf/ops/ObjectGraphCopier.h"
 #include "pdf/ops/DocumentAssembler.h"
 #include "pdf/ops/DocumentMerger.h"
@@ -56,6 +59,9 @@ public:
     // Stage 6 T3: the next `open()` assesses its annotations as if the ENGINE had read one entry fewer on
     // page `page` -- how a headless case obtains a page D6-3 makes read-only, with no engine linked.
     void plantAnnotationDisagreement(int page) { plantedDisagreement_ = page; }
+    // Stage 7 T11: the next `open()` reads its outline as if the ENGINE had read it differently -- refused by
+    // `error.outline.readingsDisagree`, the items kept -- how a headless case obtains a read-only outline.
+    void plantOutlineDisagreement() { plantedOutline_ = true; }
 
     std::array<bool, core::kBackendInterfaceCount> implementedInterfaces() const override
     {
@@ -132,6 +138,25 @@ public:
             else if (page < engine.size()) engine[page].push_back(core::AnnotationFact{});
             entry->permissions.assessAnnotations(engine, entry->annotations.listingFacts());
             plantedDisagreement_.reset();
+        }
+        // S7 T11 (D7-10): the outline, first-party, as the shipped backend reads it -- placed by this walk. There is no
+        // engine here, so no agreement is assessed: that half is `tests/render/tst_outlinereader.cpp`'s (guide A-75).
+        {
+            const pdf::ops::ReferenceRepair::Ledger none;
+            const pdf::ops::ReferenceRepair::View view(sink.value()->table(), none);
+            pdf::ops::OutlineReader::Reading reading = pdf::ops::OutlineReader::read(view);
+            std::map<long long, int> indexOf;
+            for (std::size_t i = 0; i < sink.value()->pages().pages.size(); ++i)
+                indexOf.emplace(sink.value()->pages().pages[i].number, static_cast<int>(i));
+            pdf::ops::OutlineReader::resolve(reading, indexOf);
+            entry->outline = std::move(reading.outline);
+            if (reading.truncated)
+                entry->outline.setStatus(core::Error{core::ErrorCode::PermissionDenied, QLatin1String("error.outline.readingsDisagree"),
+                                                     QStringLiteral("truncated")});
+            if (plantedOutline_)
+                entry->outline.setStatus(core::Error{core::ErrorCode::PermissionDenied, QLatin1String("error.outline.readingsDisagree"),
+                                                     QStringLiteral("planted")});
+            plantedOutline_ = false;
         }
         if (fromBytes)
             entry->permissions = core::Permissions::readOnly(origin == core::BytesOrigin::Assembly ? "error.edit.unsavedAssembly"
@@ -249,6 +274,25 @@ public:
     {
         return pdf::ops::DocumentMerger::mergeFiles(inputs, options, progress);
     }
+    // Stage 7 T11: no engine, so no structure tree is read here (that is `tests/render/tst_outlinegenerate.cpp`'s); the
+    // bookmark files and the contents page are the shipped backend's own code.
+    core::Status structureHeadings(core::DocumentHandle, int, std::vector<core::HeadingLine>&) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "structureHeadings");
+    }
+    core::Result<std::vector<core::OutlineItem>> readOutlineExchange(const QString& path, int pageCount, const QString& key) override
+    {
+        return pdf::ops::OutlineFiles::read(path, pageCount, key);
+    }
+    core::Status writeOutlineExchange(const std::vector<core::OutlineItem>& items, core::OutlineFormat format, const QString& path,
+                                      bool overwrite) override
+    {
+        return pdf::ops::OutlineFiles::write(items, format, path, overwrite);
+    }
+    core::Result<core::CopiedPages> tableOfContents(const core::TableOfContents& toc) override
+    {
+        return pdf::ops::ObjectGraphCopier::tableOfContents(toc);
+    }
     const core::PageTree* pages(core::DocumentHandle handle) const override
     {
         const auto* entry = find(handle);
@@ -272,7 +316,12 @@ public:
     // S4 T4 (D4-3, D4-4). This double reads no file, so it carries EMPTY models rather than null:
     // null means *not a handle of mine*, and empty means *this document has none*, which is the
     // distinction `core/backend.h` asks callers to make. A case that needs an outline fills these.
-    const core::Outline* outline(core::DocumentHandle) const override { return &outline_; }
+    // S7 T11: a document this double opened carries its first-party outline; any other handle the empty one.
+    const core::Outline* outline(core::DocumentHandle handle) const override
+    {
+        const auto* entry = find(handle);
+        return entry ? &entry->outline : &outline_;
+    }
     const core::Destinations* destinations(core::DocumentHandle) const override
     {
         return &destinations_;
@@ -462,6 +511,7 @@ private:
     struct Entry {
         core::AnnotationStore annotations;     // S6 T2
         core::Attachments attachments;         // S6 T11
+        core::Outline outline;                 // S7 T11
         QByteArray bytes;
         core::PageTree tree;
         core::RepairReport repair;
@@ -487,6 +537,7 @@ private:
     std::uint64_t next_ = 1;
     std::optional<core::CosReading> planted_;
     std::optional<int> plantedDisagreement_;
+    bool plantedOutline_ = false;
     bool failWrite_ = false;
     std::optional<core::SaveForm> lastForm_;   // S7 T6: what the last `writeRevision` was asked for
     bool failAdopt_ = false;

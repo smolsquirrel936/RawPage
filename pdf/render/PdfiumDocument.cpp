@@ -3,6 +3,7 @@
 #include "core/Log.h"
 #include "core/text/LayoutAnalyzer.h"
 #include "core/text/PageTextModel.h"
+#include "core/doc/OutlineGenerator.h"
 #include "pdf/cos/XrefRepair.h"
 #include "pdf/render/PdfiumInit.h"
 #include "pdf/render/PdfiumTextExtractor.h"
@@ -16,6 +17,8 @@
 #include <fpdf_doc.h>
 #include <fpdf_edit.h>
 #include <fpdf_formfill.h>
+#include <fpdf_structtree.h>
+#include <fpdf_text.h>
 #include <fpdf_thumbnail.h>
 #include <fpdf_transformpage.h>
 #include <fpdfview.h>
@@ -950,6 +953,124 @@ core::Status PdfiumDocument::pageGeometry(int pageIndex, core::PageGeometry& int
         return {};
     }
     into = core::PageGeometry(pageIndex, std::move(walk.segments), std::move(walk.anchors));
+    return {};
+}
+
+// =============================================================================================
+// THE STRUCTURE TREE'S HEADINGS -- Stage 7 T11 (D7-10): what the outline generator reads of a tagged page
+// =============================================================================================
+
+namespace {
+
+constexpr int kMaxStructureDepth = 64;
+constexpr int kMaxStructureElements = 20000;
+
+// An `H` is level 1, `H1` ... `H6` theirs; anything else 0.
+int headingLevel(const QString& type)
+{
+    if (type == QLatin1String("H")) return 1;
+    if (type.size() == 2 && type[0] == QLatin1Char('H') && type[1] >= QLatin1Char('1') && type[1] <= QLatin1Char('6'))
+        return type[1].unicode() - u'0';
+    return 0;
+}
+
+QString utf16le(const std::vector<unsigned short>& buffer)
+{
+    std::size_t length = 0;
+    while (length < buffer.size() && buffer[length] != 0) ++length;
+    return QString::fromUtf16(reinterpret_cast<const char16_t*>(buffer.data()), static_cast<qsizetype>(length));
+}
+
+struct HeadingFound {
+    int level = 0;
+    std::vector<int> mcids;
+};
+
+void walkStructure(FPDF_STRUCTELEMENT element, int depth, int& budget, std::vector<HeadingFound>& into)
+{
+    if (element == nullptr || depth > kMaxStructureDepth || budget-- <= 0) return;
+    const unsigned long bytes = FPDF_StructElement_GetType(element, nullptr, 0);
+    std::vector<unsigned short> type(bytes / 2 + 1, 0);
+    if (bytes > 0) FPDF_StructElement_GetType(element, type.data(), bytes);
+    const int level = headingLevel(utf16le(type));
+    const int children = FPDF_StructElement_CountChildren(element);
+    if (level > 0) {
+        HeadingFound heading;
+        heading.level = level;
+        const int own = FPDF_StructElement_GetMarkedContentIdCount(element);
+        for (int i = 0; i < own; ++i) heading.mcids.push_back(FPDF_StructElement_GetMarkedContentIdAtIndex(element, i));
+        for (int i = 0; i < children; ++i) {
+            const int mcid = FPDF_StructElement_GetChildMarkedContentID(element, i);
+            if (mcid >= 0) heading.mcids.push_back(mcid);
+        }
+        into.push_back(std::move(heading));
+    }
+    for (int i = 0; i < children; ++i) walkStructure(FPDF_StructElement_GetChildAtIndex(element, i), depth + 1, budget, into);
+}
+
+} // namespace
+
+core::Status PdfiumDocument::structureHeadings(int pageIndex, std::vector<core::HeadingLine>& into) const
+{
+    std::vector<core::HeadingLine> found;
+    {
+        const std::lock_guard<EngineMutex> guard(engineLock());
+        auto* document = static_cast<FPDF_DOCUMENT>(engineHandle());
+        if (document == nullptr) return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.render.documentClosed")};
+        if (drawnPagesLocked().at(pageIndex) == nullptr)
+            return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.render.noSuchPage"), QString::number(pageIndex)};
+        FPDF_PAGE page = FPDF_LoadPage(document, pageIndex);
+        if (page == nullptr)
+            return core::Error{core::ErrorCode::ParseFailure, QLatin1String("error.render.noSuchPage"), QString::number(pageIndex)};
+        std::vector<HeadingFound> headings;
+        if (FPDF_STRUCTTREE tree = FPDF_StructTree_GetForPage(page)) {
+            int budget = kMaxStructureElements;
+            const int count = FPDF_StructTree_CountChildren(tree);
+            for (int i = 0; i < count; ++i) walkStructure(FPDF_StructTree_GetChildAtIndex(tree, i), 0, budget, headings);
+            FPDF_StructTree_Close(tree);
+        }
+        if (!headings.empty()) {
+            // THE TEXT EACH HEADING'S MARKED CONTENT DRAWS: every text object carrying one of its ids, in content order.
+            FPDF_TEXTPAGE text = FPDFText_LoadPage(page);
+            std::map<int, std::size_t> owner;
+            for (std::size_t h = 0; h < headings.size(); ++h) {
+                for (const int mcid : headings[h].mcids) owner.emplace(mcid, h);
+            }
+            found.resize(headings.size());
+            std::vector<bool> placed(headings.size(), false);
+            const int objects = FPDFPage_CountObjects(page);
+            for (int k = 0; k < objects; ++k) {
+                FPDF_PAGEOBJECT object = FPDFPage_GetObject(page, k);
+                if (object == nullptr || FPDFPageObj_GetType(object) != FPDF_PAGEOBJ_TEXT) continue;
+                const auto at = owner.find(FPDFPageObj_GetMarkedContentID(object));
+                if (at == owner.end()) continue;
+                const unsigned long bytes = FPDFTextObj_GetText(object, text, nullptr, 0);
+                std::vector<unsigned short> buffer(bytes / 2 + 1, 0);
+                if (bytes > 0) FPDFTextObj_GetText(object, text, buffer.data(), bytes);
+                core::HeadingLine& line = found[at->second];
+                const QString piece = utf16le(buffer);
+                if (!line.text.isEmpty() && !piece.isEmpty()) line.text += QLatin1Char(' ');
+                line.text += piece;
+                float left = 0, bottom = 0, right = 0, top = 0;
+                if (FPDFPageObj_GetBounds(object, &left, &bottom, &right, &top)) {
+                    line.left = placed[at->second] ? std::min(line.left, static_cast<double>(left)) : left;
+                    line.top = placed[at->second] ? std::max(line.top, static_cast<double>(top)) : top;
+                    placed[at->second] = true;
+                }
+            }
+            if (text != nullptr) FPDFText_ClosePage(text);
+            for (std::size_t h = 0; h < headings.size(); ++h) {
+                found[h].page = pageIndex;
+                found[h].level = headings[h].level;
+                found[h].text = found[h].text.simplified();
+            }
+        }
+        FPDF_ClosePage(page);
+    }
+    // A heading whose marked content draws no text on this page -- its content elsewhere -- is not one of this page's.
+    for (core::HeadingLine& line : found) {
+        if (!line.text.isEmpty()) into.push_back(std::move(line));
+    }
     return {};
 }
 

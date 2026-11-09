@@ -2,6 +2,8 @@
 
 #include "pdf/ops/MutationSinkImpl.h"
 
+#include "pdf/ops/OutlineOps.h"
+
 #include "core/Measure.h"
 #include "core/doc/AnnotationGeometry.h"
 #include "core/doc/TypedText.h"
@@ -487,6 +489,34 @@ int MutationSinkImpl::desiredRotation(int pageIndex) const
     return walk_.pages[static_cast<std::size_t>(pageIndex)].effectiveRotate();
 }
 
+// S7 T11: the outline's walks, used by the compose and by `adopt`.
+namespace {
+
+core::Error outlineError(core::ErrorCode code, const char* key, QString context = {})
+{
+    return core::Error{code, QLatin1String(key), std::move(context)};
+}
+
+// Every item of `items`, depth first.
+template <typename Item, typename Visit>
+void eachHeld(Item& items, Visit&& visit)
+{
+    for (auto& item : items) {
+        visit(item);
+        eachHeld(item.children, visit);
+    }
+}
+
+void eachRead(const std::vector<core::OutlineItem>& items, const std::function<void(const core::OutlineItem&)>& visit)
+{
+    for (const core::OutlineItem& item : items) {
+        visit(item);
+        eachRead(item.children, visit);
+    }
+}
+
+} // namespace
+
 core::Result<cos::ObjectDelta> MutationSinkImpl::delta()
 {
     // S7 T4: one round of the book -- every name this compose asks for keeps its number (see the header).
@@ -532,6 +562,9 @@ core::Result<cos::ObjectDelta> MutationSinkImpl::delta()
     if (core::Status edits = composePageEdits(delta, pageDictionaries); !edits) return edits.error();
     if (core::Status labels = composeLabels(pageDictionaries); !labels) return labels.error();
     if (core::Status repairs = composeRepairs(pageDictionaries); !repairs) return repairs.error();
+    // S7 T11 (D7-34): the outline AFTER the repair, which rewrites an item key by key over whatever is pending -- so a
+    // target a bookmark command set is the one written, and an item the repair cleared is composed from what it made.
+    if (core::Status outline = composeOutline(delta, pageDictionaries); !outline) return outline.error();
     if (core::Status annotations = composeAnnotations(delta, pageDictionaries); !annotations)
         return annotations.error();
     if (core::Status files = composeFiles(delta, pageDictionaries); !files)   // Stage 6 T11
@@ -1799,6 +1832,8 @@ core::Status MutationSinkImpl::adopt(std::string_view bytes)
     auto files = reconcileFiles(table.value(), false);   // T11: the tree, as it composed it
     if (!files)
         return files.error();
+    // S7 T11: the outline, as it composed it -- each created item now the object the save put it at.
+    if (core::Status outline = reconcileOutline(table.value()); !outline) return outline;
 
     bytes_ = bytes;
     table_ = std::move(table).value();
@@ -1838,6 +1873,13 @@ core::Status MutationSinkImpl::adopt(std::string_view bytes)
             }
         }
         renumberPageEdits(numbers);
+        // S7 T11: a bookmark's target on a page the save first numbered names that number now.
+        if (outline_) {
+            eachHeld(*outline_, [&numbers](HeldItem& h) {
+                if (h.target.page >= 0) return;
+                if (const auto given = numbers.find(h.target.page); given != numbers.end()) h.target.page = given->second;
+            });
+        }
     }
     // S7 T2: the new pages are now objects the file holds; what the repair wrote joins the ledger -- an older
     // value it holds stays, being the one before RawPage changed anything -- and a value back as it was
@@ -1910,6 +1952,14 @@ core::Status MutationSinkImpl::adopt(std::string_view bytes)
     block_ = AnnotationBlock{};
     diskFiles_ = std::move(files).value();
     desiredFiles_.reset();
+    // S7 T11: a created item keeps the number the save gave it; a target on a page the save first numbered follows it; and
+    // what was read of the old revision goes.
+    for (const auto& [key, number] : outlineComposed_) outlineOnDisk_.insert_or_assign(key, number);
+    outlineComposed_.clear();
+    outlineRootComposed_.reset();
+    diskOutline_.reset();
+    named_.reset();
+    looseItems_.clear();
     compressed_.clear();   // every carried file is now the file's: its bytes are read from the stream
     for (auto it = desired_.begin(); it != desired_.end();) {
         if (it->second == walk_.pages[static_cast<std::size_t>(it->first)].effectiveRotate())
@@ -2335,7 +2385,7 @@ core::Result<core::DuplicatedPages> MutationSinkImpl::duplicatePages(const std::
                         dictionary = dictionaryOnDisk(copy.source);
                     }
                     if (!dictionary) return sinkError(core::ErrorCode::NotFound, "error.pdf.annotationUnknown", page);
-                    CopySource made{std::move(*dictionary), std::nullopt, copy.copy, QString()};
+                    CopySource made{std::move(*dictionary), std::nullopt, copy.copy, QString(), std::nullopt};
                     if (const auto edit = edits_.find(copy.source); edit != edits_.end()) made.edit = edit->second;
                     copies_.insert_or_assign(nm, std::move(made));
                 }
@@ -2554,6 +2604,25 @@ core::Result<cos::CosObject> MutationSinkImpl::copiedDictionary(const QString& n
             dictionary = AnnotationOps::withoutEntry(dictionary, "Dest");
             dictionary = AnnotationOps::withoutEntry(dictionary, "A");
         }
+        // S7 T11 (D7-11): a contents page's link to a page of this document -- by reference to that page's object, or
+        // no destination at all once the document no longer has it (D7-2), as any link.
+        if (copy.localTarget) {
+            long long number = *copy.localTarget;
+            bool present = false;
+            for (const PageEntry& entry : walk_.pages) present = present || entry.number == number;
+            if (number < 0) {
+                const auto given = composeNumbers_.find(number);
+                number = given != composeNumbers_.end() ? given->second : 0;
+            }
+            const cos::CosObject& dest = dictionary.get("Dest");
+            if (present && number > 0 && dest.isArray() && !dest.items().empty()) {
+                std::vector<cos::CosObject> items = dest.items();
+                items.front() = cos::CosObject::makeReference(number, generationOf(table_, number));
+                dictionary = AnnotationOps::withEntry(dictionary, "Dest", cos::CosObject::makeArray(std::move(items)));
+            } else {
+                dictionary = AnnotationOps::withoutEntry(dictionary, "Dest");
+            }
+        }
     }
     if (copy.edit) {
         auto edited = editedFrom(dictionary, *copy.edit, delta, written, shared, "copy:" + nm.toStdString());
@@ -2658,6 +2727,11 @@ core::Result<MutationSinkImpl::Graph> MutationSinkImpl::parseGraph(const QByteAr
         if (frame.count(number) != 0 || out.pageObjects.count(number) != 0 || out.annotationObjects.count(number) != 0) continue;
         out.objects.push_back(number);
     }
+    // S7 T11 (D7-11): a contents page's payload names this document's pages by index (`core/doc/TableOfContents.h`).
+    if (root.isReference()) {
+        if (auto catalog = out.table.fetch(root.reference().number); catalog && catalog.value().object.isDictionary())
+            out.localTargets = catalog.value().object.get("RawPageLocalTargets").booleanValue(false);
+    }
     // Stage 7 guide I-07: the groups it uses, as the copier wrote them into its catalog -- each one an object it holds.
     if (root.isReference()) {
         if (auto catalog = out.table.fetch(root.reference().number); catalog && catalog.value().object.isDictionary()) {
@@ -2761,8 +2835,19 @@ MutationSinkImpl::Copies MutationSinkImpl::copiesOf(const QString& key, Graph& g
                 listed.nm = copy.nm;
                 if (sourced.insert(copy.nm).second) {
                     auto dictionary = graph.table.fetch(source.id.object);
-                    if (dictionary && dictionary.value().object.isDictionary())
-                        out.sources.emplace_back(copy.nm, CopySource{withoutSpans(dictionary.value().object), std::nullopt, copy, key});
+                    if (dictionary && dictionary.value().object.isDictionary()) {
+                        CopySource made{withoutSpans(dictionary.value().object), std::nullopt, copy, key, std::nullopt};
+                        // S7 T11 (D7-11): a link naming a page of THIS document by index -- its page object NOW, before
+                        // the insert moves anything; a page past the last names none.
+                        if (graph.localTargets) {
+                            const cos::CosObject& dest = made.dictionary.get("Dest");
+                            if (dest.isArray() && !dest.items().empty() && dest.items().front().isInteger()) {
+                                const long long index = dest.items().front().integerValue();
+                                made.localTarget = index >= 0 && index < pageCount() ? walk_.pages[static_cast<std::size_t>(index)].number : 0;
+                            }
+                        }
+                        out.sources.emplace_back(copy.nm, std::move(made));
+                    }
                 }
             }
             core::AnnotationFact fact = entry.fact;
@@ -3677,6 +3762,383 @@ void MutationSinkImpl::renumberPageEdits(const std::map<long long, long long>& n
             if (const auto now = numbers.find(number); now != numbers.end()) number = now->second;
         }
     }
+}
+
+
+// ==========================================================================================
+// The outline (Stage 7 T11) -- see the header
+// ==========================================================================================
+
+
+const OutlineReader::Reading& MutationSinkImpl::diskOutline()
+{
+    if (!diskOutline_) {
+        const ReferenceRepair::View view(table_, ledger_);
+        diskOutline_ = OutlineReader::read(view);
+    }
+    return *diskOutline_;
+}
+
+const std::map<std::string, cos::CosObject>& MutationSinkImpl::namedDestinations()
+{
+    if (!named_) {
+        const ReferenceRepair::View view(table_, ledger_);
+        named_ = ReferenceRepair::namedArrays(view);
+    }
+    return *named_;
+}
+
+long long MutationSinkImpl::outlineNumber(const core::OutlineItemId& id) const
+{
+    if (id.object > 0) return id.object;
+    const auto found = outlineOnDisk_.find(id.created);
+    return found == outlineOnDisk_.end() ? -1 : found->second;
+}
+
+const std::pair<core::OutlineItem, OutlineReader::Facts>* MutationSinkImpl::diskItem(const core::OutlineItemId& id)
+{
+    const long long number = outlineNumber(id);
+    if (number <= 0) return nullptr;
+    auto loose = looseItems_.find(number);
+    if (loose == looseItems_.end()) {
+        const ReferenceRepair::View view(table_, ledger_);
+        loose = looseItems_.emplace(number, OutlineReader::readItem(view, number, namedDestinations())).first;
+    }
+    return loose->second ? &*loose->second : nullptr;
+}
+
+std::map<long long, int> MutationSinkImpl::placedPages() const
+{
+    std::map<long long, int> out;
+    for (std::size_t at = 0; at < walk_.pages.size(); ++at) out.emplace(walk_.pages[at].number, static_cast<int>(at));
+    return out;
+}
+
+std::pair<core::OutlineAction, core::Destination> MutationSinkImpl::outlineView(const core::OutlineItemId& id,
+                                                                                const OutlineTarget& target,
+                                                                                const std::map<long long, int>& placed)
+{
+    if (target.disk) {
+        const auto* disk = diskItem(id);
+        if (disk == nullptr) return {};
+        core::OutlineItem item = disk->first;
+        OutlineReader::resolveItem(item, disk->second, placed);
+        return {item.action, item.destination};
+    }
+    core::OutlineAction action = target.action;
+    core::Destination destination;
+    if (action.kind == core::OutlineAction::Kind::GoTo) {
+        const auto found = placed.find(target.page);
+        action.destination.pageIndex = target.page != -1 && found != placed.end() ? found->second : -1;
+        destination = action.destination;
+    } else if (action.kind == core::OutlineAction::Kind::GoToNamed) {
+        const auto& named = namedDestinations();
+        const auto found = named.find(AnnotationOps::textString(action.name).text());
+        action.destination.pageIndex = -1;
+        if (found != named.end() && found->second.isArray() && !found->second.items().empty()) {
+            const cos::CosObject& first = found->second.items().front();
+            if (first.isReference()) {
+                const auto page = placed.find(first.reference().number);
+                action.destination.pageIndex = page != placed.end() ? page->second : -1;
+            } else if (first.isInteger()) {
+                action.destination.pageIndex = static_cast<int>(first.integerValue());
+            }
+        }
+        destination = action.destination;
+    }
+    return {action, destination};
+}
+
+core::Status MutationSinkImpl::setOutline(const core::Outline& model)
+{
+    if (core::Status valid = model.validate(); !valid) return valid;
+    const std::map<long long, int> placed = placedPages();
+    std::map<core::OutlineItemId, OutlineTarget> held;
+    if (outline_) eachHeld(*outline_, [&held](const HeldItem& item) { held.emplace(item.properties.id, item.target); });
+
+    core::Status failure;
+    const auto same = [](const std::pair<core::OutlineAction, core::Destination>& view, const core::OutlineItem& item) {
+        return view.first == item.action && view.second == item.destination;
+    };
+    std::function<std::vector<HeldItem>(const std::vector<core::OutlineItem>&)> build =
+        [&](const std::vector<core::OutlineItem>& items) {
+            std::vector<HeldItem> out;
+            out.reserve(items.size());
+            for (const core::OutlineItem& item : items) {
+                if (!failure) return out;
+                HeldItem h;
+                h.properties = item;
+                h.properties.children.clear();
+                // THE DISK'S TARGET FIRST, then the one this sink holds: a revert to what the file writes is the file's
+                // bytes again, so an undo before a save writes nothing.
+                const OutlineTarget disk;
+                const auto previous = held.find(item.id);
+                if (diskItem(item.id) != nullptr && same(outlineView(item.id, disk, placed), item)) {
+                    h.target = disk;
+                } else if (previous != held.end() && same(outlineView(item.id, previous->second, placed), item)) {
+                    h.target = previous->second;
+                } else {
+                    // A TARGET THE MODEL SET: its page resolved NOW, by the index the model gave it.
+                    OutlineTarget target;
+                    target.disk = false;
+                    target.action = item.action;
+                    if (item.action.kind == core::OutlineAction::Kind::GoTo) {
+                        const int index = item.action.destination.pageIndex;
+                        if (index >= pageCount()) {
+                            failure = outlineError(core::ErrorCode::InvalidArgument, "error.outline.badDestination",
+                                                   QString::number(index));
+                            return out;
+                        }
+                        target.page = index >= 0 ? walk_.pages[static_cast<std::size_t>(index)].number : -1;
+                    }
+                    // Whether it can be written at all -- asked now, so a refusal changes nothing.
+                    auto writable = OutlineOps::withTarget(cos::CosObject::makeDictionary({}), target.action,
+                                                           cos::CosObject::makeReference(1, 0));
+                    if (!writable) {
+                        failure = writable.error();
+                        return out;
+                    }
+                    h.target = std::move(target);
+                }
+                h.children = build(item.children);
+                out.push_back(std::move(h));
+            }
+            return out;
+        };
+    std::vector<HeldItem> tree = build(model.roots());
+    if (!failure) return failure;
+    outline_ = std::move(tree);
+    return core::Status{};
+}
+
+core::Outline MutationSinkImpl::outlineNow()
+{
+    const std::map<long long, int> placed = placedPages();
+    if (!outline_) {
+        OutlineReader::Reading reading = diskOutline();
+        OutlineReader::resolve(reading, placed);
+        return std::move(reading.outline);
+    }
+    std::function<std::vector<core::OutlineItem>(const std::vector<HeldItem>&)> build = [&](const std::vector<HeldItem>& items) {
+        std::vector<core::OutlineItem> out;
+        out.reserve(items.size());
+        for (const HeldItem& h : items) {
+            core::OutlineItem item = h.properties;
+            const auto [action, destination] = outlineView(item.id, h.target, placed);
+            item.action = action;
+            item.destination = destination;
+            item.children = build(h.children);
+            out.push_back(std::move(item));
+        }
+        return out;
+    };
+    core::Outline outline;
+    outline.roots() = build(*outline_);
+    return outline;
+}
+
+core::Status MutationSinkImpl::composeOutline(cos::ObjectDelta& delta, std::map<long long, cos::CosObject>& pending)
+{
+    outlineComposed_.clear();
+    outlineRootComposed_.reset();
+    if (!outline_) return core::Status{};
+    const OutlineReader::Reading& disk = diskOutline();
+
+    // What each object is now: what another part of this compose made of it -- the repair, which ran first -- else the
+    // disk's. An item is written only where what is composed here differs from that.
+    const auto current = [&](long long number) -> std::optional<cos::CosObject> {
+        if (const auto held = pending.find(number); held != pending.end()) return held->second;
+        auto fetched = table_.fetch(number);
+        if (!fetched || !fetched.value().object.isDictionary()) return std::nullopt;
+        cos::CosObject out = fetched.value().object;
+        out.clearSpansRecursively();
+        return out;
+    };
+    const auto reference = [this](long long number) {
+        return cos::CosObject::makeReference(number, generationOf(table_, number));
+    };
+
+    // Every item's number: its object, the one a save gave it, or one of this compose's, by name.
+    std::map<core::OutlineItemId, long long> numberOf;
+    std::set<long long> fresh;
+    eachHeld(*outline_, [&](const HeldItem& h) {
+        long long number = outlineNumber(h.properties.id);
+        if (number <= 0) {
+            number = delta.reserve("outline:" + h.properties.id.created.toStdString());
+            fresh.insert(number);
+            outlineComposed_.insert_or_assign(h.properties.id.created, number);
+        }
+        numberOf.emplace(h.properties.id, number);
+    });
+    long long root = disk.root;
+    bool newRoot = false;
+    if (root < 0) {
+        if (outline_->empty() && !disk.rootDictionary) return core::Status{};
+        root = delta.reserve("outline:root");
+        newRoot = true;
+        outlineRootComposed_ = root;
+    }
+
+    std::map<long long, const core::OutlineItem*> diskItems;
+    eachRead(disk.outline.roots(), [&diskItems](const core::OutlineItem& item) { diskItems.emplace(item.id.object, &item); });
+    std::set<long long> present;
+    for (const PageEntry& page : walk_.pages) present.insert(page.number);
+    const auto visibleBelow = [](const HeldItem& top) {
+        std::function<long long(const HeldItem&)> count = [&count](const HeldItem& h) {
+            long long n = 0;
+            for (const HeldItem& child : h.children) n += 1 + (child.properties.openByDefault ? count(child) : 0);
+            return n;
+        };
+        return count(top);
+    };
+
+    core::Status failure;
+    // Each level after its children, so an item knows whether its whole subtree is as the disk has it -- which keeps a
+    // producer's `/Count` where nothing under it moved. Answers whether every item of `items` is.
+    std::function<bool(const std::vector<HeldItem>&, long long)> level = [&](const std::vector<HeldItem>& items, long long parent) {
+        bool allSame = true;
+        for (std::size_t i = 0; i < items.size() && failure; ++i) {
+            const HeldItem& h = items[i];
+            const long long n = numberOf.at(h.properties.id);
+            const bool childrenSame = level(h.children, n);
+            if (!failure) return false;
+            const auto onDisk = diskItems.find(n);
+            bool same = childrenSame && onDisk != diskItems.end()
+                        && onDisk->second->openByDefault == h.properties.openByDefault
+                        && onDisk->second->children.size() == h.children.size();
+            for (std::size_t k = 0; same && k < h.children.size(); ++k)
+                same = onDisk->second->children[k].id.object == numberOf.at(h.children[k].properties.id);
+
+            const bool created = fresh.count(n) != 0;
+            cos::CosObject base;
+            if (created) {
+                base = cos::CosObject::makeDictionary({});
+            } else {
+                std::optional<cos::CosObject> now = current(n);
+                if (!now) {
+                    failure = outlineError(core::ErrorCode::Corrupted, "error.outline.itemUnreadable", QString::number(n));
+                    return false;
+                }
+                base = std::move(*now);
+            }
+            cos::CosObject dictionary = OutlineOps::withProperties(base, h.properties);
+            if (!h.target.disk) {
+                std::optional<cos::CosObject> page;
+                if (h.target.action.kind == core::OutlineAction::Kind::GoTo && h.target.page != -1
+                    && present.count(h.target.page) != 0) {
+                    long long number = h.target.page;
+                    if (number < 0) {
+                        const auto given = composeNumbers_.find(number);
+                        number = given != composeNumbers_.end() ? given->second : -1;
+                    }
+                    if (number > 0) page = reference(number);
+                }
+                auto targeted = OutlineOps::withTarget(dictionary, h.target.action, std::move(page));
+                if (!targeted) {
+                    failure = targeted.error();
+                    return false;
+                }
+                dictionary = std::move(targeted).value();
+            }
+            const auto link = [&](const char* key, long long number) {
+                dictionary = number > 0 ? AnnotationOps::withEntry(dictionary, key, reference(number))
+                                        : AnnotationOps::withoutEntry(dictionary, key);
+            };
+            link("Parent", parent);
+            link("Prev", i > 0 ? numberOf.at(items[i - 1].properties.id) : -1);
+            link("Next", i + 1 < items.size() ? numberOf.at(items[i + 1].properties.id) : -1);
+            link("First", h.children.empty() ? -1 : numberOf.at(h.children.front().properties.id));
+            link("Last", h.children.empty() ? -1 : numberOf.at(h.children.back().properties.id));
+            if (h.children.empty()) {
+                if (!same) dictionary = AnnotationOps::withoutEntry(dictionary, "Count");
+            } else if (!same || !base.has("Count")) {
+                const long long below = visibleBelow(h);
+                dictionary = AnnotationOps::withEntry(dictionary, "Count",
+                                                      cos::CosObject::makeInteger(h.properties.openByDefault ? below : -below));
+            }
+            if (created) {
+                if (!delta.define(n, std::move(dictionary))) {
+                    failure = outlineError(core::ErrorCode::Corrupted, "error.outline.itemUnreadable", QString::number(n));
+                    return false;
+                }
+            } else if (!(dictionary == base)) {
+                pending.insert_or_assign(n, std::move(dictionary));
+            }
+            allSame = allSame && same;
+        }
+        return allSame;
+    };
+    bool topSame = level(*outline_, root);
+    if (!failure) return failure;
+    topSame = topSame && disk.outline.roots().size() == outline_->size();
+    for (std::size_t k = 0; topSame && k < outline_->size(); ++k)
+        topSame = disk.outline.roots()[k].id.object == numberOf.at((*outline_)[k].properties.id);
+
+    // The root: its first, last and count; a new one listed by the catalog.
+    cos::CosObject rootBase;
+    if (newRoot) {
+        rootBase = disk.rootDictionary ? *disk.rootDictionary
+                                       : cos::CosObject::makeDictionary({{"Type", cos::CosObject::makeName("Outlines")}});
+    } else {
+        std::optional<cos::CosObject> now = current(root);
+        if (!now) return outlineError(core::ErrorCode::Corrupted, "error.outline.itemUnreadable", QString::number(root));
+        rootBase = std::move(*now);
+    }
+    cos::CosObject rootDictionary = rootBase;
+    if (outline_->empty()) {
+        rootDictionary = AnnotationOps::withoutEntry(AnnotationOps::withoutEntry(rootDictionary, "First"), "Last");
+        if (!topSame) rootDictionary = AnnotationOps::withoutEntry(rootDictionary, "Count");
+    } else {
+        rootDictionary = AnnotationOps::withEntry(rootDictionary, "First", reference(numberOf.at(outline_->front().properties.id)));
+        rootDictionary = AnnotationOps::withEntry(rootDictionary, "Last", reference(numberOf.at(outline_->back().properties.id)));
+        if (!topSame || !rootBase.has("Count")) {
+            long long visible = 0;
+            for (const HeldItem& h : *outline_) visible += 1 + (h.properties.openByDefault ? visibleBelow(h) : 0);
+            rootDictionary = AnnotationOps::withEntry(rootDictionary, "Count", cos::CosObject::makeInteger(visible));
+        }
+    }
+    if (newRoot) {
+        if (!delta.define(root, std::move(rootDictionary)))
+            return outlineError(core::ErrorCode::Corrupted, "error.outline.itemUnreadable", QString::number(root));
+        const cos::CosObject& rootRef = table_.trailer().get("Root");
+        if (!rootRef.isReference()) return outlineError(core::ErrorCode::Corrupted, "error.outline.itemUnreadable", QStringLiteral("catalog"));
+        std::optional<cos::CosObject> catalog = current(rootRef.reference().number);
+        if (!catalog) return outlineError(core::ErrorCode::Corrupted, "error.outline.itemUnreadable", QStringLiteral("catalog"));
+        pending.insert_or_assign(rootRef.reference().number,
+                                 AnnotationOps::withEntry(*catalog, "Outlines", cos::CosObject::makeReference(root, 0)));
+    } else if (!(rootDictionary == rootBase)) {
+        pending.insert_or_assign(root, std::move(rootDictionary));
+    }
+    return core::Status{};
+}
+
+core::Status MutationSinkImpl::reconcileOutline(cos::XrefTable& written) const
+{
+    if (!outline_) return core::Status{};
+    const ReferenceRepair::Ledger none;
+    const ReferenceRepair::View view(written, none);
+    const OutlineReader::Reading reading = OutlineReader::read(view);
+    const auto mismatch = [](QString where) {
+        return core::Error{core::ErrorCode::Corrupted, QLatin1String("error.save.verifyFailed"), QStringLiteral("outline:") + where};
+    };
+    if (reading.truncated) return mismatch(QStringLiteral("truncated"));
+    const auto numberOf = [this](const core::OutlineItemId& id) {
+        if (id.object > 0) return id.object;
+        if (const auto composed = outlineComposed_.find(id.created); composed != outlineComposed_.end()) return composed->second;
+        if (const auto saved = outlineOnDisk_.find(id.created); saved != outlineOnDisk_.end()) return saved->second;
+        return -1LL;
+    };
+    std::function<core::Status(const std::vector<HeldItem>&, const std::vector<core::OutlineItem>&)> compare =
+        [&](const std::vector<HeldItem>& want, const std::vector<core::OutlineItem>& got) -> core::Status {
+            if (want.size() != got.size()) return mismatch(QStringLiteral("shape"));
+            for (std::size_t i = 0; i < want.size(); ++i) {
+                if (numberOf(want[i].properties.id) != got[i].id.object) return mismatch(want[i].properties.id.toString());
+                if (want[i].properties.title != got[i].title) return mismatch(QStringLiteral("title ") + want[i].properties.id.toString());
+                if (core::Status inner = compare(want[i].children, got[i].children); !inner) return inner;
+            }
+            return core::Status{};
+        };
+    return compare(*outline_, reading.outline.roots());
 }
 
 } // namespace rawpage::pdf::ops

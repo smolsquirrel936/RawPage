@@ -78,6 +78,7 @@
 #include "core/Result.h"
 #include "core/Geometry.h"
 #include "core/doc/CopiedPages.h"
+#include "core/doc/TableOfContents.h"
 #include "core/doc/PageMap.h"
 
 #include <cstddef>
@@ -137,6 +138,13 @@ public:
     // The pages `copyFile` would find in `bytes` -- refused as it refuses (S7 T8: `IDocumentBackend::filePageCount`).
     static core::Result<int> countFile(std::string_view bytes);
     static core::Result<core::CopiedPages> blankPages(core::PdfSize size, int count);
+
+    // STAGE 7 T11 (D7-11): a CONTENTS PAGE -- or as many as its entries need -- as the payload one `InsertPagesCommand`
+    // carries: the heading and each entry drawn in D6-7's faces (a title none can show refused by its character,
+    // `error.edit.typedCharacterRefused`), indented by depth, dot leaders to the target's label, and a `Link` per entry
+    // naming its target by INDEX in the document before the insert, the payload marked so the sink makes each a
+    // reference (`core/doc/TableOfContents.h`). Refused for no entries (`error.outline.nothingToList`).
+    static core::Result<core::CopiedPages> tableOfContents(const core::TableOfContents& toc);
 };
 
 } // namespace rawpage::pdf::ops

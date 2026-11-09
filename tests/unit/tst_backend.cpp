@@ -146,6 +146,22 @@ public:
     {
         return core::notImplementedError(core::BackendInterface::DocumentBackend, "mergeFiles");
     }
+    core::Status structureHeadings(core::DocumentHandle, int, std::vector<core::HeadingLine>&) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "structureHeadings");
+    }
+    core::Result<std::vector<core::OutlineItem>> readOutlineExchange(const QString&, int, const QString&) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "readOutlineExchange");
+    }
+    core::Status writeOutlineExchange(const std::vector<core::OutlineItem>&, core::OutlineFormat, const QString&, bool) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "writeOutlineExchange");
+    }
+    core::Result<core::CopiedPages> tableOfContents(const core::TableOfContents&) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "tableOfContents");
+    }
     const core::PageTransitions* pageTransitions(core::DocumentHandle) const override
     {
         return &transitions_;

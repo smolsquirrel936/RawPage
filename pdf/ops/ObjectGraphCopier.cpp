@@ -2,10 +2,14 @@
 
 #include "pdf/ops/ObjectGraphCopier.h"
 
+#include "core/doc/TableOfContents.h"
+#include "core/doc/TypedText.h"
 #include "pdf/cos/IncrementalWriter.h"
 #include "pdf/cos/XrefRepair.h"
 #include "pdf/cos/XrefTable.h"
+#include "pdf/ops/AppearanceStreamBuilder.h"
 #include "pdf/ops/EmbeddedFileReader.h"
+#include "pdf/ops/OutlineOps.h"
 #include "pdf/ops/PageOps.h"
 #include "pdf/ops/ReferenceRepair.h"
 
@@ -940,6 +944,183 @@ core::Result<core::CopiedPages> ObjectGraphCopier::blankPages(core::PdfSize size
     auto copied = blank(size.width, size.height, count);
     if (!copied) return copied.error();
     return carried(std::move(copied).value());
+}
+
+
+// ==========================================================================================
+// A contents page (Stage 7 T11, D7-11) -- see `core/doc/TableOfContents.h`
+// ==========================================================================================
+
+namespace {
+
+std::string hexOf(const std::string& bytes)
+{
+    static const char* digits = "0123456789ABCDEF";
+    std::string out = "<";
+    for (const char c : bytes) {
+        out += digits[(static_cast<unsigned char>(c) >> 4) & 0xF];
+        out += digits[static_cast<unsigned char>(c) & 0xF];
+    }
+    return out + ">";
+}
+
+std::string pdfNumber(double value)
+{
+    char buffer[32];
+    std::snprintf(buffer, sizeof buffer, "%.2f", value);
+    return buffer;
+}
+
+// One line of runs drawn from (x, y): each run in its own face, the next where it ends.
+void drawRuns(std::string& content, const std::vector<core::TypedRun>& runs, double x, double y, double size)
+{
+    for (const core::TypedRun& run : runs) {
+        const std::string codes = AppearanceStreamBuilder::encodeText(run.font, run.text);
+        if (!codes.empty()) {
+            content += "BT /" + std::string(core::typedFontSpec(run.font).resource) + " " + pdfNumber(size) + " Tf "
+                       + pdfNumber(x) + " " + pdfNumber(y) + " Td " + hexOf(codes) + " Tj ET\n";
+        }
+        x += run.width;
+    }
+}
+
+QString singleLine(QString text)
+{
+    for (QChar& c : text) {
+        if (c == QLatin1Char('\n') || c == QLatin1Char('\r') || c == QLatin1Char('\t')) c = QLatin1Char(' ');
+    }
+    return text;
+}
+
+} // namespace
+
+core::Result<core::CopiedPages> ObjectGraphCopier::tableOfContents(const core::TableOfContents& toc)
+{
+    if (toc.entries.empty()) return copyError(core::ErrorCode::InvalidArgument, "error.outline.nothingToList");
+    double width = toc.pageSize.width;
+    double height = toc.pageSize.height;
+    // A page too small for a line of contents is given US Letter's; one past Annex C's bound is refused.
+    if (!std::isfinite(width) || !std::isfinite(height) || width > 14400.0 || height > 14400.0)
+        return copyError(core::ErrorCode::InvalidArgument, "error.pdf.pageSizeOutOfRange");
+    if (width < 288.0 || height < 288.0) {
+        width = 612.0;
+        height = 792.0;
+    }
+    constexpr double kMargin = 54.0;
+    constexpr double kHeadingSize = 18.0;
+    constexpr double kSize = 11.0;
+    constexpr double kLeading = 16.0;
+    constexpr double kIndent = 18.0;
+    const double dot = core::helveticaWidth(static_cast<std::uint8_t>('.')) * kSize / 1000.0;
+
+    // EVERY TITLE LAID OUT FIRST, in D6-7's faces: one no face can show refuses the page by its character (Q5(e)).
+    auto heading = core::layoutTypedText(singleLine(toc.heading), kHeadingSize, std::nullopt, toc.hanPreference);
+    if (!heading) return heading.error();
+    struct Laid {
+        std::vector<core::TypedRun> title;
+        std::vector<core::TypedRun> label;
+        double titleWidth = 0.0;
+        double labelWidth = 0.0;
+    };
+    std::vector<Laid> laid;
+    std::set<core::TypedFont> faces{core::TypedFont::Helvetica};
+    for (const core::TypedRun& run : heading.value().lines.front().runs) faces.insert(run.font);
+    for (const core::TableOfContentsEntry& entry : toc.entries) {
+        auto title = core::layoutTypedText(singleLine(entry.title), kSize, std::nullopt, toc.hanPreference);
+        if (!title) return title.error();
+        auto label = core::layoutTypedText(singleLine(entry.label), kSize, std::nullopt, toc.hanPreference);
+        if (!label) return label.error();
+        Laid line;
+        line.title = title.value().lines.front().runs;
+        line.titleWidth = title.value().lines.front().width;
+        line.label = label.value().lines.front().runs;
+        line.labelWidth = label.value().lines.front().width;
+        for (const auto* runs : {&line.title, &line.label}) {
+            for (const core::TypedRun& run : *runs) faces.insert(run.font);
+        }
+        laid.push_back(std::move(line));
+    }
+
+    // How many lines each page holds: the first under its heading.
+    const int firstPage = std::max(1, static_cast<int>((height - 2 * kMargin - 2 * kHeadingSize) / kLeading));
+    const int laterPages = std::max(1, static_cast<int>((height - 2 * kMargin) / kLeading));
+    int pages = 1;
+    for (int remaining = static_cast<int>(laid.size()) - firstPage; remaining > 0; remaining -= laterPages) ++pages;
+    if (pages > kMaxPages) return copyError(core::ErrorCode::InvalidArgument, "error.pdf.pageOutOfRange", pages);
+
+    std::map<long long, Made> made;
+    addFrame(made, pages, {{"RawPageLocalTargets", CosObject::makeBoolean(true)}});
+    long long next = kNode + 1 + pages;
+    CollectedAppearanceObjects fonts(next);
+    std::vector<CosObject::Entry> fontResources;
+    for (const core::TypedFont face : faces) {
+        const cos::CosRef at = AppearanceStreamBuilder::fontObject(face, fonts);
+        fontResources.push_back({core::typedFontSpec(face).resource, CosObject::makeReference(at.number, at.generation)});
+    }
+    for (const CollectedAppearanceObjects::Entry& entry : fonts.entries()) made[entry.at.number] = Made{entry.object, entry.data};
+    next += static_cast<long long>(fonts.entries().size());
+
+    std::size_t at = 0;
+    for (int page = 0; page < pages; ++page) {
+        std::string content = "q 0 g\n";
+        double y = height - kMargin - kSize;
+        if (page == 0) {
+            y = height - kMargin - kHeadingSize;
+            drawRuns(content, heading.value().lines.front().runs, kMargin, y, kHeadingSize);
+            y -= 2 * kHeadingSize;
+        }
+        std::vector<CosObject> annots;
+        const std::size_t end = std::min(laid.size(), at + static_cast<std::size_t>(page == 0 ? firstPage : laterPages));
+        std::vector<std::pair<long long, CosObject>> links;
+        for (; at < end; ++at, y -= kLeading) {
+            const core::TableOfContentsEntry& entry = toc.entries[at];
+            const Laid& line = laid[at];
+            const double x = kMargin + kIndent * std::min(entry.depth, 12);
+            drawRuns(content, line.title, x, y, kSize);
+            const double labelX = width - kMargin - line.labelWidth;
+            drawRuns(content, line.label, labelX, y, kSize);
+            // THE DOT LEADERS between the title's end and the label, a point's gap each side.
+            const double from = x + line.titleWidth + 4.0;
+            const int dots = dot > 0.0 ? static_cast<int>((labelX - 4.0 - from) / dot) : 0;
+            if (dots > 0)
+                content += "BT /" + std::string(core::typedFontSpec(core::TypedFont::Helvetica).resource) + " " + pdfNumber(kSize)
+                           + " Tf " + pdfNumber(from) + " " + pdfNumber(y) + " Td (" + std::string(static_cast<std::size_t>(dots), '.')
+                           + ") Tj ET\n";
+            // THE LINK: the line's whole width, to the entry's page by its index BEFORE the insert -- the sink makes it a
+            // reference when the insert runs (see `core/doc/TableOfContents.h`).
+            const long long number = next++;
+            links.emplace_back(number, CosObject::makeDictionary({
+                {"Type", CosObject::makeName("Annot")},
+                {"Subtype", CosObject::makeName("Link")},
+                {"Rect", CosObject::makeArray({CosObject::makeReal(x - 2.0), CosObject::makeReal(y - 3.0),
+                                               CosObject::makeReal(width - kMargin + 2.0), CosObject::makeReal(y + kSize)})},
+                {"Border", CosObject::makeArray({CosObject::makeInteger(0), CosObject::makeInteger(0), CosObject::makeInteger(0)})},
+                {"Dest", OutlineOps::destinationArray(CosObject::makeInteger(entry.destination.pageIndex), entry.destination)},
+            }));
+            annots.push_back(CosObject::makeReference(number, 0));
+        }
+        content += "Q\n";
+        const long long contents = next++;
+        made[contents] = Made{CosObject::makeStream(std::vector<CosObject::Entry>{}, cos::CosStreamData{}), content};
+        for (auto& [number, link] : links) made[number] = Made{std::move(link), std::nullopt};
+        std::vector<CosObject::Entry> pageEntries{
+            {"Type", CosObject::makeName("Page")},
+            {"Parent", CosObject::makeReference(kNode, 0)},
+            {"MediaBox", CosObject::makeArray({CosObject::makeInteger(0), CosObject::makeInteger(0), CosObject::makeReal(width),
+                                               CosObject::makeReal(height)})},
+            {"Resources", CosObject::makeDictionary({{"Font", CosObject::makeDictionary(fontResources)}})},
+            {"Contents", CosObject::makeReference(contents, 0)},
+            {"Rotate", CosObject::makeInteger(0)},
+        };
+        if (!annots.empty()) pageEntries.push_back({"Annots", CosObject::makeArray(std::move(annots))});
+        made[kNode + 1 + page] = Made{CosObject::makeDictionary(std::move(pageEntries)), std::nullopt};
+    }
+    auto payload = writePayload(made, pages, Options{}.maxBytes);
+    if (!payload) return payload.error();
+    core::CopiedPages out;
+    out.graph = QByteArray(payload.value().data(), static_cast<qsizetype>(payload.value().size()));
+    out.pageCount = pages;
+    return out;
 }
 
 } // namespace rawpage::pdf::ops

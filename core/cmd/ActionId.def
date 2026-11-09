@@ -476,6 +476,12 @@ RAWPAGE_ACTION(BookmarkSetDestination, "bookmark.setDestination", Bookmarks, "ac
 RAWPAGE_ACTION(BookmarkGenerate,       "bookmark.generate",       Global,    "action.bookmark.generate")
 RAWPAGE_ACTION(BookmarkRename,         "bookmark.rename",         Bookmarks, "action.bookmark.rename")
 RAWPAGE_ACTION(BookmarkDelete,         "bookmark.delete",         Bookmarks, "action.bookmark.delete")
+// Stage 7 T11 (`Stage7-Assembly-Plan.md` §4: *minted where a surface needs one §8 does not*): a bookmark's properties --
+// colour, style, open state, action -- the tree to and from a file, and the contents page (D7-11).
+RAWPAGE_ACTION(BookmarkProperties,     "bookmark.properties",     Bookmarks, "action.bookmark.properties")
+RAWPAGE_ACTION(BookmarkImport,         "bookmark.import",         Global,    "action.bookmark.import")
+RAWPAGE_ACTION(BookmarkExport,         "bookmark.export",         Global,    "action.bookmark.export")
+RAWPAGE_ACTION(BookmarkTableOfContents, "bookmark.tableOfContents", Global,  "action.bookmark.tableOfContents")
 
 RAWPAGE_ACTION(TagRetype,              "tag.retype",              Global, "action.tag.retype")
 RAWPAGE_ACTION(TagMove,                "tag.move",                Global, "action.tag.move")

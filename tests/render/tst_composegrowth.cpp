@@ -19,6 +19,7 @@
 #include "TextOracle.h"
 #include "core/cmd/CommandJournal.h"
 #include "core/cmd/commands/AnnotationCommands.h"
+#include "core/cmd/commands/BookmarkCommands.h"
 #include "core/cmd/commands/PageCommands.h"
 #include "core/doc/Annotation.h"
 #include "core/doc/CopiedPages.h"
@@ -232,14 +233,17 @@ TEST_CASE("a page command after thousands of unsaved objects builds only what it
 TEST_CASE("a one-page move after thousands of unsaved copied objects -- the guide's 3.7 reading", "[compose][A-35][run-serial]")
 {
     // §3.7: `journal.run`'s p95 and maximum for a one-page move after 0, 300 and 3,000 unsaved COPIED objects -- inserts
-    // from `text-900.pdf` (T5's `InsertPagesCommand`). Its bookmark-rename half is T11's. Graded and REPORTED here, not
-    // asserted: *not taken* is a result the guide records with its figures, not a red suite (A-35's own words).
+    // from `text-900.pdf` (T5's `InsertPagesCommand`) -- and, since Stage 7 T11, a BOOKMARK RENAME after the same updates,
+    // the other half: one bookmark made before the inserts, renamed ten times. Graded and REPORTED here, not asserted:
+    // *not taken* is a result the guide records with its figures, not a red suite (A-35's own words).
     const QString source = rawpage::test_oracle::corpusPath("ordinary/text-900.pdf");
     struct Size {
         std::size_t copied = 0;      // objects the inserts' payloads hold, measured
         std::size_t unsaved = 0;     // the unsaved update the show wrote, measured
         std::size_t moveBuilt = 0;
         std::vector<double> moveMs;
+        std::size_t renameBuilt = 0;   // S7 T11
+        std::vector<double> renameMs;
     };
     std::vector<Size> sizes;
     // The pages copied: 0; then about 300 objects; then about 3,000 -- each inserted as ONE command, as a person's
@@ -249,6 +253,17 @@ TEST_CASE("a one-page move after thousands of unsaved copied objects -- the guid
         auto live = openLive("ordinary/text-900.pdf");
         core::CommandJournal& journal = *live->journal;
         Size size;
+        // S7 T11: the bookmark the rename half renames -- made first, so it is in every size's update alike.
+        core::OutlineItem bookmark;
+        bookmark.id = core::newBookmarkId(core::newBookmarkKey(), 0);
+        bookmark.title = QStringLiteral("Renamed");
+        core::Destination at;
+        at.pageIndex = 3;
+        at.fit = core::Destination::Fit::Fit;
+        bookmark.action = core::OutlineAction::goTo(at);
+        bookmark.destination = at;
+        REQUIRE(journal.run(std::make_unique<core::CreateBookmarkCommand>(core::OutlinePosition{}, std::vector<core::OutlineItem>{bookmark})));
+        REQUIRE(journal.settle());
         for (int insert = 0; insert < inserts; ++insert) {
             std::vector<int> set;
             for (int i = 0; i < pages; ++i) set.push_back(i);
@@ -271,9 +286,34 @@ TEST_CASE("a one-page move after thousands of unsaved copied objects -- the guid
             auto record = live->backend.reloadRecord(live->handle);
             size.moveBuilt = std::max(size.moveBuilt, record->lastObjectsWritten - record->lastObjectsReused);
         }
+        for (int i = 0; i < 10; ++i) {
+            REQUIRE(journal.settle());
+            core::EditBookmarkCommand::Properties properties =
+                core::EditBookmarkCommand::Properties::of(*journal.document().outline().find(bookmark.id));
+            properties.title = QStringLiteral("Renamed %1").arg(i);
+            QElapsedTimer timer;
+            timer.start();
+            REQUIRE(journal.run(std::make_unique<core::EditBookmarkCommand>(bookmark.id, properties)));
+            size.renameMs.push_back(static_cast<double>(timer.nsecsElapsed()) / 1e6);
+            auto record = live->backend.reloadRecord(live->handle);
+            size.renameBuilt = std::max(size.renameBuilt, record->lastObjectsWritten - record->lastObjectsReused);
+        }
         REQUIRE(journal.settle());
         sizes.push_back(std::move(size));
         live->backend.close(live->handle);
+    }
+    // S7 T11: the rename half, graded on the same bars.
+    {
+        bool renameTaken = true;
+        for (const Size& size : sizes) {
+            renameTaken = renameTaken && percentile(size.renameMs, 0.95) <= 16.667;
+            std::printf("A-35 [3.7, T11]: %zu unsaved copied objects: a bookmark rename builds %zu, journal.run p95 %.2f ms max %.2f\n",
+                        size.copied, size.renameBuilt, percentile(size.renameMs, 0.95), percentile(size.renameMs, 1.0));
+        }
+        const double renameGrowth = percentile(sizes[2].renameMs, 0.95) - percentile(sizes[0].renameMs, 0.95);
+        renameTaken = renameTaken && renameGrowth <= 2.0;
+        std::printf("A-35 [3.7, T11]: p95 at the largest size minus p95 at none: %+.2f ms -- the bookmark half of 3.7 %s\n",
+                    renameGrowth, renameTaken ? "TAKEN" : "NOT TAKEN");
     }
     const double atZero = percentile(sizes[0].moveMs, 0.95);
     bool taken = true;

@@ -75,6 +75,8 @@ QByteArray Document::modelHash() const
     }
     // The document-level attachments (Stage 6 T11): every file, every field, in the tree's order.
     buffer.append(attachments_.digest());
+    // The outline (Stage 7 T11): every item, every field, in order, and whether it may be edited.
+    buffer.append(outline_.digest());
     return QCryptographicHash::hash(buffer, QCryptographicHash::Sha256);
 }
 
@@ -106,6 +108,7 @@ Status Document::hydrate(const IDocumentBackend& backend, DocumentHandle handle)
     const DocumentId* id = backend.documentId(handle);
     const AnnotationStore* annotations = backend.annotations(handle);
     const Attachments* attachments = backend.attachments(handle);
+    const Outline* outline = backend.outline(handle);
 
     handle_ = handle;
     pages_ = *pages;
@@ -114,6 +117,8 @@ Status Document::hydrate(const IDocumentBackend& backend, DocumentHandle handle)
     id_ = id ? *id : DocumentId{};
     annotations_ = annotations ? *annotations : AnnotationStore{};
     attachments_ = attachments ? *attachments : Attachments{};
+    outline_ = outline ? *outline
+                       : Outline::refused(Error{ErrorCode::Unavailable, QLatin1String("error.edit.notAssessed"), QString()});
     revision_ = Revision::initial();
     return Status{};
 }

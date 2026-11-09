@@ -32,6 +32,7 @@
 #include "core/cmd/Command.h"
 #include "core/doc/AnnotationStore.h"
 #include "core/doc/CopiedPages.h"
+#include "core/doc/Outline.h"
 #include "core/doc/Page.h"
 #include "core/doc/PageMap.h"
 
@@ -39,6 +40,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <optional>
 #include <vector>
 
 namespace rawpage::core {
@@ -187,6 +189,9 @@ private:
     std::optional<PageMap> map_;
     std::vector<Page> removedPages_;                            // what revert puts back, from apply
     std::vector<AnnotationStore::PageListing> removedListings_;
+    // S7 T11 (D7-3): the outline before the removal, put back by the revert -- the removal leaves a destination to a
+    // removed page unresolved, and the inverse map cannot say which page it named.
+    std::optional<Outline> outlineBefore_;
 };
 
 class DuplicatePagesCommand final : public Command {

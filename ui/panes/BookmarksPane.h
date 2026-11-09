@@ -2,20 +2,18 @@
 // and D4-3.
 //
 // ===========================================================================================
-// IT NAVIGATES. IT DOES NOT EDIT, AND THE ABSENCE IS THE DESIGN RATHER THAN A GAP.
+// IT NAVIGATES, AND SINCE STAGE 7 T11 IT EDITS -- THROUGH COMMANDS ONLY (D7-10)
 // ===========================================================================================
-// `core/doc/Outline` arrived at T4 as a **read-only half** (D4-3): the tree is hydrated once, at
-// open, through the PDFium facade, because *we read through PDFium and write through our own code*
-// and a second first-party walk would be a second reader to keep in agreement. The editing half --
-// rename, delete, re-parent, new-from-view, set-destination, and the generators -- is **Stage 7's**,
-// and arrives with the `BookmarkCommands` that make each of them undoable.
+// `core/doc/Outline` arrived at Stage 4 T4 as a read-only half (D4-3). Since T11 the pane is handed the MODEL's
+// outline -- `Document::outline()`, the first-party reading where the two agree -- and every edit is a command
+// the window runs (`ui/shell/MainWindowBookmarks.cpp`): the pane never changes a title or moves a row itself. A
+// rename in place, a drop and the keys of §8's table become a REQUEST (`renameRequested`, `moveRequested`, or
+// an action the window registered), and the window hands the pane the model again once the journal has it --
+// keeping each row's expansion and the selection by the item's id, so an edit does not collapse the tree.
 //
-// So of §8's thirteen Bookmarks rows this pane services **five**: `Enter`, `→`, `←`, `*` and `/`.
-// The other eight stay unregistered, which means `ShortcutBinder` answers `NotImplemented` and
-// **leaves the key unconsumed** -- the state D4-1 requires and the one a case can assert. A handler
-// that did nothing would be indistinguishable from one that is broken (Stage 2's **I-11**), and a
-// pane that could rename a bookmark would be a `Commands.def` row this stage has decided not to
-// spend.
+// AN OUTLINE THAT CANNOT BE EDITED SAYS WHY: a document this build does not edit, or one whose two readings of
+// the outline disagree (D7-10, D6-3's rule) -- the header shows the reason, rows cannot be renamed or dragged,
+// and the window's editing actions are disabled for it.
 //
 // ===========================================================================================
 // A `QTreeWidget`, AND WHY THE ARROWS ARE NOT ITS BUSINESS HERE.
@@ -57,15 +55,12 @@
 
 #include "core/backend.h"
 #include "core/doc/Destinations.h"
+#include "core/doc/Outline.h"
 
 #include <QTreeWidget>
 
 #include <cstddef>
-
-namespace rawpage::core {
-class Outline;
-struct OutlineItem;
-}
+#include <map>
 
 namespace rawpage::ui {
 
@@ -76,12 +71,32 @@ public:
     explicit BookmarksPane(QWidget* parent = nullptr);
     ~BookmarksPane() override;
 
-    // `outline` is the backend's, hydrated at open and owned by it; null empties the pane. Passing
-    // an EMPTY outline is not the same thing and must not read as an error -- `core/backend.h` draws
-    // that distinction deliberately, and this pane shows its empty state for it.
-    void setDocument(core::DocumentHandle document, const core::Outline* outline);
+    // `outline` is the document's -- the model's where the tab has a journal, else the backend's; null empties the
+    // pane. Passing an EMPTY outline is not the same thing and must not read as an error -- `core/backend.h` draws
+    // that distinction deliberately, and this pane shows its empty state for it. `editable`: whether rows may be
+    // renamed and dragged; `readOnlyReason`, shown in the header when the outline itself refuses editing.
+    // HANDED AGAIN after every edit: the same document keeps each row's expansion and the selection, by id.
+    void setDocument(core::DocumentHandle document, const core::Outline* outline, bool editable = false,
+                     const QString& readOnlyReason = QString());
 
     core::DocumentHandle document() const noexcept { return document_; }
+    bool isEditable() const noexcept { return editable_; }
+    QString readOnlyReason() const { return readOnlyReason_; }
+
+    // ---- The editing half (Stage 7 T11) ------------------------------------------------------------
+    // The selected item's id; invalid when nothing is selected.
+    core::OutlineItemId selectedId() const;
+    // Selects the row of `id`, its ancestors expanded; false when no row has it.
+    bool selectId(const core::OutlineItemId& id);
+    // Opens the in-place editor on the selected row -- `F2`. Its commit is `renameRequested`, never a change here.
+    bool beginRename();
+    bool isRenaming() const;
+    // Whether the row of `id` is expanded now.
+    bool isExpanded(const core::OutlineItemId& id) const;
+    // THE DROP, as `dropEvent` makes it: the selected row dropped at viewport point `at` -- onto the row there (its last
+    // child), above or below it (its top or bottom quarter), or past every row (last at the top level) -- requested as
+    // `moveRequested`. False when the outline is not editable or nothing is selected.
+    bool requestDropAt(QPoint at);
 
     // ---- The five §8 rows this stage services ------------------------------------------------
     void goToSelected();
@@ -105,6 +120,11 @@ public:
     core::Destination selectedDestination() const;
 
 signals:
+    // THE EDITING REQUESTS (Stage 7 T11): a title typed in place, and a row dropped at a place -- `to` counted in its
+    // new parent's children with the dragged row already taken out (`ReparentBookmarkCommand`'s rule).
+    void renameRequested(core::OutlineItemId id, QString title);
+    void moveRequested(core::OutlineItemId id, core::OutlinePosition to);
+
     // A GESTURE asked to go to this destination -- `Enter`, or a click. Never emitted by a
     // programmatic selection, for the reason `ThumbnailsPane` states at length: a pane whose
     // selection navigated, and whose navigation moved the selection, is a scroll that fights the
@@ -125,10 +145,19 @@ protected:
     // arrows walk the selection correctly in both panes, which is all a positive case can see.
     void keyPressEvent(QKeyEvent* event) override;
 
+    // A DROP IS A REQUEST (Stage 7 T11): the place it means, as `moveRequested`; the tree moves nothing itself -- the
+    // model, handed back, does.
+    void dropEvent(QDropEvent* event) override;
+
 private:
-    void appendItems(QTreeWidgetItem* parent, const std::vector<core::OutlineItem>& items);
+    void appendItems(QTreeWidgetItem* parent, const std::vector<core::OutlineItem>& items,
+                     const std::map<QString, bool>& expanded);
+    QTreeWidgetItem* rowOf(const core::OutlineItemId& id) const;
 
     core::DocumentHandle document_;
+    bool editable_ = false;
+    bool populating_ = false;
+    QString readOnlyReason_;
 };
 
 } // namespace rawpage::ui

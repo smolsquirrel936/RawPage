@@ -1571,6 +1571,22 @@
         <source>action.annot.attachAudio</source>
         <translation>附加音訊檔案</translation>
     </message>
+    <message>
+        <source>action.bookmark.properties</source>
+        <translation>書籤內容…</translation>
+    </message>
+    <message>
+        <source>action.bookmark.import</source>
+        <translation>匯入書籤…</translation>
+    </message>
+    <message>
+        <source>action.bookmark.export</source>
+        <translation>匯出書籤…</translation>
+    </message>
+    <message>
+        <source>action.bookmark.tableOfContents</source>
+        <translation>目錄頁</translation>
+    </message>
 </context>
 <context>
     <name>shell</name>
@@ -3705,6 +3721,94 @@
         <source>error.split.documentChanged</source>
         <translation>分割期間文件已變更，未寫入任何檔案。</translation>
     </message>
+    <message>
+        <source>error.outline.malformed</source>
+        <translation>書籤資料格式錯誤（%1）。</translation>
+    </message>
+    <message>
+        <source>error.outline.noSuchItem</source>
+        <translation>文件中已沒有這個書籤。</translation>
+    </message>
+    <message>
+        <source>error.outline.badPosition</source>
+        <translation>書籤樹中沒有這個位置（%1）。</translation>
+    </message>
+    <message>
+        <source>error.outline.tooLarge</source>
+        <translation>書籤樹將有 %1 個項目，超過 RawPage 可編輯的數量。</translation>
+    </message>
+    <message>
+        <source>error.outline.tooDeep</source>
+        <translation>書籤樹將有 %1 層，超過 RawPage 可編輯的深度。</translation>
+    </message>
+    <message>
+        <source>error.outline.badId</source>
+        <translation>有書籤重複或沒有名稱（%1）。</translation>
+    </message>
+    <message>
+        <source>error.outline.titleTooLong</source>
+        <translation>書籤標題太長。</translation>
+    </message>
+    <message>
+        <source>error.outline.cycle</source>
+        <translation>書籤不能移到自己底下。</translation>
+    </message>
+    <message>
+        <source>error.outline.nothingChanged</source>
+        <translation>書籤不會有任何變更。</translation>
+    </message>
+    <message>
+        <source>error.outline.nothingToAdd</source>
+        <translation>沒有可新增的書籤。</translation>
+    </message>
+    <message>
+        <source>error.outline.nothingToDelete</source>
+        <translation>沒有選取書籤。</translation>
+    </message>
+    <message>
+        <source>error.outline.badDestination</source>
+        <translation>目的地指向文件沒有的第 %1 頁。</translation>
+    </message>
+    <message>
+        <source>error.outline.actionUnwritable</source>
+        <translation>RawPage 無法寫入這種書籤動作（%1）。</translation>
+    </message>
+    <message>
+        <source>error.outline.itemUnreadable</source>
+        <translation>檔案中有書籤無法讀取（物件 %1）。</translation>
+    </message>
+    <message>
+        <source>error.outline.readingsDisagree</source>
+        <translation>書籤為唯讀：本文件大綱的兩種讀法不一致（%1）。</translation>
+    </message>
+    <message>
+        <source>error.outline.badPattern</source>
+        <translation>這個樣式不是正規表示式：%1</translation>
+    </message>
+    <message>
+        <source>error.outline.noHeadings</source>
+        <translation>頁面中找不到標題。</translation>
+    </message>
+    <message>
+        <source>error.outline.importMalformed</source>
+        <translation>這不是 RawPage 可讀取的書籤檔（%1）。</translation>
+    </message>
+    <message>
+        <source>error.outline.importUnreadable</source>
+        <translation>無法讀取書籤檔 %1。</translation>
+    </message>
+    <message>
+        <source>error.outline.exportExists</source>
+        <translation>%1 已有檔案。</translation>
+    </message>
+    <message>
+        <source>error.outline.exportFailed</source>
+        <translation>無法將書籤寫入 %1。</translation>
+    </message>
+    <message>
+        <source>error.outline.nothingToList</source>
+        <translation>沒有書籤指向本文件的頁面。</translation>
+    </message>
 </context>
 <context>
     <name>ribbon</name>
@@ -4873,6 +4977,42 @@
     <message>
         <source>command.annot.import</source>
         <translation>匯入 %1 則註解</translation>
+    </message>
+    <message>
+        <source>command.bookmark.create</source>
+        <translation>新增書籤「%1」</translation>
+    </message>
+    <message>
+        <source>command.bookmark.createMany</source>
+        <translation>新增 %1 個書籤</translation>
+    </message>
+    <message>
+        <source>command.bookmark.edit</source>
+        <translation>編輯書籤「%1」</translation>
+    </message>
+    <message>
+        <source>command.bookmark.delete</source>
+        <translation>刪除書籤</translation>
+    </message>
+    <message>
+        <source>command.bookmark.deleteMany</source>
+        <translation>刪除 %1 個書籤</translation>
+    </message>
+    <message>
+        <source>command.bookmark.move</source>
+        <translation>移動書籤</translation>
+    </message>
+    <message>
+        <source>command.bookmark.setTarget</source>
+        <translation>設定書籤目的地</translation>
+    </message>
+    <message>
+        <source>command.bookmark.generate</source>
+        <translation>產生 %1 個書籤</translation>
+    </message>
+    <message>
+        <source>command.bookmark.import</source>
+        <translation>匯入 %1 個書籤</translation>
     </message>
 </context>
 <context>
@@ -6588,6 +6728,201 @@
     <message>
         <source>pages.treatment.Clipped</source>
         <translation>%1 已裁切至媒體方塊</translation>
+    </message>
+</context>
+<context>
+    <name>bookmarks</name>
+    <message>
+        <source>bookmarks.tooltip.needsBookmark</source>
+        <translation>請先在可編輯的文件中選取書籤。</translation>
+    </message>
+    <message>
+        <source>bookmarks.tooltip.needsBookmarks</source>
+        <translation>文件沒有可用的書籤。</translation>
+    </message>
+    <message>
+        <source>bookmarks.delete.title</source>
+        <translation>刪除書籤</translation>
+    </message>
+    <message>
+        <source>bookmarks.delete.question</source>
+        <translation>「%1」底下有 %2 個書籤。要一併刪除，還是留在原位？</translation>
+    </message>
+    <message>
+        <source>bookmarks.delete.withChildren</source>
+        <translation>一併刪除</translation>
+    </message>
+    <message>
+        <source>bookmarks.delete.keepChildren</source>
+        <translation>保留</translation>
+    </message>
+    <message>
+        <source>bookmarks.properties.title</source>
+        <translation>書籤內容</translation>
+    </message>
+    <message>
+        <source>bookmarks.properties.titleField</source>
+        <translation>標題：</translation>
+    </message>
+    <message>
+        <source>bookmarks.properties.colour</source>
+        <translation>顏色</translation>
+    </message>
+    <message>
+        <source>bookmarks.colour.black</source>
+        <translation>黑色</translation>
+    </message>
+    <message>
+        <source>bookmarks.colour.red</source>
+        <translation>紅色</translation>
+    </message>
+    <message>
+        <source>bookmarks.colour.green</source>
+        <translation>綠色</translation>
+    </message>
+    <message>
+        <source>bookmarks.colour.blue</source>
+        <translation>藍色</translation>
+    </message>
+    <message>
+        <source>bookmarks.colour.orange</source>
+        <translation>橙色</translation>
+    </message>
+    <message>
+        <source>bookmarks.colour.purple</source>
+        <translation>紫色</translation>
+    </message>
+    <message>
+        <source>bookmarks.properties.bold</source>
+        <translation>粗體</translation>
+    </message>
+    <message>
+        <source>bookmarks.properties.italic</source>
+        <translation>斜體</translation>
+    </message>
+    <message>
+        <source>bookmarks.properties.open</source>
+        <translation>開啟文件時展開其下的書籤</translation>
+    </message>
+    <message>
+        <source>bookmarks.properties.target</source>
+        <translation>動作：</translation>
+    </message>
+    <message>
+        <source>bookmarks.target.keep</source>
+        <translation>維持現狀</translation>
+    </message>
+    <message>
+        <source>bookmarks.target.page</source>
+        <translation>前往本文件的頁面</translation>
+    </message>
+    <message>
+        <source>bookmarks.target.currentView</source>
+        <translation>前往目前的檢視</translation>
+    </message>
+    <message>
+        <source>bookmarks.target.openFile</source>
+        <translation>開啟檔案</translation>
+    </message>
+    <message>
+        <source>bookmarks.target.webLink</source>
+        <translation>開啟網頁連結</translation>
+    </message>
+    <message>
+        <source>bookmarks.target.script</source>
+        <translation>執行 JavaScript</translation>
+    </message>
+    <message>
+        <source>bookmarks.target.print</source>
+        <translation>列印</translation>
+    </message>
+    <message>
+        <source>bookmarks.target.submit</source>
+        <translation>提交表單</translation>
+    </message>
+    <message>
+        <source>bookmarks.target.remotePage</source>
+        <translation>前往其他文件的頁面</translation>
+    </message>
+    <message>
+        <source>bookmarks.target.nothing</source>
+        <translation>不執行動作</translation>
+    </message>
+    <message>
+        <source>bookmarks.properties.targetText</source>
+        <translation>檔案、網址或指令碼：</translation>
+    </message>
+    <message>
+        <source>bookmarks.properties.targetPage</source>
+        <translation>頁碼：</translation>
+    </message>
+    <message>
+        <source>bookmarks.generate.title</source>
+        <translation>產生書籤</translation>
+    </message>
+    <message>
+        <source>bookmarks.generate.headings</source>
+        <translation>依文件的標題</translation>
+    </message>
+    <message>
+        <source>bookmarks.generate.fonts</source>
+        <translation>依字型大小與樣式</translation>
+    </message>
+    <message>
+        <source>bookmarks.generate.pattern</source>
+        <translation>依符合樣式的文字行</translation>
+    </message>
+    <message>
+        <source>bookmarks.generate.largerThanBody</source>
+        <translation>大於內文</translation>
+    </message>
+    <message>
+        <source>bookmarks.generate.boldOnly</source>
+        <translation>僅限粗體文字行</translation>
+    </message>
+    <message>
+        <source>bookmarks.generate.minimumSize</source>
+        <translation>標題最小字級（點）：</translation>
+    </message>
+    <message>
+        <source>bookmarks.generate.expression</source>
+        <translation>樣式（正規表示式）：</translation>
+    </message>
+    <message>
+        <source>bookmarks.import.title</source>
+        <translation>匯入書籤</translation>
+    </message>
+    <message>
+        <source>bookmarks.export.title</source>
+        <translation>匯出書籤</translation>
+    </message>
+    <message>
+        <source>bookmarks.fileFilter</source>
+        <translation>書籤檔（*.txt *.xml）</translation>
+    </message>
+    <message>
+        <source>bookmarks.untitled</source>
+        <translation>未命名</translation>
+    </message>
+    <message>
+        <source>bookmarks.toc.heading</source>
+        <translation>目錄</translation>
+    </message>
+    <message>
+        <source>bookmarks.done</source>
+        <translation>%1</translation>
+    </message>
+    <message>
+        <source>bookmarks.refused</source>
+        <translation>%1 未完成：%2</translation>
+    </message>
+    <message>
+        <source>bookmarks.readingPages</source>
+        <translation>正在從 %1 頁中讀取標題…</translation>
+    </message>
+    <message>
+        <source>bookmarks.exported</source>
+        <translation>已將 %1 個書籤匯出至 %2</translation>
     </message>
 </context>
 </TS>

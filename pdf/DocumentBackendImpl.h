@@ -87,6 +87,12 @@ public:
 
     // S4 T4 (D4-3, D4-4). Each forwards to what `PdfiumDocument` read once at open.
     const core::Outline* outline(core::DocumentHandle document) const override;
+    // S7 T11 (D7-10, D7-11) -- see `core/backend.h`.
+    core::Status structureHeadings(core::DocumentHandle document, int page, std::vector<core::HeadingLine>& into) override;
+    core::Result<std::vector<core::OutlineItem>> readOutlineExchange(const QString& path, int pageCount, const QString& key) override;
+    core::Status writeOutlineExchange(const std::vector<core::OutlineItem>& items, core::OutlineFormat format, const QString& path,
+                                      bool overwrite) override;
+    core::Result<core::CopiedPages> tableOfContents(const core::TableOfContents& toc) override;
     const core::Destinations* destinations(core::DocumentHandle document) const override;
     const core::Metadata* metadata(core::DocumentHandle document) const override;
 

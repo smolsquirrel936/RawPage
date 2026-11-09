@@ -144,6 +144,17 @@
 // `drawnAs_` holds, per page object, the page as it was drawn when it arrived -- what the backend's page tree
 // shows for a page the engine did not open (`drawnFacts`).
 //
+// THE OUTLINE -- Stage 7 T11 (D7-10, D7-34). `setOutline` hands the outline the document should have, whole; the sink
+// keeps, per item, the model's properties and its TARGET -- *as the disk has it*, or one the sink resolved -- so an item
+// whose target the model did not change keeps the bytes the file writes, and one it did names its page by REFERENCE,
+// resolved from the index the model gave it at the command that set it. A page command then needs no word: a
+// reference follows its page, and `ReferenceRepair` clears one to a page the document no longer has -- the disk's
+// items through its ledger, each item this sink resolved by the same rule (`gonePages`). Whether a target is what the
+// model says is decided by COMPARING the model's view of it now -- each page placed by the desired order, a page gone
+// as unresolved -- with the model, so an undo after a delete and a save puts the very reference back. `delta()` writes
+// an item only where what it composes differs from its dictionary on disk (through the ledger): a rename writes one
+// dictionary. A created item is numbered by name (`outline:<key>`) and keeps, after a save, the number the save gave it.
+//
 // WHAT IT DOES NOT DO. It refuses nothing on policy -- whether this document may be edited at all is
 // `core/doc/Permissions` (D3-7, T4) -- and it writes nothing: the update's bytes, the temporary file
 // and the replace are `IncrementalWriter`, `SaveCoordinator` and `platform::IDurableFiles`.
@@ -156,9 +167,11 @@
 #include "core/doc/Annotation.h"
 #include "core/doc/Attachments.h"
 #include "core/doc/CopiedPages.h"
+#include "core/doc/Outline.h"
 #include "pdf/cos/IncrementalWriter.h"
 #include "pdf/cos/XrefTable.h"
 #include "pdf/ops/AppearanceStreamBuilder.h"
+#include "pdf/ops/OutlineReader.h"
 #include "pdf/ops/PageOps.h"
 #include "pdf/ops/ReferenceRepair.h"
 
@@ -279,6 +292,15 @@ public:
     // and whether a label command has run since the sink opened -- verify's question.
     const std::vector<PageLabelRange>& desiredLabels() const noexcept { return labels_; }
     bool labelsChanged() const noexcept { return labelsTouched_; }
+    // --- The outline (Stage 7 T11) -- see the header ----------------------------------------------------------
+    core::Status setOutline(const core::Outline& outline) override;
+    bool hasOutlineChanges() const noexcept { return outline_.has_value(); }
+    // The outline as the document now stands -- the desired one once a bookmark command ran, else the disk's -- each
+    // destination placed by the desired page order, unresolved where its page is gone. What the backend hands the panes.
+    core::Outline outlineNow();
+    // THE CHECK `RevisionWriter::verify` AND `adopt()` SHARE: `written`'s outline is the desired one -- the same items in
+    // the same places, each the number this sink composed it at, each with its title.
+    core::Status reconcileOutline(cos::XrefTable& written) const;
 
     // --- Annotations (Stage 6 T3) --------------------------------------------------------------
     // Whether a CREATED annotation can be written new: a kind this build draws (D6-6) or one with no appearance at
@@ -450,6 +472,9 @@ private:
         std::optional<Edit> edit;
         core::Annotation model;
         QString graph;   // S7 T5: the payload `dictionary` is read from -- its references are the payload's; empty: the file's
+        // S7 T11 (D7-11): a contents page's link -- the page OBJECT of this document its `/Dest` names, resolved from the
+        // index the payload gave when the insert ran (negative for a new page until a save numbers it).
+        std::optional<long long> localTarget;
     };
     std::map<QString, CopySource> copies_;                // by the copy's /NM; kept until a save writes it
 
@@ -605,6 +630,8 @@ private:
         // `/OCProperties` -- payload numbers; none when it uses none.
         std::optional<cos::CosObject> layers;
         std::set<long long> layerGroups;
+        // S7 T11 (D7-11): its links name this document's pages by INDEX (`/RawPageLocalTargets` in its catalog).
+        bool localTargets = false;
     };
     // The payload `graph`, parsed and checked: refused by key for one that is not a payload this sink can take.
     static core::Result<Graph> parseGraph(const QByteArray& graph);
@@ -705,6 +732,37 @@ private:
     core::Status composePageEdits(cos::ObjectDelta& delta, std::map<long long, cos::CosObject>& pending);
     // After a save renumbered new pages: each map above follows its page.
     void renumberPageEdits(const std::map<long long, long long>& numbers);
+    // --- The outline (Stage 7 T11) -- see the header ----------------------------------------------------------
+    // What an item's `/Dest` or `/A` will be: as its dictionary on disk has it, or the model's action with its page
+    // resolved to an object (negative for a new page until a save numbers it; -1 for none).
+    struct OutlineTarget {
+        bool disk = true;
+        core::OutlineAction action;
+        long long page = -1;
+    };
+    struct HeldItem {
+        core::OutlineItem properties;   // the model's item -- its children not kept here
+        OutlineTarget target;
+        std::vector<HeldItem> children;
+    };
+    // The disk's reading, through the ledger -- the outline, and every item read loose (one an edit took out of the
+    // tree). Dropped by adopt.
+    const OutlineReader::Reading& diskOutline();
+    const std::map<std::string, cos::CosObject>& namedDestinations();
+    const std::pair<core::OutlineItem, OutlineReader::Facts>* diskItem(const core::OutlineItemId& id);
+    long long outlineNumber(const core::OutlineItemId& id) const;   // its object, or -1 for one never saved
+    std::map<long long, int> placedPages() const;                    // every page of the desired order, new ones too
+    // The model's view of `target` for item `id` now: its action, and where `Enter` goes.
+    std::pair<core::OutlineAction, core::Destination> outlineView(const core::OutlineItemId& id, const OutlineTarget& target,
+                                                                  const std::map<long long, int>& placed);
+    core::Status composeOutline(cos::ObjectDelta& delta, std::map<long long, cos::CosObject>& pending);
+    std::optional<std::vector<HeldItem>> outline_;                  // desired, once a bookmark command ran
+    std::optional<OutlineReader::Reading> diskOutline_;
+    std::optional<std::map<std::string, cos::CosObject>> named_;
+    std::map<long long, std::optional<std::pair<core::OutlineItem, OutlineReader::Facts>>> looseItems_;
+    std::map<QString, long long> outlineOnDisk_;                   // a created item -> where a save put it
+    std::map<QString, long long> outlineComposed_;                 // ... and where the last compose numbered it
+    std::optional<long long> outlineRootComposed_;                 // a root the last compose created
 };
 
 } // namespace rawpage::pdf::ops

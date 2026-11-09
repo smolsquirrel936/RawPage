@@ -110,6 +110,10 @@ struct PageBoxes;            // core/doc/Page.h            -- Stage 7 T9 (D7-15)
 struct PageContentWrap;      // core/doc/Page.h            -- Stage 7 T9 (D7-7, D7-32)
 struct PageLabelSpec;        // core/doc/Page.h            -- Stage 7 T9
 struct PageThumbnail;        // core/doc/Page.h            -- Stage 7 T9
+struct OutlineItem;          // core/doc/Outline.h         -- Stage 7 T11 (D7-10)
+struct HeadingLine;          // core/doc/OutlineGenerator.h -- Stage 7 T11
+struct TableOfContents;      // core/doc/TableOfContents.h -- Stage 7 T11 (D7-11)
+enum class OutlineFormat : std::uint8_t;   // core/doc/OutlineExchange.h -- Stage 7 T11
 
 namespace render {
 struct RenderRequest;        // core/render/RenderRequest.h -- Stage 2 T10
@@ -439,6 +443,15 @@ public:
     virtual Status setPageThumbnails(const std::vector<int>& pages, const std::vector<PageThumbnail>& thumbnails,
                                      const QString& key) = 0;
     virtual Status restorePageThumbnails(const std::vector<int>& pages, const QString& key) = 0;
+
+    // THE OUTLINE -- Stage 7 T11 (`Stage7-Assembly-Plan.md` D7-10, D7-34). The outline the document should have, WHOLE,
+    // as the model holds it after the command -- every item by its id, its destinations named in page INDICES as the
+    // model counts them now. Which dictionaries that means is the sink's: an item whose target is what the model says
+    // it is keeps the target the file writes -- by REFERENCE, so a page command needs no word here -- and only an item
+    // whose title, colour, style, open state, target or place changed is written, its unknown keys kept (D6-5's
+    // rule). The revert hands the outline before. Refused, with nothing changed, for an outline past
+    // `core::Outline::validate`'s bounds, a destination past the last page, or a target this build cannot write.
+    virtual Status setOutline(const Outline& outline) = 0;
 };
 
 // =======================================================================================
@@ -723,6 +736,22 @@ public:
     // which is what lets `core/doc/MergeRunner` run it off the UI thread.
     virtual Result<MergedDocument> mergeFiles(const std::vector<MergeInput>& inputs, const MergeOptions& options,
                                               const MergeProgress& progress) = 0;
+
+    // THE BOOKMARKS' OWN READING AND WRITING -- Stage 7 T11 (`Stage7-Assembly-Plan.md` D7-10, D7-11).
+    //
+    // `structureHeadings`: page `page`'s headings as the STRUCTURE TREE names them -- each `H`, `H1` ... `H6` element on
+    // the page, in the tree's order, its level (an `H` is 1), its text (the text its marked content draws) and the left
+    // and top of that text -- what the outline generator reads for a tagged document. ON THE ENGINE THREAD, as
+    // `searchUnits` is. Success and none for a page the tree names no heading on, an untagged document's every page.
+    virtual Status structureHeadings(DocumentHandle document, int page, std::vector<HeadingLine>& into) = 0;
+    // A bookmark file read and written by the layer that owns the format's files (`pdf/ops/OutlineFiles`), so no
+    // layer-lint waiver: `readOutlineExchange` -- every item new, ids `key`-0 ..., destinations checked against
+    // `pageCount` -- and `writeOutlineExchange`, a file already at `path` replaced only when `overwrite`.
+    virtual Result<std::vector<OutlineItem>> readOutlineExchange(const QString& path, int pageCount, const QString& key) = 0;
+    virtual Status writeOutlineExchange(const std::vector<OutlineItem>& items, OutlineFormat format, const QString& path,
+                                        bool overwrite) = 0;
+    // A CONTENTS PAGE as the payload one `InsertPagesCommand` carries (D7-11, `pdf/ops/ObjectGraphCopier::tableOfContents`).
+    virtual Result<CopiedPages> tableOfContents(const TableOfContents& toc) = 0;
 
     // THE PAGE'S CONTENT BOUNDING BOX -- the union of its objects' bounds, in PDF points, added at
     // Stage 4 T12 (**D4-14**) to close Stage 2's **I-28**. Fit Visible is defined over it

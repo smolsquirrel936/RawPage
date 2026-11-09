@@ -303,6 +303,10 @@ core::Status verifyModel(cos::OpenedFile& opened, const MutationSinkImpl& sink)
     auto files = sink.reconcileFiles(opened.table, true);
     if (!files)
         return files.error();
+    // And the outline is the one the sink composed (Stage 7 T11): the same items in the same places, each where it was
+    // numbered, each with its title.
+    if (core::Status outline = sink.reconcileOutline(opened.table); !outline)
+        return outline;
     return core::Status{};
 }
 } // namespace

@@ -31,6 +31,7 @@
 #include "core/cmd/CommandRegistry.h"
 #include "core/cmd/commands/AnnotationCommands.h"
 #include "core/cmd/commands/AttachmentCommands.h"
+#include "core/cmd/commands/BookmarkCommands.h"
 #include "core/cmd/commands/PageCommands.h"
 #include "core/doc/Document.h"
 #include "core/doc/DrawnShapes.h"
@@ -109,6 +110,26 @@ const core::CopiedPages& payloadOf(const char* relative, int page)
 // Makes the commands to try on page `page` of `document`.
 using Generator = std::function<std::vector<std::unique_ptr<Command>>(const core::Document& document, int page)>;
 using Generators = std::map<std::string, Generator>;
+
+// Stage 7 T11: whether the outline commands can run on `document` at all, and a bookmark RawPage made.
+bool outlineEditable(const core::Document& document)
+{
+    return document.permissions().may(core::Operation::EditOutline) && document.outline().status();
+}
+
+core::OutlineItem reversibilityBookmark(int page, int ordinal)
+{
+    core::OutlineItem item;
+    item.id = core::newBookmarkId(QString(32, QLatin1Char('7')), ordinal);
+    item.title = QStringLiteral("Reversibility %1").arg(ordinal);
+    core::Destination at;
+    at.pageIndex = page;
+    at.fit = core::Destination::Fit::Fit;
+    item.action = core::OutlineAction::goTo(at);
+    item.destination = at;
+    return item;
+}
+
 
 // THE PRODUCTION GENERATORS: one per `Commands.def` row. A row with none fails A-43.
 const Generators& registeredGenerators()
@@ -225,6 +246,89 @@ const Generators& registeredGenerators()
              core::PageThumbnail thumbnail{4, 5, QByteArray(4 * 5 * 3, '\x7f')};
              out.push_back(std::make_unique<core::SetEmbeddedThumbnailsCommand>(std::vector<int>{page},
                                                                                 std::vector<core::PageThumbnail>{thumbnail}));
+             return out;
+         }},
+        // Stage 7 T11 (D7-10): the six bookmark commands, once per file (page 0) -- each over what the file's outline
+        // offers: a new item at the top and one under the first item, a rename and a restyle, a delete each way, a move
+        // under the first item and one out to the top, a destination and an action, a generated tree.
+        {"bookmark.create",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             if (!outlineEditable(document) || page != 0) return out;
+             const core::Outline& outline = document.outline();
+             out.push_back(std::make_unique<core::CreateBookmarkCommand>(
+                 core::OutlinePosition{{}, static_cast<int>(outline.roots().size())},
+                 std::vector<core::OutlineItem>{reversibilityBookmark(document.pages().count() - 1, 0)}));
+             if (!outline.isEmpty())
+                 out.push_back(std::make_unique<core::CreateBookmarkCommand>(
+                     core::OutlinePosition{outline.roots().front().id, 0}, std::vector<core::OutlineItem>{reversibilityBookmark(0, 1)}));
+             return out;
+         }},
+        {"bookmark.edit",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             if (!outlineEditable(document) || page != 0 || document.outline().isEmpty()) return out;
+             for (const core::OutlineItem* item : document.outline().preorder()) {
+                 core::EditBookmarkCommand::Properties renamed = core::EditBookmarkCommand::Properties::of(*item);
+                 renamed.title += QStringLiteral(" (改)");
+                 out.push_back(std::make_unique<core::EditBookmarkCommand>(item->id, renamed));
+                 core::EditBookmarkCommand::Properties styled = core::EditBookmarkCommand::Properties::of(*item);
+                 styled.bold = !styled.bold;
+                 styled.open = !styled.open;
+                 styled.colour = std::array<double, 3>{0.0, 0.5, 1.0};
+                 out.push_back(std::make_unique<core::EditBookmarkCommand>(item->id, styled));
+                 break;
+             }
+             return out;
+         }},
+        {"bookmark.delete",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             if (!outlineEditable(document) || page != 0 || document.outline().isEmpty()) return out;
+             const core::OutlineItemId first = document.outline().roots().front().id;
+             out.push_back(std::make_unique<core::DeleteBookmarkCommand>(std::vector<core::OutlineItemId>{first}, false));
+             out.push_back(std::make_unique<core::DeleteBookmarkCommand>(std::vector<core::OutlineItemId>{first}, true));
+             return out;
+         }},
+        {"bookmark.reparent",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             if (!outlineEditable(document) || page != 0) return out;
+             const std::vector<core::OutlineItem>& roots = document.outline().roots();
+             if (roots.size() >= 2)
+                 out.push_back(std::make_unique<core::ReparentBookmarkCommand>(
+                     roots.back().id, core::OutlinePosition{roots.front().id, static_cast<int>(roots.front().children.size())}));
+             if (!roots.empty() && !roots.front().children.empty())
+                 out.push_back(std::make_unique<core::ReparentBookmarkCommand>(roots.front().children.front().id,
+                                                                               core::OutlinePosition{{}, 0}));
+             return out;
+         }},
+        {"bookmark.setTarget",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             if (!outlineEditable(document) || page != 0 || document.outline().isEmpty()) return out;
+             const core::OutlineItemId first = document.outline().roots().front().id;
+             core::Destination at;
+             at.pageIndex = document.pages().count() - 1;
+             at.fit = core::Destination::Fit::XYZ;
+             at.hasY = true;
+             at.y = 500;
+             out.push_back(std::make_unique<core::SetBookmarkTargetCommand>(first, core::OutlineAction::goTo(at)));
+             core::OutlineAction uri;
+             uri.kind = core::OutlineAction::Kind::Uri;
+             uri.uri = QStringLiteral("https://example.com/reversibility");
+             out.push_back(std::make_unique<core::SetBookmarkTargetCommand>(first, uri));
+             return out;
+         }},
+        {"bookmark.generate",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             if (!outlineEditable(document) || page != 0) return out;
+             core::OutlineItem top = reversibilityBookmark(0, 2);
+             top.children.push_back(reversibilityBookmark(document.pages().count() - 1, 3));
+             top.openByDefault = true;
+             out.push_back(std::make_unique<core::GenerateBookmarksCommand>(core::OutlinePosition{}, std::vector<core::OutlineItem>{top},
+                                                                            core::GenerateBookmarksCommand::Source::Headings));
              return out;
          }},
         // Stage 6 T3: a highlight on the page -- a set of one, and a set of two on one page.
@@ -863,7 +967,10 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
                                                                           "attachment.add", "attachment.delete", "page.move",
                                                                           "page.delete", "page.duplicate", "page.insert",
                                                                           "page.replace", "page.crop", "page.resize",
-                                                                          "page.renumber", "page.thumbnails"});
+                                                                          "page.renumber", "page.thumbnails",
+                                                                          "bookmark.create", "bookmark.edit", "bookmark.delete",
+                                                                          "bookmark.reparent", "bookmark.setTarget",
+                                                                          "bookmark.generate"});
     }
 }
 
@@ -871,7 +978,7 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
 // A-43 -- reversibility over the corpus
 // ==========================================================================================
 
-TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand][revert:AddAnnotationCommand][revert:DeleteAnnotationCommand][revert:EditAnnotationCommand][revert:MoveAnnotationCommand][revert:SetAnnotationAppearanceCommand][revert:LockAnnotationCommand][revert:ReplyToAnnotationCommand][revert:SetAnnotationStatusCommand][revert:AddAttachmentCommand][revert:DeleteAttachmentCommand][revert:ImportAnnotationsCommand][revert:MovePagesCommand][revert:DeletePagesCommand][revert:DuplicatePagesCommand][revert:InsertPagesCommand][revert:ReplacePagesCommand][revert:CropPagesCommand][revert:ResizePagesCommand][revert:RenumberPagesCommand][revert:SetEmbeddedThumbnailsCommand]")
+TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand][revert:AddAnnotationCommand][revert:DeleteAnnotationCommand][revert:EditAnnotationCommand][revert:MoveAnnotationCommand][revert:SetAnnotationAppearanceCommand][revert:LockAnnotationCommand][revert:ReplyToAnnotationCommand][revert:SetAnnotationStatusCommand][revert:AddAttachmentCommand][revert:DeleteAttachmentCommand][revert:ImportAnnotationsCommand][revert:MovePagesCommand][revert:DeletePagesCommand][revert:DuplicatePagesCommand][revert:InsertPagesCommand][revert:ReplacePagesCommand][revert:CropPagesCommand][revert:ResizePagesCommand][revert:RenumberPagesCommand][revert:SetEmbeddedThumbnailsCommand][revert:CreateBookmarkCommand][revert:EditBookmarkCommand][revert:DeleteBookmarkCommand][revert:ReparentBookmarkCommand][revert:SetBookmarkTargetCommand][revert:GenerateBookmarksCommand]")
 {
     const std::vector<std::string> missing = missingGenerators(registeredGenerators());
     INFO("registered type ids with no generator: " << missing.size());

@@ -211,11 +211,14 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     //
     // **One more at Stage 7 T10** (D7-16): `merge.documents`, declared since Stage 1, a Global command that opens
     // `ui/dialogs/MergeDialog` and needs no document (`MainWindowMerge.cpp`). Not a command. 392 ids are declared.
+    // **Thirteen more at Stage 7 T11** (D7-10, D7-11, `MainWindowBookmarks.cpp`): the eight editing rows of §8's
+    // Bookmarks table, `bookmark.generate`, and the minted `.properties`, `.import`, `.export` and `.tableOfContents`.
+    // 396 ids are declared.
     //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 193);
+    CHECK(fixture.actions.registeredCount() == 206);
     CHECK(fixture.actions.isRegistered(core::ActionId::MergeDocuments));         // S7 T10
     CHECK(fixture.actions.isRegistered(core::ActionId::PageCrop));               // S7 T9
     CHECK(fixture.actions.isRegistered(core::ActionId::PageSetBoxes));           // S7 T9, minted
@@ -389,11 +392,11 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     CHECK(fixture.actions.isRegistered(core::ActionId::BookmarkExpandAll));
     CHECK(fixture.actions.isRegistered(core::ActionId::BookmarkCollapseAll));
 
-    // And the eight EDITING rows of the same table are not, because each needs a `Command` and
-    // Stage 4 adds none (D4-1). `tst_panes` presses every one of them and requires the key back.
-    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::BookmarkRename));    // S7
-    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::BookmarkDelete));    // S7
-    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::BookmarkNew));       // S7
+    // And since Stage 7 T11 the eight EDITING rows of the same table too, each a bookmark command (D7-10) --
+    // `tst_bookmarksedit` presses every one; `tst_panes` presses them on a document that may not be edited.
+    CHECK(fixture.actions.isRegistered(core::ActionId::BookmarkRename));    // S7 T11
+    CHECK(fixture.actions.isRegistered(core::ActionId::BookmarkDelete));    // S7 T11
+    CHECK(fixture.actions.isRegistered(core::ActionId::BookmarkNew));       // S7 T11
 
     // S4 T7's two, and the one that must stay absent.
     CHECK(fixture.actions.isRegistered(core::ActionId::ToolLoupe));

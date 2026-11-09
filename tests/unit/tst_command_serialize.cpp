@@ -16,6 +16,7 @@
 #include "core/cmd/CommandRegistry.h"
 #include "core/cmd/commands/AnnotationCommands.h"
 #include "core/cmd/commands/AttachmentCommands.h"
+#include "core/cmd/commands/BookmarkCommands.h"
 #include "pdf/ops/ObjectGraphCopier.h"
 #include "core/cmd/commands/PageCommands.h"
 
@@ -48,6 +49,67 @@ core::Annotation sampleHighlight(int page, const QString& author = QStringLitera
 
 // One or more sample commands per `Commands.def` row. A row with no entry here FAILS the round-trip
 // case, so a new command cannot arrive without a sample.
+// Stage 7 T11: a bookmark RawPage made, to a page and a view.
+core::OutlineItem sampleBookmark(int ordinal)
+{
+    core::OutlineItem item;
+    item.id = core::newBookmarkId(QString(32, QLatin1Char('9')), ordinal);
+    item.title = QStringLiteral("Section %1").arg(ordinal);
+    core::Destination at;
+    at.pageIndex = ordinal;
+    at.fit = core::Destination::Fit::XYZ;
+    at.hasX = true;
+    at.x = 36.5;
+    at.hasY = true;
+    at.y = 700;
+    item.action = core::OutlineAction::goTo(at);
+    item.destination = at;
+    return item;
+}
+
+// Every kind of target a command may carry -- `Other` is the file's alone.
+std::vector<core::OutlineAction> sampleActions()
+{
+    std::vector<core::OutlineAction> out;
+    core::OutlineAction none;
+    out.push_back(none);
+    core::Destination fit;
+    fit.pageIndex = 4;
+    fit.fit = core::Destination::Fit::Fit;
+    out.push_back(core::OutlineAction::goTo(fit));
+    core::OutlineAction named;
+    named.kind = core::OutlineAction::Kind::GoToNamed;
+    named.name = QStringLiteral("dest-alpha");
+    named.destination.pageIndex = 6;
+    out.push_back(named);
+    core::OutlineAction remote;
+    remote.kind = core::OutlineAction::Kind::GoToRemote;
+    remote.file = QStringLiteral("other 報告.pdf");
+    remote.destination = fit;
+    out.push_back(remote);
+    core::OutlineAction launch;
+    launch.kind = core::OutlineAction::Kind::Launch;
+    launch.file = QStringLiteral("notes.txt");
+    out.push_back(launch);
+    core::OutlineAction uri;
+    uri.kind = core::OutlineAction::Kind::Uri;
+    uri.uri = QStringLiteral("https://example.com/a?b=1");
+    out.push_back(uri);
+    core::OutlineAction script;
+    script.kind = core::OutlineAction::Kind::JavaScript;
+    script.script = QStringLiteral("app.alert('never run');");
+    out.push_back(script);
+    core::OutlineAction print;
+    print.kind = core::OutlineAction::Kind::Named;
+    print.name = QStringLiteral("Print");
+    out.push_back(print);
+    core::OutlineAction submit;
+    submit.kind = core::OutlineAction::Kind::SubmitForm;
+    submit.uri = QStringLiteral("https://example.com/submit");
+    out.push_back(submit);
+    return out;
+}
+
 const std::map<std::string, std::function<std::vector<std::unique_ptr<Command>>()>>& samples()
 {
     static const std::map<std::string, std::function<std::vector<std::unique_ptr<Command>>()>> table{
@@ -272,6 +334,63 @@ const std::map<std::string, std::function<std::vector<std::unique_ptr<Command>>(
                                                                                 QString(32, QLatin1Char('f'))));
              return out;
          }},
+        // Stage 7 T11 (D7-10): one item, a tree, an item by its object and one by its key; every action kind a command
+        // can carry; a delete each way; a move to the top level and under an item.
+        {"bookmark.create",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             out.push_back(std::make_unique<core::CreateBookmarkCommand>(core::OutlinePosition{}, std::vector<core::OutlineItem>{sampleBookmark(0)}));
+             core::OutlineItem chapter = sampleBookmark(1);
+             chapter.children.push_back(sampleBookmark(2));
+             chapter.openByDefault = true;
+             out.push_back(std::make_unique<core::CreateBookmarkCommand>(core::OutlinePosition{core::OutlineItemId::ofObject(26), 2},
+                                                                         std::vector<core::OutlineItem>{chapter, sampleBookmark(3)}));
+             return out;
+         }},
+        {"bookmark.edit",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             out.push_back(std::make_unique<core::EditBookmarkCommand>(core::OutlineItemId::ofObject(26),
+                                                                       core::EditBookmarkCommand::Properties{QStringLiteral("Chapter 1"), {}, false, false, false}));
+             out.push_back(std::make_unique<core::EditBookmarkCommand>(
+                 core::newBookmarkId(QString(32, QLatin1Char('a')), 4),
+                 core::EditBookmarkCommand::Properties{QStringLiteral("第一章 é"), std::array<double, 3>{1.0, 0.25, 0.0}, true, true, true}));
+             return out;
+         }},
+        {"bookmark.delete",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             out.push_back(std::make_unique<core::DeleteBookmarkCommand>(std::vector<core::OutlineItemId>{core::OutlineItemId::ofObject(27)}, false));
+             out.push_back(std::make_unique<core::DeleteBookmarkCommand>(
+                 std::vector<core::OutlineItemId>{core::OutlineItemId::ofObject(26), core::newBookmarkId(QString(32, QLatin1Char('b')), 0)}, true));
+             return out;
+         }},
+        {"bookmark.reparent",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             out.push_back(std::make_unique<core::ReparentBookmarkCommand>(core::OutlineItemId::ofObject(29), core::OutlinePosition{{}, 0}));
+             out.push_back(std::make_unique<core::ReparentBookmarkCommand>(core::newBookmarkId(QString(32, QLatin1Char('c')), 1),
+                                                                           core::OutlinePosition{core::OutlineItemId::ofObject(28), 0}));
+             return out;
+         }},
+        {"bookmark.setTarget",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             for (const core::OutlineAction& action : sampleActions())
+                 out.push_back(std::make_unique<core::SetBookmarkTargetCommand>(core::OutlineItemId::ofObject(26), action));
+             return out;
+         }},
+        {"bookmark.generate",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             core::OutlineItem heading = sampleBookmark(5);
+             heading.children.push_back(sampleBookmark(6));
+             out.push_back(std::make_unique<core::GenerateBookmarksCommand>(core::OutlinePosition{}, std::vector<core::OutlineItem>{heading},
+                                                                            core::GenerateBookmarksCommand::Source::Headings));
+             out.push_back(std::make_unique<core::GenerateBookmarksCommand>(core::OutlinePosition{{}, 3}, std::vector<core::OutlineItem>{sampleBookmark(7)},
+                                                                            core::GenerateBookmarksCommand::Source::Import));
+             return out;
+         }},
         // Stage 6 T13 (D6-20): an import that only adds -- an exchange's names, an Acrobat-shaped one among them --
         // one that only replaces, and one that does both.
         {"annot.import",
@@ -319,7 +438,7 @@ bool catalogHas(const char* file, QLatin1String key)
 // A-42 -- the registry round-trips what it registered and refuses what it did not
 // ==========================================================================================
 
-TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][serialize][serialize:RotatePageCommand][serialize:AddAnnotationCommand][serialize:DeleteAnnotationCommand][serialize:EditAnnotationCommand][serialize:MoveAnnotationCommand][serialize:SetAnnotationAppearanceCommand][serialize:LockAnnotationCommand][serialize:ReplyToAnnotationCommand][serialize:SetAnnotationStatusCommand][serialize:AddAttachmentCommand][serialize:DeleteAttachmentCommand][serialize:ImportAnnotationsCommand][serialize:MovePagesCommand][serialize:DeletePagesCommand][serialize:DuplicatePagesCommand][serialize:InsertPagesCommand][serialize:ReplacePagesCommand][serialize:CropPagesCommand][serialize:ResizePagesCommand][serialize:RenumberPagesCommand][serialize:SetEmbeddedThumbnailsCommand]")
+TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][serialize][serialize:RotatePageCommand][serialize:AddAnnotationCommand][serialize:DeleteAnnotationCommand][serialize:EditAnnotationCommand][serialize:MoveAnnotationCommand][serialize:SetAnnotationAppearanceCommand][serialize:LockAnnotationCommand][serialize:ReplyToAnnotationCommand][serialize:SetAnnotationStatusCommand][serialize:AddAttachmentCommand][serialize:DeleteAttachmentCommand][serialize:ImportAnnotationsCommand][serialize:MovePagesCommand][serialize:DeletePagesCommand][serialize:DuplicatePagesCommand][serialize:InsertPagesCommand][serialize:ReplacePagesCommand][serialize:CropPagesCommand][serialize:ResizePagesCommand][serialize:RenumberPagesCommand][serialize:SetEmbeddedThumbnailsCommand][serialize:CreateBookmarkCommand][serialize:EditBookmarkCommand][serialize:DeleteBookmarkCommand][serialize:ReparentBookmarkCommand][serialize:SetBookmarkTargetCommand][serialize:GenerateBookmarksCommand]")
 {
     const auto typeIds = CommandRegistry::typeIds();
     REQUIRE_FALSE(typeIds.empty());
@@ -356,7 +475,8 @@ TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][s
     }
     // page.rotate: 16 one-page samples and, since Stage 7 T8, 3 sets.
     // Stage 7 T9: crop, resize, renumber and thumbnails, two each.
-    CHECK(roundTrips == 16 + 3 + 3 + 2 + 2 + 2 + 2 + 2 + 2 + 3 + 2 + 2 + 3 + 3 + 2 + 2 + 2 + 1 + 2 + 2 + 2 + 2);
+    // Stage 7 T11: the six bookmark commands -- two each, and a target of every kind a command can carry (9).
+    CHECK(roundTrips == 16 + 3 + 3 + 2 + 2 + 2 + 2 + 2 + 2 + 3 + 2 + 2 + 3 + 3 + 2 + 2 + 2 + 1 + 2 + 2 + 2 + 2 + 2 + 2 + 2 + 2 + 9 + 2);
 }
 
 // Stage 6 T13 (D6-20): an import is a journal line carrying two sets -- what it adds must be what an add accepts,

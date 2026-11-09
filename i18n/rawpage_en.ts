@@ -1571,6 +1571,22 @@
         <source>action.annot.attachAudio</source>
         <translation>Attach Audio File</translation>
     </message>
+    <message>
+        <source>action.bookmark.properties</source>
+        <translation>Bookmark Properties…</translation>
+    </message>
+    <message>
+        <source>action.bookmark.import</source>
+        <translation>Import Bookmarks…</translation>
+    </message>
+    <message>
+        <source>action.bookmark.export</source>
+        <translation>Export Bookmarks…</translation>
+    </message>
+    <message>
+        <source>action.bookmark.tableOfContents</source>
+        <translation>Table of Contents Page</translation>
+    </message>
 </context>
 <context>
     <name>shell</name>
@@ -3705,6 +3721,94 @@
         <source>error.split.documentChanged</source>
         <translation>The document changed while it was being split; nothing was written.</translation>
     </message>
+    <message>
+        <source>error.outline.malformed</source>
+        <translation>The bookmark data is malformed (%1).</translation>
+    </message>
+    <message>
+        <source>error.outline.noSuchItem</source>
+        <translation>That bookmark is no longer in the document.</translation>
+    </message>
+    <message>
+        <source>error.outline.badPosition</source>
+        <translation>There is no such place in the bookmark tree (%1).</translation>
+    </message>
+    <message>
+        <source>error.outline.tooLarge</source>
+        <translation>The bookmark tree would hold %1 items, more than RawPage edits.</translation>
+    </message>
+    <message>
+        <source>error.outline.tooDeep</source>
+        <translation>The bookmark tree would be %1 levels deep, more than RawPage edits.</translation>
+    </message>
+    <message>
+        <source>error.outline.badId</source>
+        <translation>A bookmark is named twice or not at all (%1).</translation>
+    </message>
+    <message>
+        <source>error.outline.titleTooLong</source>
+        <translation>A bookmark title is too long.</translation>
+    </message>
+    <message>
+        <source>error.outline.cycle</source>
+        <translation>A bookmark cannot be moved under itself.</translation>
+    </message>
+    <message>
+        <source>error.outline.nothingChanged</source>
+        <translation>Nothing about the bookmark would change.</translation>
+    </message>
+    <message>
+        <source>error.outline.nothingToAdd</source>
+        <translation>There are no bookmarks to add.</translation>
+    </message>
+    <message>
+        <source>error.outline.nothingToDelete</source>
+        <translation>No bookmark is selected.</translation>
+    </message>
+    <message>
+        <source>error.outline.badDestination</source>
+        <translation>The destination names page %1, which the document does not have.</translation>
+    </message>
+    <message>
+        <source>error.outline.actionUnwritable</source>
+        <translation>RawPage cannot write this kind of bookmark action (%1).</translation>
+    </message>
+    <message>
+        <source>error.outline.itemUnreadable</source>
+        <translation>A bookmark in the file could not be read (object %1).</translation>
+    </message>
+    <message>
+        <source>error.outline.readingsDisagree</source>
+        <translation>The bookmarks are read-only: two readings of this document’s outline disagree (%1).</translation>
+    </message>
+    <message>
+        <source>error.outline.badPattern</source>
+        <translation>The pattern is not a regular expression: %1</translation>
+    </message>
+    <message>
+        <source>error.outline.noHeadings</source>
+        <translation>No heading was found on the pages.</translation>
+    </message>
+    <message>
+        <source>error.outline.importMalformed</source>
+        <translation>The bookmark file is not one RawPage reads (%1).</translation>
+    </message>
+    <message>
+        <source>error.outline.importUnreadable</source>
+        <translation>The bookmark file %1 could not be read.</translation>
+    </message>
+    <message>
+        <source>error.outline.exportExists</source>
+        <translation>There is already a file at %1.</translation>
+    </message>
+    <message>
+        <source>error.outline.exportFailed</source>
+        <translation>The bookmarks could not be written to %1.</translation>
+    </message>
+    <message>
+        <source>error.outline.nothingToList</source>
+        <translation>No bookmark goes to a page of this document.</translation>
+    </message>
 </context>
 <context>
     <name>ribbon</name>
@@ -4873,6 +4977,42 @@
     <message>
         <source>command.annot.import</source>
         <translation>Import %1 Comments</translation>
+    </message>
+    <message>
+        <source>command.bookmark.create</source>
+        <translation>New Bookmark “%1”</translation>
+    </message>
+    <message>
+        <source>command.bookmark.createMany</source>
+        <translation>Add %1 Bookmarks</translation>
+    </message>
+    <message>
+        <source>command.bookmark.edit</source>
+        <translation>Edit Bookmark “%1”</translation>
+    </message>
+    <message>
+        <source>command.bookmark.delete</source>
+        <translation>Delete Bookmark</translation>
+    </message>
+    <message>
+        <source>command.bookmark.deleteMany</source>
+        <translation>Delete %1 Bookmarks</translation>
+    </message>
+    <message>
+        <source>command.bookmark.move</source>
+        <translation>Move Bookmark</translation>
+    </message>
+    <message>
+        <source>command.bookmark.setTarget</source>
+        <translation>Set Bookmark Destination</translation>
+    </message>
+    <message>
+        <source>command.bookmark.generate</source>
+        <translation>Generate %1 Bookmarks</translation>
+    </message>
+    <message>
+        <source>command.bookmark.import</source>
+        <translation>Import %1 Bookmarks</translation>
     </message>
 </context>
 <context>
@@ -6588,6 +6728,201 @@
     <message>
         <source>pages.treatment.Clipped</source>
         <translation>%1 clipped to the media box</translation>
+    </message>
+</context>
+<context>
+    <name>bookmarks</name>
+    <message>
+        <source>bookmarks.tooltip.needsBookmark</source>
+        <translation>Select a bookmark in an editable document first.</translation>
+    </message>
+    <message>
+        <source>bookmarks.tooltip.needsBookmarks</source>
+        <translation>The document has no bookmarks to use.</translation>
+    </message>
+    <message>
+        <source>bookmarks.delete.title</source>
+        <translation>Delete Bookmark</translation>
+    </message>
+    <message>
+        <source>bookmarks.delete.question</source>
+        <translation>“%1” has %2 bookmarks under it. Delete them too, or keep them in its place?</translation>
+    </message>
+    <message>
+        <source>bookmarks.delete.withChildren</source>
+        <translation>Delete Them Too</translation>
+    </message>
+    <message>
+        <source>bookmarks.delete.keepChildren</source>
+        <translation>Keep Them</translation>
+    </message>
+    <message>
+        <source>bookmarks.properties.title</source>
+        <translation>Bookmark Properties</translation>
+    </message>
+    <message>
+        <source>bookmarks.properties.titleField</source>
+        <translation>Title:</translation>
+    </message>
+    <message>
+        <source>bookmarks.properties.colour</source>
+        <translation>Colour</translation>
+    </message>
+    <message>
+        <source>bookmarks.colour.black</source>
+        <translation>Black</translation>
+    </message>
+    <message>
+        <source>bookmarks.colour.red</source>
+        <translation>Red</translation>
+    </message>
+    <message>
+        <source>bookmarks.colour.green</source>
+        <translation>Green</translation>
+    </message>
+    <message>
+        <source>bookmarks.colour.blue</source>
+        <translation>Blue</translation>
+    </message>
+    <message>
+        <source>bookmarks.colour.orange</source>
+        <translation>Orange</translation>
+    </message>
+    <message>
+        <source>bookmarks.colour.purple</source>
+        <translation>Purple</translation>
+    </message>
+    <message>
+        <source>bookmarks.properties.bold</source>
+        <translation>Bold</translation>
+    </message>
+    <message>
+        <source>bookmarks.properties.italic</source>
+        <translation>Italic</translation>
+    </message>
+    <message>
+        <source>bookmarks.properties.open</source>
+        <translation>Show the bookmarks under it when the document opens</translation>
+    </message>
+    <message>
+        <source>bookmarks.properties.target</source>
+        <translation>Action:</translation>
+    </message>
+    <message>
+        <source>bookmarks.target.keep</source>
+        <translation>As it is now</translation>
+    </message>
+    <message>
+        <source>bookmarks.target.page</source>
+        <translation>Go to a page of this document</translation>
+    </message>
+    <message>
+        <source>bookmarks.target.currentView</source>
+        <translation>Go to the current view</translation>
+    </message>
+    <message>
+        <source>bookmarks.target.openFile</source>
+        <translation>Open a file</translation>
+    </message>
+    <message>
+        <source>bookmarks.target.webLink</source>
+        <translation>Open a web link</translation>
+    </message>
+    <message>
+        <source>bookmarks.target.script</source>
+        <translation>Run JavaScript</translation>
+    </message>
+    <message>
+        <source>bookmarks.target.print</source>
+        <translation>Print</translation>
+    </message>
+    <message>
+        <source>bookmarks.target.submit</source>
+        <translation>Submit a form</translation>
+    </message>
+    <message>
+        <source>bookmarks.target.remotePage</source>
+        <translation>Go to a page of another document</translation>
+    </message>
+    <message>
+        <source>bookmarks.target.nothing</source>
+        <translation>Do nothing</translation>
+    </message>
+    <message>
+        <source>bookmarks.properties.targetText</source>
+        <translation>File, address or script:</translation>
+    </message>
+    <message>
+        <source>bookmarks.properties.targetPage</source>
+        <translation>Page:</translation>
+    </message>
+    <message>
+        <source>bookmarks.generate.title</source>
+        <translation>Generate Bookmarks</translation>
+    </message>
+    <message>
+        <source>bookmarks.generate.headings</source>
+        <translation>From the document’s headings</translation>
+    </message>
+    <message>
+        <source>bookmarks.generate.fonts</source>
+        <translation>By font size and style</translation>
+    </message>
+    <message>
+        <source>bookmarks.generate.pattern</source>
+        <translation>From lines matching a pattern</translation>
+    </message>
+    <message>
+        <source>bookmarks.generate.largerThanBody</source>
+        <translation>Larger than the body text</translation>
+    </message>
+    <message>
+        <source>bookmarks.generate.boldOnly</source>
+        <translation>Bold lines only</translation>
+    </message>
+    <message>
+        <source>bookmarks.generate.minimumSize</source>
+        <translation>Smallest heading size (pt):</translation>
+    </message>
+    <message>
+        <source>bookmarks.generate.expression</source>
+        <translation>Pattern (a regular expression):</translation>
+    </message>
+    <message>
+        <source>bookmarks.import.title</source>
+        <translation>Import Bookmarks</translation>
+    </message>
+    <message>
+        <source>bookmarks.export.title</source>
+        <translation>Export Bookmarks</translation>
+    </message>
+    <message>
+        <source>bookmarks.fileFilter</source>
+        <translation>Bookmark files (*.txt *.xml)</translation>
+    </message>
+    <message>
+        <source>bookmarks.untitled</source>
+        <translation>Untitled</translation>
+    </message>
+    <message>
+        <source>bookmarks.toc.heading</source>
+        <translation>Contents</translation>
+    </message>
+    <message>
+        <source>bookmarks.done</source>
+        <translation>%1</translation>
+    </message>
+    <message>
+        <source>bookmarks.refused</source>
+        <translation>%1 was not done: %2</translation>
+    </message>
+    <message>
+        <source>bookmarks.readingPages</source>
+        <translation>Reading %1 pages for headings…</translation>
+    </message>
+    <message>
+        <source>bookmarks.exported</source>
+        <translation>Exported %1 bookmarks to %2</translation>
     </message>
 </context>
 </TS>

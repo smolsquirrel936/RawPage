@@ -856,7 +856,7 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
         if (thumbnails_) thumbnails_->remapPages(map);
         // THE BOOKMARKS AND THE NAMED DESTINATIONS are handed again: the backend carried each destination to where its
         // page now stands (`IDocumentBackend::outline`), and the panes hold copies of what they were last handed.
-        if (bookmarks_) bookmarks_->setDocument(document->handle(), services_.backend.outline(document->handle()));
+        updateBookmarksPane(document);   // S7 T11: the model's outline, which the command remapped
         if (destinations_)
             destinations_->setDocument(document->handle(), services_.backend.destinations(document->handle()));
     });
@@ -874,6 +874,8 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
         }
         // S6 T11: the Attachments pane lists what the document holds now.
         if (attachments_ && document == currentDocument()) attachments_->refresh();
+        // S7 T11: and the Bookmarks pane the outline as the model holds it now -- an undo, a redo, a page command.
+        if (document == currentDocument()) updateBookmarksPane(document);
         // S6 T9: the Comments pane re-asks its query, keeping the comment it had current.
         if (comments_ && document == currentDocument()) {
             if (const core::CommandJournal* journal = document->journal()) {
@@ -2761,8 +2763,7 @@ void MainWindow::updateDocumentPanes()
     // pane on every tab change free. A null answer means *not a handle of mine*; an EMPTY model
     // means *this document has none*, and each pane shows its empty state for the second rather
     // than an error (`core/backend.h` draws that distinction deliberately).
-    if (bookmarks_)
-        bookmarks_->setDocument(current->handle(), services_.backend.outline(current->handle()));
+    updateBookmarksPane(current);   // S7 T11 (D7-10): the model's outline, editable where it may be
     if (destinations_)
         destinations_->setDocument(current->handle(),
                                    services_.backend.destinations(current->handle()));
@@ -3330,6 +3331,7 @@ void MainWindow::registerActions()
     // S7 T8: the thumbnails pane's edits (D7-13).
     registerPageActions();
     registerMergeActions();
+    registerBookmarkActions();   // S7 T11
 
     // --- Documents and windows (T12) --------------------------------------------------------
     // `file.open` raises a file dialog and hands what it collects to `openFiles`, which checks a

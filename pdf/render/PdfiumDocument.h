@@ -50,6 +50,7 @@
 #include "core/doc/Destinations.h"
 #include "core/doc/Metadata.h"
 #include "core/doc/Outline.h"
+#include "core/doc/OutlineGenerator.h"
 #include "core/doc/PageTree.h"
 #include "core/doc/Permissions.h"
 #include "core/doc/RepairReport.h"
@@ -243,6 +244,8 @@ public:
     // kept as anchors. Past `core::PageGeometry::kMaxSegments` the reading stops and the page is answered
     // `tooManySegments`. The whole page under the engine lock, as `searchUnits` reads a page.
     core::Status pageGeometry(int pageIndex, core::PageGeometry& into) const;
+    // S7 T11 (D7-10): the page's headings as its structure tree names them -- `IDocumentBackend::structureHeadings`.
+    core::Status structureHeadings(int pageIndex, std::vector<core::HeadingLine>& into) const;
 
     // The bytes, for `pdf/cos/`. A view, not a copy: they live as long as this object, because
     // PDFium holds a pointer into them.

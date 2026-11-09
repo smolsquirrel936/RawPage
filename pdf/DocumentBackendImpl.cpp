@@ -16,6 +16,8 @@
 #include "pdf/cos/XrefRepair.h"
 #include "pdf/ops/EmbeddedFileReader.h"
 #include "pdf/ops/MutationSinkImpl.h"
+#include "pdf/ops/OutlineFiles.h"
+#include "pdf/ops/OutlineReader.h"
 #include "pdf/ops/PageOps.h"
 #include "pdf/ops/ObjectGraphCopier.h"
 #include "pdf/ops/TransitionReader.h"
@@ -152,8 +154,9 @@ void carryItems(std::vector<core::OutlineItem>& items, const std::vector<int>& d
     }
 }
 
-// The outline and the named destinations PDFium read at open, as they name pages in the order drawn now.
-void carryReaders(const render::PdfiumDocument& document, const std::vector<int>& from,
+// The outline read at open -- the first-party reading where the two agree, PDFium's otherwise (S7 T11) -- and the named
+// destinations PDFium read, as they name pages in the order drawn now.
+void carryReaders(const render::PdfiumDocument& document, const core::Outline& opened, const std::vector<int>& from,
                   const std::vector<bool>& originals, core::Outline& outline, core::Destinations& destinations)
 {
     std::vector<int> drawnIndexOf(static_cast<std::size_t>(document.pages().count()), -1);
@@ -162,7 +165,7 @@ void carryReaders(const render::PdfiumDocument& document, const std::vector<int>
         if (open >= 0 && open < static_cast<int>(drawnIndexOf.size()) && i < originals.size() && originals[i])
             drawnIndexOf[static_cast<std::size_t>(open)] = static_cast<int>(i);
     }
-    core::Outline carriedOutline = document.outline();
+    core::Outline carriedOutline = opened;
     carryItems(carriedOutline.roots(), drawnIndexOf);
     core::Destinations carriedDestinations;
     for (core::NamedDestination entry : document.destinations().all()) {
@@ -281,6 +284,9 @@ struct DocumentBackendImpl::Open {
     // from the render thread (`searchUnits`).
     core::Outline outline;
     core::Destinations destinations;
+    // S7 T11 (D7-10): the outline as read at OPEN -- the first-party reading, ids and all, where it agrees with PDFium's,
+    // else PDFium's, refused for editing with the reason. What `outline` is carried from while no bookmark is edited.
+    core::Outline openOutline;
 };
 
 DocumentBackendImpl::DocumentBackendImpl() = default;
@@ -498,7 +504,6 @@ core::Result<core::DocumentHandle> DocumentBackendImpl::assemble(Opening& openin
     entry->drawnFrom = entry->diskFrom;
     entry->diskOriginal.assign(entry->diskFrom.size(), true);
     entry->drawnOriginal = entry->diskOriginal;
-    entry->outline = entry->document->outline();
     entry->destinations = entry->document->destinations();
 
     // --- Stage 3 T4: identity, the second reading, and the pre-flight (D3-7, D3-16) -----------------
@@ -590,6 +595,32 @@ core::Result<core::DocumentHandle> DocumentBackendImpl::assemble(Opening& openin
                                                     : QLatin1String("error.edit.noPageMap"),
             QString()});
     }
+    // S7 T11 (D7-10): THE OUTLINE, first-party -- every item by its object -- held to agree with PDFium's reading in count,
+    // depth, titles and target page, or read-only with the reason, the engine's reading shown.
+    if (sink) {
+        const ops::ReferenceRepair::Ledger none;
+        const ops::ReferenceRepair::View cosView(sink.value()->table(), none);
+        ops::OutlineReader::Reading outlineReading = ops::OutlineReader::read(cosView);
+        std::map<long long, int> indexOf;
+        for (std::size_t i = 0; i < sink.value()->pages().pages.size(); ++i)
+            indexOf.emplace(sink.value()->pages().pages[i].number, static_cast<int>(i));
+        ops::OutlineReader::resolve(outlineReading, indexOf);
+        const core::Status agreed = ops::OutlineReader::agreesWith(entry->document->outline(), outlineReading, indexOf);
+        if (agreed) {
+            entry->openOutline = std::move(outlineReading.outline);
+        } else {
+            RAWPAGE_LOG_WARNING(core::LogSubsystem::Render)
+                << "backend: the outline of" << path << "is read-only -- the two readings disagree:" << agreed.error().context;
+            entry->openOutline = core::Outline::refused(agreed.error(), entry->document->outline().roots());
+        }
+    } else {
+        entry->openOutline = core::Outline::refused(
+            core::Error{core::ErrorCode::PermissionDenied,
+                        reading == core::CosReading::Encrypted ? QLatin1String("error.edit.encrypted") : QLatin1String("error.edit.noPageMap"),
+                        QString()},
+            entry->document->outline().roots());
+    }
+    entry->outline = entry->openOutline;
     // S6 T11: a document from bytes is never edited -- its permissions say so by key -- and keeps its sink all the
     // same, so a Save As writes it, unchanged, to a file of its own (`RevisionWriter`: a save of an unchanged file
     // is a copy).
@@ -983,7 +1014,7 @@ core::Status DocumentBackendImpl::showEdits(core::DocumentHandle document,
                 target->drawnOriginal.assign(identity.size(), true);
                 target->drawnFacts.clear();
                 const std::lock_guard<std::mutex> guard(mutex_);
-                target->outline = target->document->outline();
+                target->outline = target->openOutline;
                 target->destinations = target->document->destinations();
             }
             target->document->show(target->document->bytes(), QByteArray());
@@ -1049,23 +1080,31 @@ core::Status DocumentBackendImpl::showEdits(core::DocumentHandle document,
     std::vector<Open::Replaced> replaced;
     std::vector<core::DocumentHandle> gated;
     const auto gate = std::make_shared<render::ShowGate>();
+    // S7 T11 (D7-10): THE OUTLINE AS THE UPDATE WRITES IT, when it may be edited -- the sink's, each destination placed
+    // by the order drawn -- so the panes and a search read what Save would write.
+    std::optional<core::Outline> edited;
+    if (entry->openOutline.status()) edited = entry->sink->outlineNow();
     for (const auto& [handle, target] : shown) {
-        if (target->drawnFrom != from || target->drawnOriginal != originals || target->drawnFacts != facts) {
+        const bool reordered = target->drawnFrom != from || target->drawnOriginal != originals || target->drawnFacts != facts;
+        if (reordered || (edited && !(edited->digest() == target->outline.digest()))) {
             Open::Replaced before;
             before.target = handle;
             before.drawn = target->drawn;
             before.drawnFrom = target->drawnFrom;
             before.drawnOriginal = target->drawnOriginal;
             before.drawnFacts = target->drawnFacts;
-            target->drawn = target->document->pages().reordered(from, facts);
-            target->drawnFrom = from;
-            target->drawnOriginal = originals;
-            target->drawnFacts = facts;
+            if (reordered) {
+                target->drawn = target->document->pages().reordered(from, facts);
+                target->drawnFrom = from;
+                target->drawnOriginal = originals;
+                target->drawnFacts = facts;
+            }
             // THE OUTLINE AND THE NAMED DESTINATIONS follow the pages they name (S7 T3): the bookmarks pane, the
             // destinations pane and a bookmark found by a search open the page, not the index it had.
             core::Outline outline;
             core::Destinations destinations;
-            carryReaders(*target->document, from, originals, outline, destinations);
+            carryReaders(*target->document, target->openOutline, from, originals, outline, destinations);
+            if (edited) outline = *edited;   // a companion opened the same file: the same items
             const std::lock_guard<std::mutex> guard(mutex_);
             before.outline = std::move(target->outline);
             before.destinations = std::move(target->destinations);
@@ -1332,6 +1371,38 @@ core::Status DocumentBackendImpl::searchUnits(core::DocumentHandle document, int
         if (part == core::text::kOutlinePart) outline = entry->outline;
     }
     return found->searchUnits(part, *descriptions, into, part == core::text::kOutlinePart ? &outline : nullptr);
+}
+
+core::Status DocumentBackendImpl::structureHeadings(core::DocumentHandle document, int page, std::vector<core::HeadingLine>& into)
+{
+    // Found under the lock, read without it -- `pageGeometry`'s arrangement: the engine lock is the document's.
+    const render::PdfiumDocument* found = nullptr;
+    {
+        const std::lock_guard<std::mutex> guard(mutex_);
+        const Open* entry = find(document);
+        if (entry != nullptr) found = entry->document.get();
+    }
+    if (found == nullptr)
+        return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.backend.unknownDocument"),
+                           QString::number(static_cast<qulonglong>(document.id))};
+    return found->structureHeadings(page, into);
+}
+
+core::Result<std::vector<core::OutlineItem>> DocumentBackendImpl::readOutlineExchange(const QString& path, int pageCount,
+                                                                                      const QString& key)
+{
+    return ops::OutlineFiles::read(path, pageCount, key);
+}
+
+core::Status DocumentBackendImpl::writeOutlineExchange(const std::vector<core::OutlineItem>& items, core::OutlineFormat format,
+                                                       const QString& path, bool overwrite)
+{
+    return ops::OutlineFiles::write(items, format, path, overwrite);
+}
+
+core::Result<core::CopiedPages> DocumentBackendImpl::tableOfContents(const core::TableOfContents& toc)
+{
+    return ops::ObjectGraphCopier::tableOfContents(toc);
 }
 
 core::Status DocumentBackendImpl::pageGeometry(core::DocumentHandle document, int pageIndex, core::PageGeometry& into)
