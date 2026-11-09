@@ -118,9 +118,25 @@ jobs:
 
       # tests/fuzz/CMakeLists.txt fails configure on the wrong target count (A-27), so an empty fuzz
       # graph stops here rather than soaking nothing for ten minutes.
+      #
+      # RETRIED, from a clean build directory, because configure is where vcpkg DOWNLOADS -- its own CMake
+      # (soak 42470547366: "required v4.4.4", fetched from github.com, three 504s in a row) and every port
+      # the binary cache does not hold (Stage 7 guide I-15's gitlab.com 429) -- and a passing outage there
+      # cost three of that soak's six targets their day's draw, failing with no fuzz log at all (Stage 7
+      # guide I-19). Three attempts, a minute and then two between them; a configure that fails for its own
+      # reason -- A-27's target count -- fails all three, and the job with it.
       - name: Configure
         id: configure
-        run: cmake --preset portable-fuzz
+        run: |
+          for attempt in 1 2 3; do
+            if cmake --preset portable-fuzz; then exit 0; fi
+            if [ "$attempt" -eq 3 ]; then break; fi
+            echo "::warning::configure attempt $attempt failed -- retrying from a clean build directory (Stage 7 guide I-19)"
+            rm -rf build/portable-fuzz
+            sleep $((attempt * 60))
+          done
+          echo "::error::configure failed three times"
+          exit 1
 
       - name: Save vcpkg binaries
         if: ${{ !cancelled() && steps.configure.outcome == 'success' && steps.vcpkg-cache.outputs.cache-hit != 'true' }}
