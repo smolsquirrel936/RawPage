@@ -52,6 +52,7 @@
 #include "ui/dialogs/CustomStampDialog.h"
 #include "ui/dialogs/DocumentPropertiesDialog.h"
 #include "ui/dialogs/ExchangeReportDialog.h"
+#include "ui/dialogs/MergeDialog.h"
 #include "ui/dialogs/PageOpsDialogs.h"
 #include "ui/dialogs/RotatePagesDialog.h"
 #include "ui/dialogs/UnsavedChangesDialog.h"
@@ -75,6 +76,7 @@ class QVBoxLayout;
 namespace rawpage::core {
 class SplitRunner;
 class PageWorkRunner;
+class MergeRunner;
 }
 
 namespace rawpage::ui {
@@ -190,6 +192,15 @@ public:
     core::Status splitDocument(DocumentWindow* document, const SplitDocumentDialog::Choice& choice);
     // Whether a split started here is still gathering its facts.
     bool isSplitting() const;
+
+    // MERGE -- Stage 7 T10 (`Stage7-Assembly-Plan.md` D7-16, D7-33; `ui/shell/MainWindowMerge.cpp`). The choice's files
+    // merged by `core::MergeRunner` OFF the UI thread, a progress window whose Cancel stops it, and the result opened
+    // as an untitled tab, read-only until Saved As (D7-30(b), as an extract's -- the user's choice at T10). What was
+    // skipped, renamed or merged is said on the status bar and, where a person can read it, in a report. Refused while
+    // a merge runs (`error.merge.busy`).
+    core::Status mergeDocuments(const MergeDialog::Choice& choice);
+    bool isMerging() const;
+    void cancelMerge();
 
     // ---------------------------------------------------------------------------------------
     // THE THUMBNAILS PANE'S EDITS -- Stage 7 T8 (`Stage7-Assembly-Plan.md` D7-13, D7-20). `ui/shell/MainWindowPages.cpp`.
@@ -685,6 +696,8 @@ private:
     // `edit.undo`, `edit.redo`, `page.rotate`, `file.save` and `file.saveAs` -- Stage 3 T10.
     void registerMutationActions();
     void registerPageActions();      // S7 T8 -- `ui/shell/MainWindowPages.cpp`
+    void registerMergeActions();     // S7 T10 -- `ui/shell/MainWindowMerge.cpp`
+    void finishMerge(core::Result<core::MergedDocument> merged, const std::vector<QString>& paths);
     void updatePageBadges();         // S7 T8 -- the thumbnails' badges from the document in front's store
 
     // A failed save, as a banner the document keeps (Stage 3 T10).
@@ -726,6 +739,9 @@ private:
     std::unique_ptr<core::SplitRunner> splitRunner_;
     // S7 T9: a white-margin crop's or a thumbnail embedding's pages being read by the engine -- one at a time, per window.
     std::unique_ptr<core::PageWorkRunner> pageWork_;
+    // S7 T10: the merge in progress, if any, and the window that shows it -- one at a time, per window.
+    std::unique_ptr<core::MergeRunner> mergeRunner_;
+    QPointer<QWidget> mergeProgress_;
 
     Ribbon*             ribbon_ = nullptr;
     QuickAccessToolbar* qat_ = nullptr;

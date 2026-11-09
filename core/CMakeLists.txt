@@ -156,6 +156,12 @@ add_library(rawpage_core STATIC
     doc/SplitRunner.h
     doc/SplitRunner.cpp
     doc/PageWorkRunner.cpp
+    # Stage 7 T10 (D7-16) -- many files made one: what is asked and answered, the setting's enum, and the run off the
+    # UI thread.
+    doc/Merge.h
+    doc/MergeBookmarks.h
+    doc/MergeRunner.h
+    doc/MergeRunner.cpp
 
     # Stage 3 T4 -- the rest of D3-8's list, and no more: a type with no Stage 3 caller is tested only
     # against its own idea of what a caller wants. Document is the model CommandJournal (T5) will be

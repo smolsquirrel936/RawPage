@@ -415,10 +415,11 @@ TEST_CASE("a Global command acts on the window that is active", "[tabs]")
     // `annot.attachAudio`; `redact.mark` has been registered since T5), and by 1 at Stage 7 T6 (`file.saveACopy`,
     // declared since Stage 1, D7-25), and by 2 at Stage 7 T7 (`page.extract` and `page.split`, declared since
     // Stage 1, D7-5), and by 10 at Stage 7 T8 (the thumbnails pane's edits, D7-13), and by 6 at Stage 7 T9 (`page.crop`,
-    // `.resize`, `.renumber`, and the minted `.setBoxes`, `.embedThumbnails` and `.removeThumbnails`, D7-15), and the
+    // `.resize`, `.renumber`, and the minted `.setBoxes`, `.embedThumbnails` and `.removeThumbnails`, D7-15), and by 1 at
+    // Stage 7 T10 (`merge.documents`, declared since Stage 1, D7-16), and the
     // point of asserting it here is unchanged: this case is about registration happening once per
     // REGISTRY rather than once per window, and a count is how "once" is stated.
-    CHECK(fixture.actions.registeredCount() == 192);
+    CHECK(fixture.actions.registeredCount() == 193);
 
     second.raiseToForeground();
     CHECK(ui::MainWindow::activeShell() == &second);

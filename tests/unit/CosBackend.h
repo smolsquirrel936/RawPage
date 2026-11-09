@@ -36,6 +36,7 @@
 #include "pdf/ops/MutationSinkImpl.h"
 #include "pdf/ops/ObjectGraphCopier.h"
 #include "pdf/ops/DocumentAssembler.h"
+#include "pdf/ops/DocumentMerger.h"
 #include "pdf/ops/RevisionWriter.h"
 #include "pdf/ops/SignatureFields.h"
 #include "pdf/cos/XrefRepair.h"
@@ -241,6 +242,12 @@ public:
         auto source = pdf::ops::DocumentAssembler::Source::open(std::string(whole.constData(), static_cast<std::size_t>(whole.size())));
         if (!source) return source.error();
         return std::unique_ptr<core::AssemblySource>(std::move(source).value());
+    }
+    // Stage 7 T10: the shipped backend's merge.
+    core::Result<core::MergedDocument> mergeFiles(const std::vector<core::MergeInput>& inputs, const core::MergeOptions& options,
+                                                  const core::MergeProgress& progress) override
+    {
+        return pdf::ops::DocumentMerger::mergeFiles(inputs, options, progress);
     }
     const core::PageTree* pages(core::DocumentHandle handle) const override
     {

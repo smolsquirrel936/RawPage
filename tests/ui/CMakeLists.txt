@@ -66,6 +66,9 @@ add_executable(rawpage_ui_tests
     # S7 T9 -- the crop tool through the window (S7 guide A-64), the Set Page Boxes, Resize and Renumber dialogs and the
     # six page actions T9 registers (A-60 ... A-63's widget halves).
     tst_croptool.cpp
+    # S7 T10 -- the merge dialog, merge.documents off the UI thread, cancel, and the untitled read-only result (S7 guide
+    # A-70's and A-72's widget halves; the settings that start the dialog, A-66 and A-68).
+    tst_mergedialog.cpp
 
     # Stage 3 T11 -- the recovery prompt at launch (guide cases A-67's untitled half, A-82's prompt half).
     # app/RecoveryPrompt.cpp is COMPILED IN rather than linked, as tests/unit compiles three app/ units:

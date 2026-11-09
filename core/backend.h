@@ -58,6 +58,7 @@
 #include "core/Result.h"
 #include "core/Snap.h"
 #include "core/doc/Assembly.h"   // Stage 7 T7: `assemblySource` hands its owner a `unique_ptr` of it
+#include "core/doc/Merge.h"      // Stage 7 T10: `mergeFiles` answers a `MergedDocument` by value
 
 #include <QByteArray>
 #include <QLatin1String>
@@ -712,6 +713,16 @@ public:
     // a document the first-party reader cannot copy -- encrypted (`error.pdf.encrypted`), a damaged page tree
     // (`error.pdf.pageTreeDamaged`) -- and an update that does not compose. Changes nothing.
     virtual Result<std::unique_ptr<AssemblySource>> assemblySource(DocumentHandle document) = 0;
+
+    // MANY FILES MADE ONE -- Stage 7 T10 (`Stage7-Assembly-Plan.md` D7-16, `core/doc/Merge.h`). Each input read from its
+    // path through the first-party reader, its pages copied with their comments, links, outline, form fields and
+    // layers, and all of them built into ONE new document, verified as an extract's is -- returned in memory, never
+    // written. An input that cannot be merged is SKIPPED and reported with its reason; the merge is refused only when
+    // none could be (`error.merge.nothingMerged`), when `progress` answers false (`error.merge.cancelled`), or when
+    // the built document fails its verify. **CALLABLE FROM ANY THREAD**: it touches no open document and no engine,
+    // which is what lets `core/doc/MergeRunner` run it off the UI thread.
+    virtual Result<MergedDocument> mergeFiles(const std::vector<MergeInput>& inputs, const MergeOptions& options,
+                                              const MergeProgress& progress) = 0;
 
     // THE PAGE'S CONTENT BOUNDING BOX -- the union of its objects' bounds, in PDF points, added at
     // Stage 4 T12 (**D4-14**) to close Stage 2's **I-28**. Fit Visible is defined over it

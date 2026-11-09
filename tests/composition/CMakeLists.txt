@@ -87,6 +87,9 @@ add_executable(rawpage_composition_tests
     # takes the tab's place), A-48's product half and its control (extract and delete in one undo step, and a planted
     # write failure that leaves the source untouched and no file), A-49 reached from page.split through the pumps.
     tst_assemblyproduct.cpp
+    # S7 T10 -- guide A-72, the guide's §3.5: a 30-way merge through the product, wall time, live-heap peak, the UI
+    # thread's gaps and cancel, graded as A-47 and A-66 grade (D7-16).
+    tst_mergeproduct.cpp
     # S7 T8 -- guide A-54's and A-55's identity halves (pages dropped from another window, copied, cut and pasted, each
     # showing its identity through the live engine), A-57 from a real file, a delete's report, A-27's warning half on the
     # signed corpus, and `[D7-13]`: pages pasted by a SECOND process, by hand on the `windows` platform.

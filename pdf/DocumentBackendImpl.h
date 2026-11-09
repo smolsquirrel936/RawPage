@@ -125,6 +125,8 @@ public:
     // Stage 7 T7 (D7-5, D7-30): the document as it stands, composed as a save would compose it, through
     // `pdf/ops/DocumentAssembler` -- see core/backend.h.
     core::Result<std::unique_ptr<core::AssemblySource>> assemblySource(core::DocumentHandle document) override;
+    core::Result<core::MergedDocument> mergeFiles(const std::vector<core::MergeInput>& inputs, const core::MergeOptions& options,
+                                                  const core::MergeProgress& progress) override;
 
     // S4 T12 (D4-14). Forwards to `PdfiumDocument::contentBox`, which computes on demand and caches
     // per page -- the one reader on this interface that is not hydrated at open, and the header of

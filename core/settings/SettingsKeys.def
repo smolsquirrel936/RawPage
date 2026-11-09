@@ -311,6 +311,18 @@ RAWPAGE_SETTING(documents, defaultPageSize, PaperSize,
 RAWPAGE_SETTING_RANGED(documents, cropRemoveWhiteMargins, double,
                        "documents/cropRemoveWhiteMargins", 0.0, Documents, true, 0.0, 72.0)
 
+// The bookmark a merge gives each file it merges -- Stage 7 T10 (`Stage7-Assembly-Plan.md` D7-16, D7-22, guide A-66):
+// `fileName` by default, `title` from the file's own /Title, or `none` (`core/doc/MergeBookmarks.h`). Read by
+// `ui/dialogs/MergeDialog` when it opens, which offers it first; the dialog's choice is the merge's.
+RAWPAGE_SETTING(documents, mergeBookmarkPerFile, MergeBookmarks,
+                "documents/mergeBookmarkPerFile", MergeBookmarks::FileName, Documents, true)
+
+// What a merge does with a top-level form field name an earlier file already used -- Stage 7 T10 (D7-16, guide A-68).
+// ON, by default: RENAMED (`name` -> `name_2`), so no file's value is lost; OFF merges the two into one field whose
+// widgets share the earlier file's value. Reported either way. Read by `ui/dialogs/MergeDialog` when it opens.
+RAWPAGE_SETTING(documents, renameCollidingFields, bool,
+                "documents/renameCollidingFields", true, Documents, true)
+
 // =============================================================================================
 // The eleven Stage 4 `units/` rows -- S4 T8, D4-5 and D4-6. They fill the `UnitsAndGuides` group,
 // which has existed in `SettingsGroup` since Stage 1 with NO KEYS, and adding them is the whole of

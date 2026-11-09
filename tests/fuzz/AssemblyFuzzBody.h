@@ -9,7 +9,7 @@
 // a payload) -> the payload re-read as a file of its own -> the payload INSERTED into a fixed one-page target and
 // one of its pages REPLACING the target's, each composed by `RevisionWriter` and VERIFIED as a save would, then
 // undone -> and (Stage 7 T7) the payload BUILT into a new document by `DocumentAssembler` and verified as an
-// extract's is. T11 adds the outline reader and T17 the layer tree over the same bytes (D7-23).
+// extract's is -> and (T10) the input MERGED with itself by `DocumentMerger`, fields, outline and layers twice. T11 adds the outline reader and T17 the layer tree over the same bytes (D7-23).
 //
 // THE INVARIANTS, each one a defect the copier or the sink could plausibly have:
 //   * REFUSAL  -- a copy refused is refused BY KEY, one of the copier's own; anything else is a finding;
@@ -23,6 +23,9 @@
 //   * REPLACE  -- the payload's first page replacing the target's page does the same, the count unchanged.
 //   * ASSEMBLE -- the payload built into a new document (T7, D7-5) is one `DocumentAssembler::verify` accepts: one
 //                 revision, nothing unreachable, its pages the payload's in order, every object the payload's.
+//   * MERGE    -- the input merged with itself (T10, D7-16), its fields merged on purpose and a separator between, is
+//                 built and verified by the merger -- refused only when the input is one it skips -- with every page
+//                 of both and the one separator.
 //
 // WHAT IS NOT A FINDING: an input the walk cannot read, or one the copier refuses by key.
 
@@ -33,6 +36,7 @@
 #include "pdf/cos/XrefRepair.h"
 #include "pdf/cos/XrefTable.h"
 #include "pdf/ops/DocumentAssembler.h"
+#include "pdf/ops/DocumentMerger.h"
 #include "pdf/ops/MutationSinkImpl.h"
 #include "pdf/ops/ObjectGraphCopier.h"
 #include "pdf/ops/PageOps.h"
@@ -196,6 +200,27 @@ inline AssemblyVerdict assemblyFuzzOnce(const std::uint8_t* data, std::size_t si
         if (!built) return assemblyFail(std::string("assemble refused: ") + built.error().messageKey.data() + " " + built.error().context.toStdString());
         if (const core::Status verified = pdf::ops::DocumentAssembler::verify(built.value(), pdf); !verified)
             return assemblyFail("assemble: verify refused " + verified.error().context.toStdString());
+    }
+    // MERGE -- the input merged with ITSELF (T10, D7-16): its fields, outline and layers twice over, every top-level
+    // field colliding, merged on purpose so the split-and-join path runs, a separator between -- built and verified
+    // inside the merger, which refuses by the verify's key if the join is not a document.
+    {
+        std::vector<int> some;
+        for (std::size_t i = 0; i < pages.size(); ++i) some.push_back(static_cast<int>(i));
+        const std::string whole(bytes);
+        const auto read = [&whole]() -> core::Result<std::string> { return whole; };
+        core::MergeOptions merging;
+        merging.renameCollidingFields = false;
+        merging.separatorPages = true;
+        auto merged = pdf::ops::DocumentMerger::merge({pdf::ops::DocumentMerger::Input{QStringLiteral("a"), some, read},
+                                                       pdf::ops::DocumentMerger::Input{QStringLiteral("b"), some, read}},
+                                                      merging, {});
+        if (!merged) {
+            const std::string key(merged.error().messageKey.data(), static_cast<std::size_t>(merged.error().messageKey.size()));
+            if (key != "error.merge.nothingMerged") return assemblyFail("merge refused: " + key + " " + merged.error().context.toStdString());
+        } else if (merged.value().report.pageCount != 2 * static_cast<int>(pages.size()) + 1) {
+            return assemblyFail("merge: " + std::to_string(merged.value().report.pageCount) + " pages");
+        }
     }
     return verdict;
 }

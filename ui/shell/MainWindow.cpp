@@ -4,6 +4,7 @@
 #include "core/cmd/commands/AnnotationCommands.h"
 #include "core/cmd/commands/AttachmentCommands.h"
 #include "core/cmd/commands/PageCommands.h"
+#include "core/doc/MergeRunner.h"
 #include "core/doc/PageWorkRunner.h"
 #include "core/doc/SplitRunner.h"
 #include "core/Log.h"
@@ -3328,6 +3329,7 @@ void MainWindow::registerActions()
     registerMutationActions();
     // S7 T8: the thumbnails pane's edits (D7-13).
     registerPageActions();
+    registerMergeActions();
 
     // --- Documents and windows (T12) --------------------------------------------------------
     // `file.open` raises a file dialog and hands what it collects to `openFiles`, which checks a

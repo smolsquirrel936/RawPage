@@ -2510,6 +2510,146 @@
         <source>shell.split.blankLeftOut</source>
         <translation>%1 blank page(s) were left out.</translation>
     </message>
+    <message>
+        <source>shell.merge.title</source>
+        <translation>Merge Documents</translation>
+    </message>
+    <message>
+        <source>shell.merge.dropHint</source>
+        <translation>Add the PDF files to merge, in order. Drag files here or use Add Files.</translation>
+    </message>
+    <message>
+        <source>shell.merge.columnFile</source>
+        <translation>File</translation>
+    </message>
+    <message>
+        <source>shell.merge.columnPages</source>
+        <translation>Pages (empty for all)</translation>
+    </message>
+    <message>
+        <source>shell.merge.columnCount</source>
+        <translation>Contents</translation>
+    </message>
+    <message>
+        <source>shell.merge.add</source>
+        <translation>Add Files…</translation>
+    </message>
+    <message>
+        <source>shell.merge.remove</source>
+        <translation>Remove</translation>
+    </message>
+    <message>
+        <source>shell.merge.up</source>
+        <translation>Move Up</translation>
+    </message>
+    <message>
+        <source>shell.merge.down</source>
+        <translation>Move Down</translation>
+    </message>
+    <message>
+        <source>shell.merge.chooseFiles</source>
+        <translation>Choose PDF Files to Merge</translation>
+    </message>
+    <message>
+        <source>shell.merge.options</source>
+        <translation>Options</translation>
+    </message>
+    <message>
+        <source>shell.merge.bookmarks</source>
+        <translation>Bookmark per file:</translation>
+    </message>
+    <message>
+        <source>shell.merge.fieldsRename</source>
+        <translation>Rename form fields whose names collide</translation>
+    </message>
+    <message>
+        <source>shell.merge.fieldsMerge</source>
+        <translation>Merge form fields whose names collide into one</translation>
+    </message>
+    <message>
+        <source>shell.merge.separator</source>
+        <translation>Insert a blank page between files</translation>
+    </message>
+    <message>
+        <source>shell.merge.accept</source>
+        <translation>Merge</translation>
+    </message>
+    <message>
+        <source>shell.merge.allPages</source>
+        <translation>Every page. Type a range such as 1-3, 5 to merge only those pages.</translation>
+    </message>
+    <message>
+        <source>shell.merge.pageCount</source>
+        <translation>%1 page(s)</translation>
+    </message>
+    <message>
+        <source>shell.merge.willSkip</source>
+        <translation>Will be skipped: %1</translation>
+    </message>
+    <message>
+        <source>shell.merge.rangeRefused</source>
+        <translation>%1: %2</translation>
+    </message>
+    <message>
+        <source>shell.merge.working</source>
+        <translation>Merging… step %1 of %2</translation>
+    </message>
+    <message>
+        <source>shell.merge.progress</source>
+        <translation>Merging the files…</translation>
+    </message>
+    <message>
+        <source>shell.merge.cancel</source>
+        <translation>Cancel</translation>
+    </message>
+    <message>
+        <source>shell.merge.cancelling</source>
+        <translation>Cancelling the merge…</translation>
+    </message>
+    <message>
+        <source>shell.merge.suggestedName</source>
+        <translation>Merged</translation>
+    </message>
+    <message>
+        <source>shell.merge.done</source>
+        <translation>Merged %1 file(s) into a new document of %2 page(s).</translation>
+    </message>
+    <message>
+        <source>shell.merge.skipped</source>
+        <translation>%1 file(s) skipped.</translation>
+    </message>
+    <message>
+        <source>shell.merge.fieldsRenamed</source>
+        <translation>%1 form field name(s) renamed.</translation>
+    </message>
+    <message>
+        <source>shell.merge.fieldsMerged</source>
+        <translation>%1 form field(s) merged.</translation>
+    </message>
+    <message>
+        <source>shell.merge.reportTitle</source>
+        <translation>Merge Report</translation>
+    </message>
+    <message>
+        <source>shell.merge.reportSkipped</source>
+        <translation>%1 was skipped: %2</translation>
+    </message>
+    <message>
+        <source>shell.merge.reportRenamed</source>
+        <translation>The form field “%1” of %2 was renamed “%3”.</translation>
+    </message>
+    <message>
+        <source>shell.merge.reportMerged</source>
+        <translation>The form field “%1” of %2 was merged into the earlier field of that name.</translation>
+    </message>
+    <message>
+        <source>shell.merge.reportReferences</source>
+        <translation>%1: %2 bookmark(s) or link(s) lost their destination, because their pages were not merged.</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.mergeBusy</source>
+        <translation>A merge is running. Wait for it, or cancel it.</translation>
+    </message>
 </context>
 <context>
     <name>error</name>
@@ -3522,6 +3662,30 @@
         <translation>%1 is not a bookmark level.</translation>
     </message>
     <message>
+        <source>error.merge.busy</source>
+        <translation>A merge is already running.</translation>
+    </message>
+    <message>
+        <source>error.merge.noInputs</source>
+        <translation>Add at least one file to merge.</translation>
+    </message>
+    <message>
+        <source>error.merge.nothingMerged</source>
+        <translation>None of the files could be merged (%1 skipped).</translation>
+    </message>
+    <message>
+        <source>error.merge.cancelled</source>
+        <translation>The merge was cancelled.</translation>
+    </message>
+    <message>
+        <source>error.merge.repairedWithLoss</source>
+        <translation>The file is damaged, and repairing it lost part of it.</translation>
+    </message>
+    <message>
+        <source>error.merge.badRange</source>
+        <translation>%1</translation>
+    </message>
+    <message>
         <source>error.split.badSize</source>
         <translation>%1 is not a file size.</translation>
     </message>
@@ -4148,6 +4312,18 @@
         <translation>Letter</translation>
     </message>
     <message>
+        <source>prefs.choice.mergeBookmarks.none</source>
+        <translation>None</translation>
+    </message>
+    <message>
+        <source>prefs.choice.mergeBookmarks.fileName</source>
+        <translation>Named from the file name</translation>
+    </message>
+    <message>
+        <source>prefs.choice.mergeBookmarks.title</source>
+        <translation>Named from the document title</translation>
+    </message>
+    <message>
         <source>prefs.choice.paperSize.legal</source>
         <translation>Legal</translation>
     </message>
@@ -4338,6 +4514,14 @@
     <message>
         <source>prefs.setting.documents.cropRemoveWhiteMargins</source>
         <translation>Margin kept when removing white margins (points)</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.mergeBookmarkPerFile</source>
+        <translation>Bookmark for each merged file</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.renameCollidingFields</source>
+        <translation>Rename colliding form fields when merging (otherwise merge them)</translation>
     </message>
     <message>
         <source>prefs.setting.documents.compareSensitivity</source>

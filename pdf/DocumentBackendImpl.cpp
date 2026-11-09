@@ -11,6 +11,7 @@
 #include "pdf/ops/AnnotationReader.h"
 #include "pdf/ops/AttachmentFiles.h"
 #include "pdf/ops/DocumentAssembler.h"
+#include "pdf/ops/DocumentMerger.h"
 #include "pdf/ops/FdfCodec.h"
 #include "pdf/cos/XrefRepair.h"
 #include "pdf/ops/EmbeddedFileReader.h"
@@ -770,6 +771,24 @@ core::Result<std::unique_ptr<core::AssemblySource>> DocumentBackendImpl::assembl
         << "backend: an assembly source of handle" << static_cast<int>(document.id) << "--" << source.value()->pageCount()
         << "page(s)," << whole.size() << "bytes";
     return std::unique_ptr<core::AssemblySource>(std::move(source).value());
+}
+
+// Stage 7 T10 (D7-16): first-party throughout -- no entry of `mutex_`'s and no engine is touched, which is what lets
+// `core/doc/MergeRunner` call this from a thread of its own.
+core::Result<core::MergedDocument> DocumentBackendImpl::mergeFiles(const std::vector<core::MergeInput>& inputs,
+                                                                   const core::MergeOptions& options,
+                                                                   const core::MergeProgress& progress)
+{
+    auto merged = ops::DocumentMerger::mergeFiles(inputs, options, progress);
+    if (merged) {
+        const core::MergeReport& report = merged.value().report;
+        RAWPAGE_LOG_INFO(core::LogSubsystem::Save)
+            << "backend: merged" << report.inputsMerged << "of" << static_cast<int>(inputs.size()) << "file(s) --" << report.pageCount
+            << "page(s)," << merged.value().bytes.size() << "bytes," << static_cast<int>(report.fields.size()) << "field collision(s)";
+        for (const core::MergeSkip& skipped : report.skipped)
+            RAWPAGE_LOG_INFO(core::LogSubsystem::Save) << "backend: merge skipped" << skipped.path << "--" << skipped.reasonKey << skipped.context;
+    }
+    return merged;
 }
 
 core::Status DocumentBackendImpl::extractAttachment(core::DocumentHandle document, const core::AttachmentRef& attachment,

@@ -37,6 +37,7 @@ takes it.
 | **DW-2** | **A vector snapshot** — `Features.md` §8's `S` (*"copy a dragged region as an image"*) as a vector metafile that stays sharp when scaled, rather than a bitmap | `Stage5-TextSearch-Plan.md` §0 **Q3** and **D5-10**, written 2026-09-29 before any Stage 5 code | ⚪ **Deferred** by the user, 2026-09-29 (option B of three) | **Unassigned** — no stage's plan names it |
 | **DW-3** | **Typed comments in scripts outside WinAnsi and the four CJK collections** — `Features.md` §4.1's text box, callout, typewriter and dynamic stamp showing Cyrillic, Greek, Hebrew, Arabic, Thai, Devanagari and every other script a font must be embedded for — **and, since 2026-10-29, the text Stage 7 draws on pages**: headers, footers, watermarks, Bates prefixes and suffixes, the table-of-contents page (`Stage7-Assembly-Plan.md` §0 **Q5(e)**) | `Stage6-Annotations-Plan.md` §0 **Q3** and **D6-7**, written 2026-10-04 before any Stage 6 code | ⚪ **Deferred** by the user, 2026-10-04 (Q3 approved as proposed) | **Unassigned** — no stage's plan names it |
 | **DW-4** | **An annotation burst inside A2's frame budget** -- `Stage6-Annotations-Testing-Guide.md` §3.1's scale for *A2 at Stage 6*, which neither T4's bench nor T15's product reading met | `Stage6-Annotations-Plan.md` **D6-24**, Stage 6 T4 (2026-10-05) and T15 (guide **A-104**), 2026-10-20 | ⚪ **Deferred** by the user, 2026-10-20 (the first of three options); **split 2026-10-29** | **Cause (2), the show step: taken by Stage 7** -- `Stage7-Assembly-Plan.md` §0 **Q4**, task **T4** (approved by the user 2026-10-29); **BUILT at T4, 2026-10-31** (D7-26, D7-27), its verdict -- `Stage7-Assembly-Testing-Guide.md` §3.7 -- read at T5 and T11 by the user's choice -- **T5's half NOT TAKEN** (2026-10-31: +20.9 … +23.8 ms after ~3,600 copied objects, the inserted pages' dictionaries built again by every move). **Cause (1), the annotated page's tile: unassigned** -- no stage's plan names it |
+| **DW-5** | **Form fields with pages inserted into an open document** -- `Features.md` §5.2's insert and replace, and §5.3's *preserve form fields* for every page command that brings pages from another file, not only a merge | `Stage7-Assembly-Plan.md` **D7-4** as amended at T5 (*the fields come with D7-16 at T10, for merge and insert together*), Stage 7 T10, 2026-11-09 | ⚪ **Deferred** by the user, 2026-11-09 (*merge only*, the first of two options) | **Unassigned** -- no stage's plan names it |
 
 ---
 
@@ -229,3 +230,37 @@ against §3.7's 2 ms (`Stage7-Assembly-Testing-Guide.md` A-35). What grows is na
 dictionary again (1,803 objects at that size), because T4's units cover annotations, listings and shared objects and
 not a new page. Nothing in Stage 7's plan owns that work yet; T11's reading is the bookmark half. **Cause (1), a tile of a page carrying hundreds of annotations: unassigned.** The
 entry stays open until both are done.
+
+---
+
+### DW-5 · Form fields with pages inserted into an open document
+
+**The capability.** A page brought from another file by *Insert Pages*, *Replace Pages*, a paste or a drag
+between windows (`InsertPagesCommand`, `ReplacePagesCommand`) arriving WITH its form fields: its widgets kept,
+their fields joined to the open document's `/AcroForm`, a top-level name the document already uses renamed or
+merged as a merge does (D7-16), and every one of those taken out again by the command's undo.
+
+**Why it was deferred.** At T5 the copier was made to leave widgets behind (PDFium draws a widget only through
+its field's form, so a widget without its field draws nothing), with *the fields come with D7-16 at T10, for
+merge and insert together* written into D7-4. A merge makes a NEW document, so its field union is built once
+by `pdf/ops/DocumentMerger`; an insert changes an OPEN one, whose field union would be the sink's at every
+compose -- added while a page drawing from the payload is in the document, taken out when none is, renamed
+against the document's own fields, and undone with the command -- `MutationSinkImpl::composeLayers`' shape a
+second time, with its own serialize, revert and reversibility cases. Offered on 2026-11-09 as merge only, or
+both at T10, **the user chose merge only**.
+
+**What exists today** (checked 2026-11-09, Stage 7 T10):
+
+- `pdf/ops/ObjectGraphCopier::Options::fields` copies the pages' widgets, the field nodes above them narrowed
+  to what was copied, and an `/AcroForm` into the payload's catalog -- **set only by `DocumentMerger`**.
+- `IDocumentBackend::copyPages`, `AssemblySource::copy` and `blankPages` -- every payload an insert or a replace
+  carries -- copy with the option OFF: each widget left behind is reported (`PageReference::Kind::WidgetNotCopied`)
+  and said on the status bar with the command's other references (D7-31(f)).
+- `DocumentMerger`'s rename and merge-on-purpose rules (D7-16, D7-33(d)) work on a document being BUILT, not on
+  one with a sink.
+
+**What is absent:** any union of a payload's `/AcroForm` into an open document's, its undo, and its recovery
+replay; the sink's knowledge of which fields a payload added; a rename that does not change the target
+document's own field names. The stage that takes this decides.
+
+**Taken by:** --

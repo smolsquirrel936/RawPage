@@ -106,6 +106,8 @@ add_executable(rawpage_render_tests
     tst_assemblerengine.cpp       # Stage 7 T7 -- guide A-47 ... A-50 (D7-5, D7-30): every new document opened by the
                                   #   engine with no repair and drawn against its source, 0 px; extract and the six
                                   #   splits through core::SplitRunner graded by the identities PDFium extracts
+    tst_mergeengine.cpp           # Stage 7 T10 -- guide A-66 ... A-68 (D7-16): a merge opened by the engine with no repair,
+                                  #   its bookmarks and links landing by identity, its fields as PDFium's form layer reads them
     tst_remap.cpp                 # Stage 7 T3 -- guide A-30, A-32 (D7-3): a move of pages-900.pdf's pages 10 ... 19
                                   #   served wholly from the cache at their new indices, the engine never entered for
                                   #   one, each graded by its text and the saved file's pixels; an unsaved rotation

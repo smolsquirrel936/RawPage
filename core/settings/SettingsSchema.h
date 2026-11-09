@@ -34,6 +34,7 @@
 #include "core/cmd/ActionId.h"
 #include "core/cmd/KeyContext.h"
 #include "core/settings/CommentingTypes.h"
+#include "core/doc/MergeBookmarks.h"
 #include "core/doc/PaperSize.h"
 #include "core/doc/SaveMode.h"
 #include "core/text/CompareSensitivity.h"
@@ -415,6 +416,20 @@ template <> struct SettingsCodec<SaveMode> {
     static SaveMode fromDefault(SaveMode value) { return value; }
 };
 
+// The S7 T10 enum -- `documents/mergeBookmarkPerFile` (guide A-66). The token is `core/doc/MergeBookmarks.h`'s name.
+template <> struct SettingsCodec<MergeBookmarks> {
+    static QVariant toVariant(MergeBookmarks value)
+    {
+        const std::string_view name = mergeBookmarksName(value);
+        return QVariant(QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size())));
+    }
+    static std::optional<MergeBookmarks> fromVariant(const QVariant& variant)
+    {
+        return mergeBookmarksFromName(settingsVariantText(variant).trimmed().toStdString());
+    }
+    static MergeBookmarks fromDefault(MergeBookmarks value) { return value; }
+};
+
 // The S7 T8 enum -- `documents/defaultPageSize` (guide A-45). The token is `core/doc/PaperSize.h`'s name.
 template <> struct SettingsCodec<PaperSize> {
     static QVariant toVariant(PaperSize value)
@@ -694,6 +709,19 @@ template <> struct SettingsEditorTraits<SaveMode> {
         for (const SaveMode mode : {SaveMode::Incremental, SaveMode::Full}) {
             const std::string token(saveModeName(mode));
             out.push_back(SettingsChoice{token, "prefs.choice.saveMode." + token});
+        }
+        return out;
+    }
+};
+
+template <> struct SettingsEditorTraits<MergeBookmarks> {
+    static constexpr SettingsEditor editor = SettingsEditor::Choice;
+    static std::vector<SettingsChoice> choices()
+    {
+        std::vector<SettingsChoice> out;
+        for (const MergeBookmarks value : kMergeBookmarks) {
+            const std::string token(mergeBookmarksName(value));
+            out.push_back(SettingsChoice{token, "prefs.choice.mergeBookmarks." + token});
         }
         return out;
     }

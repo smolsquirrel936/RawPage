@@ -38,8 +38,20 @@
 //     copied as written.
 //   * **A WIDGET IS NOT COPIED** (the user's choice, 2026-10-31, amending D7-4 for T5): PDFium draws a widget
 //     only through the form its field belongs to, so a widget copied without its field draws nothing, and the
-//     fields are D7-16's -- merge's, at T10, which brings them for merge and insert together. Each one left is
-//     reported (`WidgetNotCopied`), as `DuplicatePagesCommand` reports a duplicate's.
+//     fields are D7-16's -- merge's, from T10 (below). Each one left is reported (`WidgetNotCopied`), as
+//     `DuplicatePagesCommand` reports a duplicate's.
+//     STAGE 7 T10 -- `Options::fields`, which merge sets (D7-16): a widget IS copied, with the fields above it. Every
+//     field node on a copied widget's `/Parent` chain is copied once, its `/Kids` narrowed to the widgets and nodes
+//     the copy holds, and the payload's catalog gets an `/AcroForm` whose `/Fields` lists the copied fields' roots in
+//     the source's order (a root `/Fields` never listed after them), with the source's `/DA`, `/Q`, `/DR`,
+//     `/NeedAppearances` and `/SigFlags` and its `/CO` narrowed likewise; `/XFA` stays behind. Insert and replace
+//     still copy no widget (the user's choice at T10: their fields are an open document's, `Deferred-Work.md`).
+//   * STAGE 7 T10 -- `Options::outline`, which merge sets: the source's OUTLINE comes too, as the payload catalog's
+//     `/Outlines`, every item kept with its title, colour, style, open state and any other key, its links rebuilt
+//     and its `/Count` recounted. A destination is treated as a link's is: one whose page is copied names the copy (a
+//     named one written as the array it stood for), one whose page stayed behind is CLEARED -- the item kept with its
+//     title, never dropped (D7-2) -- and reported, and any other action is copied as written. `/SE` goes: the
+//     structure tree stays behind.
 //   * `/StructParent` and `/StructParents` are REMOVED -- a copied page arrives UNTAGGED, because a structure
 //     tree cannot be grafted without the parent tree it indexes -- and each tagged page is reported.
 //   * `/B` (a page's beads) is removed: its threads are not copied.
@@ -89,6 +101,13 @@ public:
         long long maxObjects = 1'000'000;
         // Bytes the payload may reach: `core::kMaxCopiedGraphBytes`, what the recovery journal can carry.
         std::size_t maxBytes = 256u * 1024u * 1024u;
+        // S7 T10 (D7-16), MERGE'S TWO, off for every other copy: the copied pages' WIDGETS come with their fields, and
+        // the source's OUTLINE comes with them -- each written into the payload's catalog (see the header).
+        bool fields = false;
+        bool outline = false;
+        // ... and every optional-content group the source lists, not only those the copied pages reach: a merge takes a
+        // document's layers whole, a label-only parent group included (D7-16).
+        bool allLayers = false;
     };
 
     struct Copied {

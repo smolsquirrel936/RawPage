@@ -32,6 +32,7 @@ add_library(rawpage_ui STATIC
     # and one migration's run, off the UI thread over the comparison's pipeline.
     shell/MainWindowExchange.cpp
     shell/MainWindowPages.cpp       # Stage 7 T8 -- the thumbnails pane's edits (D7-13)
+    shell/MainWindowMerge.cpp       # Stage 7 T10 -- merge.documents (D7-16)
     # S6 T14 (D6-18): the window's half of a sound comment -- the recorder and the WAV asked, a sound played.
     shell/MainWindowAudio.cpp
     shell/CommentMigration.h
@@ -321,6 +322,8 @@ add_library(rawpage_ui STATIC
     # T8 and T9 add the family's other page dialogs here.
     dialogs/PageOpsDialogs.h
     dialogs/PageOpsDialogs.cpp
+    dialogs/MergeDialog.h           # Stage 7 T10 (D7-16): the files, their order and ranges, and the merge's options
+    dialogs/MergeDialog.cpp
     # S5 T13 -- the two documents and the comparison's options; refused where nobody can answer.
     dialogs/CompareDialog.h
     dialogs/CompareDialog.cpp

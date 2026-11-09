@@ -2510,6 +2510,146 @@
         <source>shell.split.blankLeftOut</source>
         <translation>已略過 %1 個空白頁。</translation>
     </message>
+    <message>
+        <source>shell.merge.title</source>
+        <translation>合併文件</translation>
+    </message>
+    <message>
+        <source>shell.merge.dropHint</source>
+        <translation>依序加入要合併的 PDF 檔案。可將檔案拖曳到這裡，或使用「加入檔案」。</translation>
+    </message>
+    <message>
+        <source>shell.merge.columnFile</source>
+        <translation>檔案</translation>
+    </message>
+    <message>
+        <source>shell.merge.columnPages</source>
+        <translation>頁面（留空表示全部）</translation>
+    </message>
+    <message>
+        <source>shell.merge.columnCount</source>
+        <translation>內容</translation>
+    </message>
+    <message>
+        <source>shell.merge.add</source>
+        <translation>加入檔案…</translation>
+    </message>
+    <message>
+        <source>shell.merge.remove</source>
+        <translation>移除</translation>
+    </message>
+    <message>
+        <source>shell.merge.up</source>
+        <translation>上移</translation>
+    </message>
+    <message>
+        <source>shell.merge.down</source>
+        <translation>下移</translation>
+    </message>
+    <message>
+        <source>shell.merge.chooseFiles</source>
+        <translation>選擇要合併的 PDF 檔案</translation>
+    </message>
+    <message>
+        <source>shell.merge.options</source>
+        <translation>選項</translation>
+    </message>
+    <message>
+        <source>shell.merge.bookmarks</source>
+        <translation>每個檔案的書籤：</translation>
+    </message>
+    <message>
+        <source>shell.merge.fieldsRename</source>
+        <translation>重新命名名稱衝突的表單欄位</translation>
+    </message>
+    <message>
+        <source>shell.merge.fieldsMerge</source>
+        <translation>將名稱衝突的表單欄位合併為一個</translation>
+    </message>
+    <message>
+        <source>shell.merge.separator</source>
+        <translation>在檔案之間插入空白頁</translation>
+    </message>
+    <message>
+        <source>shell.merge.accept</source>
+        <translation>合併</translation>
+    </message>
+    <message>
+        <source>shell.merge.allPages</source>
+        <translation>全部頁面。輸入如 1-3, 5 的範圍，只合併那些頁面。</translation>
+    </message>
+    <message>
+        <source>shell.merge.pageCount</source>
+        <translation>%1 頁</translation>
+    </message>
+    <message>
+        <source>shell.merge.willSkip</source>
+        <translation>將略過：%1</translation>
+    </message>
+    <message>
+        <source>shell.merge.rangeRefused</source>
+        <translation>%1：%2</translation>
+    </message>
+    <message>
+        <source>shell.merge.working</source>
+        <translation>正在合併… 第 %1 步，共 %2 步</translation>
+    </message>
+    <message>
+        <source>shell.merge.progress</source>
+        <translation>正在合併檔案…</translation>
+    </message>
+    <message>
+        <source>shell.merge.cancel</source>
+        <translation>取消</translation>
+    </message>
+    <message>
+        <source>shell.merge.cancelling</source>
+        <translation>正在取消合併…</translation>
+    </message>
+    <message>
+        <source>shell.merge.suggestedName</source>
+        <translation>已合併</translation>
+    </message>
+    <message>
+        <source>shell.merge.done</source>
+        <translation>已將 %1 個檔案合併為一份共 %2 頁的新文件。</translation>
+    </message>
+    <message>
+        <source>shell.merge.skipped</source>
+        <translation>已略過 %1 個檔案。</translation>
+    </message>
+    <message>
+        <source>shell.merge.fieldsRenamed</source>
+        <translation>已重新命名 %1 個表單欄位名稱。</translation>
+    </message>
+    <message>
+        <source>shell.merge.fieldsMerged</source>
+        <translation>已合併 %1 個表單欄位。</translation>
+    </message>
+    <message>
+        <source>shell.merge.reportTitle</source>
+        <translation>合併報告</translation>
+    </message>
+    <message>
+        <source>shell.merge.reportSkipped</source>
+        <translation>已略過 %1：%2</translation>
+    </message>
+    <message>
+        <source>shell.merge.reportRenamed</source>
+        <translation>%2 的表單欄位「%1」已重新命名為「%3」。</translation>
+    </message>
+    <message>
+        <source>shell.merge.reportMerged</source>
+        <translation>%2 的表單欄位「%1」已合併到先前同名的欄位。</translation>
+    </message>
+    <message>
+        <source>shell.merge.reportReferences</source>
+        <translation>%1：有 %2 個書籤或連結因其頁面未合併而失去目的地。</translation>
+    </message>
+    <message>
+        <source>shell.tooltip.mergeBusy</source>
+        <translation>合併正在進行中。請等候完成或取消。</translation>
+    </message>
 </context>
 <context>
     <name>error</name>
@@ -3522,6 +3662,30 @@
         <translation>%1 不是有效的書籤層級。</translation>
     </message>
     <message>
+        <source>error.merge.busy</source>
+        <translation>已有合併正在進行中。</translation>
+    </message>
+    <message>
+        <source>error.merge.noInputs</source>
+        <translation>請至少加入一個要合併的檔案。</translation>
+    </message>
+    <message>
+        <source>error.merge.nothingMerged</source>
+        <translation>沒有任何檔案可以合併（已略過 %1 個）。</translation>
+    </message>
+    <message>
+        <source>error.merge.cancelled</source>
+        <translation>已取消合併。</translation>
+    </message>
+    <message>
+        <source>error.merge.repairedWithLoss</source>
+        <translation>此檔案已損毀，修復時遺失了部分內容。</translation>
+    </message>
+    <message>
+        <source>error.merge.badRange</source>
+        <translation>%1</translation>
+    </message>
+    <message>
         <source>error.split.badSize</source>
         <translation>%1 不是有效的檔案大小。</translation>
     </message>
@@ -4148,6 +4312,18 @@
         <translation>Letter</translation>
     </message>
     <message>
+        <source>prefs.choice.mergeBookmarks.none</source>
+        <translation>無</translation>
+    </message>
+    <message>
+        <source>prefs.choice.mergeBookmarks.fileName</source>
+        <translation>以檔案名稱命名</translation>
+    </message>
+    <message>
+        <source>prefs.choice.mergeBookmarks.title</source>
+        <translation>以文件標題命名</translation>
+    </message>
+    <message>
         <source>prefs.choice.paperSize.legal</source>
         <translation>Legal</translation>
     </message>
@@ -4338,6 +4514,14 @@
     <message>
         <source>prefs.setting.documents.cropRemoveWhiteMargins</source>
         <translation>移除白邊時保留的邊距（點）</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.mergeBookmarkPerFile</source>
+        <translation>每個合併檔案的書籤</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.renameCollidingFields</source>
+        <translation>合併時重新命名衝突的表單欄位（否則將其合併）</translation>
     </message>
     <message>
         <source>prefs.setting.documents.compareSensitivity</source>

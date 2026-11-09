@@ -209,10 +209,14 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // since Stage 1, and the three it MINTED -- `page.setBoxes`, `page.embedThumbnails` and `page.removeThumbnails`
     // (`Stage7-Assembly-Plan.md` §4's *minted where a surface needs one*). 392 ids are declared.
     //
+    // **One more at Stage 7 T10** (D7-16): `merge.documents`, declared since Stage 1, a Global command that opens
+    // `ui/dialogs/MergeDialog` and needs no document (`MainWindowMerge.cpp`). Not a command. 392 ids are declared.
+    //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 192);
+    CHECK(fixture.actions.registeredCount() == 193);
+    CHECK(fixture.actions.isRegistered(core::ActionId::MergeDocuments));         // S7 T10
     CHECK(fixture.actions.isRegistered(core::ActionId::PageCrop));               // S7 T9
     CHECK(fixture.actions.isRegistered(core::ActionId::PageSetBoxes));           // S7 T9, minted
     CHECK(fixture.actions.isRegistered(core::ActionId::PageEmbedThumbnails));    // S7 T9, minted

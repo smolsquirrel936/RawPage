@@ -141,6 +141,11 @@ public:
     {
         return core::notImplementedError(core::BackendInterface::DocumentBackend, "assemblySource");
     }
+    core::Result<core::MergedDocument> mergeFiles(const std::vector<core::MergeInput>&, const core::MergeOptions&,
+                                                  const core::MergeProgress&) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "mergeFiles");
+    }
     const core::PageTransitions* pageTransitions(core::DocumentHandle) const override
     {
         return &transitions_;

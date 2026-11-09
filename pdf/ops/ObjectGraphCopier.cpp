@@ -133,13 +133,13 @@ core::Result<std::string> writePayload(const std::map<long long, Made>& made, in
     return out;
 }
 
-void addFrame(std::map<long long, Made>& made, int pageCount, std::optional<CosObject> layers = std::nullopt)
+void addFrame(std::map<long long, Made>& made, int pageCount, std::vector<CosObject::Entry> extra = {})
 {
     std::vector<CosObject> kids;
     kids.reserve(static_cast<std::size_t>(pageCount));
     for (int i = 0; i < pageCount; ++i) kids.push_back(CosObject::makeReference(kNode + 1 + i, 0));
     std::vector<CosObject::Entry> catalog{{"Type", CosObject::makeName("Catalog")}, {"Pages", CosObject::makeReference(kNode, 0)}};
-    if (layers) catalog.push_back({"OCProperties", std::move(*layers)});
+    for (CosObject::Entry& entry : extra) catalog.push_back(std::move(entry));
     made[kCatalog] = Made{CosObject::makeDictionary(std::move(catalog)), std::nullopt};
     made[kNode] = Made{CosObject::makeDictionary({{"Type", CosObject::makeName("Pages")},
                                                   {"Kids", CosObject::makeArray(std::move(kids))},
@@ -171,6 +171,20 @@ private:
     void copyAnnotation(const Listed& annotation, long long pageLocal, int pageIndex);
     std::optional<CosObject> linkTarget(const CosObject& annotation, bool& fromAction);
     std::optional<CosObject> layers();
+    // S7 T10 (D7-16): merge's fields and outline -- see the header.
+    void findFieldNodes();
+    CosObject copyField(const CosObject& node);
+    std::optional<CosObject> acroForm();
+    struct OutlineItem {
+        long long local = 0;
+        std::vector<CosObject::Entry> entries;
+        std::vector<std::size_t> children;   // indices into `items`
+        bool open = false;
+    };
+    std::optional<long long> copyOutline();
+    long long visibleBelow(const std::vector<OutlineItem>& items, std::size_t at, int depth = 0) const;
+    void drain();
+    CosObject resolved(const CosObject& value);
     bool spend()
     {
         if (next_ - 2 > options_.maxObjects) {
@@ -194,6 +208,10 @@ private:
     std::deque<std::pair<long long, long long>> queue_; // (source, local) still to copy
     std::map<long long, Made> made_;                    // by local number
     std::map<std::string, CosObject> named_;
+    std::map<long long, int> indexOf_;                  // source page object -> its index, for a report
+    std::vector<long long> widgets_;                    // S7 T10: source widgets copied, in the order listed
+    std::set<long long> fieldNodes_;                    // ... and every field node above them
+    std::map<long long, long long> fieldRoot_;          // ... each widget's topmost field: itself, or a node
     long long next_ = kNode + 1;
     bool overBudget_ = false;
     core::PageCommandReport report_;
@@ -309,6 +327,12 @@ std::optional<CosObject> Copier::layers()
     };
     const CosObject properties = resolve(catalog.value().object.get("OCProperties"));
     if (!properties.isDictionary()) return std::nullopt;
+    // S7 T10: a merge's copy takes every group listed, reached or not -- numbered here, copied by the drain after.
+    if (options_.allLayers) {
+        for (const CosObject listed = resolve(properties.get("OCGs")); const CosObject& item : listed.items()) {
+            if (item.isReference()) (void)localFor(item.reference().number);
+        }
+    }
     const auto copied = [this](const CosObject& item) -> std::optional<long long> {
         if (!item.isReference()) return std::nullopt;
         const auto found = local_.find(item.reference().number);
@@ -393,6 +417,239 @@ std::optional<CosObject> Copier::layers()
     return CosObject::makeDictionary({{"OCGs", CosObject::makeArray(std::move(groups))}, {"D", CosObject::makeDictionary(std::move(d))}});
 }
 
+CosObject Copier::resolved(const CosObject& value)
+{
+    if (!value.isReference()) return value;
+    auto fetched = table_.fetch(value.reference().number);
+    if (!fetched) return CosObject::makeNull();
+    CosObject out = fetched.value().object;
+    out.clearSpansRecursively();
+    return out;
+}
+
+// What the queue still holds, each object once: a field node through `copyField`, anything else as itself.
+void Copier::drain()
+{
+    while (!queue_.empty() && !overBudget_) {
+        const auto [number, local] = queue_.front();
+        queue_.pop_front();
+        auto fetched = table_.fetch(number);
+        if (!fetched) {
+            made_[local] = Made{CosObject::makeNull(), std::nullopt};
+            continue;
+        }
+        const CosObject& object = fetched.value().object;
+        Made made{fieldNodes_.count(number) != 0 && object.isDictionary() ? copyField(object) : transform(object), std::nullopt};
+        if (object.isStream()) made.data = std::string(object.rawStreamData(table_.source()));
+        made_[local] = std::move(made);
+    }
+}
+
+// S7 T10: every field node above a copied widget -- up `/Parent`, a visited set and a depth bound, stopping at
+// anything that is an annotation, a page or the tree -- and each widget's topmost field.
+void Copier::findFieldNodes()
+{
+    for (const long long widget : widgets_) {
+        long long top = widget;
+        std::set<long long> seen{widget};
+        auto fetched = table_.fetch(widget);
+        CosObject parent = fetched ? fetched.value().object.get("Parent") : CosObject::makeNull();
+        for (int depth = 0; depth < 32 && parent.isReference(); ++depth) {
+            const long long number = parent.reference().number;
+            if (!seen.insert(number).second || annotations_.count(number) != 0 || number == catalog_ || tree_.nodes.count(number) != 0
+                || sourcePages_.count(number) != 0)
+                break;
+            auto node = table_.fetch(number);
+            if (!node || !node.value().object.isDictionary()) break;
+            if (const CosObject& type = node.value().object.get("Type"); type.isName()
+                && (type.text() == "Catalog" || type.text() == "Pages" || type.text() == "Page" || type.text() == "Annot"))
+                break;
+            fieldNodes_.insert(number);
+            top = number;
+            parent = node.value().object.get("Parent");
+        }
+        fieldRoot_.emplace(widget, top);
+    }
+}
+
+// A field node, narrowed to what the copy holds: `/Kids` keeps the copied widgets and the copied nodes, in order;
+// `/Parent` is kept when it is a copied node and dropped otherwise.
+CosObject Copier::copyField(const CosObject& node)
+{
+    std::vector<CosObject::Entry> entries;
+    for (const CosObject::Entry& entry : node.entries()) {
+        if (entry.key == "Kids") {
+            std::vector<CosObject> kids;
+            for (const CosObject held477 = resolved(entry.value); const CosObject& kid : held477.items()) {
+                if (!kid.isReference()) continue;
+                const long long number = kid.reference().number;
+                if (const auto annotation = annotations_.find(number); annotation != annotations_.end()) {
+                    kids.push_back(CosObject::makeReference(annotation->second, 0));
+                } else if (fieldNodes_.count(number) != 0) {
+                    if (const std::optional<long long> local = localFor(number)) kids.push_back(CosObject::makeReference(*local, 0));
+                }
+            }
+            entries.push_back({"Kids", CosObject::makeArray(std::move(kids))});
+        } else if (entry.key == "Parent") {
+            if (entry.value.isReference() && fieldNodes_.count(entry.value.reference().number) != 0) {
+                if (const std::optional<long long> local = localFor(entry.value.reference().number))
+                    entries.push_back({"Parent", CosObject::makeReference(*local, 0)});
+            }
+        } else {
+            entries.push_back({entry.key, transform(entry.value)});
+        }
+    }
+    return CosObject::makeDictionary(std::move(entries));
+}
+
+// S7 T10: the payload's `/AcroForm` -- the copied fields' roots in the source's `/Fields` order, then any root the
+// source never listed; the form's own keys as the source states them. Nullopt when no widget was copied.
+std::optional<CosObject> Copier::acroForm()
+{
+    if (!options_.fields || widgets_.empty()) return std::nullopt;
+    auto catalog = table_.fetch(catalog_);
+    const CosObject form = catalog && catalog.value().object.isDictionary() ? resolved(catalog.value().object.get("AcroForm"))
+                                                                           : CosObject::makeNull();
+    std::vector<CosObject> roots;
+    std::set<long long> listed;
+    const auto add = [&](long long number) {
+        std::optional<long long> local;
+        if (const auto annotation = annotations_.find(number); annotation != annotations_.end()) local = annotation->second;
+        else if (fieldNodes_.count(number) != 0) local = localFor(number);
+        if (local && listed.insert(*local).second) roots.push_back(CosObject::makeReference(*local, 0));
+    };
+    for (const CosObject held515 = resolved(form.get("Fields")); const CosObject& item : held515.items()) {
+        if (item.isReference()) add(item.reference().number);
+    }
+    for (const long long widget : widgets_) add(fieldRoot_.at(widget));
+    if (roots.empty()) return std::nullopt;
+    std::vector<CosObject::Entry> entries{{"Fields", CosObject::makeArray(std::move(roots))}};
+    for (const char* key : {"NeedAppearances", "SigFlags", "DA", "Q"}) {
+        if (const CosObject* value = form.find(key)) entries.push_back({key, transform(*value)});
+    }
+    if (const CosObject* resources = form.find("DR")) entries.push_back({"DR", transform(*resources)});
+    std::vector<CosObject> order;
+    for (const CosObject held526 = resolved(form.get("CO")); const CosObject& item : held526.items()) {
+        if (!item.isReference()) continue;
+        const auto annotation = annotations_.find(item.reference().number);
+        if (annotation != annotations_.end()) order.push_back(CosObject::makeReference(annotation->second, 0));
+        else if (const auto node = local_.find(item.reference().number); node != local_.end() && fieldNodes_.count(item.reference().number) != 0)
+            order.push_back(CosObject::makeReference(node->second, 0));
+    }
+    if (!order.empty()) entries.push_back({"CO", CosObject::makeArray(std::move(order))});
+    return CosObject::makeDictionary(std::move(entries));
+}
+
+// The items below an outline item a reader shows when it is open: each child, and below each child that is open its
+// own -- ISO 32000-1 Table 153's `/Count`.
+long long Copier::visibleBelow(const std::vector<OutlineItem>& items, std::size_t at, int depth) const
+{
+    if (depth > 64) return 0;
+    long long count = 0;
+    for (const std::size_t child : items[at].children) count += 1 + (items[child].open ? visibleBelow(items, child, depth + 1) : 0);
+    return count;
+}
+
+// S7 T10: the source's outline as the payload's `/Outlines` -- see the header. Siblings by `/Next`, children by
+// `/First`, a visited set, a depth bound and the object budget; nullopt when the source has no item.
+std::optional<long long> Copier::copyOutline()
+{
+    auto catalog = table_.fetch(catalog_);
+    if (!catalog || !catalog.value().object.isDictionary()) return std::nullopt;
+    const CosObject root = resolved(catalog.value().object.get("Outlines"));
+    if (!root.isDictionary() || !root.get("First").isReference()) return std::nullopt;
+
+    std::vector<OutlineItem> items;
+    std::set<long long> seen;
+    // The items of one sibling chain, as indices into `items`, each with its own children read first.
+    std::function<std::vector<std::size_t>(const CosObject&, int)> chain = [&](const CosObject& first, int depth) {
+        std::vector<std::size_t> out;
+        CosObject at = first;
+        while (at.isReference() && depth <= 64 && !overBudget_) {
+            const long long number = at.reference().number;
+            if (!seen.insert(number).second) break;
+            const CosObject item = resolved(at);
+            if (!item.isDictionary()) break;
+            if (!spend()) break;
+            OutlineItem made;
+            made.local = next_++;
+            const CosObject& count = item.get("Count");
+            made.open = count.isInteger() && count.integerValue() > 0;
+            bool fromAction = false;
+            std::optional<CosObject> target = linkTarget(item, fromAction);
+            bool cleared = false;
+            if (target && target->items().front().isReference()) cleared = copiedPages_.count(target->items().front().reference().number) == 0;
+            else target.reset();   // no page of this file, or one named by integer: copied as written
+            for (const CosObject::Entry& entry : item.entries()) {
+                const std::string& key = entry.key;
+                if (key == "Parent" || key == "Prev" || key == "Next" || key == "First" || key == "Last" || key == "Count" || key == "SE")
+                    continue;
+                if (target && (key == "Dest" || (key == "A" && fromAction))) {
+                    if (cleared) continue;   // kept with its title, its destination gone (D7-2)
+                    CosObject array = transform(*target);
+                    made.entries.push_back({key, key == "Dest" ? std::move(array)
+                                                               : CosObject::makeDictionary({{"S", CosObject::makeName("GoTo")}, {"D", std::move(array)}})});
+                    continue;
+                }
+                made.entries.push_back({key, transform(entry.value)});
+            }
+            if (cleared) {
+                const CosObject& title = item.get("Title");
+                const auto page = indexOf_.find(target->items().front().reference().number);
+                report_.references.push_back(core::PageReference{
+                    Kind::OutlineItem, Treatment::Cleared, title.isString() ? EmbeddedFileReader::decodeTextString(title.text()) : QString(),
+                    number, page != indexOf_.end() ? page->second : -1});
+            }
+            const std::size_t index = items.size();
+            items.push_back(std::move(made));
+            std::vector<std::size_t> children = chain(item.get("First"), depth + 1);
+            items[index].children = std::move(children);
+            out.push_back(index);
+            at = item.get("Next");
+        }
+        return out;
+    };
+    const std::vector<std::size_t> top = chain(root.get("First"), 0);
+    // Numbered only now, so an outline with no item numbers nothing (the payload's numbers run with no gap).
+    if (overBudget_ || top.empty() || !spend()) return std::nullopt;
+    const long long rootLocal = next_++;
+
+    // The links, now every item has its number: `/Parent`, `/Prev`, `/Next`, `/First`, `/Last` and `/Count`.
+    const auto link = [&](const std::vector<std::size_t>& siblings, long long parent) {
+        for (std::size_t i = 0; i < siblings.size(); ++i) {
+            OutlineItem& item = items[siblings[i]];
+            std::vector<CosObject::Entry> entries = item.entries;
+            entries.push_back({"Parent", CosObject::makeReference(parent, 0)});
+            if (i > 0) entries.push_back({"Prev", CosObject::makeReference(items[siblings[i - 1]].local, 0)});
+            if (i + 1 < siblings.size()) entries.push_back({"Next", CosObject::makeReference(items[siblings[i + 1]].local, 0)});
+            if (!item.children.empty()) {
+                entries.push_back({"First", CosObject::makeReference(items[item.children.front()].local, 0)});
+                entries.push_back({"Last", CosObject::makeReference(items[item.children.back()].local, 0)});
+                const long long below = visibleBelow(items, siblings[i]);
+                entries.push_back({"Count", CosObject::makeInteger(item.open ? below : -below)});
+            }
+            made_[item.local] = Made{CosObject::makeDictionary(std::move(entries)), std::nullopt};
+        }
+    };
+    std::vector<std::pair<std::vector<std::size_t>, long long>> pending{{top, rootLocal}};
+    while (!pending.empty()) {
+        auto [siblings, parent] = std::move(pending.back());
+        pending.pop_back();
+        link(siblings, parent);
+        for (const std::size_t sibling : siblings) {
+            if (!items[sibling].children.empty()) pending.emplace_back(items[sibling].children, items[sibling].local);
+        }
+    }
+    long long visible = 0;
+    for (const std::size_t item : top) visible += 1 + (items[item].open ? visibleBelow(items, item) : 0);
+    made_[rootLocal] = Made{CosObject::makeDictionary({{"Type", CosObject::makeName("Outlines")},
+                                                        {"First", CosObject::makeReference(items[top.front()].local, 0)},
+                                                        {"Last", CosObject::makeReference(items[top.back()].local, 0)},
+                                                        {"Count", CosObject::makeInteger(visible)}}),
+                           std::nullopt};
+    return rootLocal;
+}
+
 // Pass one, for a page: the annotations it lists, each numbered -- before ANY object is written, so `/Popup`, `/IRT`
 // and `/Parent` resolve across every page copied in the same call. A widget stays with its field (see the header).
 void Copier::listAnnotations(int index, long long pageLocal)
@@ -434,11 +691,15 @@ void Copier::listAnnotations(int index, long long pageLocal)
         }
         const CosObject& subtype = dictionary.get("Subtype");
         if (subtype.isName() && subtype.text() == "Widget") {
-            const CosObject& field = dictionary.get("T");
-            report_.references.push_back(core::PageReference{
-                Kind::WidgetNotCopied, Treatment::NotCopied,
-                field.isString() ? EmbeddedFileReader::decodeTextString(field.text()) : QString(), number, index});
-            continue;
+            if (options_.fields) {
+                if (number >= 0) widgets_.push_back(number);   // copied below, as any annotation, with its fields after
+            } else {
+                const CosObject& field = dictionary.get("T");
+                report_.references.push_back(core::PageReference{
+                    Kind::WidgetNotCopied, Treatment::NotCopied,
+                    field.isString() ? EmbeddedFileReader::decodeTextString(field.text()) : QString(), number, index});
+                continue;
+            }
         }
         if (!spend()) return;
         const long long local = next_++;
@@ -453,6 +714,7 @@ void Copier::copyAnnotation(const Listed& annotation, long long pageLocal, int p
     const CosObject& source = annotation.dictionary;
     std::vector<CosObject::Entry> entries;
     const bool link = source.get("Subtype").isName() && source.get("Subtype").text() == "Link";
+    const bool widget = options_.fields && source.get("Subtype").isName() && source.get("Subtype").text() == "Widget";
     bool fromAction = false;
     std::optional<CosObject> target = link ? linkTarget(source, fromAction) : std::nullopt;
     bool cleared = false;
@@ -464,6 +726,12 @@ void Copier::copyAnnotation(const Listed& annotation, long long pageLocal, int p
     for (const CosObject::Entry& entry : source.entries()) {
         const std::string& key = entry.key;
         if (key == "P" || key == "StructParent") continue;
+        // S7 T10: a widget's field above it, copied as a field node (`copyField`).
+        if (widget && key == "Parent" && entry.value.isReference() && fieldNodes_.count(entry.value.reference().number) != 0) {
+            if (const std::optional<long long> local = localFor(entry.value.reference().number))
+                entries.push_back({key, CosObject::makeReference(*local, 0)});
+            continue;
+        }
         if (key == "Popup" || key == "IRT" || key == "Parent") {
             if (entry.value.isReference()) {
                 const auto found = annotations_.find(entry.value.reference().number);
@@ -558,44 +826,34 @@ core::Result<ObjectGraphCopier::Copied> Copier::run(const std::vector<int>& page
     const ReferenceRepair::Ledger none;
     named_ = ReferenceRepair::namedArrays(ReferenceRepair::View(table_, none));
 
+    for (std::size_t at = 0; at < walk_.pages.size(); ++at) indexOf_.emplace(walk_.pages[at].number, static_cast<int>(at));
+
     // The pages first, numbered in the order given: 3, 4, ... -- the payload's node lists exactly them.
     for (const int index : pages) copiedPages_.emplace(walk_.pages[static_cast<std::size_t>(index)].number, next_++);
     for (const int index : pages) listAnnotations(index, copiedPages_.at(walk_.pages[static_cast<std::size_t>(index)].number));
+    if (options_.fields) findFieldNodes();
     for (const int index : pages) {
         const long long local = copiedPages_.at(walk_.pages[static_cast<std::size_t>(index)].number);
         copyPage(index, local);
         for (const Listed& annotation : listed_[local]) copyAnnotation(annotation, local, index);
     }
+    const std::optional<long long> outline = options_.outline ? copyOutline() : std::nullopt;
     // Everything they reach, breadth first, each object once.
-    while (!queue_.empty() && !overBudget_) {
-        const auto [number, local] = queue_.front();
-        queue_.pop_front();
-        auto fetched = table_.fetch(number);
-        if (!fetched) {
-            made_[local] = Made{CosObject::makeNull(), std::nullopt};
-            continue;
-        }
-        const CosObject& object = fetched.value().object;
-        Made made{transform(object), std::nullopt};
-        if (object.isStream()) made.data = std::string(object.rawStreamData(table_.source()));
-        made_[local] = std::move(made);
-    }
+    drain();
     if (overBudget_)
         return copyError(core::ErrorCode::Unsupported, "error.copy.tooLarge", options_.maxObjects);
 
     std::optional<CosObject> usedLayers = layers();
-    // `/AS`'s other keys may have reached objects of their own; they are copied like any other.
-    while (!queue_.empty() && !overBudget_) {
-        const auto [number, local] = queue_.front();
-        queue_.pop_front();
-        auto fetched = table_.fetch(number);
-        Made made{fetched ? transform(fetched.value().object) : CosObject::makeNull(), std::nullopt};
-        if (fetched && fetched.value().object.isStream()) made.data = std::string(fetched.value().object.rawStreamData(table_.source()));
-        made_[local] = std::move(made);
-    }
+    std::optional<CosObject> form = acroForm();
+    // `/AS`'s other keys, and the form's `/DR`, may have reached objects of their own; they are copied like any other.
+    drain();
     if (overBudget_)
         return copyError(core::ErrorCode::Unsupported, "error.copy.tooLarge", options_.maxObjects);
-    addFrame(made_, static_cast<int>(pages.size()), std::move(usedLayers));
+    std::vector<CosObject::Entry> extra;
+    if (usedLayers) extra.push_back({"OCProperties", std::move(*usedLayers)});
+    if (outline) extra.push_back({"Outlines", CosObject::makeReference(*outline, 0)});
+    if (form) extra.push_back({"AcroForm", std::move(*form)});
+    addFrame(made_, static_cast<int>(pages.size()), std::move(extra));
     auto payload = writePayload(made_, static_cast<int>(pages.size()), options_.maxBytes);
     if (!payload) return payload.error();
     ObjectGraphCopier::Copied out;

@@ -40,6 +40,7 @@
 #include <QStringList>
 
 #include <atomic>
+#include <chrono>
 #include <functional>
 #include <map>
 #include <memory>
@@ -643,6 +644,36 @@ public:
         const core::PageTree* tree = pages(handle);
         if (tree == nullptr) return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.backend.unknownDocument")};
         return std::unique_ptr<core::AssemblySource>(new FakeAssemblySource(*this, tree->count()));
+    }
+
+    // S7 T10: a merge that RECORDS what it was asked and reads nothing -- what the merger builds is `tst_merge`'s and
+    // `tst_mergeengine`'s to judge. `mergeReport` is what it answers (its page count one per input page asked, or
+    // `filePages`); `mergeFails` refuses by the key given. Called from the runner's thread, so it touches nothing else.
+    std::vector<std::pair<std::vector<core::MergeInput>, core::MergeOptions>> merges;
+    core::MergeReport mergeReport;
+    const char* mergeFails = nullptr;
+    int mergeStepMs = 0;   // how long each step takes -- a merge slow enough to cancel, or to watch the UI thread through
+    std::atomic<int> mergeStepsRun{0};   // the steps the last merge ran before it stopped
+    core::Result<core::MergedDocument> mergeFiles(const std::vector<core::MergeInput>& inputs, const core::MergeOptions& options,
+                                                  const core::MergeProgress& progress) override
+    {
+        merges.emplace_back(inputs, options);
+        const int total = static_cast<int>(inputs.size()) + 2;
+        mergeStepsRun = 0;
+        for (int done = 0; done < total; ++done) {
+            if (progress && !progress(done, total)) return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.merge.cancelled")};
+            if (mergeStepMs > 0) std::this_thread::sleep_for(std::chrono::milliseconds(mergeStepMs));
+            ++mergeStepsRun;
+        }
+        if (mergeFails) return core::Error{core::ErrorCode::Corrupted, QLatin1String(mergeFails), QString()};
+        core::MergedDocument out;
+        out.report = mergeReport;
+        if (out.report.inputsMerged == 0) out.report.inputsMerged = static_cast<int>(inputs.size());
+        if (out.report.pageCount == 0) {
+            for (const core::MergeInput& input : inputs) out.report.pageCount += input.pages.empty() ? filePages : static_cast<int>(input.pages.size());
+        }
+        out.bytes = QByteArray("%PDF-1.7 fake merge of ") + QByteArray::number(static_cast<int>(inputs.size())) + " file(s)";
+        return out;
     }
 
     // `openBytes` opens as `open()` does, under the name, read-only: the bytes are recorded, not read.

@@ -141,6 +141,8 @@ add_executable(rawpage_tests
     tst_fullwriter.cpp            # Stage 7 T6  -- Save As that rewrites: one revision of what is reached, numbers kept,
                                   #   the file compacted, every undo after it bringing back what it dropped, the signed
                                   #   question's answers and Save a Copy (S7 guide A-122 ... A-126, headless halves)
+    tst_merge.cpp                 # Stage 7 T10 -- merge: fields renamed or merged, layers unioned, inputs skipped by
+                                  #   key, separators, the outline per file, cancel (S7 guide A-66 ... A-71, headless)
     tst_assembler.cpp             # Stage 7 T7  -- new documents: one revision, a fresh /ID, a balanced tree, the pages
                                   #   as they stand; the folder write refused whole on a collision and taken back on a
                                   #   failed verify (S7 guide A-47, A-48's control, A-50, headless halves)
