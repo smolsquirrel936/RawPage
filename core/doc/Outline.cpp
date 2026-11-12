@@ -118,6 +118,7 @@ void addItems(QByteArray& out, const std::vector<OutlineItem>& items)
         addText(out, item.action.file);
         addText(out, item.action.uri);
         addText(out, item.action.script);
+        addInt(out, item.action.hide ? 1 : 0);
         addInt(out, item.colour ? 1 : 0);
         if (item.colour) {
             for (const double channel : *item.colour) addReal(out, channel);
@@ -186,6 +187,9 @@ const char* outlineActionKindName(OutlineAction::Kind kind) noexcept
     case OutlineAction::Kind::JavaScript: return "javaScript";
     case OutlineAction::Kind::Named:      return "named";
     case OutlineAction::Kind::SubmitForm: return "submitForm";
+    case OutlineAction::Kind::ResetForm:  return "resetForm";
+    case OutlineAction::Kind::ImportData: return "importData";
+    case OutlineAction::Kind::Hide:       return "hide";
     case OutlineAction::Kind::Other:      return "other";
     }
     return "none";
@@ -262,16 +266,20 @@ QJsonObject OutlineAction::toJson() const
     if (!file.isEmpty()) json.insert(QStringLiteral("file"), file);
     if (!uri.isEmpty()) json.insert(QStringLiteral("uri"), uri);
     if (!script.isEmpty()) json.insert(QStringLiteral("script"), script);
+    if (kind == Kind::Hide && !hide) json.insert(QStringLiteral("hide"), false);
     return json;
 }
 
-Result<OutlineAction> OutlineAction::fromJson(const QJsonObject& json)
+Result<OutlineAction> OutlineAction::fromJson(const QJsonObject& json, bool carried)
 {
     OutlineAction action;
     const QJsonValue kind = json.value(QStringLiteral("kind"));
     const std::optional<Kind> parsed = kind.isString() ? outlineActionKindFromName(kind.toString()) : std::nullopt;
-    // `Other` is a kind the FILE has and nothing writes: a command never carries one.
-    if (!parsed || *parsed == Kind::Other) return badOutline("action kind");
+    // `Other` is a kind the FILE has and nothing writes: a bookmark command never carries one (see the header).
+    if (!parsed || (*parsed == Kind::Other && !carried)) return badOutline("action kind");
+    const QJsonValue hide = json.value(QStringLiteral("hide"));
+    if (!hide.isUndefined() && (!hide.isBool() || *parsed != Kind::Hide)) return badOutline("action hide");
+    action.hide = hide.toBool(true);
     action.kind = *parsed;
     const QJsonValue dest = json.value(QStringLiteral("dest"));
     if (action.kind == Kind::GoTo || action.kind == Kind::GoToRemote || action.kind == Kind::GoToNamed) {

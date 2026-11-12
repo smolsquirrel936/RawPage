@@ -6,6 +6,7 @@
 #include "pdf/cos/CosObject.h"
 #include "pdf/cos/filters/Filter.h"
 #include "pdf/ops/EmbeddedFileReader.h"
+#include "pdf/ops/OutlineReader.h"
 
 #include <algorithm>
 #include <array>
@@ -212,6 +213,7 @@ struct ParsedEntry {
     std::optional<long long> pageReference;   // its /P
     bool nonFiniteRect = false;
     bool truncated = false;
+    long long linkPage = -1;                  // Stage 7 T12: a Link's GoTo page object, -1 for none
 };
 
 ParsedEntry parse(cos::XrefTable& table, const CosObject& d)
@@ -398,6 +400,21 @@ ParsedEntry parse(cos::XrefTable& table, const CosObject& d)
         if (a.attachment && a.attachment->name.isEmpty()) a.attachment.reset();
     }
 
+    // Stage 7 T12 (D7-12): a LINK's target, read as PDFium reads it -- `/Dest` before `/A`, the same reading an outline
+    // item's gets (`OutlineReader::readTarget`) -- and its `/H`. A GoTo's page is the OBJECT here; `read` places it by
+    // the walk, and a caller of `parseDictionary` by what it knows. A named destination stays a name (`Annotation`).
+    if (a.subtype == core::AnnotationSubtype::Link) {
+        const ReferenceRepair::Ledger none;
+        const ReferenceRepair::View view(table, none);
+        OutlineReader::Facts target;
+        OutlineReader::readTarget(view, d, {}, a.action, target);
+        if (a.action.kind == core::OutlineAction::Kind::GoTo) {
+            out.linkPage = target.page;
+            a.action.destination.pageIndex = target.page >= 0 ? -1 : target.index;   // an integer page as itself
+        }
+        if (const QString h = nameOf(d, "H"); core::isHighlightModeName(h)) a.highlight = h;
+    }
+
     out.pageReference = referenceOf(d, "P");
     return out;
 }
@@ -412,6 +429,7 @@ core::AnnotationStore::Reading AnnotationReader::read(cos::XrefTable& table, con
     std::map<long long, std::size_t> seen;           // object number -> index in annotations
     std::map<std::size_t, long long> pageReference;  // index -> its /P, where it has one
     std::vector<core::AnnotationFact> facts;         // index -> what its first listing compared
+    std::map<std::size_t, long long> linkPages;      // S7 T12: index -> the page object a Link's GoTo names
 
     auto note = [&reading](AnnotationNoteKind kind, int page, long long object) {
         reading.notes.push_back(AnnotationNote{kind, page, object});
@@ -466,6 +484,7 @@ core::AnnotationStore::Reading AnnotationReader::read(cos::XrefTable& table, con
                 const std::size_t index = reading.annotations.size();
                 seen.emplace(number, index);
                 if (parsed.pageReference) pageReference.emplace(index, *parsed.pageReference);
+                if (parsed.linkPage >= 0) linkPages.emplace(index, parsed.linkPage);
                 listed.fact = parsed.fact;
                 listed.annotation = index;
                 facts.push_back(parsed.fact);
@@ -478,12 +497,23 @@ core::AnnotationStore::Reading AnnotationReader::read(cos::XrefTable& table, con
                 if (parsed.truncated) note(AnnotationNoteKind::GeometryTruncated, page, -1);
                 listed.fact = parsed.fact;
                 listed.annotation = reading.annotations.size();
+                if (parsed.linkPage >= 0) linkPages.emplace(reading.annotations.size(), parsed.linkPage);
                 facts.push_back(parsed.fact);
                 reading.annotations.push_back(std::move(parsed.annotation));
             } else {
                 note(AnnotationNoteKind::EntryNotDictionary, page, -1);
             }
             reading.pages[pageIndex].push_back(listed);
+        }
+    }
+
+    // Stage 7 T12: each Link's GoTo placed by the walk -- a page object not in the tree is unresolved (-1).
+    if (!linkPages.empty()) {
+        std::map<long long, int> indexOf;
+        for (std::size_t at = 0; at < walk.pages.size(); ++at) indexOf.emplace(walk.pages[at].number, static_cast<int>(at));
+        for (const auto& [index, object] : linkPages) {
+            const auto placed = indexOf.find(object);
+            reading.annotations[index].action.destination.pageIndex = placed == indexOf.end() ? -1 : placed->second;
         }
     }
 
@@ -512,7 +542,7 @@ core::AnnotationStore::Reading AnnotationReader::read(cos::XrefTable& table, con
 AnnotationReader::Parsed AnnotationReader::parseDictionary(cos::XrefTable& table, const cos::CosObject& dictionary)
 {
     ParsedEntry entry = parse(table, dictionary);
-    return Parsed{std::move(entry.annotation), entry.pageReference, entry.nonFiniteRect, entry.truncated};
+    return Parsed{std::move(entry.annotation), entry.pageReference, entry.nonFiniteRect, entry.truncated, entry.linkPage};
 }
 
 } // namespace rawpage::pdf::ops

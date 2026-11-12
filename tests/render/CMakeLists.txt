@@ -110,6 +110,9 @@ add_executable(rawpage_render_tests
                                   #   its bookmarks and links landing by identity, its fields as PDFium's form layer reads them
     tst_outlinegenerate.cpp       # Stage 7 T11 -- guide A-79, A-80 (D7-10, D7-11): the generators against the heading labels,
                                   #   a contents page whose links land by identity after a move
+    tst_destinations.cpp          # Stage 7 T12 -- guide A-82's PDFium half (D7-10, D7-35): the backend's two readings of
+                                  #   the named destinations against PDFium's over the corpus, a planted disagreement found,
+                                  #   an edited table read back by a fresh engine, each name landing by identity
     tst_outlinereader.cpp         # Stage 7 T11 -- guide A-75, A-77's PDFium half (D7-10): the backend's two outline
                                   #   readings against PDFium's over every corpus file, a planted disagreement found, an
                                   #   edited outline read back by a fresh engine

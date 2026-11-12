@@ -32,6 +32,7 @@
 #include "core/cmd/commands/AnnotationCommands.h"
 #include "core/cmd/commands/AttachmentCommands.h"
 #include "core/cmd/commands/BookmarkCommands.h"
+#include "core/cmd/commands/DestinationCommands.h"
 #include "core/cmd/commands/PageCommands.h"
 #include "core/doc/Document.h"
 #include "core/doc/DrawnShapes.h"
@@ -331,6 +332,37 @@ const Generators& registeredGenerators()
                                                                             core::GenerateBookmarksCommand::Source::Headings));
              return out;
          }},
+        // Stage 7 T12 (D7-35): a named destination made from a view of the last page; the first one renamed and deleted
+        // -- with every link and bookmark that names it changed in the same command.
+        {"destination.create",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             if (!document.destinations().status() || page != 0) return out;
+             core::NamedDestination entry;
+             entry.name = QStringLiteral("reversibility-made");
+             entry.destination.pageIndex = document.pages().count() - 1;
+             entry.destination.fit = core::Destination::Fit::XYZ;
+             entry.destination.hasY = true;
+             entry.destination.y = 500;
+             out.push_back(std::make_unique<core::CreateDestinationCommand>(entry));
+             return out;
+         }},
+        {"destination.rename",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             if (!document.destinations().status() || page != 0 || document.destinations().isEmpty()) return out;
+             out.push_back(std::make_unique<core::RenameDestinationCommand>(document.destinations().all().front().name,
+                                                                            QStringLiteral("reversibility-renamed")));
+             return out;
+         }},
+        {"destination.delete",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             if (!document.destinations().status() || page != 0 || document.destinations().isEmpty()) return out;
+             out.push_back(std::make_unique<core::DeleteDestinationCommand>(
+                 std::vector<QString>{document.destinations().all().front().name}));
+             return out;
+         }},
         // Stage 6 T3: a highlight on the page -- a set of one, and a set of two on one page.
         {"annot.add",
          [](const core::Document& document, int page) {
@@ -375,6 +407,27 @@ const Generators& registeredGenerators()
                  group.push_back(std::move(mark));
              }
              out.push_back(std::make_unique<core::AddAnnotationCommand>(std::move(group)));
+             // Stage 7 T12 (D7-12, guide A-88): LINKS -- one to the last page with a visible dashed border and a highlight,
+             // one from a line of text to a web address -- through the same command as every other annotation.
+             {
+                 core::Destination last;
+                 last.pageIndex = document.pages().count() - 1;
+                 last.fit = core::Destination::Fit::Fit;
+                 core::Annotation toPage = core::newLink(page, core::PdfRect{core::PdfPoint{36, 120}, core::PdfSize{120, 14}}, {},
+                                                         core::OutlineAction::goTo(last), QStringLiteral("Reversibility"), 1791504000);
+                 toPage.borderWidth = 1.0;
+                 toPage.borderStyle = QStringLiteral("D");
+                 toPage.dashPattern = {3, 2};
+                 toPage.color = {0, 0, 1};
+                 toPage.highlight = QStringLiteral("O");
+                 core::OutlineAction web;
+                 web.kind = core::OutlineAction::Kind::Uri;
+                 web.uri = QStringLiteral("https://example.com/reversibility");
+                 const std::vector<double> quads{36, 154, 136, 154, 36, 142, 136, 142};
+                 core::Annotation toWeb = core::newLink(page, *core::boundsOfPoints(quads), quads, web,
+                                                        QStringLiteral("Reversibility"), 1791504000);
+                 out.push_back(std::make_unique<core::AddAnnotationCommand>(std::vector<core::Annotation>{toPage, toWeb}));
+             }
              // Stage 6 T7: TYPED TEXT -- a box, a callout and a typewriter, Latin and CJK, as one set and fitted
              // as the overlay fits them (a box and its fonts, written once per compose).
              std::vector<core::Annotation> typedSet;
@@ -519,6 +572,27 @@ const Generators& registeredGenerators()
              }
              if (after.empty()) return out;
              out.push_back(std::make_unique<core::EditAnnotationCommand>(after));
+             // Stage 7 T12 (guide A-88): every LINK on the page sent somewhere else -- the last page, then a web address.
+             std::vector<core::Annotation> retargeted, toWeb;
+             for (const std::size_t index : store.onPage(page)) {
+                 core::Annotation a = store.at(index);
+                 if (a.subtype != core::AnnotationSubtype::Link) continue;
+                 core::Destination last;
+                 last.pageIndex = document.pages().count() - 1;
+                 last.fit = core::Destination::Fit::FitH;
+                 last.hasY = true;
+                 last.y = 700;
+                 a.action = core::OutlineAction::goTo(last);
+                 retargeted.push_back(a);
+                 a.action = core::OutlineAction{};
+                 a.action.kind = core::OutlineAction::Kind::Uri;
+                 a.action.uri = QStringLiteral("https://example.com/retargeted");
+                 toWeb.push_back(std::move(a));
+             }
+             if (!retargeted.empty()) {
+                 out.push_back(std::make_unique<core::EditAnnotationCommand>(retargeted));
+                 out.push_back(std::make_unique<core::EditAnnotationCommand>(toWeb));
+             }
              return out;
          }},
         // A NEW COLOUR on the page's highlights, the one kind this build redraws; an opacity on them too.
@@ -970,7 +1044,8 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
                                                                           "page.renumber", "page.thumbnails",
                                                                           "bookmark.create", "bookmark.edit", "bookmark.delete",
                                                                           "bookmark.reparent", "bookmark.setTarget",
-                                                                          "bookmark.generate"});
+                                                                          "bookmark.generate", "destination.create",
+                                                                          "destination.rename", "destination.delete"});
     }
 }
 
@@ -978,7 +1053,7 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
 // A-43 -- reversibility over the corpus
 // ==========================================================================================
 
-TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand][revert:AddAnnotationCommand][revert:DeleteAnnotationCommand][revert:EditAnnotationCommand][revert:MoveAnnotationCommand][revert:SetAnnotationAppearanceCommand][revert:LockAnnotationCommand][revert:ReplyToAnnotationCommand][revert:SetAnnotationStatusCommand][revert:AddAttachmentCommand][revert:DeleteAttachmentCommand][revert:ImportAnnotationsCommand][revert:MovePagesCommand][revert:DeletePagesCommand][revert:DuplicatePagesCommand][revert:InsertPagesCommand][revert:ReplacePagesCommand][revert:CropPagesCommand][revert:ResizePagesCommand][revert:RenumberPagesCommand][revert:SetEmbeddedThumbnailsCommand][revert:CreateBookmarkCommand][revert:EditBookmarkCommand][revert:DeleteBookmarkCommand][revert:ReparentBookmarkCommand][revert:SetBookmarkTargetCommand][revert:GenerateBookmarksCommand]")
+TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand][revert:AddAnnotationCommand][revert:DeleteAnnotationCommand][revert:EditAnnotationCommand][revert:MoveAnnotationCommand][revert:SetAnnotationAppearanceCommand][revert:LockAnnotationCommand][revert:ReplyToAnnotationCommand][revert:SetAnnotationStatusCommand][revert:AddAttachmentCommand][revert:DeleteAttachmentCommand][revert:ImportAnnotationsCommand][revert:MovePagesCommand][revert:DeletePagesCommand][revert:DuplicatePagesCommand][revert:InsertPagesCommand][revert:ReplacePagesCommand][revert:CropPagesCommand][revert:ResizePagesCommand][revert:RenumberPagesCommand][revert:SetEmbeddedThumbnailsCommand][revert:CreateBookmarkCommand][revert:EditBookmarkCommand][revert:DeleteBookmarkCommand][revert:ReparentBookmarkCommand][revert:SetBookmarkTargetCommand][revert:GenerateBookmarksCommand][revert:CreateDestinationCommand][revert:RenameDestinationCommand][revert:DeleteDestinationCommand]")
 {
     const std::vector<std::string> missing = missingGenerators(registeredGenerators());
     INFO("registered type ids with no generator: " << missing.size());

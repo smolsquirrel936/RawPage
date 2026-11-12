@@ -55,5 +55,8 @@ RAWPAGE_COMMAND(DeleteBookmarkCommand, "bookmark.delete", "core/cmd/commands/Boo
 RAWPAGE_COMMAND(ReparentBookmarkCommand, "bookmark.reparent", "core/cmd/commands/BookmarkCommands.h")
 RAWPAGE_COMMAND(SetBookmarkTargetCommand, "bookmark.setTarget", "core/cmd/commands/BookmarkCommands.h")
 RAWPAGE_COMMAND(GenerateBookmarksCommand, "bookmark.generate", "core/cmd/commands/BookmarkCommands.h")
+RAWPAGE_COMMAND(CreateDestinationCommand, "destination.create", "core/cmd/commands/DestinationCommands.h")
+RAWPAGE_COMMAND(RenameDestinationCommand, "destination.rename", "core/cmd/commands/DestinationCommands.h")
+RAWPAGE_COMMAND(DeleteDestinationCommand, "destination.delete", "core/cmd/commands/DestinationCommands.h")
 
 #undef RAWPAGE_COMMAND

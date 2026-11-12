@@ -857,8 +857,7 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
         // THE BOOKMARKS AND THE NAMED DESTINATIONS are handed again: the backend carried each destination to where its
         // page now stands (`IDocumentBackend::outline`), and the panes hold copies of what they were last handed.
         updateBookmarksPane(document);   // S7 T11: the model's outline, which the command remapped
-        if (destinations_)
-            destinations_->setDocument(document->handle(), services_.backend.destinations(document->handle()));
+        updateDestinationsPane(document);   // S7 T12: and the model's table
     });
     connect(document, &DocumentWindow::mutated, this, [this, document] {
         updateDocumentTitles();
@@ -876,6 +875,8 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
         if (attachments_ && document == currentDocument()) attachments_->refresh();
         // S7 T11: and the Bookmarks pane the outline as the model holds it now -- an undo, a redo, a page command.
         if (document == currentDocument()) updateBookmarksPane(document);
+        // S7 T12: and the Destinations pane the table -- a destination command, its undo, a page command's remap.
+        if (document == currentDocument()) updateDestinationsPane(document);
         // S6 T9: the Comments pane re-asks its query, keeping the comment it had current.
         if (comments_ && document == currentDocument()) {
             if (const core::CommandJournal* journal = document->journal()) {
@@ -963,6 +964,15 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
     connect(document, &DocumentWindow::cropAsked, this, [this, document](int page, core::PdfRect box) {
         if (document != currentDocument()) return;
         (void)cropToBox(document, page, box);
+    });
+    // S7 T12 (D7-12): a link's rectangle dragged -- asked where it goes -- and a link clicked with the hand, followed.
+    connect(document, &DocumentWindow::linkAsked, this, [this, document](int page, core::PdfRect box) {
+        if (document != currentDocument()) return;
+        (void)createLinkFromBox(document, page, box);
+    });
+    connect(document, &DocumentWindow::linkClicked, this, [this, document](core::AnnotationId link) {
+        if (document != currentDocument()) return;
+        (void)followLink(document, link);
     });
     connect(document, &DocumentWindow::snapshotFailed, this, [this, document] {
         if (document != currentDocument() || !status_) return;
@@ -2764,9 +2774,7 @@ void MainWindow::updateDocumentPanes()
     // means *this document has none*, and each pane shows its empty state for the second rather
     // than an error (`core/backend.h` draws that distinction deliberately).
     updateBookmarksPane(current);   // S7 T11 (D7-10): the model's outline, editable where it may be
-    if (destinations_)
-        destinations_->setDocument(current->handle(),
-                                   services_.backend.destinations(current->handle()));
+    updateDestinationsPane(current);   // S7 T12 (D7-10): the model's table
 
     // THE MODEL'S TREE FOR WHAT IS SHOWN, THE ENGINE'S FOR THE DELTA (D3-15) -- the same pair
     // `DocumentWindow` hands `PageView`, so an unsaved rotation is in the thumbnail and in the page
@@ -3332,6 +3340,7 @@ void MainWindow::registerActions()
     registerPageActions();
     registerMergeActions();
     registerBookmarkActions();   // S7 T11
+    registerLinkActions();       // S7 T12
 
     // --- Documents and windows (T12) --------------------------------------------------------
     // `file.open` raises a file dialog and hands what it collects to `openFiles`, which checks a
@@ -4037,17 +4046,33 @@ void MainWindow::registerAnnotationActions()
     // Annotation tools no other widget of the page wants a bare `Enter`, and a text editor claims its own first.
     if (!services_.actions.isRegistered(ActionId::AnnotFinishShape)) {
         core::ActionRegistry::Registration finish;
-        finish.handler = [](KeyContext) {
+        // S7 T12 (D7-12, D7-35): and with none in progress and ONE LINK selected, the link followed -- `Enter` on a focused
+        // link, as a reader's.
+        const auto selectedLink = []() -> std::optional<core::AnnotationId> {
+            MainWindow* window = activeShell();
+            DocumentWindow* document = window ? window->currentDocument() : nullptr;
+            const AnnotationOverlay* overlay = document != nullptr ? document->annotations() : nullptr;
+            if (overlay == nullptr || overlay->selection().size() != 1) return std::nullopt;
+            const std::vector<core::Annotation> selected = overlay->selected();
+            if (selected.size() != 1 || selected.front().subtype != core::AnnotationSubtype::Link) return std::nullopt;
+            return selected.front().id;
+        };
+        finish.handler = [selectedLink](KeyContext) {
             MainWindow* window = activeShell();
             if (PageView* view = window ? window->currentView() : nullptr) {
+                if (!view->tools().shapeInProgress()) {
+                    if (const std::optional<core::AnnotationId> link = selectedLink())
+                        (void)window->followLink(window->currentDocument(), *link);
+                    return;
+                }
                 (void)view->tools().finishShape();
                 window->updateViewChrome();
             }
         };
-        finish.enable = [] {
+        finish.enable = [selectedLink] {
             MainWindow* window = activeShell();
             const PageView* view = window ? window->currentView() : nullptr;
-            return view != nullptr && view->tools().shapeInProgress();
+            return view != nullptr && (view->tools().shapeInProgress() || selectedLink().has_value());
         };
         finish.unavailableKey = "shell.tooltip.needsShapeInProgress";
         services_.actions.register_(ActionId::AnnotFinishShape, std::move(finish));

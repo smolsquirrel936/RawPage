@@ -118,6 +118,18 @@ core::Result<CosObject> OutlineOps::withTarget(CosObject dictionary, const Outli
     case OutlineAction::Kind::SubmitForm:
         if (action.uri.isEmpty()) return refused("submitForm");
         return AnnotationOps::withEntry(dictionary, "A", act("SubmitForm", {{"F", fileSpecification(action.uri, true)}}));
+    // Stage 7 T12 (D7-12): the other form actions, written as Acrobat writes them -- and never run.
+    case OutlineAction::Kind::ResetForm:
+        return AnnotationOps::withEntry(dictionary, "A", act("ResetForm", {}));
+    case OutlineAction::Kind::ImportData:
+        if (action.file.isEmpty()) return refused("importData");
+        return AnnotationOps::withEntry(dictionary, "A", act("ImportData", {{"F", fileSpecification(action.file, false)}}));
+    case OutlineAction::Kind::Hide: {
+        if (action.name.isEmpty()) return refused("hide");
+        std::vector<CosObject::Entry> entries{{"T", AnnotationOps::textString(action.name)}};
+        if (!action.hide) entries.push_back({"H", CosObject::makeBoolean(false)});
+        return AnnotationOps::withEntry(dictionary, "A", act("Hide", std::move(entries)));
+    }
     case OutlineAction::Kind::Other:
         break;
     }

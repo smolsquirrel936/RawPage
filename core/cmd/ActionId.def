@@ -515,6 +515,8 @@ RAWPAGE_ACTION(LinkAutoDetect,         "link.autoDetect",         Global, "actio
 RAWPAGE_ACTION(DestinationCreate,      "destination.create",      Global, "action.destination.create")
 RAWPAGE_ACTION(DestinationRename,      "destination.rename",      Global, "action.destination.rename")
 RAWPAGE_ACTION(DestinationDelete,      "destination.delete",      Global, "action.destination.delete")
+// Stage 7 T12: minted -- the surface *Verify links* needs (`Features.md` §5.10) and §8 does not name (plan §4).
+RAWPAGE_ACTION(LinkVerify,             "link.verify",             Global, "action.link.verify")
 
 RAWPAGE_ACTION(BatchRunSequence,       "batch.runSequence",       Global, "action.batch.runSequence")
 RAWPAGE_ACTION(BatchEditSequences,     "batch.editSequences",     Global, "action.batch.editSequences")

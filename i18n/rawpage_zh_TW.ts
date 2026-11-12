@@ -1587,6 +1587,10 @@
         <source>action.bookmark.tableOfContents</source>
         <translation>目錄頁</translation>
     </message>
+    <message>
+        <source>action.link.verify</source>
+        <translation>驗證連結</translation>
+    </message>
 </context>
 <context>
     <name>shell</name>
@@ -3809,6 +3813,46 @@
         <source>error.outline.nothingToList</source>
         <translation>沒有書籤指向本文件的頁面。</translation>
     </message>
+    <message>
+        <source>error.destination.malformed</source>
+        <translation>無法讀取此命令中的具名目的地。</translation>
+    </message>
+    <message>
+        <source>error.destination.badName</source>
+        <translation>目的地名稱必須是可列印的 ASCII 字元，且開頭與結尾不可為空格。</translation>
+    </message>
+    <message>
+        <source>error.destination.nameTaken</source>
+        <translation>此文件已有名為 %1 的具名目的地。</translation>
+    </message>
+    <message>
+        <source>error.destination.tooMany</source>
+        <translation>此文件的具名目的地太多，無法再新增。</translation>
+    </message>
+    <message>
+        <source>error.destination.noSuchName</source>
+        <translation>此文件沒有名為 %1 的具名目的地。</translation>
+    </message>
+    <message>
+        <source>error.destination.badDestination</source>
+        <translation>具名目的地必須指向此文件中的頁面。</translation>
+    </message>
+    <message>
+        <source>error.destination.readingsDisagree</source>
+        <translation>無法編輯具名目的地：兩種讀取結果不一致（%1）。</translation>
+    </message>
+    <message>
+        <source>error.destination.nameUnchanged</source>
+        <translation>新名稱與舊名稱相同。</translation>
+    </message>
+    <message>
+        <source>error.link.badDestination</source>
+        <translation>連結必須指向此文件中的頁面。</translation>
+    </message>
+    <message>
+        <source>error.link.openFailed</source>
+        <translation>這部電腦上沒有程式能開啟 %1。</translation>
+    </message>
 </context>
 <context>
     <name>ribbon</name>
@@ -5013,6 +5057,22 @@
     <message>
         <source>command.bookmark.import</source>
         <translation>匯入 %1 個書籤</translation>
+    </message>
+    <message>
+        <source>command.destination.create</source>
+        <translation>新增目的地「%1」</translation>
+    </message>
+    <message>
+        <source>command.destination.rename</source>
+        <translation>將目的地「%1」重新命名為「%2」</translation>
+    </message>
+    <message>
+        <source>command.destination.delete</source>
+        <translation>刪除目的地「%1」</translation>
+    </message>
+    <message>
+        <source>command.destination.deleteMany</source>
+        <translation>刪除 %1 個目的地</translation>
     </message>
 </context>
 <context>
@@ -6923,6 +6983,273 @@
     <message>
         <source>bookmarks.exported</source>
         <translation>已將 %1 個書籤匯出至 %2</translation>
+    </message>
+</context>
+<context>
+    <name>links</name>
+    <message>
+        <source>links.follow.noTarget</source>
+        <translation>此連結沒有目標。</translation>
+    </message>
+    <message>
+        <source>links.follow.pageMissing</source>
+        <translation>此連結指向文件中不存在的頁面。</translation>
+    </message>
+    <message>
+        <source>links.follow.nameMissing</source>
+        <translation>此連結指向具名目的地 %1，但文件中沒有此目的地。</translation>
+    </message>
+    <message>
+        <source>links.follow.executable</source>
+        <translation>此連結會執行程式 %1。RawPage 從不執行文件中的程式。</translation>
+    </message>
+    <message>
+        <source>links.follow.uriScheme</source>
+        <translation>此連結的位址 %1 不是 RawPage 會開啟的網址。</translation>
+    </message>
+    <message>
+        <source>links.follow.script</source>
+        <translation>此連結會執行指令碼。RawPage 會保留指令碼，但絕不執行。</translation>
+    </message>
+    <message>
+        <source>links.follow.form</source>
+        <translation>此連結會對表單執行動作。RawPage 會保留表單動作，但不會執行。</translation>
+    </message>
+    <message>
+        <source>links.follow.menu</source>
+        <translation>此連結會執行選單命令。RawPage 會保留它，但不會執行。</translation>
+    </message>
+    <message>
+        <source>links.follow.other</source>
+        <translation>此連結的動作 RawPage 會保留，但不會執行。</translation>
+    </message>
+    <message>
+        <source>links.verify.pageMissing</source>
+        <translation>第 %1 頁：連結指向文件中不存在的頁面。</translation>
+    </message>
+    <message>
+        <source>links.verify.nameMissing</source>
+        <translation>第 %1 頁：連結指向不存在的具名目的地 %2。</translation>
+    </message>
+    <message>
+        <source>links.verify.fileMissing</source>
+        <translation>第 %1 頁：連結會開啟 %2，但磁碟上找不到此檔案。</translation>
+    </message>
+    <message>
+        <source>links.properties.title</source>
+        <translation>連結內容</translation>
+    </message>
+    <message>
+        <source>links.target</source>
+        <translation>前往：</translation>
+    </message>
+    <message>
+        <source>links.target.keep</source>
+        <translation>目前的目標</translation>
+    </message>
+    <message>
+        <source>links.target.page</source>
+        <translation>此文件的某一頁</translation>
+    </message>
+    <message>
+        <source>links.target.currentView</source>
+        <translation>目前的檢視</translation>
+    </message>
+    <message>
+        <source>links.target.named</source>
+        <translation>具名目的地</translation>
+    </message>
+    <message>
+        <source>links.target.web</source>
+        <translation>網址</translation>
+    </message>
+    <message>
+        <source>links.target.remote</source>
+        <translation>另一份 PDF 的某一頁</translation>
+    </message>
+    <message>
+        <source>links.target.file</source>
+        <translation>開啟檔案</translation>
+    </message>
+    <message>
+        <source>links.target.script</source>
+        <translation>指令碼（會保留，RawPage 絕不執行）</translation>
+    </message>
+    <message>
+        <source>links.target.print</source>
+        <translation>列印文件</translation>
+    </message>
+    <message>
+        <source>links.target.submit</source>
+        <translation>提交表單</translation>
+    </message>
+    <message>
+        <source>links.target.reset</source>
+        <translation>重設表單</translation>
+    </message>
+    <message>
+        <source>links.target.nothing</source>
+        <translation>無目標</translation>
+    </message>
+    <message>
+        <source>links.target.pageNumber</source>
+        <translation>頁碼：</translation>
+    </message>
+    <message>
+        <source>links.target.destination</source>
+        <translation>目的地：</translation>
+    </message>
+    <message>
+        <source>links.target.text</source>
+        <translation>位址、檔案或指令碼：</translation>
+    </message>
+    <message>
+        <source>links.visible</source>
+        <translation>顯示矩形</translation>
+    </message>
+    <message>
+        <source>links.width</source>
+        <translation>框線寬度：</translation>
+    </message>
+    <message>
+        <source>links.style</source>
+        <translation>線條樣式：</translation>
+    </message>
+    <message>
+        <source>links.style.solid</source>
+        <translation>實線</translation>
+    </message>
+    <message>
+        <source>links.style.dashed</source>
+        <translation>虛線</translation>
+    </message>
+    <message>
+        <source>links.style.underline</source>
+        <translation>底線</translation>
+    </message>
+    <message>
+        <source>links.style.beveled</source>
+        <translation>斜面</translation>
+    </message>
+    <message>
+        <source>links.style.inset</source>
+        <translation>內嵌</translation>
+    </message>
+    <message>
+        <source>links.colour</source>
+        <translation>顏色：</translation>
+    </message>
+    <message>
+        <source>links.colour.black</source>
+        <translation>黑色</translation>
+    </message>
+    <message>
+        <source>links.colour.red</source>
+        <translation>紅色</translation>
+    </message>
+    <message>
+        <source>links.colour.green</source>
+        <translation>綠色</translation>
+    </message>
+    <message>
+        <source>links.colour.blue</source>
+        <translation>藍色</translation>
+    </message>
+    <message>
+        <source>links.highlight</source>
+        <translation>按下時的醒目提示：</translation>
+    </message>
+    <message>
+        <source>links.highlight.none</source>
+        <translation>無</translation>
+    </message>
+    <message>
+        <source>links.highlight.invert</source>
+        <translation>反轉</translation>
+    </message>
+    <message>
+        <source>links.highlight.outline</source>
+        <translation>外框</translation>
+    </message>
+    <message>
+        <source>links.highlight.push</source>
+        <translation>內嵌</translation>
+    </message>
+    <message>
+        <source>links.ask.title</source>
+        <translation>要從此文件開啟嗎？</translation>
+    </message>
+    <message>
+        <source>links.ask.uri</source>
+        <translation>此連結會開啟網址 %1。要開啟嗎？</translation>
+    </message>
+    <message>
+        <source>links.ask.remote</source>
+        <translation>此連結會在 RawPage 中開啟 %1。要開啟嗎？</translation>
+    </message>
+    <message>
+        <source>links.ask.file</source>
+        <translation>此連結會用 Windows 對應的程式開啟檔案 %1。要開啟嗎？</translation>
+    </message>
+    <message>
+        <source>links.done</source>
+        <translation>%1</translation>
+    </message>
+    <message>
+        <source>links.refused</source>
+        <translation>未執行 %1：%2</translation>
+    </message>
+    <message>
+        <source>links.selectionReading</source>
+        <translation>正在讀取選取的文字，請稍後再試。</translation>
+    </message>
+    <message>
+        <source>links.autoDetect.reading</source>
+        <translation>正在讀取 %1 頁以尋找網址…</translation>
+    </message>
+    <message>
+        <source>links.autoDetect.none</source>
+        <translation>找不到尚未成為連結的網址。</translation>
+    </message>
+    <message>
+        <source>links.verify.title</source>
+        <translation>驗證連結</translation>
+    </message>
+    <message>
+        <source>links.verify.none</source>
+        <translation>每個連結都有目標。</translation>
+    </message>
+    <message>
+        <source>links.verify.found</source>
+        <translation>%1 個連結沒有目標，詳細資料會逐一列出。</translation>
+    </message>
+    <message>
+        <source>links.destination.newTitle</source>
+        <translation>新增具名目的地</translation>
+    </message>
+    <message>
+        <source>links.destination.renameTitle</source>
+        <translation>重新命名具名目的地</translation>
+    </message>
+    <message>
+        <source>links.destination.name</source>
+        <translation>名稱：</translation>
+    </message>
+    <message>
+        <source>links.destination.default</source>
+        <translation>目的地 %1</translation>
+    </message>
+    <message>
+        <source>links.destination.cleared</source>
+        <translation>已刪除「%1」：%2 個連結與 %3 個書籤原本指向它，現在已沒有目標。</translation>
+    </message>
+    <message>
+        <source>links.tooltip.needsLink</source>
+        <translation>請先選取連結。</translation>
+    </message>
+    <message>
+        <source>links.tooltip.needsDestination</source>
+        <translation>請先選取具名目的地。</translation>
     </message>
 </context>
 </TS>

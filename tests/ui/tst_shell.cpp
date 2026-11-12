@@ -213,12 +213,15 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // `ui/dialogs/MergeDialog` and needs no document (`MainWindowMerge.cpp`). Not a command. 392 ids are declared.
     // **Thirteen more at Stage 7 T11** (D7-10, D7-11, `MainWindowBookmarks.cpp`): the eight editing rows of §8's
     // Bookmarks table, `bookmark.generate`, and the minted `.properties`, `.import`, `.export` and `.tableOfContents`.
-    // 396 ids are declared.
+    // **Eight more at Stage 7 T12** (D7-12, D7-35, `MainWindowLinks.cpp`): `link.create`, `.edit`, `.delete`,
+    // `.autoDetect` and the minted `.verify`, and `destination.create`, `.rename` and `.delete`. 397 ids are declared.
     //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 206);
+    CHECK(fixture.actions.registeredCount() == 214);
+    CHECK(fixture.actions.isRegistered(core::ActionId::LinkVerify));             // S7 T12, minted
+    CHECK(fixture.actions.isRegistered(core::ActionId::DestinationRename));      // S7 T12
     CHECK(fixture.actions.isRegistered(core::ActionId::MergeDocuments));         // S7 T10
     CHECK(fixture.actions.isRegistered(core::ActionId::PageCrop));               // S7 T9
     CHECK(fixture.actions.isRegistered(core::ActionId::PageSetBoxes));           // S7 T9, minted

@@ -77,6 +77,8 @@ QByteArray Document::modelHash() const
     buffer.append(attachments_.digest());
     // The outline (Stage 7 T11): every item, every field, in order, and whether it may be edited.
     buffer.append(outline_.digest());
+    // The named destinations (Stage 7 T12): every entry, every field, in order, and whether they may be edited.
+    buffer.append(destinations_.digest());
     return QCryptographicHash::hash(buffer, QCryptographicHash::Sha256);
 }
 
@@ -109,6 +111,7 @@ Status Document::hydrate(const IDocumentBackend& backend, DocumentHandle handle)
     const AnnotationStore* annotations = backend.annotations(handle);
     const Attachments* attachments = backend.attachments(handle);
     const Outline* outline = backend.outline(handle);
+    const Destinations* destinations = backend.destinations(handle);
 
     handle_ = handle;
     pages_ = *pages;
@@ -119,6 +122,8 @@ Status Document::hydrate(const IDocumentBackend& backend, DocumentHandle handle)
     attachments_ = attachments ? *attachments : Attachments{};
     outline_ = outline ? *outline
                        : Outline::refused(Error{ErrorCode::Unavailable, QLatin1String("error.edit.notAssessed"), QString()});
+    destinations_ = destinations ? *destinations
+                                 : Destinations::refused(Error{ErrorCode::Unavailable, QLatin1String("error.edit.notAssessed"), QString()});
     revision_ = Revision::initial();
     return Status{};
 }

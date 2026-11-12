@@ -165,4 +165,14 @@ core::Destination DestinationsPane::selectedDestination() const
     return unpackDestination(currentItem());
 }
 
+bool DestinationsPane::selectName(const QString& name)
+{
+    for (int i = 0; i < topLevelItemCount(); ++i) {
+        if (topLevelItem(i)->text(0) != name) continue;
+        setCurrentItem(topLevelItem(i));
+        return true;
+    }
+    return false;
+}
+
 } // namespace rawpage::ui

@@ -13,6 +13,7 @@
 #include <cmath>
 #include <iterator>
 #include <map>
+#include <set>
 
 namespace rawpage::core {
 namespace {
@@ -235,6 +236,7 @@ bool applyPageMapToModel(Document& document, const PageMap& map, std::vector<Pag
     if (!document.annotations().applyPageMap(map, std::move(insertedListings))) return false;
     document.permissions().applyPageMap(map);
     document.outline().applyPageMap(map);   // S7 T11 (D7-3): a bookmark names the page it named
+    document.destinations().applyPageMap(map);   // S7 T12: and a named destination
     return true;
 }
 
@@ -336,6 +338,14 @@ bool DeletePagesCommand::apply(Document& document, MutationSink& sink)
     removedPages_ = std::move(removed);
     removedListings_ = std::move(listings);
     outlineBefore_ = document.outline();
+    destinationsBefore_ = document.destinations();
+    linksBefore_.clear();
+    std::set<int> removedSet(pages_.begin(), pages_.end());
+    for (const Annotation& a : document.annotations().all()) {
+        if (a.subtype == AnnotationSubtype::Link && a.action.kind == OutlineAction::Kind::GoTo && a.page >= 0
+            && removedSet.count(a.page) == 0 && removedSet.count(a.action.destination.pageIndex) != 0)
+            linksBefore_.push_back(a);
+    }
     return applyPageMapToModel(document, *map, {}, {});
 }
 
@@ -346,6 +356,8 @@ bool DeletePagesCommand::revert(Document& document, MutationSink& sink)
     if (!applyPageMapToModel(document, map_->inverse(), removedPages_, removedListings_)) return false;
     // The undo runs on the outline the removal left (the journal undoes in order), so the one it replaced is exact.
     if (outlineBefore_) document.outline() = *outlineBefore_;
+    if (destinationsBefore_) document.destinations() = *destinationsBefore_;
+    if (!linksBefore_.empty() && !document.annotations().replace(linksBefore_)) return false;
     return true;
 }
 
@@ -422,6 +434,13 @@ bool DuplicatePagesCommand::apply(Document& document, MutationSink& sink)
             copy.nm = copyName(ordinal++);
             copy.id = AnnotationId::ofCreated(copy.nm);
             copy.page = copyPage;
+            // S7 T12 (D7-3): a copied link names the page its source names -- in the order AFTER the duplicate, as the
+            // copies arrive (`AnnotationStore::applyPageMap` remaps only what it already held).
+            if (copy.subtype == AnnotationSubtype::Link && copy.action.kind == OutlineAction::Kind::GoTo
+                && copy.action.destination.pageIndex >= 0) {
+                const int moved = map->newIndexOf(copy.action.destination.pageIndex);
+                copy.action.destination.pageIndex = moved == PageMap::kNone ? -1 : moved;
+            }
             copied.emplace(source.id, copy.id);
             pageCopies.push_back(AnnotationCopy{source.id, std::move(copy)});
         }

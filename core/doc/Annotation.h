@@ -41,6 +41,7 @@
 
 #include "core/Geometry.h"
 #include "core/Result.h"
+#include "core/doc/Outline.h"
 #include "core/doc/SoundData.h"
 
 #include <QByteArray>
@@ -292,6 +293,17 @@ struct Annotation {
     // RawPage recorded or attached it (`core/doc/SoundData`).
     std::optional<SoundData> sound;
 
+    // Stage 7 T12 (D7-12): a LINK's target and highlight. `action` is what the link does, read from `/Dest` before
+    // `/A` as PDFium reads it -- a destination in this document, a named one, another file's page, a web address, a
+    // script, a form action -- in `core/doc/Outline`'s vocabulary, so a link and a bookmark name a target the same
+    // way. **Written, never run.** A `GoTo`'s page is an INDEX, remapped by every page command (D7-3), and unresolved
+    // (-1) where its page was removed; a `GoToNamed` is the NAME only -- `core/doc/LinkActions` looks it up in the
+    // document's table when it is followed, so a destination retargeted is followed where it now points. `Other` is a
+    // kind this build reads and keeps and never writes. `highlight` is `/H` as written -- N, I, O, P -- and empty when
+    // absent (ISO 32000-1 Table 173: invert). Read for a `Link` only; every other subtype holds none.
+    OutlineAction action;
+    QString highlight;
+
     bool hasFlag(std::uint32_t flag) const noexcept { return (flags & flag) != 0; }
     // A reply that carries a review or marked state rather than text (ISO 32000-1 §12.5.6.3).
     bool isStateReply() const noexcept { return !stateModel.isEmpty(); }
@@ -365,6 +377,15 @@ bool isStateOfModel(const QString& model, const QString& state);
 // `Compatible`, which means `Normal`).
 bool isBorderStyleName(const QString& name);
 bool isBlendModeName(const QString& name);
+// Stage 7 T12: whether `name` is one of ISO 32000-1 Table 173's link highlight modes -- N, I, O, P.
+bool isHighlightModeName(const QString& name);
+
+// A LINK RawPage CREATES (Stage 7 T12, D7-12): `newAnnotation`'s identity and dates, at `rect` -- and its quadpoints,
+// when it was made from text -- going where `action` says, its border `borderWidth` points wide in `colour` (no
+// colour, or a width of 0: an invisible link) and its highlight `highlight` (empty: invert, the default). Flags
+// `Print`, as Acrobat sets on every link it makes.
+Annotation newLink(int page, const PdfRect& rect, std::vector<double> quadPoints, OutlineAction action,
+                   const QString& author, std::int64_t utcNow);
 
 // WHO A COMMENT IS BY (D6-13, Stage 6 T6): `identity/author` when it says anything, else the login name
 // the HOST supplied -- the rule is the domain's, the name is the host's (convention 11), so `core/` reads

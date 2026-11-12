@@ -90,6 +90,11 @@ add_library(rawpage_ops STATIC
     OutlineOps.cpp
     OutlineFiles.h
     OutlineFiles.cpp
+
+    # S7 T12 (D7-10, D7-35). The fifth: the named destinations -- which table each name is in and what its value was
+    # written as, held to agree with PDFium's reading -- so a rename keeps its table and a pair not changed its bytes.
+    DestinationReader.h
+    DestinationReader.cpp
 )
 
 target_include_directories(rawpage_ops PUBLIC "${CMAKE_SOURCE_DIR}")

@@ -441,31 +441,30 @@ TEST_CASE("an edit undone after its save writes back the dictionary the file hel
 TEST_CASE("a change of what a kind draws is refused by key when this build cannot draw that kind",
           "[annotedit][A-26][refuse]")
 {
-    // A LINK WITH ITS PRODUCER'S APPEARANCE since T14, which draws the sound this case recoloured from T11
-    // (`tst_redaction` holds a speaker redrawn) -- as T11 moved it off the file attachment, T10 off the stamp and T8 off
-    // the Square. Every kind Stage 6 creates is now drawn, and no corpus file holds a kind it does not WITH an `/AP`
-    // (`annots-mixed.pdf`'s link has none, and one with none is rewritten, not redrawn), so the producer is built here.
+    // A SCREEN ANNOTATION WITH ITS PRODUCER'S APPEARANCE since Stage 7 T12, which draws a link's border -- as T14 moved it
+    // off the sound to the link, T11 off the file attachment, T10 off the stamp and T8 off the Square. Every kind Stages 6
+    // and 7 create is drawn, and no corpus file holds a kind it does not WITH an `/AP`, so the producer is built here.
     const std::string form = "q 0 0 1 RG 1 w 0.5 0.5 99 19 re S Q";
     const std::string bytes = tests::annotatedDocument(1, [&](int, tests::TinyPdf& pdf, int pageObject) -> std::string {
         const int ap = pdf.add("<< /Type /XObject /Subtype /Form /BBox [ 0 0 100 20 ] /Length " + std::to_string(form.size())
                                + " >>\nstream\n" + form + "\nendstream");
-        const int annot = pdf.add("<< /Type /Annot /Subtype /Link /Rect [ 100 700 200 720 ] /C [ 0 0 1 ] /AP << /N "
+        const int annot = pdf.add("<< /Type /Annot /Subtype /Screen /Rect [ 100 700 200 720 ] /C [ 0 0 1 ] /AP << /N "
                                   + std::to_string(ap) + " 0 R >> /P " + std::to_string(pageObject) + " 0 R >>");
         return "[ " + std::to_string(annot) + " 0 R ]";
     });
-    auto session = tests::openBuilt(QStringLiteral("drawn-link.pdf"), bytes);
+    auto session = tests::openBuilt(QStringLiteral("drawn-screen.pdf"), bytes);
     REQUIRE(session);
-    const std::optional<AnnotationId> link = firstOf(storeOf(*session), AnnotationSubtype::Link);
+    const std::optional<AnnotationId> link = firstOf(storeOf(*session), AnnotationSubtype::Screen);
     REQUIRE(link);
     const QByteArray hash = session->journal->document().modelHash();
     const core::Status status = recolour(*session, {*link}, {1, 0, 0});
     REQUIRE_FALSE(status);
     CHECK(keyOf(status.error()) == "error.pdf.appearanceUnsupported");   // the sink's reason, not "it failed"
-    CHECK(status.error().context == QStringLiteral("Link"));
+    CHECK(status.error().context == QStringLiteral("Screen"));
     CHECK(session->journal->document().modelHash() == hash);
     CHECK_FALSE(session->journal->canUndo());
     CHECK(deltaIsEmpty(*session));
-    // The same link MOVED is not a change of what it draws: its appearance goes with its rectangle.
+    // The same annotation MOVED is not a change of what it draws: its appearance goes with its rectangle.
     REQUIRE(move(*session, {*link}, 10, -10));
 }
 

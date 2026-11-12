@@ -93,6 +93,8 @@ public:
 
     QString selectedName() const;
     core::Destination selectedDestination() const;
+    // Stage 7 T12: the row called `name` made current -- after a command made or renamed it. False for a name not listed.
+    bool selectName(const QString& name);
 
 signals:
     void activated(core::Destination destination);

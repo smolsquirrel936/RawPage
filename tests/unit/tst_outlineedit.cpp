@@ -780,3 +780,26 @@ TEST_CASE("outline.exchange: a malformed file is refused by key with nothing cha
     CHECK(read.value().front().title == QStringLiteral("x"));
     CHECK_FALSE(read.value().front().destination.isResolved());   // page 13 of 12: kept, going nowhere
 }
+
+// ==========================================================================================
+// Stage 7 guide I-20 -- a bookmark to the FIRST page made before a save (found at T12)
+// ==========================================================================================
+
+TEST_CASE("outline: a bookmark to the first page a duplicate or an insert made, before any save, is written to that page", "[outline][outlineedit][I-20]")
+{
+    // The sink numbers a new page NEGATIVE until a save gives it a number, starting at -1 -- the very value an outline
+    // target used for "no page". A bookmark set to that page was written with no destination at all.
+    auto session = tests::openCopy("assembly/refs-none.pdf");
+    REQUIRE(session);
+    REQUIRE(run(*session, std::make_unique<core::DuplicatePagesCommand>(std::vector<int>{0})));
+    const QString key = core::newBookmarkKey();
+    REQUIRE(run(*session, std::make_unique<core::CreateBookmarkCommand>(
+                              OutlinePosition{}, std::vector<OutlineItem>{newItem(key, 0, QStringLiteral("To the copy"), 1)})));
+    REQUIRE(save(*session, "to-new-page"));
+    auto written = readBytes(tests::readAllBytes(session->path));
+    REQUIRE(written->outline.outline.roots().size() == 1);
+    const OutlineItem& item = written->outline.outline.roots().front();
+    CHECK(item.title == QStringLiteral("To the copy"));
+    CHECK(item.destination.pageIndex == 1);
+    CHECK(written->object(item.id.object).get("Dest").isArray());
+}

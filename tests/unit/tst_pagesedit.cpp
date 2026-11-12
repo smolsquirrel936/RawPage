@@ -85,6 +85,7 @@ public:
     core::Status setPageThumbnails(const std::vector<int>&, const std::vector<core::PageThumbnail>&, const QString&) override { return no(); }
     core::Status restorePageThumbnails(const std::vector<int>&, const QString&) override { return no(); }
     core::Status setOutline(const core::Outline&) override { return no(); }
+    core::Status setDestinations(const core::Destinations&) override { return no(); }
 
 private:
     static core::Status no() { return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.test.unexpected"), QString()}; }

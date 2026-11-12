@@ -28,6 +28,7 @@ const char* toolKindName(ToolKind kind) noexcept
     case ToolKind::Snapshot:    return "Snapshot";
     case ToolKind::Annotate:    return "Annotate";
     case ToolKind::Crop:        return "Crop";
+    case ToolKind::Link:        return "Link";
     }
     return "?";
 }
@@ -86,6 +87,7 @@ Tool& ToolController::toolFor(ToolKind kind)
     case ToolKind::Loupe:       return loupe_;
     case ToolKind::Snapshot:    return snapshot_;
     case ToolKind::Crop:        return crop_;
+    case ToolKind::Link:        return link_;
     case ToolKind::Annotate:    return annotationToolFor(annotationKind_);
     case ToolKind::Select:      break;
     }

@@ -17,6 +17,7 @@
 #include "core/cmd/commands/AnnotationCommands.h"
 #include "core/cmd/commands/AttachmentCommands.h"
 #include "core/cmd/commands/BookmarkCommands.h"
+#include "core/cmd/commands/DestinationCommands.h"
 #include "pdf/ops/ObjectGraphCopier.h"
 #include "core/cmd/commands/PageCommands.h"
 
@@ -107,6 +108,19 @@ std::vector<core::OutlineAction> sampleActions()
     submit.kind = core::OutlineAction::Kind::SubmitForm;
     submit.uri = QStringLiteral("https://example.com/submit");
     out.push_back(submit);
+    // Stage 7 T12 (D7-12): the other form actions.
+    core::OutlineAction reset;
+    reset.kind = core::OutlineAction::Kind::ResetForm;
+    out.push_back(reset);
+    core::OutlineAction import;
+    import.kind = core::OutlineAction::Kind::ImportData;
+    import.file = QStringLiteral("answers.fdf");
+    out.push_back(import);
+    core::OutlineAction show;
+    show.kind = core::OutlineAction::Kind::Hide;
+    show.name = QStringLiteral("form.field");
+    show.hide = false;
+    out.push_back(show);
     return out;
 }
 
@@ -133,6 +147,26 @@ const std::map<std::string, std::function<std::vector<std::unique_ptr<Command>>(
                  sampleHighlight(0), sampleHighlight(3, QStringLiteral("\u6797")), sampleHighlight(0)}));
              out.push_back(std::make_unique<core::AddAnnotationCommand>(
                  std::vector<core::Annotation>{sampleHighlight(core::AnnotationCommandLimits::kMaxPageIndex)}));
+             // Stage 7 T12 (D7-12, guide A-88): a LINK with every target a command carries -- and `Other`, which an
+             // annotation CARRIES as the file wrote it (`OutlineAction::fromJson`) -- each with a border and a highlight.
+             std::vector<core::OutlineAction> targets = sampleActions();
+             core::OutlineAction other;
+             other.kind = core::OutlineAction::Kind::Other;
+             other.name = QStringLiteral("Rendition");
+             targets.push_back(other);
+             std::vector<core::Annotation> links;
+             for (const core::OutlineAction& action : targets) {
+                 core::Annotation link = core::newLink(1, core::PdfRect{core::PdfPoint{36, 700}, core::PdfSize{200, 14}},
+                                                       {36, 714, 236, 714, 36, 700, 236, 700}, action, QStringLiteral("Serialize"),
+                                                       1791504000);
+                 link.borderWidth = 2.0;
+                 link.borderStyle = QStringLiteral("D");
+                 link.dashPattern = {3, 1};
+                 link.color = {1, 0, 0};
+                 link.highlight = QStringLiteral("P");
+                 links.push_back(std::move(link));
+             }
+             out.push_back(std::make_unique<core::AddAnnotationCommand>(std::move(links)));
              return out;
          }},
         // Every kind of identity a command can name (D6-4).
@@ -391,6 +425,35 @@ const std::map<std::string, std::function<std::vector<std::unique_ptr<Command>>(
                                                                             core::GenerateBookmarksCommand::Source::Import));
              return out;
          }},
+        // Stage 7 T12 (D7-35): a destination in the tree, from a view; a rename to a name with spaces and punctuation; a
+        // delete of one and of several.
+        {"destination.create",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             core::NamedDestination entry;
+             entry.name = QStringLiteral("chapter-1");
+             entry.destination.pageIndex = 4;
+             entry.destination.fit = core::Destination::Fit::XYZ;
+             entry.destination.hasY = true;
+             entry.destination.y = 640;
+             out.push_back(std::make_unique<core::CreateDestinationCommand>(entry));
+             return out;
+         }},
+        {"destination.rename",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             out.push_back(std::make_unique<core::RenameDestinationCommand>(QStringLiteral("dest-alpha"),
+                                                                            QStringLiteral("Chapter 1: the start (draft)")));
+             return out;
+         }},
+        {"destination.delete",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             out.push_back(std::make_unique<core::DeleteDestinationCommand>(std::vector<QString>{QStringLiteral("old-delta")}));
+             out.push_back(std::make_unique<core::DeleteDestinationCommand>(
+                 std::vector<QString>{QStringLiteral("dest-alpha"), QStringLiteral("dest-beta")}));
+             return out;
+         }},
         // Stage 6 T13 (D6-20): an import that only adds -- an exchange's names, an Acrobat-shaped one among them --
         // one that only replaces, and one that does both.
         {"annot.import",
@@ -438,7 +501,7 @@ bool catalogHas(const char* file, QLatin1String key)
 // A-42 -- the registry round-trips what it registered and refuses what it did not
 // ==========================================================================================
 
-TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][serialize][serialize:RotatePageCommand][serialize:AddAnnotationCommand][serialize:DeleteAnnotationCommand][serialize:EditAnnotationCommand][serialize:MoveAnnotationCommand][serialize:SetAnnotationAppearanceCommand][serialize:LockAnnotationCommand][serialize:ReplyToAnnotationCommand][serialize:SetAnnotationStatusCommand][serialize:AddAttachmentCommand][serialize:DeleteAttachmentCommand][serialize:ImportAnnotationsCommand][serialize:MovePagesCommand][serialize:DeletePagesCommand][serialize:DuplicatePagesCommand][serialize:InsertPagesCommand][serialize:ReplacePagesCommand][serialize:CropPagesCommand][serialize:ResizePagesCommand][serialize:RenumberPagesCommand][serialize:SetEmbeddedThumbnailsCommand][serialize:CreateBookmarkCommand][serialize:EditBookmarkCommand][serialize:DeleteBookmarkCommand][serialize:ReparentBookmarkCommand][serialize:SetBookmarkTargetCommand][serialize:GenerateBookmarksCommand]")
+TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][serialize][serialize:RotatePageCommand][serialize:AddAnnotationCommand][serialize:DeleteAnnotationCommand][serialize:EditAnnotationCommand][serialize:MoveAnnotationCommand][serialize:SetAnnotationAppearanceCommand][serialize:LockAnnotationCommand][serialize:ReplyToAnnotationCommand][serialize:SetAnnotationStatusCommand][serialize:AddAttachmentCommand][serialize:DeleteAttachmentCommand][serialize:ImportAnnotationsCommand][serialize:MovePagesCommand][serialize:DeletePagesCommand][serialize:DuplicatePagesCommand][serialize:InsertPagesCommand][serialize:ReplacePagesCommand][serialize:CropPagesCommand][serialize:ResizePagesCommand][serialize:RenumberPagesCommand][serialize:SetEmbeddedThumbnailsCommand][serialize:CreateBookmarkCommand][serialize:EditBookmarkCommand][serialize:DeleteBookmarkCommand][serialize:ReparentBookmarkCommand][serialize:SetBookmarkTargetCommand][serialize:GenerateBookmarksCommand][serialize:CreateDestinationCommand][serialize:RenameDestinationCommand][serialize:DeleteDestinationCommand]")
 {
     const auto typeIds = CommandRegistry::typeIds();
     REQUIRE_FALSE(typeIds.empty());
@@ -475,8 +538,11 @@ TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][s
     }
     // page.rotate: 16 one-page samples and, since Stage 7 T8, 3 sets.
     // Stage 7 T9: crop, resize, renumber and thumbnails, two each.
-    // Stage 7 T11: the six bookmark commands -- two each, and a target of every kind a command can carry (9).
-    CHECK(roundTrips == 16 + 3 + 3 + 2 + 2 + 2 + 2 + 2 + 2 + 3 + 2 + 2 + 3 + 3 + 2 + 2 + 2 + 1 + 2 + 2 + 2 + 2 + 2 + 2 + 2 + 2 + 9 + 2);
+    // Stage 7 T11: the six bookmark commands -- two each, and a target of every kind a command can carry (9; 12 since
+    // Stage 7 T12, the three form actions added). Stage 7 T12: annot.add's fourth sample, the links; the three destination
+    // commands, 1, 1 and 2.
+    CHECK(roundTrips == 16 + 3 + 4 + 2 + 2 + 2 + 2 + 2 + 2 + 3 + 2 + 2 + 3 + 3 + 2 + 2 + 2 + 1 + 2 + 2 + 2 + 2 + 2 + 2 + 2 + 2 + 12 + 2
+                            + 1 + 1 + 2);
 }
 
 // Stage 6 T13 (D6-20): an import is a journal line carrying two sets -- what it adds must be what an add accepts,

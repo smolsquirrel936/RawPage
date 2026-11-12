@@ -613,10 +613,10 @@ set(ML_FIX "${FIXTURES}/mutation-lint")
 
 # A-11, the real tree: every command, named -- and so the roster D6-1 closes is pinned here, not
 # remembered. Seventeen since Stage 7 T5 (`InsertPagesCommand`, `ReplacePagesCommand`), fifteen since Stage 7 T2's three page`n# commands; twelve since Stage 6 T13 -- `Stage6-Annotations-Plan.md` §4's end, the twelfth
-# `ImportAnnotationsCommand` -- eleven since T11, nine since T9, seven since T5, three since T3, one until then.
+# `ImportAnnotationsCommand` -- eleven since T11 (the destinations' three join the file-level list at Stage 7 T12), nine since T9, seven since T5, three since T3, one until then.
 rawpage_add_gate_test(NAME gates.mutation_lint.clean_tree
     COMMAND ${ML} --root ${CMAKE_SOURCE_DIR}
-    EXPECT_EXIT 0 EXPECT_MATCH "clean -- 27 command\\(s\\): AddAnnotationCommand DeleteAnnotationCommand EditAnnotationCommand MoveAnnotationCommand SetAnnotationAppearanceCommand LockAnnotationCommand ReplyToAnnotationCommand SetAnnotationStatusCommand ImportAnnotationsCommand AddAttachmentCommand DeleteAttachmentCommand CreateBookmarkCommand EditBookmarkCommand DeleteBookmarkCommand ReparentBookmarkCommand SetBookmarkTargetCommand GenerateBookmarksCommand RotatePageCommand MovePagesCommand DeletePagesCommand DuplicatePagesCommand InsertPagesCommand ReplacePagesCommand CropPagesCommand ResizePagesCommand RenumberPagesCommand SetEmbeddedThumbnailsCommand;")
+    EXPECT_EXIT 0 EXPECT_MATCH "clean -- 30 command\\(s\\): AddAnnotationCommand DeleteAnnotationCommand EditAnnotationCommand MoveAnnotationCommand SetAnnotationAppearanceCommand LockAnnotationCommand ReplyToAnnotationCommand SetAnnotationStatusCommand ImportAnnotationsCommand AddAttachmentCommand DeleteAttachmentCommand CreateBookmarkCommand EditBookmarkCommand DeleteBookmarkCommand ReparentBookmarkCommand SetBookmarkTargetCommand GenerateBookmarksCommand CreateDestinationCommand RenameDestinationCommand DeleteDestinationCommand RotatePageCommand MovePagesCommand DeletePagesCommand DuplicatePagesCommand InsertPagesCommand ReplacePagesCommand CropPagesCommand ResizePagesCommand RenumberPagesCommand SetEmbeddedThumbnailsCommand;")
 
 # A-11, THE CONTROL: three spellings of "derives from Command" (plain, qualified across two lines,
 # second of two bases), each complete -- and a CommandHistory base and an `enum class X : int`,

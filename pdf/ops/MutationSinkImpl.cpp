@@ -130,6 +130,8 @@ bool drawnTheSame(const core::Annotation& disk, const core::Annotation& now)
     probe.open = disk.open;
     probe.hasAppearance = disk.hasAppearance;
     probe.sound = disk.sound;   // T14: a sound's samples are heard, never drawn
+    probe.action = disk.action;         // Stage 7 T12: where a link goes, and how it flashes when clicked, are
+    probe.highlight = disk.highlight;   // never drawn
     // Stage 6 T10: and a DYNAMIC stamp's, whose appearance draws its `/Contents` -- the lines it baked -- as free text
     // draws its text (`core/doc/Stamps`).
     if (disk.subtype != core::AnnotationSubtype::FreeText && core::stampKind(disk) != core::StampKind::Dynamic) {
@@ -562,9 +564,14 @@ core::Result<cos::ObjectDelta> MutationSinkImpl::delta()
     if (core::Status edits = composePageEdits(delta, pageDictionaries); !edits) return edits.error();
     if (core::Status labels = composeLabels(pageDictionaries); !labels) return labels.error();
     if (core::Status repairs = composeRepairs(pageDictionaries); !repairs) return repairs.error();
+    // S7 T12: a link target a save could not write, its page now back -- onto the dictionary as the repair left it.
+    if (core::Status parked = composeParkedLinks(pageDictionaries); !parked) return parked.error();
     // S7 T11 (D7-34): the outline AFTER the repair, which rewrites an item key by key over whatever is pending -- so a
     // target a bookmark command set is the one written, and an item the repair cleared is composed from what it made.
     if (core::Status outline = composeOutline(delta, pageDictionaries); !outline) return outline.error();
+    // S7 T12 (D7-35): the named destinations, after the repair too, and before the attachments -- both write the catalog's
+    // `/Names`, each through `pending`, so neither undoes the other.
+    if (core::Status destinations = composeDestinations(delta, pageDictionaries); !destinations) return destinations.error();
     if (core::Status annotations = composeAnnotations(delta, pageDictionaries); !annotations)
         return annotations.error();
     if (core::Status files = composeFiles(delta, pageDictionaries); !files)   // Stage 6 T11
@@ -744,6 +751,7 @@ core::Status MutationSinkImpl::insertAnnotations(const std::vector<core::Annotat
     // Everything on scratch copies of the touched listings: refused part-way, nothing has changed.
     std::map<int, std::vector<ListedEntry>> scratch;
     std::map<QString, core::Annotation> created;
+    std::map<core::AnnotationId, LinkTarget> targets;   // S7 T12: a created link's target, resolved now
     for (std::size_t i = 0; i < at.size(); ++i) {
         const core::AnnotationPlacement& place = at[i];
         const core::Annotation& annotation = annotations[i];
@@ -773,6 +781,11 @@ core::Status MutationSinkImpl::insertAnnotations(const std::vector<core::Annotat
             } else {
                 // Written new -- so it must be a kind this build can draw (D6-6), asked now, not at save.
                 if (core::Status writable = canCreate(annotation); !writable) return writable;
+                if (annotation.subtype == core::AnnotationSubtype::Link) {
+                    auto target = resolveLinkTarget(annotation);
+                    if (!target) return target.error();
+                    targets.insert_or_assign(annotation.id, std::move(target).value());
+                }
                 entry.kind = ListedEntry::Kind::Created;
                 entry.nm = annotation.id.nm;
                 created.insert_or_assign(entry.nm, annotation);
@@ -785,6 +798,7 @@ core::Status MutationSinkImpl::insertAnnotations(const std::vector<core::Annotat
     }
 
     for (auto& [nm, annotation] : created) created_.insert_or_assign(nm, std::move(annotation));
+    for (auto& [id, target] : targets) linkTargets_.insert_or_assign(id, std::move(target));
     commitListings(std::move(scratch));
     return core::Status{};
 }
@@ -847,6 +861,17 @@ core::Status MutationSinkImpl::replaceAnnotations(const std::vector<core::Annota
     // Everything on scratch copies: refused part-way, nothing has changed.
     std::map<core::AnnotationId, Edit> edits = edits_;
     std::map<QString, core::Annotation> created;
+    std::map<core::AnnotationId, std::optional<LinkTarget>> targets;   // S7 T12: nullopt -- the disk's again
+    // S7 T12: a link's target as the model has it, resolved now -- or nullopt where its dictionary on disk says the same.
+    const auto linkTarget = [this](const core::Annotation& link, bool mayBeDisk) -> core::Result<std::optional<LinkTarget>> {
+        auto target = resolveLinkTarget(link);
+        if (!target) return target.error();
+        if (mayBeDisk && linkTargetOnDisk(link.id, target.value())) return std::optional<LinkTarget>{};
+        // Written, so it must be writable -- asked now, so a refusal changes nothing.
+        auto writable = OutlineOps::withTarget(cos::CosObject::makeDictionary({}), link.action, cos::CosObject::makeReference(1, 0));
+        if (!writable) return writable.error();
+        return std::optional<LinkTarget>{std::move(target).value()};
+    };
     for (std::size_t i = 0; i < after.size(); ++i) {
         const core::Annotation& was = before[i];
         const core::Annotation& now = after[i];
@@ -868,6 +893,11 @@ core::Status MutationSinkImpl::replaceAnnotations(const std::vector<core::Annota
             if (now.subtype == core::AnnotationSubtype::Redact) {   // T14: and its /RO
                 auto overlay = AppearanceStreamBuilder::redactionOverlay(now);
                 if (!overlay) return overlay.error();
+            }
+            if (now.subtype == core::AnnotationSubtype::Link) {   // S7 T12: its target, resolved now
+                auto target = linkTarget(now, false);
+                if (!target) return target.error();
+                targets.insert_or_assign(now.id, std::move(target).value());
             }
             created.insert_or_assign(now.id.nm, now);
             continue;
@@ -897,6 +927,11 @@ core::Status MutationSinkImpl::replaceAnnotations(const std::vector<core::Annota
 
         const auto existing = edits.find(now.id);
         const core::Annotation disk = existing != edits.end() ? existing->second.disk : was;
+        if (now.subtype == core::AnnotationSubtype::Link) {   // S7 T12: the disk's target, or the model's resolved now
+            auto target = linkTarget(now, true);
+            if (!target) return target.error();
+            targets.insert_or_assign(now.id, std::move(target).value());
+        }
         if (now == disk) {
             edits.erase(now.id);   // back to the disk: nothing to write for it
             continue;
@@ -948,6 +983,10 @@ core::Status MutationSinkImpl::replaceAnnotations(const std::vector<core::Annota
 
     edits_ = std::move(edits);
     for (auto& [nm, annotation] : created) created_.insert_or_assign(nm, std::move(annotation));
+    for (auto& [id, target] : targets) {
+        if (target) linkTargets_.insert_or_assign(id, std::move(*target));
+        else linkTargets_.erase(id);
+    }
     return core::Status{};
 }
 
@@ -1010,7 +1049,7 @@ core::Result<cos::CosObject> MutationSinkImpl::editedFrom(const cos::CosObject& 
             edited = AnnotationOps::withEntry(edited, "RO", cos::CosObject::makeReference(ro, 0));
         }
     }
-    return edited;
+    return withLinkTarget(std::move(edited), edit.now.id);   // S7 T12: a target the model set
 }
 
 long long MutationSinkImpl::referenceFloor()
@@ -1089,11 +1128,12 @@ core::Status MutationSinkImpl::composeAnnotations(cos::ObjectDelta& delta,
     }
     const ReferenceResolver resolve = [this, &written](const core::AnnotationId& id) { return resolveReference(id, written); };
     // S7 T4: what a dictionary's three reference fields resolve to -- an input of it like the model itself.
-    const auto referencesOf = [&resolve](const core::Annotation& a) {
+    // S7 T12: and a link's, the page its target is written as now -- a page removed or restored rebuilds the unit.
+    const auto referencesOf = [this, &resolve](const core::Annotation& a) {
         const auto one = [&resolve](const std::optional<core::AnnotationId>& id) {
             return id ? resolve(*id) : std::optional<cos::CosRef>{};
         };
-        return std::vector<std::optional<cos::CosRef>>{one(a.popup), one(a.parent), one(a.inReplyTo)};
+        return std::vector<std::optional<cos::CosRef>>{one(a.popup), one(a.parent), one(a.inReplyTo), linkPageReference(a.id)};
     };
 
     for (const int page : rewrite) {
@@ -1164,6 +1204,8 @@ core::Status MutationSinkImpl::composeAnnotations(cos::ObjectDelta& delta,
                         objects.numbers.push_back(appearanceRef->number);
                     }
                     auto dictionary = AnnotationOps::createdDictionary(*annotation, pageRef, appearanceRef, resolve);
+                    if (!dictionary) return dictionary.error();
+                    dictionary = withLinkTarget(std::move(dictionary).value(), annotation->id);   // S7 T12
                     if (!dictionary) return dictionary.error();
                     // T11: a FileAttachment's file, as its /FS -- its stream compressed once (`compressedFor`).
                     if (annotation->subtype == core::AnnotationSubtype::FileAttachment && annotation->attachment
@@ -1834,6 +1876,7 @@ core::Status MutationSinkImpl::adopt(std::string_view bytes)
         return files.error();
     // S7 T11: the outline, as it composed it -- each created item now the object the save put it at.
     if (core::Status outline = reconcileOutline(table.value()); !outline) return outline;
+    if (core::Status destinations = reconcileDestinations(table.value()); !destinations) return destinations;   // S7 T12
 
     bytes_ = bytes;
     table_ = std::move(table).value();
@@ -1876,9 +1919,23 @@ core::Status MutationSinkImpl::adopt(std::string_view bytes)
         // S7 T11: a bookmark's target on a page the save first numbered names that number now.
         if (outline_) {
             eachHeld(*outline_, [&numbers](HeldItem& h) {
-                if (h.target.page >= 0) return;
-                if (const auto given = numbers.find(h.target.page); given != numbers.end()) h.target.page = given->second;
+                if (!h.target.page || *h.target.page >= 0) return;
+                if (const auto given = numbers.find(*h.target.page); given != numbers.end()) h.target.page = given->second;
             });
+        }
+        // S7 T12: and a link's, held or parked.
+        for (auto* held : {&linkTargets_, &parkedLinks_}) {
+            for (auto& [id, target] : *held) {
+                if (!target.page || *target.page >= 0) continue;
+                if (const auto given = numbers.find(*target.page); given != numbers.end()) target.page = given->second;
+            }
+        }
+        // S7 T12: and a named destination's.
+        if (destinations_) {
+            for (HeldDestination& h : *destinations_) {
+                if (!h.page || *h.page >= 0) continue;
+                if (const auto given = numbers.find(*h.page); given != numbers.end()) h.page = given->second;
+            }
         }
     }
     // S7 T2: the new pages are now objects the file holds; what the repair wrote joins the ledger -- an older
@@ -1940,6 +1997,14 @@ core::Status MutationSinkImpl::adopt(std::string_view bytes)
     desiredListings_.clear();
     created_.clear();
     edits_.clear();
+    // S7 T12: every target is now the file's -- but one on a page that is gone, which the save could not write, is kept
+    // for the undo that brings the page back; and one kept so whose page is back was written by this save.
+    for (auto it = parkedLinks_.begin(); it != parkedLinks_.end();)
+        it = it->second.page && pagePresent(*it->second.page) ? parkedLinks_.erase(it) : std::next(it);
+    for (auto& [id, target] : linkTargets_) {
+        if (target.page && !pagePresent(*target.page)) parkedLinks_.insert_or_assign(id, std::move(target));
+    }
+    linkTargets_.clear();
     referenceFloor_.reset();
     // S7 T4: the next revision's numbers start above what this save wrote, and nothing composed against the
     // old one is written again.
@@ -1958,6 +2023,30 @@ core::Status MutationSinkImpl::adopt(std::string_view bytes)
     outlineComposed_.clear();
     outlineRootComposed_.reset();
     diskOutline_.reset();
+    // S7 T12: the table the save wrote is the disk's now, so what the sink holds is dropped -- UNLESS an entry was left
+    // out because its page is gone: the save's flat tree no longer has it, and nothing on disk would give it back to an
+    // undo of the delete. Then the table is kept, each entry the save wrote taken as the file now writes it.
+    diskDestinations_.reset();
+    if (destinations_) {
+        const std::set<long long> gone = gonePages();
+        const bool parked = std::any_of(destinations_->begin(), destinations_->end(), [&gone](const HeldDestination& h) {
+            return h.page && gone.count(*h.page) != 0;
+        });
+        if (!parked) {
+            destinations_.reset();
+        } else {
+            const DestinationReader::Reading& written = diskDestinations();
+            for (HeldDestination& h : *destinations_) {
+                if (h.page && gone.count(*h.page) != 0) continue;
+                for (const DestinationReader::Entry& entry : written.entries) {
+                    if (entry.form != h.form || entry.key != h.key) continue;
+                    h.keyObject = entry.keyObject;
+                    h.value = entry.value;
+                    break;
+                }
+            }
+        }
+    }
     named_.reset();
     looseItems_.clear();
     compressed_.clear();   // every carried file is now the file's: its bytes are read from the stream
@@ -2819,6 +2908,16 @@ MutationSinkImpl::Copies MutationSinkImpl::copiesOf(const QString& key, Graph& g
             const int owner = source.page >= 0 && static_cast<std::size_t>(source.page) < targets.size() ? source.page
                                                                                                           : static_cast<int>(page);
             copy.page = targets[static_cast<std::size_t>(owner)];
+            // S7 T12 (D7-3): a link's GoTo, read by the payload's own walk, names a payload page by its index there -- the
+            // page it lands as; a contents page's (`localTargets`) names THIS document's page by index before the insert.
+            if (copy.subtype == core::AnnotationSubtype::Link && copy.action.kind == core::OutlineAction::Kind::GoTo) {
+                int& target = copy.action.destination.pageIndex;
+                const int landed = static_cast<int>(targets.size());
+                if (graph.localTargets && !targets.empty())
+                    target = target >= 0 && target < pageCount() ? (target < targets.front() ? target : target + landed) : -1;
+                else
+                    target = target >= 0 && target < landed ? targets[static_cast<std::size_t>(target)] : -1;
+            }
             for (std::optional<core::AnnotationId>* link : {&copy.popup, &copy.parent, &copy.inReplyTo}) {
                 if (!*link) continue;
                 const auto target = copyOf.find(**link);
@@ -3828,8 +3927,8 @@ std::pair<core::OutlineAction, core::Destination> MutationSinkImpl::outlineView(
     core::OutlineAction action = target.action;
     core::Destination destination;
     if (action.kind == core::OutlineAction::Kind::GoTo) {
-        const auto found = placed.find(target.page);
-        action.destination.pageIndex = target.page != -1 && found != placed.end() ? found->second : -1;
+        const auto found = target.page ? placed.find(*target.page) : placed.end();
+        action.destination.pageIndex = found != placed.end() ? found->second : -1;
         destination = action.destination;
     } else if (action.kind == core::OutlineAction::Kind::GoToNamed) {
         const auto& named = namedDestinations();
@@ -3889,7 +3988,7 @@ core::Status MutationSinkImpl::setOutline(const core::Outline& model)
                                                    QString::number(index));
                             return out;
                         }
-                        target.page = index >= 0 ? walk_.pages[static_cast<std::size_t>(index)].number : -1;
+                        if (index >= 0) target.page = walk_.pages[static_cast<std::size_t>(index)].number;
                     }
                     // Whether it can be written at all -- asked now, so a refusal changes nothing.
                     auto writable = OutlineOps::withTarget(cos::CosObject::makeDictionary({}), target.action,
@@ -4024,9 +4123,9 @@ core::Status MutationSinkImpl::composeOutline(cos::ObjectDelta& delta, std::map<
             cos::CosObject dictionary = OutlineOps::withProperties(base, h.properties);
             if (!h.target.disk) {
                 std::optional<cos::CosObject> page;
-                if (h.target.action.kind == core::OutlineAction::Kind::GoTo && h.target.page != -1
-                    && present.count(h.target.page) != 0) {
-                    long long number = h.target.page;
+                if (h.target.action.kind == core::OutlineAction::Kind::GoTo && h.target.page
+                    && present.count(*h.target.page) != 0) {
+                    long long number = *h.target.page;
                     if (number < 0) {
                         const auto given = composeNumbers_.find(number);
                         number = given != composeNumbers_.end() ? given->second : -1;
@@ -4038,7 +4137,8 @@ core::Status MutationSinkImpl::composeOutline(cos::ObjectDelta& delta, std::map<
                     failure = targeted.error();
                     return false;
                 }
-                dictionary = std::move(targeted).value();
+                // S7 T12 (D7-35): a name in the PDF 1.1 dictionary is reached as a NAME.
+                dictionary = withNamedForm(std::move(targeted).value(), h.target.action);
             }
             const auto link = [&](const char* key, long long number) {
                 dictionary = number > 0 ? AnnotationOps::withEntry(dictionary, key, reference(number))
@@ -4139,6 +4239,427 @@ core::Status MutationSinkImpl::reconcileOutline(cos::XrefTable& written) const
             return core::Status{};
         };
     return compare(*outline_, reading.outline.roots());
+}
+
+// ==========================================================================================
+// Link targets (Stage 7 T12, D7-12) -- the header's LINKS paragraph
+// ==========================================================================================
+
+core::Result<MutationSinkImpl::LinkTarget> MutationSinkImpl::resolveLinkTarget(const core::Annotation& annotation) const
+{
+    LinkTarget target;
+    target.action = annotation.action;
+    if (annotation.action.kind == core::OutlineAction::Kind::GoTo) {
+        const int index = annotation.action.destination.pageIndex;
+        if (index >= pageCount())
+            return sinkError(core::ErrorCode::InvalidArgument, "error.link.badDestination", index);
+        if (index >= 0) {
+            target.page = walk_.pages[static_cast<std::size_t>(index)].number;
+        } else {
+            // UNRESOLVED: the page a held target names, where that page is gone and the rest of the target is the same.
+            for (const auto* held : {&linkTargets_, &parkedLinks_}) {
+                const auto found = held->find(annotation.id);
+                if (found == held->end() || !found->second.page || pagePresent(*found->second.page)) continue;
+                core::OutlineAction was = found->second.action;
+                was.destination.pageIndex = -1;
+                if (was != annotation.action) continue;
+                target.page = found->second.page;
+                break;
+            }
+        }
+    }
+    return target;
+}
+
+bool MutationSinkImpl::pagePresent(long long number) const
+{
+    return std::any_of(walk_.pages.begin(), walk_.pages.end(), [number](const PageEntry& page) { return page.number == number; });
+}
+
+const MutationSinkImpl::LinkTarget* MutationSinkImpl::linkTargetOf(const core::AnnotationId& id) const
+{
+    if (const auto set = linkTargets_.find(id); set != linkTargets_.end()) return &set->second;
+    const auto parked = parkedLinks_.find(id);
+    if (parked != parkedLinks_.end() && parked->second.page && pagePresent(*parked->second.page)) return &parked->second;
+    return nullptr;
+}
+
+std::optional<long long> MutationSinkImpl::objectOnDisk(const core::AnnotationId& id) const
+{
+    if (id.kind == core::AnnotationId::Kind::Object) return id.object;
+    if (id.kind == core::AnnotationId::Kind::Created) {
+        if (const auto saved = createdOnDisk_.find(id.nm); saved != createdOnDisk_.end()) return saved->second.number;
+    }
+    for (const PageListing& listing : disk_) {
+        for (const ListedEntry& entry : listing.entries) {
+            if (entry.id && *entry.id == id && entry.kind == ListedEntry::Kind::Reference) return entry.reference.number;
+        }
+    }
+    return std::nullopt;
+}
+
+core::Status MutationSinkImpl::composeParkedLinks(std::map<long long, cos::CosObject>& pending)
+{
+    for (const auto& [id, target] : parkedLinks_) {
+        // Its page back, no newer target set, and not an edit -- an edit's dictionary carries it (`editedFrom`).
+        if (!target.page || !pagePresent(*target.page) || linkTargets_.count(id) != 0 || edits_.count(id) != 0) continue;
+        const std::optional<long long> number = objectOnDisk(id);
+        if (!number) continue;   // listed nowhere the save wrote: nothing to put it back on
+        cos::CosObject base;
+        if (const auto held = pending.find(*number); held != pending.end()) {
+            base = held->second;
+        } else {
+            auto fetched = table_.fetch(*number);
+            if (!fetched || !fetched.value().object.isDictionary()) continue;
+            base = fetched.value().object;
+            base.clearSpansRecursively();
+        }
+        auto targeted = withLinkTarget(base, id);
+        if (!targeted) return targeted.error();
+        if (!(targeted.value() == base)) pending.insert_or_assign(*number, std::move(targeted).value());
+    }
+    return core::Status{};
+}
+
+bool MutationSinkImpl::linkTargetOnDisk(const core::AnnotationId& id, const LinkTarget& target)
+{
+    const std::optional<cos::CosObject> dictionary = dictionaryOnDisk(id);
+    if (!dictionary) return false;
+    const ReferenceRepair::View view(table_, ledger_);
+    core::OutlineAction action;
+    OutlineReader::Facts facts;
+    OutlineReader::readTarget(view, *dictionary, {}, action, facts);
+    if (action.kind != target.action.kind) return false;
+    if (action.kind == core::OutlineAction::Kind::GoTo) {
+        // The page compared as an OBJECT -- a page command between the two is no difference -- and the view as written.
+        // A target the model holds no page for (unresolved, or an integer) is compared by WHERE IT POINTS NOW: the disk's
+        // page placed by the desired order, -1 for one not in it -- so a link to a page outside the tree, recoloured,
+        // keeps the `/Dest` its producer wrote rather than losing it (found at T12 reading this, before any case did).
+        if (target.page) {
+            if (facts.page < 0 || *target.page != facts.page) return false;
+        } else {
+            int placedIndex = facts.index;
+            if (facts.page >= 0) {
+                const std::map<long long, int> placed = placedPages();
+                const auto at = placed.find(facts.page);
+                placedIndex = at == placed.end() ? -1 : at->second;
+            }
+            if (placedIndex != target.action.destination.pageIndex) return false;
+        }
+        core::Destination written = action.destination;
+        written.pageIndex = target.action.destination.pageIndex;
+        return written == target.action.destination && action.name == target.action.name;
+    }
+    return action == target.action;
+}
+
+std::optional<cos::CosRef> MutationSinkImpl::linkPageReference(const core::AnnotationId& id) const
+{
+    const LinkTarget* found = linkTargetOf(id);
+    if (found == nullptr || !found->page) return std::nullopt;
+    long long number = *found->page;
+    if (!pagePresent(number)) return std::nullopt;   // a page the document no longer has: no target (D7-2)
+    if (number < 0) {
+        const auto given = composeNumbers_.find(number);
+        if (given == composeNumbers_.end()) return std::nullopt;
+        number = given->second;
+    }
+    return cos::CosRef{number, generationOf(table_, number)};
+}
+
+core::Result<cos::CosObject> MutationSinkImpl::withLinkTarget(cos::CosObject dictionary, const core::AnnotationId& id)
+{
+    const LinkTarget* found = linkTargetOf(id);
+    if (found == nullptr) return dictionary;
+    const core::OutlineAction action = found->action;
+    std::optional<cos::CosObject> page;
+    if (const std::optional<cos::CosRef> at = linkPageReference(id)) page = cos::CosObject::makeReference(at->number, at->generation);
+    auto targeted = OutlineOps::withTarget(std::move(dictionary), action, std::move(page));
+    if (!targeted) return targeted;
+    return withNamedForm(std::move(targeted).value(), action);
+}
+
+bool MutationSinkImpl::namesDictionaryEntry(const QString& name)
+{
+    if (destinations_) {
+        for (const HeldDestination& h : *destinations_) {
+            if (heldName(h) == name) return h.form == core::NamedDestination::Form::Dictionary;
+        }
+        return false;
+    }
+    for (const DestinationReader::Entry& entry : diskDestinations().entries) {
+        if (DestinationReader::nameOf(entry) == name) return entry.form == core::NamedDestination::Form::Dictionary;
+    }
+    return false;
+}
+
+cos::CosObject MutationSinkImpl::withNamedForm(cos::CosObject dictionary, const core::OutlineAction& action)
+{
+    if (action.kind != core::OutlineAction::Kind::GoToNamed || !namesDictionaryEntry(action.name)) return dictionary;
+    return AnnotationOps::withEntry(dictionary, "Dest", cos::CosObject::makeName(action.name.toLatin1().toStdString()));
+}
+
+// ==========================================================================================
+// Named destinations (Stage 7 T12, D7-10, D7-35) -- `setDestinations` in `core/backend.h`
+// ==========================================================================================
+
+const DestinationReader::Reading& MutationSinkImpl::diskDestinations()
+{
+    if (!diskDestinations_) {
+        const ReferenceRepair::View view(table_, ledger_);
+        diskDestinations_ = DestinationReader::read(view);
+        for (const DestinationReader::Entry& entry : diskDestinations_->entries) {
+            const bool known = std::any_of(rememberedDestinations_.begin(), rememberedDestinations_.end(), [&entry](const HeldDestination& h) {
+                return h.form == entry.form && h.key == entry.key && h.value && *h.value == entry.value;
+            });
+            if (known) continue;
+            HeldDestination h;
+            h.form = entry.form;
+            h.key = entry.key;
+            h.keyObject = entry.keyObject;
+            h.value = entry.value;
+            if (entry.page >= 0) h.page = entry.page;
+            h.index = entry.index;
+            h.view = entry.view;
+            rememberedDestinations_.push_back(std::move(h));
+        }
+    }
+    return *diskDestinations_;
+}
+
+std::vector<MutationSinkImpl::HeldDestination> MutationSinkImpl::heldFromDisk()
+{
+    std::vector<HeldDestination> out;
+    for (const DestinationReader::Entry& entry : diskDestinations().entries) {
+        HeldDestination h;
+        h.form = entry.form;
+        h.key = entry.key;
+        h.keyObject = entry.keyObject;
+        h.value = entry.value;
+        if (entry.page >= 0) h.page = entry.page;
+        h.index = entry.index;
+        h.view = entry.view;
+        out.push_back(std::move(h));
+    }
+    return out;
+}
+
+QString MutationSinkImpl::heldName(const HeldDestination& held) const
+{
+    DestinationReader::Entry entry;
+    entry.form = held.form;
+    entry.key = held.key;
+    return DestinationReader::nameOf(entry);
+}
+
+core::Destination MutationSinkImpl::placedNow(const HeldDestination& held, const std::map<long long, int>& placed) const
+{
+    core::Destination d = held.view;
+    if (held.page) {
+        const auto at = placed.find(*held.page);
+        d.pageIndex = at == placed.end() ? -1 : at->second;
+    } else {
+        d.pageIndex = held.index;
+    }
+    return d;
+}
+
+core::Status MutationSinkImpl::setDestinations(const core::Destinations& table)
+{
+    if (core::Status valid = table.validate(); !valid) return valid;
+    const std::map<long long, int> placed = placedPages();
+    // What an entry may be taken from: the disk's FIRST -- so a table put back is the file's bytes again and an undo
+    // before a save writes nothing -- then what this sink holds already.
+    std::vector<HeldDestination> candidates = heldFromDisk();
+    if (destinations_) candidates.insert(candidates.end(), destinations_->begin(), destinations_->end());
+    candidates.insert(candidates.end(), rememberedDestinations_.begin(), rememberedDestinations_.end());
+    std::set<QString> wanted;
+    for (const core::NamedDestination& entry : table.all()) wanted.insert(entry.name);
+
+    std::vector<HeldDestination> held;
+    held.reserve(table.size());
+    for (const core::NamedDestination& entry : table.all()) {
+        const auto matches = [&](const HeldDestination& c, bool sameName) {
+            if (c.form != entry.form || !(placedNow(c, placed) == entry.destination)) return false;
+            const QString name = heldName(c);
+            return sameName ? name == entry.name : wanted.count(name) == 0;   // renamed: its old name is gone
+        };
+        // 1. The same entry: its name, its table and where it points.
+        auto source = std::find_if(candidates.begin(), candidates.end(), [&](const HeldDestination& c) { return matches(c, true); });
+        if (source != candidates.end()) {
+            held.push_back(*source);
+            continue;
+        }
+        // A key a person typed: its bytes are its characters (`isWritableDestinationName` holds it to ASCII).
+        if (!core::isWritableDestinationName(entry.name))
+            return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.destination.badName"), entry.name.left(64)};
+        HeldDestination h;
+        // 2. RENAMED: an entry pointing where this one does, in its table, whose name the table no longer has -- its value
+        //    kept as written (D7-10: a pair not changed is the pair, the key aside).
+        source = std::find_if(candidates.begin(), candidates.end(), [&](const HeldDestination& c) { return matches(c, false); });
+        if (source != candidates.end()) {
+            h = *source;
+        } else {
+            // 3. NEW: its page by reference, resolved now from the index the model gave it.
+            const int index = entry.destination.pageIndex;
+            if (index < 0 || index >= pageCount())
+                return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.destination.badDestination"), entry.name};
+            h.form = entry.form;
+            h.page = walk_.pages[static_cast<std::size_t>(index)].number;
+            h.view = entry.destination;
+            h.view.pageIndex = -1;
+        }
+        h.key = entry.name.toLatin1().toStdString();
+        h.keyObject.reset();
+        held.push_back(std::move(h));
+    }
+    destinations_ = std::move(held);
+    return core::Status{};
+}
+
+core::Destinations MutationSinkImpl::destinationsNow()
+{
+    const std::map<long long, int> placed = placedPages();
+    core::Destinations out;
+    for (const HeldDestination& h : destinations_ ? *destinations_ : heldFromDisk()) {
+        core::NamedDestination entry;
+        entry.name = heldName(h);
+        entry.form = h.form;
+        entry.destination = placedNow(h, placed);
+        out.add(std::move(entry));
+    }
+    return out;
+}
+
+core::Status MutationSinkImpl::composeDestinations(cos::ObjectDelta& delta, std::map<long long, cos::CosObject>& pending)
+{
+    if (!destinations_) return core::Status{};
+    const std::set<long long> gone = gonePages();
+    const auto left = [&gone](const std::optional<long long>& page) { return page && gone.count(*page) != 0; };
+
+    // What each table should hold -- an entry to a page the document no longer has left out, as the repair leaves one
+    // out on disk (D7-2) -- each pair as (key bytes, key object, value).
+    struct Pair {
+        std::string key;
+        cos::CosObject keyObject;
+        cos::CosObject value;
+        bool operator==(const Pair& o) const { return key == o.key && keyObject == o.keyObject && value == o.value; }
+    };
+    std::vector<Pair> tree, dictionary;
+    for (const HeldDestination& h : *destinations_) {
+        if (left(h.page)) continue;
+        cos::CosObject value;
+        if (h.value) {
+            value = *h.value;
+        } else {
+            long long number = h.page ? *h.page : -1;
+            if (number < 0) {
+                const auto given = composeNumbers_.find(number);
+                if (given == composeNumbers_.end())
+                    return core::Error{core::ErrorCode::Corrupted, QLatin1String("error.destination.badDestination"), heldName(h)};
+                number = given->second;
+            }
+            value = OutlineOps::destinationArray(cos::CosObject::makeReference(number, generationOf(table_, number)), h.view);
+        }
+        Pair pair{h.key, h.keyObject ? *h.keyObject : cos::CosObject::makeString(h.key), std::move(value)};
+        (h.form == core::NamedDestination::Form::NameTree ? tree : dictionary).push_back(std::move(pair));
+    }
+    // A name tree is SORTED by its keys' bytes (ISO 32000-1 §7.9.6); a dictionary keeps the order it is held in.
+    std::stable_sort(tree.begin(), tree.end(), [](const Pair& a, const Pair& b) { return a.key < b.key; });
+
+    // The disk's tables as the repair leaves them -- compared, so a table equal to it is not written at all.
+    std::vector<Pair> diskTree, diskDictionary;
+    for (const DestinationReader::Entry& entry : diskDestinations().entries) {
+        if (entry.page >= 0 && gone.count(entry.page) != 0) continue;
+        Pair pair{entry.key, entry.keyObject, entry.value};
+        (entry.form == core::NamedDestination::Form::NameTree ? diskTree : diskDictionary).push_back(std::move(pair));
+    }
+    std::stable_sort(diskTree.begin(), diskTree.end(), [](const Pair& a, const Pair& b) { return a.key < b.key; });
+    const bool treeSame = tree == diskTree;
+    const bool dictionarySame = dictionary == diskDictionary;
+    if (treeSame && dictionarySame) return core::Status{};
+
+    const cos::CosObject& root = table_.trailer().get("Root");
+    if (!root.isReference()) return sinkError(core::ErrorCode::Corrupted, "error.pdf.objectMissing", -1);
+    const long long catalogNumber = root.reference().number;
+    // The catalog and the names dictionary through `pending`: the labels and the repair may have changed them already.
+    const auto current = [&](long long number) -> std::optional<cos::CosObject> {
+        if (const auto held = pending.find(number); held != pending.end()) return held->second;
+        auto fetched = table_.fetch(number);
+        if (!fetched || !fetched.value().object.isDictionary() || fetched.value().object.isStream()) return std::nullopt;
+        cos::CosObject out = fetched.value().object;
+        out.clearSpansRecursively();
+        return out;
+    };
+    std::optional<cos::CosObject> catalog = current(catalogNumber);
+    if (!catalog) return sinkError(core::ErrorCode::NotFound, "error.pdf.objectMissing", catalogNumber);
+
+    if (!treeSame) {
+        // A NEW FLAT TREE, one `/Names` array, pointed at from `/Names /Dests` -- into the names dictionary's own object
+        // when it has one, else into the catalog (as `composeFiles` writes `/EmbeddedFiles`). A tree emptied is no tree.
+        std::optional<cos::CosObject> treeRef;
+        if (!tree.empty()) {
+            std::vector<cos::CosObject> pairs;
+            pairs.reserve(tree.size() * 2);
+            for (Pair& pair : tree) {
+                pairs.push_back(std::move(pair.keyObject));
+                pairs.push_back(std::move(pair.value));
+            }
+            const long long number =
+                delta.add("names:Dests", cos::CosObject::makeDictionary({{"Names", cos::CosObject::makeArray(std::move(pairs))}}));
+            treeRef = cos::CosObject::makeReference(number, 0);
+        }
+        const auto withTree = [&treeRef](const cos::CosObject& names) {
+            return treeRef ? AnnotationOps::withEntry(names, "Dests", *treeRef) : AnnotationOps::withoutEntry(names, "Dests");
+        };
+        const cos::CosObject* names = catalog->find("Names");
+        std::optional<cos::CosObject> namesObject;
+        if (names != nullptr && names->isReference()) namesObject = current(names->reference().number);
+        if (namesObject) {
+            pending.insert_or_assign(names->reference().number, withTree(*namesObject));
+        } else {
+            const cos::CosObject base = names != nullptr && names->isDictionary() ? *names : cos::CosObject::makeDictionary({});
+            catalog = AnnotationOps::withEntry(*catalog, "Names", withTree(base));
+            pending.insert_or_assign(catalogNumber, *catalog);
+        }
+    }
+    if (!dictionarySame) {
+        // The PDF 1.1 dictionary, whole: into its own object when it has one, else into the catalog.
+        std::vector<cos::CosObject::Entry> entries;
+        entries.reserve(dictionary.size());
+        for (Pair& pair : dictionary) entries.push_back({pair.key, std::move(pair.value)});
+        cos::CosObject value = cos::CosObject::makeDictionary(std::move(entries));
+        const cos::CosObject* dests = catalog->find("Dests");
+        if (dests != nullptr && dests->isReference() && current(dests->reference().number)) {
+            pending.insert_or_assign(dests->reference().number, std::move(value));
+        } else {
+            catalog = dictionary.empty() ? AnnotationOps::withoutEntry(*catalog, "Dests")
+                                         : AnnotationOps::withEntry(*catalog, "Dests", std::move(value));
+            pending.insert_or_assign(catalogNumber, *catalog);
+        }
+    }
+    return core::Status{};
+}
+
+core::Status MutationSinkImpl::reconcileDestinations(cos::XrefTable& written) const
+{
+    if (!destinations_) return core::Status{};
+    const ReferenceRepair::Ledger none;
+    const ReferenceRepair::View view(written, none);
+    const DestinationReader::Reading reading = DestinationReader::read(view);
+    const auto mismatch = [](const QString& where) {
+        return core::Error{core::ErrorCode::Corrupted, QLatin1String("error.save.verifyFailed"), QStringLiteral("destinations:") + where};
+    };
+    if (reading.truncated) return mismatch(QStringLiteral("truncated"));
+    const std::set<long long> gone = gonePages();
+    std::multiset<std::pair<int, std::string>> want, got;
+    for (const HeldDestination& h : *destinations_) {
+        if (h.page && gone.count(*h.page) != 0) continue;
+        want.emplace(static_cast<int>(h.form), h.key);
+    }
+    for (const DestinationReader::Entry& entry : reading.entries) got.emplace(static_cast<int>(entry.form), entry.key);
+    if (want != got) return mismatch(QString::number(static_cast<qulonglong>(got.size())));
+    return core::Status{};
 }
 
 } // namespace rawpage::pdf::ops

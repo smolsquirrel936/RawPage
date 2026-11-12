@@ -407,6 +407,8 @@
             { "action": "bookmark.import", "size": "small" },
             { "action": "bookmark.export", "size": "small" },
             { "action": "link.create", "size": "small" },
+            { "action": "link.autoDetect", "size": "small" },
+            { "action": "link.verify", "size": "small" },
             { "action": "destination.create", "size": "small" }
           ]
         },

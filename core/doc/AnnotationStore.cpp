@@ -764,6 +764,19 @@ Status AnnotationStore::applyPageMap(const PageMap& map, std::vector<PageListing
         orphaned[index] = false;
         digests_[index].clear();
     }
+    // Stage 7 T12 (D7-3, D7-12): a link names the page it named -- carried where it moved, unresolved (-1) where the
+    // map removed it. Only what was HELD: an inserted page's annotations arrive in the new order already.
+    for (std::size_t index = 0; index < held; ++index) {
+        Annotation& annotation = annotations_[index];
+        if (annotation.subtype != AnnotationSubtype::Link || annotation.action.kind != OutlineAction::Kind::GoTo) continue;
+        int& target = annotation.action.destination.pageIndex;
+        if (target < 0) continue;
+        const int moved = target < map.oldCount() ? map.newIndexOf(target) : PageMap::kNone;
+        const int now = moved == PageMap::kNone ? -1 : moved;
+        if (now == target) continue;
+        target = now;
+        digests_[index].clear();
+    }
     for (std::size_t page = 0; page < pages_.size(); ++page) {
         for (const AnnotationListingEntry& entry : pages_[page]) {
             if (entry.annotation && orphaned[*entry.annotation]) {

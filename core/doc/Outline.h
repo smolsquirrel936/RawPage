@@ -114,6 +114,10 @@ struct OutlineAction {
         JavaScript,   // `script` -- written, never run (D7-12)
         Named,        // the menu command `name` (`Print`, `NextPage` ...)
         SubmitForm,   // submit the form to `uri`
+        // Stage 7 T12 (D7-12): the other form actions a link carries -- written, never run.
+        ResetForm,    // reset the form's fields, every one (a `/Fields` list is the file's, kept while unchanged)
+        ImportData,   // import the form data in the file `file`
+        Hide,         // hide the field `name` -- or show it, when `hide` is false
         Other,        // a kind this build does not model, kept exactly as the file writes it
     };
 
@@ -123,16 +127,20 @@ struct OutlineAction {
     QString file;
     QString uri;
     QString script;
+    bool hide = true;   // Hide: `/H`, true unless the action SHOWS the field
 
     friend bool operator==(const OutlineAction& a, const OutlineAction& b)
     {
         return a.kind == b.kind && a.destination == b.destination && a.name == b.name && a.file == b.file
-               && a.uri == b.uri && a.script == b.script;
+               && a.uri == b.uri && a.script == b.script && a.hide == b.hide;
     }
     friend bool operator!=(const OutlineAction& a, const OutlineAction& b) { return !(a == b); }
 
     QJsonObject toJson() const;
-    static Result<OutlineAction> fromJson(const QJsonObject& json);
+    // `carried` (Stage 7 T12): an ANNOTATION carries the file's action as read, `Other` included -- a link recoloured
+    // keeps an action this build cannot write, and its command must carry it to be replayed. A bookmark command never
+    // carries one, so the default refuses it.
+    static Result<OutlineAction> fromJson(const QJsonObject& json, bool carried = false);
     // A destination in this document -- what *from the current view* makes.
     static OutlineAction goTo(const Destination& destination);
 };

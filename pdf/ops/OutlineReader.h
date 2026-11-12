@@ -86,6 +86,12 @@ public:
     static core::Status agreesWith(const core::Outline& engine, const Reading& resolved,
                                    const std::map<long long, int>& indexOf);
 
+    // WHAT ONE DICTIONARY'S TARGET IS -- `/Dest` before `/A`, as above -- an outline item's, or since Stage 7 T12 a
+    // Link annotation's (D7-12): the action into `action`, the page object or integer it names into `facts`. `named`
+    // fills a GoToNamed's view and engine page; an empty map leaves it the name alone.
+    static void readTarget(const ReferenceRepair::View& view, const cos::CosObject& dictionary,
+                           const std::map<std::string, cos::CosObject>& named, core::OutlineAction& action, Facts& facts);
+
     // The title as PDFium shows it: every character at or below U+0020 a space.
     static QString engineTitle(const QString& title);
 

@@ -7,6 +7,7 @@
 #include "core/cmd/commands/AnnotationCommands.h"
 #include "core/cmd/commands/AttachmentCommands.h"
 #include "core/cmd/commands/BookmarkCommands.h"
+#include "core/cmd/commands/DestinationCommands.h"
 #include "core/cmd/commands/PageCommands.h"
 
 #include <QJsonValue>

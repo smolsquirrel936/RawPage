@@ -155,6 +155,11 @@ add_executable(rawpage_tests
     tst_outlineedit.cpp           # Stage 7 T11 -- the six bookmark commands through the shipped sink, read back
                                   #   first-party: what a rename writes, the hierarchy's links, every target kind, a page
                                   #   command's remap, hostile lines (S7 guide A-76 ... A-78, headless halves)
+    tst_destinations.cpp          # Stage 7 T12 -- the three destination commands through the shipped sink, read back
+                                  #   first-party: each entry in its table, the tree flat, a pair kept as written, links
+                                  #   and bookmarks renamed and cleared with it, a page command's remap (S7 guide A-82)
+    tst_links.cpp                 # Stage 7 T12 -- following, verifying and URL detection, pure; a link's fields through
+                                  #   Stage 6's commands and the shipped sink (S7 guide A-84 ... A-88, headless halves)
     tst_splitplan.cpp             # Stage 7 T7  -- the six split rules and the page-range syntax, pure, against hand
                                   #   values and the split-blanks labels (S7 guide A-49's planning half)
     tst_dpipolicy.cpp             # Stage 2 T10 -- guide cases A-28, A-29, A-30

@@ -452,6 +452,16 @@ public:
     // rule). The revert hands the outline before. Refused, with nothing changed, for an outline past
     // `core::Outline::validate`'s bounds, a destination past the last page, or a target this build cannot write.
     virtual Status setOutline(const Outline& outline) = 0;
+
+    // THE NAMED DESTINATIONS -- Stage 7 T12 (`Stage7-Assembly-Plan.md` D7-10, D7-35). The table the document should have,
+    // WHOLE, as the model holds it after the command -- every entry by its name and its table, its page an INDEX as the
+    // model counts pages now. Which objects that means is the sink's: an entry the file holds whose destination is what
+    // the model says is written AS IT WAS -- its value by reference, so a page command needs no word here -- and a renamed
+    // one keeps the value it had; one RawPage creates names its page by REFERENCE, resolved from the index when the
+    // command ran. Each table is written FLAT (one `/Names` array, sorted by its keys' bytes), and only where it differs
+    // from the disk's. The revert hands the table before. Refused, with nothing changed, for a table past
+    // `core::Destinations::validate`'s bounds, or an entry it cannot write -- a new one with no page.
+    virtual Status setDestinations(const Destinations& destinations) = 0;
 };
 
 // =======================================================================================

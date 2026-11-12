@@ -81,6 +81,8 @@ add_library(rawpage_core STATIC
     # S7 T11 (D7-10): the outline's six commands, each handing the sink the whole outline after it.
     cmd/commands/BookmarkCommands.h
     cmd/commands/BookmarkCommands.cpp
+    cmd/commands/DestinationCommands.h
+    cmd/commands/DestinationCommands.cpp
 
     # Stage 3 T9 (D3-11): what the journal tells a durable recorder, and the recorder -- the recovery
     # directory, one flushed line per operation, discovery and replay by undo step.
@@ -230,6 +232,9 @@ add_library(rawpage_core STATIC
     doc/Outline.cpp
     doc/Destinations.h
     doc/Destinations.cpp
+    # S7 T12 (D7-12): what following a link does, what verifying finds, and which runs of text are web addresses.
+    doc/LinkActions.h
+    doc/LinkActions.cpp
     # S7 T11 (D7-10, D7-11): bookmarks made from the pages, the tree as a file of its own, a contents page's request.
     doc/OutlineGenerator.h
     doc/OutlineGenerator.cpp

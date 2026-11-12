@@ -75,6 +75,12 @@ public:
     const Outline& outline() const noexcept { return outline_; }
     Outline& outline() noexcept { return outline_; }
 
+    // THE NAMED DESTINATIONS -- Stage 7 T12 (D7-10, D7-35). Copied from the backend's reading at hydration, as the
+    // outline is -- the first-party one where the two readings agree, else the engine's, read-only and saying why --
+    // and from then on changed ONLY by a destination command, and REMAPPED by every page command (D7-3).
+    const Destinations& destinations() const noexcept { return destinations_; }
+    Destinations& destinations() noexcept { return destinations_; }
+
     const RepairReport& repairReport() const noexcept { return repair_; }
     const Permissions& permissions() const noexcept { return permissions_; }
     // Stage 7 T2: a page command carries the per-page refusals with the pages it moves (D7-21).
@@ -102,6 +108,7 @@ private:
     AnnotationStore annotations_;
     Attachments attachments_;
     Outline outline_ = Outline::refused(Error{ErrorCode::Unavailable, QLatin1String("error.edit.notAssessed"), QString()});
+    Destinations destinations_ = Destinations::refused(Error{ErrorCode::Unavailable, QLatin1String("error.edit.notAssessed"), QString()});
     RepairReport repair_;
     Permissions permissions_;
     Revision revision_ = Revision::invalid();

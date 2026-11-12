@@ -155,9 +155,10 @@ void carryItems(std::vector<core::OutlineItem>& items, const std::vector<int>& d
 }
 
 // The outline read at open -- the first-party reading where the two agree, PDFium's otherwise (S7 T11) -- and the named
-// destinations PDFium read, as they name pages in the order drawn now.
-void carryReaders(const render::PdfiumDocument& document, const core::Outline& opened, const std::vector<int>& from,
-                  const std::vector<bool>& originals, core::Outline& outline, core::Destinations& destinations)
+// destinations likewise (S7 T12), as they name pages in the order drawn now.
+void carryReaders(const render::PdfiumDocument& document, const core::Outline& opened, const core::Destinations& openedDestinations,
+                  const std::vector<int>& from, const std::vector<bool>& originals, core::Outline& outline,
+                  core::Destinations& destinations)
 {
     std::vector<int> drawnIndexOf(static_cast<std::size_t>(document.pages().count()), -1);
     for (std::size_t i = 0; i < from.size(); ++i) {
@@ -168,10 +169,11 @@ void carryReaders(const render::PdfiumDocument& document, const core::Outline& o
     core::Outline carriedOutline = opened;
     carryItems(carriedOutline.roots(), drawnIndexOf);
     core::Destinations carriedDestinations;
-    for (core::NamedDestination entry : document.destinations().all()) {
+    for (core::NamedDestination entry : openedDestinations.all()) {
         entry.destination = carried(entry.destination, drawnIndexOf);
         carriedDestinations.add(std::move(entry));
     }
+    carriedDestinations.setStatus(openedDestinations.status());
     outline = std::move(carriedOutline);
     destinations = std::move(carriedDestinations);
 }
@@ -287,6 +289,9 @@ struct DocumentBackendImpl::Open {
     // S7 T11 (D7-10): the outline as read at OPEN -- the first-party reading, ids and all, where it agrees with PDFium's,
     // else PDFium's, refused for editing with the reason. What `outline` is carried from while no bookmark is edited.
     core::Outline openOutline;
+    // S7 T12 (D7-10): the named destinations as read at OPEN, likewise -- each entry's table known where the two
+    // readings agree, else PDFium's reading, refused for editing with the reason.
+    core::Destinations openDestinations;
 };
 
 DocumentBackendImpl::DocumentBackendImpl() = default;
@@ -621,6 +626,36 @@ core::Result<core::DocumentHandle> DocumentBackendImpl::assemble(Opening& openin
             entry->document->outline().roots());
     }
     entry->outline = entry->openOutline;
+    // S7 T12 (D7-10, D7-35): THE NAMED DESTINATIONS, first-party -- each entry's table and value -- held to agree with
+    // PDFium's reading name by name and page by page, or read-only with the reason, the engine's reading shown.
+    if (sink) {
+        const ops::ReferenceRepair::Ledger none;
+        const ops::ReferenceRepair::View cosView(sink.value()->table(), none);
+        const ops::DestinationReader::Reading destinationReading = ops::DestinationReader::read(cosView);
+        std::map<long long, int> indexOf;
+        for (std::size_t i = 0; i < sink.value()->pages().pages.size(); ++i)
+            indexOf.emplace(sink.value()->pages().pages[i].number, static_cast<int>(i));
+        core::Destinations firstParty = ops::DestinationReader::model(destinationReading, indexOf);
+        const core::Status agreed =
+            destinationReading.truncated
+                ? core::Status{core::Error{core::ErrorCode::Corrupted, QLatin1String("error.destination.readingsDisagree"),
+                                           QStringLiteral("truncated")}}
+                : ops::DestinationReader::agreesWith(entry->document->destinations(), firstParty);
+        if (agreed) {
+            entry->openDestinations = std::move(firstParty);
+        } else {
+            RAWPAGE_LOG_WARNING(core::LogSubsystem::Render)
+                << "backend: the named destinations of" << path << "are read-only -- the two readings disagree:" << agreed.error().context;
+            entry->openDestinations = core::Destinations::refused(agreed.error(), entry->document->destinations().all());
+        }
+    } else {
+        entry->openDestinations = core::Destinations::refused(
+            core::Error{core::ErrorCode::PermissionDenied,
+                        reading == core::CosReading::Encrypted ? QLatin1String("error.edit.encrypted") : QLatin1String("error.edit.noPageMap"),
+                        QString()},
+            entry->document->destinations().all());
+    }
+    entry->destinations = entry->openDestinations;
     // S6 T11: a document from bytes is never edited -- its permissions say so by key -- and keeps its sink all the
     // same, so a Save As writes it, unchanged, to a file of its own (`RevisionWriter`: a save of an unchanged file
     // is a copy).
@@ -1015,7 +1050,7 @@ core::Status DocumentBackendImpl::showEdits(core::DocumentHandle document,
                 target->drawnFacts.clear();
                 const std::lock_guard<std::mutex> guard(mutex_);
                 target->outline = target->openOutline;
-                target->destinations = target->document->destinations();
+                target->destinations = target->openDestinations;
             }
             target->document->show(target->document->bytes(), QByteArray());
         }
@@ -1084,9 +1119,13 @@ core::Status DocumentBackendImpl::showEdits(core::DocumentHandle document,
     // by the order drawn -- so the panes and a search read what Save would write.
     std::optional<core::Outline> edited;
     if (entry->openOutline.status()) edited = entry->sink->outlineNow();
+    // S7 T12: and the named destinations, likewise.
+    std::optional<core::Destinations> editedDestinations;
+    if (entry->openDestinations.status()) editedDestinations = entry->sink->destinationsNow();
     for (const auto& [handle, target] : shown) {
         const bool reordered = target->drawnFrom != from || target->drawnOriginal != originals || target->drawnFacts != facts;
-        if (reordered || (edited && !(edited->digest() == target->outline.digest()))) {
+        if (reordered || (edited && !(edited->digest() == target->outline.digest()))
+            || (editedDestinations && !(editedDestinations->digest() == target->destinations.digest()))) {
             Open::Replaced before;
             before.target = handle;
             before.drawn = target->drawn;
@@ -1103,8 +1142,9 @@ core::Status DocumentBackendImpl::showEdits(core::DocumentHandle document,
             // destinations pane and a bookmark found by a search open the page, not the index it had.
             core::Outline outline;
             core::Destinations destinations;
-            carryReaders(*target->document, target->openOutline, from, originals, outline, destinations);
+            carryReaders(*target->document, target->openOutline, target->openDestinations, from, originals, outline, destinations);
             if (edited) outline = *edited;   // a companion opened the same file: the same items
+            if (editedDestinations) destinations = *editedDestinations;
             const std::lock_guard<std::mutex> guard(mutex_);
             before.outline = std::move(target->outline);
             before.destinations = std::move(target->destinations);

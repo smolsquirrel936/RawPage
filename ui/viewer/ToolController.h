@@ -70,6 +70,7 @@
 #include "ui/viewer/tools/SelectTool.h"
 #include "ui/viewer/tools/SnapshotTool.h"
 #include "ui/viewer/tools/CropTool.h"
+#include "ui/viewer/tools/LinkTool.h"
 #include "ui/viewer/tools/Tool.h"
 
 #include <QObject>
@@ -205,6 +206,7 @@ private:
     LoupeTool       loupe_;
     SnapshotTool    snapshot_;
     CropTool        crop_;       // S7 T9: page.crop's box
+    LinkTool        link_;       // S7 T12: link.create's rectangle
     AnnotationTool  annotation_;
     MarkupTool      markup_;     // S6 T6
     NoteTool        note_;       // S6 T6

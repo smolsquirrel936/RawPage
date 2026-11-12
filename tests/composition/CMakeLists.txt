@@ -94,6 +94,11 @@ add_executable(rawpage_composition_tests
     # showing its identity through the live engine), A-57 from a real file, a delete's report, A-27's warning half on the
     # signed corpus, and `[D7-13]`: pages pasted by a SECOND process, by hand on the `windows` platform.
     tst_pagesproduct.cpp
+    # S7 T12 -- guide A-83 (a link from selected text, one per line over its glyphs; the Link tool's border on the raster),
+    # A-84's engine half (addresses in a page's text as PDFium extracts it, one command), A-85 (a link followed with the
+    # Hand tool and with Enter -- to the page it shows; a URL and a file asked, a program refused, a script never run, the
+    # shell a recorder) and A-87 through the window.
+    tst_linkproduct.cpp
     # S6 T12 -- guide A-89 (a drag started three device pixels from each of the generator's points on
     # measure-scale.pdf lands exactly on it, through the engine's paths, at 100 and 400 percent), A-90 (calibration
     # through the product) and A-88's product half (the measurements saved and reopened fresh).

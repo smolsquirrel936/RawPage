@@ -103,9 +103,11 @@ enum class ToolKind {
     Annotate,
     // Stage 7 T9 (D7-15): `page.crop`'s box, dragged on the page (`ui/viewer/tools/CropTool.h`).
     Crop,
+    // Stage 7 T12 (D7-12): `link.create`'s rectangle, dragged on the page (`ui/viewer/tools/LinkTool.h`).
+    Link,
 };
 
-inline constexpr int kToolKindCount = 7;
+inline constexpr int kToolKindCount = 8;
 
 const char* toolKindName(ToolKind kind) noexcept;
 
@@ -198,6 +200,16 @@ public:
     // Crop page `page` to `box` -- the page's own points, as dragged and snapped. The host decides what a person is
     // asked; the tool makes no command. Returns whether anything was asked for: false in a host with no document.
     virtual bool cropToBox(int page, core::PdfRect box)
+    {
+        (void)page;
+        (void)box;
+        return false;
+    }
+
+    // ---- The Link tool's one (S7 T12, D7-12) -------------------------------------------------------
+    // A link over `box` on page `page` -- the page's own points, as dragged and snapped. The host asks where it goes; the
+    // tool makes no command. Returns whether anything was asked for: false in a host with no document.
+    virtual bool linkFromBox(int page, core::PdfRect box)
     {
         (void)page;
         (void)box;

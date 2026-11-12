@@ -1327,6 +1327,19 @@ void PageView::mousePressEvent(QMouseEvent* event)
     // so the pop-up a click opened goes, unless the press is on it.
     if (annotations_ != nullptr && !overlayFirst()) (void)annotations_->dismissPopupAt(annotationViewport(), event->pos());
 
+    // S7 T12 (D7-12, D7-35): A LINK UNDER THE HAND is remembered at the press and followed at a release that did not drag
+    // -- the hand still pans from it, so a drag that starts on a link is a pan, as in every reader.
+    pressedLink_.reset();
+    if (event->button() == Qt::LeftButton && tools_->effective() == ToolKind::Hand && annotations_ != nullptr
+        && annotations_->store() != nullptr) {
+        if (const std::optional<core::AnnotationId> id = annotations_->annotationAt(annotationViewport(), event->pos())) {
+            const std::optional<std::size_t> index = annotations_->store()->find(*id);
+            if (index && annotations_->store()->at(*index).subtype == core::AnnotationSubtype::Link) {
+                pressedLink_ = *id;
+                pressedLinkAt_ = event->pos();
+            }
+        }
+    }
     const bool taken = tools_->press(event->pos(), event->button(), event->modifiers(), clicks_);
     if (event->button() == Qt::RightButton) rightPressTaken_ = taken;
     if (!taken) {
@@ -1386,11 +1399,21 @@ void PageView::mouseReleaseEvent(QMouseEvent* event)
         return;
     }
 
+    // S7 T12: a release on the link the press landed on, within the platform's drag distance, follows it.
+    std::optional<core::AnnotationId> clickedLink;
+    if (pressedLink_ && event->button() == Qt::LeftButton) {
+        const QStyleHints* hints = QGuiApplication::styleHints();
+        const int slop = hints != nullptr ? hints->startDragDistance() : 4;
+        if ((event->pos() - pressedLinkAt_).manhattanLength() <= slop) clickedLink = pressedLink_;
+        pressedLink_.reset();
+    }
     if (!tools_->release(event->pos(), event->button())) {
         QAbstractScrollArea::mouseReleaseEvent(event);
+        if (clickedLink) emit linkClicked(*clickedLink);
         return;
     }
     event->accept();
+    if (clickedLink) emit linkClicked(*clickedLink);
 }
 
 
@@ -2176,6 +2199,13 @@ bool PageView::cropToBox(int page, core::PdfRect box)
 {
     if (!document_.isValid()) return false;
     emit cropAsked(page, box);
+    return true;
+}
+
+bool PageView::linkFromBox(int page, core::PdfRect box)
+{
+    if (!document_.isValid()) return false;
+    emit linkAsked(page, box);
     return true;
 }
 

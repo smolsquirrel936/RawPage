@@ -34,6 +34,7 @@ add_library(rawpage_ui STATIC
     shell/MainWindowPages.cpp       # Stage 7 T8 -- the thumbnails pane's edits (D7-13)
     shell/MainWindowMerge.cpp       # Stage 7 T10 -- merge.documents (D7-16)
     shell/MainWindowBookmarks.cpp   # Stage 7 T11 -- the bookmarks' edits (D7-10, D7-11)
+    shell/MainWindowLinks.cpp       # Stage 7 T12 -- links and named destinations (D7-12, D7-35)
     # S6 T14 (D6-18): the window's half of a sound comment -- the recorder and the WAV asked, a sound played.
     shell/MainWindowAudio.cpp
     shell/CommentMigration.h
@@ -183,6 +184,8 @@ add_library(rawpage_ui STATIC
     viewer/tools/SnapshotTool.h
     viewer/tools/SnapshotTool.cpp
     viewer/tools/CropTool.cpp
+    viewer/tools/LinkTool.h         # Stage 7 T12 (D7-12): link.create's rectangle
+    viewer/tools/LinkTool.cpp
     # S5 T11 -- Reflow view (D5-16): the analyzer's blocks as a read-only, re-wrapped text surface.
     viewer/ReflowView.h
     viewer/ReflowView.cpp
@@ -327,6 +330,8 @@ add_library(rawpage_ui STATIC
     dialogs/MergeDialog.cpp
     dialogs/BookmarkDialogs.h       # Stage 7 T11 (D7-10): a delete's children, a bookmark's properties, the generators,
     dialogs/BookmarkDialogs.cpp     #   a bookmark file's path
+    dialogs/LinkPropertiesDialog.h  # Stage 7 T12 (D7-12): where a link goes and how it looks; a destination's name; the
+    dialogs/LinkPropertiesDialog.cpp #   asks before a link opens something; the verify report
     # S5 T13 -- the two documents and the comparison's options; refused where nobody can answer.
     dialogs/CompareDialog.h
     dialogs/CompareDialog.cpp

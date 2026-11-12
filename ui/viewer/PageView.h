@@ -465,6 +465,11 @@ signals:
     // S7 T9 (D7-15): the Crop tool's box, dragged on page `page` (zero-based) in its own points -- the shell decides
     // what a person is asked; `ui/viewer/` constructs no command.
     void cropAsked(int page, core::PdfRect box);
+    // S7 T12 (D7-12): the Link tool's rectangle, dragged on page `page` in its own points -- the shell asks where the link
+    // goes; and a LINK CLICKED WITH THE HAND -- a press and a release on it that did not drag -- the shell follows it
+    // (`core::followLink`). `ui/viewer/` decides neither.
+    void linkAsked(int page, core::PdfRect box);
+    void linkClicked(core::AnnotationId link);
 
     // S6 T12 (D6-14): a measurement was made, reading `reading`; and a distance was measured to CALIBRATE, `points`
     // long on the page -- the shell asks what it is known to be (`ui/dialogs/MeasurementScaleDialog`).
@@ -629,6 +634,8 @@ private:
         bool takeSnapshot(const QRect& band) override { return view_.takeSnapshot(band); }
         // S7 T9: a crop box dragged in this pane is the window's to ask about.
         bool cropToBox(int page, core::PdfRect box) override { return view_.cropToBox(page, box); }
+        // S7 T12: and a link's rectangle.
+        bool linkFromBox(int page, core::PdfRect box) override { return view_.linkFromBox(page, box); }
         // S6 T6: the annotation tools make into the window's overlay, and type into this pane's editor.
         AnnotationOverlay* annotationOverlay() const override { return view_.annotationOverlay(); }
         using ToolHost::requestAnnotationText;
@@ -718,6 +725,7 @@ public:
     // when the raster arrives, and `snapshotCopied` says so.
     bool takeSnapshot(const QRect& band) override;
     bool cropToBox(int page, core::PdfRect box);
+    bool linkFromBox(int page, core::PdfRect box);   // S7 T12
 
     // The snapshot's scheduler client, read-only, for the cases.
     const LoupeRaster& snapshotRaster() const noexcept { return *snapshotRaster_; }
@@ -753,6 +761,9 @@ private:
     // S6 guide I-48: the last right press was a tool's -- a measurement finished -- so the context menu that
     // follows it is not shown.
     bool              rightPressTaken_ = false;
+    // S7 T12: the link a Hand press landed on, and where -- followed by a release there that did not drag.
+    std::optional<core::AnnotationId> pressedLink_;
+    QPoint            pressedLinkAt_;
 };
 
 } // namespace rawpage::ui

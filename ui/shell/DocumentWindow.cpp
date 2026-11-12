@@ -798,6 +798,8 @@ void DocumentWindow::handDocumentTo(PageView* pane)
     connect(pane, &PageView::snapshotCopied, this, &DocumentWindow::snapshotCopied, Qt::UniqueConnection);
     connect(pane, &PageView::snapshotFailed, this, &DocumentWindow::snapshotFailed, Qt::UniqueConnection);
     connect(pane, &PageView::cropAsked, this, &DocumentWindow::cropAsked, Qt::UniqueConnection);   // S7 T9
+    connect(pane, &PageView::linkAsked, this, &DocumentWindow::linkAsked, Qt::UniqueConnection);   // S7 T12
+    connect(pane, &PageView::linkClicked, this, &DocumentWindow::linkClicked, Qt::UniqueConnection);
 
     core::IDocumentBackend& backend = services_.backend;
     const core::DocumentHandle handle = handle_;

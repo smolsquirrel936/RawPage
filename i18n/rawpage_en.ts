@@ -1587,6 +1587,10 @@
         <source>action.bookmark.tableOfContents</source>
         <translation>Table of Contents Page</translation>
     </message>
+    <message>
+        <source>action.link.verify</source>
+        <translation>Verify Links</translation>
+    </message>
 </context>
 <context>
     <name>shell</name>
@@ -3809,6 +3813,46 @@
         <source>error.outline.nothingToList</source>
         <translation>No bookmark goes to a page of this document.</translation>
     </message>
+    <message>
+        <source>error.destination.malformed</source>
+        <translation>A named destination in this command could not be read.</translation>
+    </message>
+    <message>
+        <source>error.destination.badName</source>
+        <translation>A destination name must be printable ASCII, and may not begin or end with a space.</translation>
+    </message>
+    <message>
+        <source>error.destination.nameTaken</source>
+        <translation>This document already has a named destination called %1.</translation>
+    </message>
+    <message>
+        <source>error.destination.tooMany</source>
+        <translation>This document has too many named destinations to add another.</translation>
+    </message>
+    <message>
+        <source>error.destination.noSuchName</source>
+        <translation>This document has no named destination called %1.</translation>
+    </message>
+    <message>
+        <source>error.destination.badDestination</source>
+        <translation>A named destination must point at a page this document has.</translation>
+    </message>
+    <message>
+        <source>error.destination.readingsDisagree</source>
+        <translation>The named destinations cannot be edited: two readings of them disagree (%1).</translation>
+    </message>
+    <message>
+        <source>error.destination.nameUnchanged</source>
+        <translation>The new name is the same as the old one.</translation>
+    </message>
+    <message>
+        <source>error.link.badDestination</source>
+        <translation>A link must point at a page this document has.</translation>
+    </message>
+    <message>
+        <source>error.link.openFailed</source>
+        <translation>Nothing on this computer opened %1.</translation>
+    </message>
 </context>
 <context>
     <name>ribbon</name>
@@ -5013,6 +5057,22 @@
     <message>
         <source>command.bookmark.import</source>
         <translation>Import %1 Bookmarks</translation>
+    </message>
+    <message>
+        <source>command.destination.create</source>
+        <translation>New Destination “%1”</translation>
+    </message>
+    <message>
+        <source>command.destination.rename</source>
+        <translation>Rename Destination “%1” to “%2”</translation>
+    </message>
+    <message>
+        <source>command.destination.delete</source>
+        <translation>Delete Destination “%1”</translation>
+    </message>
+    <message>
+        <source>command.destination.deleteMany</source>
+        <translation>Delete %1 Destinations</translation>
     </message>
 </context>
 <context>
@@ -6923,6 +6983,273 @@
     <message>
         <source>bookmarks.exported</source>
         <translation>Exported %1 bookmarks to %2</translation>
+    </message>
+</context>
+<context>
+    <name>links</name>
+    <message>
+        <source>links.follow.noTarget</source>
+        <translation>This link does not go anywhere.</translation>
+    </message>
+    <message>
+        <source>links.follow.pageMissing</source>
+        <translation>This link goes to a page the document does not have.</translation>
+    </message>
+    <message>
+        <source>links.follow.nameMissing</source>
+        <translation>This link goes to the named destination %1, which the document does not have.</translation>
+    </message>
+    <message>
+        <source>links.follow.executable</source>
+        <translation>This link would run the program %1. RawPage never runs a program from a document.</translation>
+    </message>
+    <message>
+        <source>links.follow.uriScheme</source>
+        <translation>This link's address %1 is not a web address RawPage opens.</translation>
+    </message>
+    <message>
+        <source>links.follow.script</source>
+        <translation>This link runs a script. RawPage keeps scripts but never runs them.</translation>
+    </message>
+    <message>
+        <source>links.follow.form</source>
+        <translation>This link acts on a form. RawPage keeps form actions but does not run them.</translation>
+    </message>
+    <message>
+        <source>links.follow.menu</source>
+        <translation>This link runs a menu command. RawPage keeps it but does not run it.</translation>
+    </message>
+    <message>
+        <source>links.follow.other</source>
+        <translation>This link does something RawPage keeps but does not run.</translation>
+    </message>
+    <message>
+        <source>links.verify.pageMissing</source>
+        <translation>Page %1: the link goes to a page the document does not have.</translation>
+    </message>
+    <message>
+        <source>links.verify.nameMissing</source>
+        <translation>Page %1: the link goes to the named destination %2, which the document does not have.</translation>
+    </message>
+    <message>
+        <source>links.verify.fileMissing</source>
+        <translation>Page %1: the link opens %2, which is not on disk.</translation>
+    </message>
+    <message>
+        <source>links.properties.title</source>
+        <translation>Link Properties</translation>
+    </message>
+    <message>
+        <source>links.target</source>
+        <translation>Goes to:</translation>
+    </message>
+    <message>
+        <source>links.target.keep</source>
+        <translation>Where it goes now</translation>
+    </message>
+    <message>
+        <source>links.target.page</source>
+        <translation>A page of this document</translation>
+    </message>
+    <message>
+        <source>links.target.currentView</source>
+        <translation>The current view</translation>
+    </message>
+    <message>
+        <source>links.target.named</source>
+        <translation>A named destination</translation>
+    </message>
+    <message>
+        <source>links.target.web</source>
+        <translation>A web address</translation>
+    </message>
+    <message>
+        <source>links.target.remote</source>
+        <translation>A page of another PDF</translation>
+    </message>
+    <message>
+        <source>links.target.file</source>
+        <translation>Open a file</translation>
+    </message>
+    <message>
+        <source>links.target.script</source>
+        <translation>A script (kept, never run by RawPage)</translation>
+    </message>
+    <message>
+        <source>links.target.print</source>
+        <translation>Print the document</translation>
+    </message>
+    <message>
+        <source>links.target.submit</source>
+        <translation>Submit the form</translation>
+    </message>
+    <message>
+        <source>links.target.reset</source>
+        <translation>Reset the form</translation>
+    </message>
+    <message>
+        <source>links.target.nothing</source>
+        <translation>Nowhere</translation>
+    </message>
+    <message>
+        <source>links.target.pageNumber</source>
+        <translation>Page:</translation>
+    </message>
+    <message>
+        <source>links.target.destination</source>
+        <translation>Destination:</translation>
+    </message>
+    <message>
+        <source>links.target.text</source>
+        <translation>Address, file or script:</translation>
+    </message>
+    <message>
+        <source>links.visible</source>
+        <translation>Visible rectangle</translation>
+    </message>
+    <message>
+        <source>links.width</source>
+        <translation>Border width:</translation>
+    </message>
+    <message>
+        <source>links.style</source>
+        <translation>Line style:</translation>
+    </message>
+    <message>
+        <source>links.style.solid</source>
+        <translation>Solid</translation>
+    </message>
+    <message>
+        <source>links.style.dashed</source>
+        <translation>Dashed</translation>
+    </message>
+    <message>
+        <source>links.style.underline</source>
+        <translation>Underline</translation>
+    </message>
+    <message>
+        <source>links.style.beveled</source>
+        <translation>Beveled</translation>
+    </message>
+    <message>
+        <source>links.style.inset</source>
+        <translation>Inset</translation>
+    </message>
+    <message>
+        <source>links.colour</source>
+        <translation>Colour:</translation>
+    </message>
+    <message>
+        <source>links.colour.black</source>
+        <translation>Black</translation>
+    </message>
+    <message>
+        <source>links.colour.red</source>
+        <translation>Red</translation>
+    </message>
+    <message>
+        <source>links.colour.green</source>
+        <translation>Green</translation>
+    </message>
+    <message>
+        <source>links.colour.blue</source>
+        <translation>Blue</translation>
+    </message>
+    <message>
+        <source>links.highlight</source>
+        <translation>Highlight when clicked:</translation>
+    </message>
+    <message>
+        <source>links.highlight.none</source>
+        <translation>None</translation>
+    </message>
+    <message>
+        <source>links.highlight.invert</source>
+        <translation>Invert</translation>
+    </message>
+    <message>
+        <source>links.highlight.outline</source>
+        <translation>Outline</translation>
+    </message>
+    <message>
+        <source>links.highlight.push</source>
+        <translation>Inset</translation>
+    </message>
+    <message>
+        <source>links.ask.title</source>
+        <translation>Open from This Document?</translation>
+    </message>
+    <message>
+        <source>links.ask.uri</source>
+        <translation>This link opens the web address %1. Open it?</translation>
+    </message>
+    <message>
+        <source>links.ask.remote</source>
+        <translation>This link opens %1 in RawPage. Open it?</translation>
+    </message>
+    <message>
+        <source>links.ask.file</source>
+        <translation>This link opens the file %1 with the program Windows uses for it. Open it?</translation>
+    </message>
+    <message>
+        <source>links.done</source>
+        <translation>%1</translation>
+    </message>
+    <message>
+        <source>links.refused</source>
+        <translation>%1 was not done: %2</translation>
+    </message>
+    <message>
+        <source>links.selectionReading</source>
+        <translation>Reading the selected text — try again in a moment.</translation>
+    </message>
+    <message>
+        <source>links.autoDetect.reading</source>
+        <translation>Reading %1 pages for web addresses…</translation>
+    </message>
+    <message>
+        <source>links.autoDetect.none</source>
+        <translation>No web address was found that is not already a link.</translation>
+    </message>
+    <message>
+        <source>links.verify.title</source>
+        <translation>Verify Links</translation>
+    </message>
+    <message>
+        <source>links.verify.none</source>
+        <translation>Every link goes somewhere.</translation>
+    </message>
+    <message>
+        <source>links.verify.found</source>
+        <translation>%1 links go nowhere — the details list each.</translation>
+    </message>
+    <message>
+        <source>links.destination.newTitle</source>
+        <translation>New Named Destination</translation>
+    </message>
+    <message>
+        <source>links.destination.renameTitle</source>
+        <translation>Rename Named Destination</translation>
+    </message>
+    <message>
+        <source>links.destination.name</source>
+        <translation>Name:</translation>
+    </message>
+    <message>
+        <source>links.destination.default</source>
+        <translation>Destination %1</translation>
+    </message>
+    <message>
+        <source>links.destination.cleared</source>
+        <translation>Deleted “%1”: %2 links and %3 bookmarks named it and now go nowhere.</translation>
+    </message>
+    <message>
+        <source>links.tooltip.needsLink</source>
+        <translation>Select a link first.</translation>
+    </message>
+    <message>
+        <source>links.tooltip.needsDestination</source>
+        <translation>Select a named destination first.</translation>
     </message>
 </context>
 </TS>

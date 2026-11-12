@@ -55,6 +55,9 @@ public:
         std::optional<long long> pageReference;   // its /P
         bool nonFiniteRect = false;
         bool truncated = false;
+        // Stage 7 T12: a Link's GoTo page OBJECT (-1 for none) -- its index is the caller's to place, the annotation's
+        // `action.destination.pageIndex` left unresolved until it does.
+        long long linkPage = -1;
     };
     static Parsed parseDictionary(cos::XrefTable& table, const cos::CosObject& dictionary);
 };

@@ -192,6 +192,10 @@ private:
     // S7 T11 (D7-3): the outline before the removal, put back by the revert -- the removal leaves a destination to a
     // removed page unresolved, and the inverse map cannot say which page it named.
     std::optional<Outline> outlineBefore_;
+    // S7 T12: and for the same reason the named destinations, and every LINK on a page that stays whose target was one
+    // of the removed pages -- as they were before it.
+    std::optional<Destinations> destinationsBefore_;
+    std::vector<Annotation> linksBefore_;
 };
 
 class DuplicatePagesCommand final : public Command {

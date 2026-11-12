@@ -307,6 +307,9 @@ core::Status verifyModel(cos::OpenedFile& opened, const MutationSinkImpl& sink)
     // numbered, each with its title.
     if (core::Status outline = sink.reconcileOutline(opened.table); !outline)
         return outline;
+    // And the named destinations (Stage 7 T12): each name in its table, none other.
+    if (core::Status destinations = sink.reconcileDestinations(opened.table); !destinations)
+        return destinations;
     return core::Status{};
 }
 } // namespace

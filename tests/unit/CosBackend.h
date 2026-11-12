@@ -62,6 +62,8 @@ public:
     // Stage 7 T11: the next `open()` reads its outline as if the ENGINE had read it differently -- refused by
     // `error.outline.readingsDisagree`, the items kept -- how a headless case obtains a read-only outline.
     void plantOutlineDisagreement() { plantedOutline_ = true; }
+    // Stage 7 T12: the same for the named destinations -- refused by `error.destination.readingsDisagree`, the entries kept.
+    void plantDestinationDisagreement() { plantedDestinations_ = true; }
 
     std::array<bool, core::kBackendInterfaceCount> implementedInterfaces() const override
     {
@@ -157,6 +159,15 @@ public:
                 entry->outline.setStatus(core::Error{core::ErrorCode::PermissionDenied, QLatin1String("error.outline.readingsDisagree"),
                                                      QStringLiteral("planted")});
             plantedOutline_ = false;
+            // S7 T12 (D7-10): the named destinations likewise, first-party, placed by the same walk -- no engine, so no
+            // agreement (`tests/render/tst_destinations.cpp`'s half).
+            const pdf::ops::DestinationReader::Reading destinations = pdf::ops::DestinationReader::read(view);
+            entry->destinations = pdf::ops::DestinationReader::model(destinations, indexOf);
+            if (destinations.truncated || plantedDestinations_)
+                entry->destinations.setStatus(core::Error{core::ErrorCode::PermissionDenied,
+                                                          QLatin1String("error.destination.readingsDisagree"),
+                                                          QStringLiteral("planted")});
+            plantedDestinations_ = false;
         }
         if (fromBytes)
             entry->permissions = core::Permissions::readOnly(origin == core::BytesOrigin::Assembly ? "error.edit.unsavedAssembly"
@@ -322,9 +333,11 @@ public:
         const auto* entry = find(handle);
         return entry ? &entry->outline : &outline_;
     }
-    const core::Destinations* destinations(core::DocumentHandle) const override
+    // S7 T12: and its first-party named destinations.
+    const core::Destinations* destinations(core::DocumentHandle handle) const override
     {
-        return &destinations_;
+        const auto* entry = find(handle);
+        return entry ? &entry->destinations : &destinations_;
     }
     const core::Metadata* metadata(core::DocumentHandle) const override { return &metadata_; }
 
@@ -512,6 +525,7 @@ private:
         core::AnnotationStore annotations;     // S6 T2
         core::Attachments attachments;         // S6 T11
         core::Outline outline;                 // S7 T11
+        core::Destinations destinations;       // S7 T12
         QByteArray bytes;
         core::PageTree tree;
         core::RepairReport repair;
@@ -538,6 +552,7 @@ private:
     std::optional<core::CosReading> planted_;
     std::optional<int> plantedDisagreement_;
     bool plantedOutline_ = false;
+    bool plantedDestinations_ = false;
     bool failWrite_ = false;
     std::optional<core::SaveForm> lastForm_;   // S7 T6: what the last `writeRevision` was asked for
     bool failAdopt_ = false;

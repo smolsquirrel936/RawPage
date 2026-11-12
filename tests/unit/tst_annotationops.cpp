@@ -259,14 +259,15 @@ TEST_CASE("a highlight's appearance is a multiply form over its rectangle whatev
 
 TEST_CASE("the appearance builder refuses what it cannot draw by key", "[annotops][appearance]")
 {
-    // A LINK since T14, which draws redaction marks and sounds (T11 moved it here from file attachments, T10 from
-    // stamps, T8 from ink): every kind Stage 6 creates is drawn, and links are Stage 7's (`annot.linkTool`).
-    Annotation link = core::newAnnotation(AnnotationSubtype::Link, 0, kAuthor, kNow);
-    link.rect = core::PdfRect{core::PdfPoint{1, 2}, core::PdfSize{30, 10}};
-    auto unsupported = pdf::ops::AppearanceStreamBuilder::normal(link);
+    // A SCREEN since Stage 7 T12, which draws a link's border (T14 moved it here from links, T11 from file attachments,
+    // T10 from stamps, T8 from ink): every kind Stages 6 and 7 create is drawn, and a screen annotation is media's.
+    Annotation screen = core::newAnnotation(AnnotationSubtype::Screen, 0, kAuthor, kNow);
+    screen.rect = core::PdfRect{core::PdfPoint{1, 2}, core::PdfSize{30, 10}};
+    auto unsupported = pdf::ops::AppearanceStreamBuilder::normal(screen);
     REQUIRE_FALSE(unsupported);
     CHECK(keyOf(unsupported.error()) == "error.pdf.appearanceUnsupported");
-    CHECK_FALSE(pdf::ops::AppearanceStreamBuilder::supports(AnnotationSubtype::Link));
+    CHECK_FALSE(pdf::ops::AppearanceStreamBuilder::supports(AnnotationSubtype::Screen));
+    CHECK(pdf::ops::AppearanceStreamBuilder::supports(AnnotationSubtype::Link));
     CHECK(pdf::ops::AppearanceStreamBuilder::supports(AnnotationSubtype::Redact));
     CHECK(pdf::ops::AppearanceStreamBuilder::supports(AnnotationSubtype::Sound));
     CHECK(pdf::ops::AppearanceStreamBuilder::supports(AnnotationSubtype::FileAttachment));

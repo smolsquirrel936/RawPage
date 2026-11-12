@@ -430,6 +430,9 @@ signals:
     void snapshotFailed();
     // S7 T9: a crop box dragged in any of this window's panes (`PageView::cropAsked`).
     void cropAsked(int page, core::PdfRect box);
+    // S7 T12: a link's rectangle dragged, and a link clicked with the hand, in any of this window's panes.
+    void linkAsked(int page, core::PdfRect box);
+    void linkClicked(core::AnnotationId link);
 
 private:
     void build(const Recovery* recovery);

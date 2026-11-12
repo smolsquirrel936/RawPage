@@ -538,6 +538,9 @@ QJsonObject Annotation::toJson() const
     text("overlayText", overlayText);
     if (repeat) json.insert(QStringLiteral("repeat"), true);
     if (sound) json.insert(QStringLiteral("sound"), sound->toJson());
+    // Stage 7 T12 (D7-12): a link's target and highlight, each only when it says something.
+    if (action.kind != OutlineAction::Kind::None) json.insert(QStringLiteral("action"), action.toJson());
+    text("highlight", highlight);
     return json;
 }
 
@@ -651,6 +654,16 @@ Result<Annotation> Annotation::fromJson(const QJsonObject& json)
         if (!sound) return sound.error();
         a.sound = std::move(sound).value();
     }
+    if (json.contains(QStringLiteral("action"))) {
+        const QJsonValue value = json.value(QStringLiteral("action"));
+        if (!value.isObject()) return malformed(QStringLiteral("annotation action"));
+        // CARRIED: a link keeps the file's action as read, `Other` included (`OutlineAction::fromJson`).
+        Result<OutlineAction> action = OutlineAction::fromJson(value.toObject(), true);
+        if (!action) return malformed(QStringLiteral("annotation action"));
+        a.action = std::move(action).value();
+    }
+    a.highlight = json.value(QStringLiteral("highlight")).toString();
+    if (!a.highlight.isEmpty() && !isHighlightModeName(a.highlight)) return malformed(QStringLiteral("annotation highlight"));
     return a;
 }
 
@@ -750,6 +763,26 @@ bool isBorderStyleName(const QString& name)
 {
     return name == QLatin1String("S") || name == QLatin1String("D") || name == QLatin1String("B")
            || name == QLatin1String("I") || name == QLatin1String("U");
+}
+
+bool isHighlightModeName(const QString& name)
+{
+    return name == QLatin1String("N") || name == QLatin1String("I") || name == QLatin1String("O")
+           || name == QLatin1String("P");
+}
+
+Annotation newLink(int page, const PdfRect& rect, std::vector<double> quadPoints, OutlineAction action,
+                   const QString& author, std::int64_t utcNow)
+{
+    Annotation a = newAnnotation(AnnotationSubtype::Link, page, author, utcNow);
+    a.rect = rect;
+    a.quadPoints = std::move(quadPoints);
+    a.action = std::move(action);
+    // Invisible until the person says otherwise -- what Acrobat makes from a selection, and what a link over text
+    // already drawn wants: a black box round it is rarely the intent. `LinkPropertiesDialog` gives it a border.
+    a.borderWidth = 0.0;
+    a.borderStyle = QStringLiteral("S");
+    return a;
 }
 
 bool isBlendModeName(const QString& name)

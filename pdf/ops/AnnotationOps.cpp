@@ -205,6 +205,13 @@ const std::vector<Field>& fields()
              if (a.subtype != core::AnnotationSubtype::Redact || !a.repeat) return std::nullopt;
              return CosObject::makeBoolean(true);
          }},
+        // Stage 7 T12 (D7-12): a link's highlight mode (ISO 32000-1 Table 173), only on a link. Its TARGET -- `/Dest` or
+        // `/A` -- is not a field: it names a page object only the sink can resolve, so the sink writes it
+        // (`OutlineOps::withTarget`), and only where the model set it.
+        {"H", [](const Annotation& a, const ReferenceResolver&) -> std::optional<CosObject> {
+             if (a.subtype != core::AnnotationSubtype::Link) return std::nullopt;
+             return nameIfAny(a.highlight);
+         }},
     };
     return table;
 }

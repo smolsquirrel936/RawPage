@@ -256,6 +256,16 @@ public:
     core::Outline outlineSet;
     int outlineCommands = 0;
     bool refuseOutline = false;
+    // Stage 7 T12: the named destinations as last handed, and how many times.
+    core::Status setDestinations(const core::Destinations& destinations) override
+    {
+        ++calls;
+        ++destinationCommands;
+        destinationsSet = destinations;
+        return {};
+    }
+    core::Destinations destinationsSet;
+    int destinationCommands = 0;
     std::map<int, core::PageBoxes> pageBoxes;
     std::map<QString, std::vector<std::pair<int, std::optional<core::PageBoxes>>>> boxStash;
     int wrapped = 0;

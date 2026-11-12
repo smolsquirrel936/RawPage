@@ -138,7 +138,8 @@ struct Services {
 
     // HANDS A FILE TO THE SHELL (Stage 6 T11): what opens an extracted attachment with the program Windows uses for
     // it -- `QDesktopServices::openUrl`, installed by `app/CompositionRoot`. EMPTY in a composition that installs
-    // none, and a case installs a recorder: nothing a suite does may launch a program.
+    // none, and a case installs a recorder: nothing a suite does may launch a program. Since Stage 7 T12 a link's
+    // WEB ADDRESS reaches it too -- only one `core::followableUri` passed, and only after a person said yes (D7-12).
     std::function<bool(const QString& path)> openExternally = {};
 };
 

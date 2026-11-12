@@ -688,6 +688,39 @@ core::Result<Appearance> squareOrCircle(const core::Annotation& a)
     return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), *blend)), content.bytes()};
 }
 
+// Stage 7 T12 (D7-12, D7-35): A LINK's border -- the rectangle outlined in `/C` at `/BS /W`, inset by half its width,
+// dashed as `/BS /D` says, or only its bottom edge for `/BS /S /U` -- and NOTHING for an invisible link (no width, or
+// no colour). What Acrobat and Firefox draw from `/BS` and `/C` for a link with no appearance, drawn into one so the
+// engine that has no such fallback (PDFium) shows the same (Stage 7 guide A-86). A link has no fill.
+core::Result<Appearance> linkBorder(const core::Annotation& a)
+{
+    const QLatin1String name = core::annotationSubtypeName(a.subtype);
+    if (std::optional<core::Error> refused = refusedShape(a)) return *refused;
+    const OptionalColour stroke = optionalColour(a.color);
+    const std::optional<QString> blend = blendOf(a);
+    if (!stroke.valid) return appearanceError("error.pdf.appearanceGeometry", name);
+    if (!blend) return appearanceError("error.pdf.appearanceUnsupported", name);
+
+    const double width = a.borderWidth.value_or(0.0);
+    cos::ContentStreamBuilder content;
+    content.save().graphicsState("GS0");
+    if (!stroke.colour.empty() && width > 0.0) {
+        content.strokeColor(stroke.colour.data(), static_cast<int>(stroke.colour.size()));
+        if (!strokeStyle(content, a, width)) return appearanceError("error.pdf.appearanceGeometry", name);
+        const double inset = width / 2.0;
+        const core::PdfRect r = a.rect;
+        if (a.borderStyle == QLatin1String("U")) {
+            content.moveTo(r.left(), r.bottom() + inset).lineTo(r.right(), r.bottom() + inset).stroke();
+        } else {
+            content.rectangle(r.left() + inset, r.bottom() + inset, std::max(r.size.width - width, 0.0),
+                              std::max(r.size.height - width, 0.0));
+            content.stroke();
+        }
+    }
+    content.restore();
+    return Appearance{formDictionary(a.rect, opacityState(opacityOf(a), *blend)), content.bytes()};
+}
+
 // A Polygon (closed, filled with `/IC`, its border cloudy when `/BE` says so) or a PolyLine (open, with `/LE`'s
 // endings): the vertices joined round, in `/C`. SINCE T12 a measurement's reading as well (`core::measureLabel`).
 core::Result<Appearance> polygon(const core::Annotation& a, AppearanceObjects& objects)
@@ -1455,6 +1488,8 @@ bool AppearanceStreamBuilder::supports(core::AnnotationSubtype subtype) noexcept
     // Stage 6 T14: a redaction mark's outline (its `/RO` beside it) and a sound's speaker or microphone.
     case core::AnnotationSubtype::Redact:
     case core::AnnotationSubtype::Sound:
+    // Stage 7 T12: a link's border -- nothing at all for an invisible one.
+    case core::AnnotationSubtype::Link:
         return true;
     default:
         return false;
@@ -1498,6 +1533,7 @@ core::Result<Appearance> AppearanceStreamBuilder::normal(const core::Annotation&
         case core::AnnotationSubtype::FileAttachment: return fileAttachment(annotation);
         case core::AnnotationSubtype::Redact: return redaction(annotation);
         case core::AnnotationSubtype::Sound: return soundIcon(annotation);
+        case core::AnnotationSubtype::Link: return linkBorder(annotation);
         default:
             return appearanceError("error.pdf.appearanceUnsupported", core::annotationSubtypeName(annotation.subtype));
         }

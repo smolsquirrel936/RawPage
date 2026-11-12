@@ -155,6 +155,17 @@
 // an item only where what it composes differs from its dictionary on disk (through the ledger): a rename writes one
 // dictionary. A created item is numbered by name (`outline:<key>`) and keeps, after a save, the number the save gave it.
 //
+// LINKS -- Stage 7 T12 (D7-12). A link is an annotation, so every rule above holds for it; what is its own is its TARGET,
+// which names a page OBJECT the model only knows by index. So when a command hands the sink a link whose target differs
+// from what its dictionary on disk says -- compared page OBJECT to page object, so a page command in between is no
+// difference -- the target is resolved THEN, from the index the model gave it, and kept (`linkTargets_`); the compose
+// writes it (`OutlineOps::withTarget`: a GoTo as `/Dest` by reference, anything else as `/A`) onto the dictionary it
+// writes for the link, and a GoTo to a page the document no longer has as no target at all -- what `ReferenceRepair`
+// makes of one on disk (D7-2). A link whose target is the disk's keeps its bytes. What the resolved page is goes into
+// the unit's inputs, so a page removed or restored rebuilds it.
+//
+// NAMED DESTINATIONS -- Stage 7 T12 (D7-10, D7-35): see `setDestinations` and `composeDestinations`.
+//
 // WHAT IT DOES NOT DO. It refuses nothing on policy -- whether this document may be edited at all is
 // `core/doc/Permissions` (D3-7, T4) -- and it writes nothing: the update's bytes, the temporary file
 // and the replace are `IncrementalWriter`, `SaveCoordinator` and `platform::IDurableFiles`.
@@ -171,6 +182,7 @@
 #include "pdf/cos/IncrementalWriter.h"
 #include "pdf/cos/XrefTable.h"
 #include "pdf/ops/AppearanceStreamBuilder.h"
+#include "pdf/ops/DestinationReader.h"
 #include "pdf/ops/OutlineReader.h"
 #include "pdf/ops/PageOps.h"
 #include "pdf/ops/ReferenceRepair.h"
@@ -292,6 +304,16 @@ public:
     // and whether a label command has run since the sink opened -- verify's question.
     const std::vector<PageLabelRange>& desiredLabels() const noexcept { return labels_; }
     bool labelsChanged() const noexcept { return labelsTouched_; }
+    // --- The named destinations (Stage 7 T12) -- see `setDestinations` in `core/backend.h` -------------------------
+    core::Status setDestinations(const core::Destinations& destinations) override;
+    bool hasDestinationChanges() const noexcept { return destinations_.has_value(); }
+    // The table as the document now stands -- the desired one once a destination command ran, else the disk's -- each
+    // entry's page placed by the desired order (-1 for one the document no longer has).
+    core::Destinations destinationsNow();
+    // THE CHECK `RevisionWriter::verify` AND `adopt()` SHARE: `written`'s tables hold the desired entries -- each name in
+    // its table, none other.
+    core::Status reconcileDestinations(cos::XrefTable& written) const;
+
     // --- The outline (Stage 7 T11) -- see the header ----------------------------------------------------------
     core::Status setOutline(const core::Outline& outline) override;
     bool hasOutlineChanges() const noexcept { return outline_.has_value(); }
@@ -734,11 +756,13 @@ private:
     void renumberPageEdits(const std::map<long long, long long>& numbers);
     // --- The outline (Stage 7 T11) -- see the header ----------------------------------------------------------
     // What an item's `/Dest` or `/A` will be: as its dictionary on disk has it, or the model's action with its page
-    // resolved to an object (negative for a new page until a save numbers it; -1 for none).
+    // resolved to an object -- negative for a new page until a save numbers it, none for no page. Stage 7 guide I-20:
+    // this was `-1` for none, and -1 is also the FIRST new page's number, so a bookmark set to it was written with no
+    // destination.
     struct OutlineTarget {
         bool disk = true;
         core::OutlineAction action;
-        long long page = -1;
+        std::optional<long long> page;
     };
     struct HeldItem {
         core::OutlineItem properties;   // the model's item -- its children not kept here
@@ -763,6 +787,65 @@ private:
     std::map<QString, long long> outlineOnDisk_;                   // a created item -> where a save put it
     std::map<QString, long long> outlineComposed_;                 // ... and where the last compose numbered it
     std::optional<long long> outlineRootComposed_;                 // a root the last compose created
+
+    // --- Link targets (Stage 7 T12, D7-12) -- see the header ---------------------------------------------------
+    // A LINK's target the model SET: its action, and the page OBJECT a GoTo names, resolved WHEN THE COMMAND RAN from
+    // the index the model gave it -- negative for a new page, numbered at compose; none for a GoTo with no page. A link
+    // whose target is what its dictionary on disk says has no entry: those bytes are kept.
+    struct LinkTarget {
+        core::OutlineAction action;
+        std::optional<long long> page;
+    };
+    // `annotation`'s target now -- refused, by key, for a GoTo past the last page or a target this build cannot write.
+    core::Result<LinkTarget> resolveLinkTarget(const core::Annotation& annotation) const;
+    // Whether the dictionary on disk for `id` already says what `target` says -- the same kind and fields, a GoTo to
+    // the same page object and view.
+    bool linkTargetOnDisk(const core::AnnotationId& id, const LinkTarget& target);
+    // The page a target's GoTo is written as NOW: nullopt for none, or for a page the document no longer has.
+    std::optional<cos::CosRef> linkPageReference(const core::AnnotationId& id) const;
+    // `dictionary` with the target the model set for `id` written (`OutlineOps::withTarget`); unchanged for none.
+    core::Result<cos::CosObject> withLinkTarget(cos::CosObject dictionary, const core::AnnotationId& id);
+    std::map<core::AnnotationId, LinkTarget> linkTargets_;
+    // A TARGET WHOSE PAGE IS GONE, kept ACROSS A SAVE: the save wrote the link with no target, and nothing on disk would
+    // give the target back to an undo of the delete -- the repair's ledger holds only what the file held. Written again,
+    // onto the link's dictionary as the file then has it, once the page is back (`composeParkedLinks`). And a command
+    // that hands an UNRESOLVED GoTo for a link whose target is held on a page that is gone keeps that page: the model
+    // cannot say which page an unresolved target named, and the sink can (T11's rule for an outline item).
+    std::map<core::AnnotationId, LinkTarget> parkedLinks_;
+    const LinkTarget* linkTargetOf(const core::AnnotationId& id) const;
+    bool pagePresent(long long number) const;
+    std::optional<long long> objectOnDisk(const core::AnnotationId& id) const;
+    core::Status composeParkedLinks(std::map<long long, cos::CosObject>& pending);
+
+    // --- Named destinations (Stage 7 T12, D7-10, D7-35) ----------------------------------------------------------
+    // ONE ENTRY THE DOCUMENT SHOULD HAVE: its table and the bytes its key is written as, and either its value AS WRITTEN
+    // (an entry the file holds, or one renamed from it) or a page object and a view to write a new array from. `page`
+    // and `index` say where it points either way -- the page object (negative for a new page) or an integer page --
+    // so a page the document no longer has leaves it out, as `ReferenceRepair` leaves one out on disk (D7-2).
+    struct HeldDestination {
+        core::NamedDestination::Form form = core::NamedDestination::Form::NameTree;
+        std::string key;
+        std::optional<cos::CosObject> keyObject;   // a tree key as the file writes it, when the key is the file's
+        std::optional<cos::CosObject> value;       // as written; none: a new array from `page` and `view`
+        std::optional<long long> page;
+        int index = -1;
+        core::Destination view;                    // the fit and its parameters, the page unresolved
+    };
+    const DestinationReader::Reading& diskDestinations();
+    std::vector<HeldDestination> heldFromDisk();
+    QString heldName(const HeldDestination& held) const;
+    core::Destination placedNow(const HeldDestination& held, const std::map<long long, int>& placed) const;
+    core::Status composeDestinations(cos::ObjectDelta& delta, std::map<long long, cos::CosObject>& pending);
+    // WHETHER `name` IS IN THE PDF 1.1 DICTIONARY (D7-35) -- the desired table's answer once a destination command ran, else
+    // the disk's -- so a link or a bookmark set to name it is written `/Dest /name`, a NAME, and one in the tree a string.
+    bool namesDictionaryEntry(const QString& name);
+    // `dictionary`, a GoToNamed's `/Dest` written in the form its table reaches it by.
+    cos::CosObject withNamedForm(cos::CosObject dictionary, const core::OutlineAction& action);
+    std::optional<std::vector<HeldDestination>> destinations_;   // desired, once a destination command ran
+    std::optional<DestinationReader::Reading> diskDestinations_; // through the ledger; dropped by adopt
+    // EVERY ENTRY THE DISK HAS HELD, as written -- kept across a save, so an entry a save left out (deleted, renamed) and
+    // an undo puts back is written as the very pair it was, as an attachment is (D6-38) and an annotation is (D6-5).
+    std::vector<HeldDestination> rememberedDestinations_;
 };
 
 } // namespace rawpage::pdf::ops

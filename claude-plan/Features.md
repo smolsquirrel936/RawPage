@@ -1477,7 +1477,7 @@ a Viewer chord still acts with a tool armed, and the rows below win where they c
 | `K` | Toggle "keep the tool selected after use" |
 | `Shift`+drag | Constrain to a square / circle / 45° angle |
 | `Alt`+drag | Duplicate the annotation being dragged |
-| `Enter` | Finish an in-progress polygon or polyline |
+| `Enter` | Finish an in-progress polygon or polyline; with none in progress and one link selected, follow the link *(Stage 7 T12, `Stage7-Assembly-Plan.md` D7-35(h): the same command, no new chord)* |
 | `Esc` | Cancel the in-progress annotation and return to the Selection tool |
 | `Delete` | Delete the selected annotation |
 | `Ctrl+E` | Open the annotation properties bar |

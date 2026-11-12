@@ -389,7 +389,14 @@ Services CompositionRoot::services()
                       loginName(),     stamps_.get()};
     // S6 T11 (D6-17): the session folder an opened attachment is written into, and how it reaches the shell.
     services.attachmentRoot = options_.attachmentRoot;
+    // S7 T12 (D7-12): and a link's web address -- one `core::followableUri` passed, `http`, `https`, `ftp` or `mailto` --
+    // as the address it is; anything else is a file. A drive letter is a one-letter scheme to `QUrl`, so it stays a file.
     services.openExternally = options_.openExternally ? options_.openExternally : [](const QString& path) {
+        const QUrl url(path, QUrl::StrictMode);
+        const QString scheme = url.scheme().toLower();
+        if (url.isValid() && (scheme == QLatin1String("http") || scheme == QLatin1String("https") || scheme == QLatin1String("ftp")
+                              || scheme == QLatin1String("mailto")))
+            return QDesktopServices::openUrl(url);
         return QDesktopServices::openUrl(QUrl::fromLocalFile(path));
     };
     return services;

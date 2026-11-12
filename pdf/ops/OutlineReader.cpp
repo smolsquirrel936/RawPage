@@ -142,6 +142,24 @@ void readAction(const ReferenceRepair::View& view, const CosObject& value, const
         action.uri = fileSpecName(view, dictionary->get("F"));
         return;
     }
+    // Stage 7 T12 (D7-12): the other form actions -- read, written, never run.
+    if (type == "ResetForm") {
+        action.kind = OutlineAction::Kind::ResetForm;
+        return;
+    }
+    if (type == "ImportData") {
+        action.kind = OutlineAction::Kind::ImportData;
+        action.file = fileSpecName(view, dictionary->get("F"));
+        return;
+    }
+    if (type == "Hide") {
+        action.kind = OutlineAction::Kind::Hide;
+        const std::optional<CosObject> target = view.resolve(dictionary->get("T"));
+        if (target && target->isString()) action.name = textOf(*target);
+        const CosObject& hide = dictionary->get("H");
+        action.hide = !hide.isBoolean() || hide.booleanValue();
+        return;
+    }
     action.kind = OutlineAction::Kind::Other;
     action.name = QString::fromStdString(type);
 }
@@ -155,22 +173,7 @@ std::pair<OutlineItem, OutlineReader::Facts> itemOf(const ReferenceRepair::View&
     if (const std::optional<CosObject> title = view.resolve(dictionary.get("Title")); title && title->isString())
         item.title = EmbeddedFileReader::decodeTextString(title->text());
 
-    // `/Dest` FIRST, as ISO 32000-1 §12.3.3 and PDFium both have it; `/A` only where there is none.
-    if (const CosObject* dest = dictionary.find("Dest")) {
-        readDestination(view, *dest, named, item.action, facts);
-        // PDFium falls back to the action when the destination resolves to nothing -- for the panes' target alone.
-        if (facts.enginePage < 0 && facts.engineIndex < 0) {
-            if (const CosObject* a = dictionary.find("A")) {
-                OutlineAction ignored;
-                OutlineReader::Facts fallback;
-                readAction(view, *a, named, ignored, fallback);
-                facts.enginePage = fallback.enginePage;
-                facts.engineIndex = fallback.engineIndex;
-            }
-        }
-    } else if (const CosObject* a = dictionary.find("A")) {
-        readAction(view, *a, named, item.action, facts);
-    }
+    OutlineReader::readTarget(view, dictionary, named, item.action, facts);
 
     if (const std::optional<CosObject> c = view.resolve(dictionary.get("C")); c && c->isArray() && c->items().size() == 3) {
         std::array<double, 3> rgb{};
@@ -283,6 +286,27 @@ Destination OutlineReader::viewOf(const CosObject& array)
         break;
     }
     return destination;
+}
+
+void OutlineReader::readTarget(const ReferenceRepair::View& view, const CosObject& dictionary,
+                               const std::map<std::string, CosObject>& named, OutlineAction& action, Facts& facts)
+{
+    // `/Dest` FIRST, as ISO 32000-1 §12.3.3 and PDFium both have it; `/A` only where there is none.
+    if (const CosObject* dest = dictionary.find("Dest")) {
+        readDestination(view, *dest, named, action, facts);
+        // PDFium falls back to the action when the destination resolves to nothing -- for the panes' target alone.
+        if (facts.enginePage < 0 && facts.engineIndex < 0) {
+            if (const CosObject* a = dictionary.find("A")) {
+                OutlineAction ignored;
+                OutlineReader::Facts fallback;
+                readAction(view, *a, named, ignored, fallback);
+                facts.enginePage = fallback.enginePage;
+                facts.engineIndex = fallback.engineIndex;
+            }
+        }
+    } else if (const CosObject* a = dictionary.find("A")) {
+        readAction(view, *a, named, action, facts);
+    }
 }
 
 OutlineReader::Reading OutlineReader::read(const ReferenceRepair::View& view)

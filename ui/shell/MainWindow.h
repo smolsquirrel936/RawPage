@@ -46,6 +46,7 @@
 #include "core/cmd/RecoveryJournal.h"
 #include "core/doc/Annotation.h"
 #include "core/doc/Fdf.h"
+#include "core/doc/LinkActions.h"
 #include "core/doc/SaveCoordinator.h"
 #include "core/text/SearchEngine.h"
 #include "ui/dialogs/CompareDialog.h"
@@ -223,6 +224,31 @@ public:
     core::Status generateBookmarks(DocumentWindow* document, const core::OutlineGeneratorOptions& options);
     // A bookmark file read into ONE `GenerateBookmarksCommand` at the end of the tree; the tree written to one.
     core::Status importBookmarks(DocumentWindow* document, const QString& path);
+
+    // ---------------------------------------------------------------------------------------
+    // LINKS AND NAMED DESTINATIONS -- Stage 7 T12 (`Stage7-Assembly-Plan.md` D7-12, D7-35). `ui/shell/MainWindowLinks.cpp`.
+    // ---------------------------------------------------------------------------------------
+    // The Destinations pane handed `document`'s table: the model's where the tab has a journal, else the backend's.
+    void updateDestinationsPane(DocumentWindow* document);
+    // EVERY LINK AND DESTINATION COMMAND A SURFACE RUNS GOES THROUGH HERE: what it did or why not on the status bar.
+    core::Status runLinkCommand(DocumentWindow* document, std::unique_ptr<core::Command> command);
+    // The Link tool's rectangle -- asked where it goes (`LinkPropertiesDialog`), then ONE `AddAnnotationCommand`.
+    core::Status createLinkFromBox(DocumentWindow* document, int page, core::PdfRect box);
+    // `link.create` with text selected: one link per line of it, asked once, one command.
+    core::Status createLinksFromSelection(DocumentWindow* document);
+    // `link.edit`: the selected link's target, border and highlight -- one `EditAnnotationCommand`.
+    core::Status editLink(DocumentWindow* document);
+    // A link clicked with the Hand tool, or `Enter` on a selected one: `core::followLink`'s step, asked where it opens
+    // anything (`LinkOpenDialog`) and handed over. What it decided is `lastLinkFollow()`.
+    core::Status followLink(DocumentWindow* document, const core::AnnotationId& id);
+    // `link.autoDetect`: every page's text read on the render thread, then ONE `AddAnnotationCommand` of the addresses no
+    // link covers -- refused if a command ran meanwhile, or another page run is going.
+    core::Status autoDetectLinks(DocumentWindow* document);
+    // `link.verify`: every broken link in words (`core::verifyLinks`), on the status bar and in the report.
+    QStringList verifyLinks(DocumentWindow* document);
+    // What a case reads back.
+    const std::optional<core::LinkFollow>& lastLinkFollow() const noexcept { return lastLinkFollow_; }
+    const QStringList& lastLinkReport() const noexcept { return lastLinkReport_; }
     core::Status exportBookmarks(DocumentWindow* document, const QString& path, core::OutlineFormat format);
     // D7-11: the contents page, ONE `InsertPagesCommand` before the first page, through `runPageCommand`.
     core::Status insertTableOfContents(DocumentWindow* document);
@@ -723,6 +749,7 @@ private:
     void registerPageActions();      // S7 T8 -- `ui/shell/MainWindowPages.cpp`
     void registerMergeActions();     // S7 T10 -- `ui/shell/MainWindowMerge.cpp`
     void registerBookmarkActions();  // S7 T11 -- `ui/shell/MainWindowBookmarks.cpp`
+    void registerLinkActions();      // S7 T12 -- `ui/shell/MainWindowLinks.cpp`
     void finishMerge(core::Result<core::MergedDocument> merged, const std::vector<QString>& paths);
     void updatePageBadges();         // S7 T8 -- the thumbnails' badges from the document in front's store
 
@@ -765,6 +792,8 @@ private:
     std::unique_ptr<core::SplitRunner> splitRunner_;
     // S7 T9: a white-margin crop's or a thumbnail embedding's pages being read by the engine -- one at a time, per window.
     std::unique_ptr<core::PageWorkRunner> pageWork_;
+    std::optional<core::LinkFollow> lastLinkFollow_;   // S7 T12
+    QStringList lastLinkReport_;                       // S7 T12
     // S7 T10: the merge in progress, if any, and the window that shows it -- one at a time, per window.
     std::unique_ptr<core::MergeRunner> mergeRunner_;
     QPointer<QWidget> mergeProgress_;
