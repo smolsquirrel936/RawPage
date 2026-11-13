@@ -58,6 +58,9 @@ namespace {
 
 constexpr int kRuns = 20;
 constexpr int kDwellMs = 15;
+// Every fourth run of a case with a floor on its steps times its kill from the probe's progress (`killProbe`'s
+// anchor), so five of the twenty are certain to reach the floor and fifteen still land from `ready` alone.
+constexpr int kAnchoredEvery = 4;
 
 std::string shaOf(const QString& path)
 {
@@ -106,9 +109,22 @@ void sleepOffTheTick(qint64 us)
     CloseHandle(timer);
 }
 
-// Kills it and returns every line it managed to write.
-QList<QByteArray> killProbe(QProcess& probe, qint64 afterUs)
+// Whether the probe has written `line` whole -- read with `peek`, so `killProbe` still collects every line.
+bool hasWritten(QProcess& probe, const QByteArray& line)
 {
+    for (const QByteArray& seen : probe.peek(1 << 20).split('\n'))
+        if (seen.trimmed() == line) return true;
+    return false;
+}
+
+// Kills it and returns every line it managed to write. With an `anchor`, the delay runs from the probe's writing
+// that line rather than from `ready`: a floor on how FAR the probe got -- a step number the case must see replayed
+// -- is then reached on a runner of any speed, where a delay from `ready` alone reaches it only on a fast one
+// (Stage 7 guide I-22: CI's runner replayed at most 4 steps in 400 ms, this machine 10).
+QList<QByteArray> killProbe(QProcess& probe, qint64 afterUs, const QByteArray& anchor = {})
+{
+    while (!anchor.isEmpty() && !hasWritten(probe, anchor))
+        REQUIRE(probe.waitForReadyRead(10000));
     sleepOffTheTick(afterUs);
     probe.kill();                                            // TerminateProcess
     REQUIRE(probe.waitForFinished(10000));
@@ -365,7 +381,9 @@ TEST_CASE("recovery.kill_annotations: twenty kills during annotation commands re
         const QString root = dir.filePath(QStringLiteral("recovery"));
 
         auto probe = startProbe({QStringLiteral("annotations"), document, root, QString::number(kDwellMs)});
-        const QList<QByteArray> lines = killProbe(*probe, 20000 + static_cast<qint64>(random.bounded(380000)));
+        // An anchored run is killed after the first payload's line is WRITTEN (`flushing`), so it replays a side file.
+        const QByteArray anchor = run % kAnchoredEvery == 0 ? QByteArray("flushing 5") : QByteArray();
+        const QList<QByteArray> lines = killProbe(*probe, 20000 + static_cast<qint64>(random.bounded(380000)), anchor);
         REQUIRE_FALSE(lines.isEmpty());
 
         int acknowledged = 0;
@@ -461,7 +479,11 @@ TEST_CASE("recovery.kill_pages: twenty kills during page commands recover every 
         const QString root = dir.filePath(QStringLiteral("recovery"));
 
         auto probe = startProbe({QStringLiteral("pages"), document, root, QString::number(kDwellMs)});
-        const QList<QByteArray> lines = killProbe(*probe, 20000 + static_cast<qint64>(random.bounded(380000)));
+        // An anchored run is killed after the cycle's last step's line is WRITTEN, so it replays every kind.
+        const QByteArray anchor = run % kAnchoredEvery == 0
+                                      ? QByteArray("flushing ") + QByteArray::number(tests::killsteps::kPageCycle)
+                                      : QByteArray();
+        const QList<QByteArray> lines = killProbe(*probe, 20000 + static_cast<qint64>(random.bounded(380000)), anchor);
         REQUIRE_FALSE(lines.isEmpty());
         int acknowledged = 0;
         for (const QByteArray& line : lines)
@@ -560,7 +582,12 @@ TEST_CASE("recovery.kill_rewrite: twenty kills after a Save As that rewrote reco
         const QString root = dir.filePath(QStringLiteral("recovery"));
 
         auto probe = startProbe({QStringLiteral("rewrite"), document, root, QString::number(kDwellMs), saved});
-        const QList<QByteArray> lines = killProbe(*probe, 20000 + static_cast<qint64>(random.bounded(380000)));
+        // An anchored run is killed after the SECOND step past the rewrite has its line written (the probe numbers
+        // on from the cycle's), so it replays two.
+        const QByteArray anchor = run % kAnchoredEvery == 0
+                                      ? QByteArray("flushing ") + QByteArray::number(tests::killsteps::kPageCycle + 2)
+                                      : QByteArray();
+        const QList<QByteArray> lines = killProbe(*probe, 20000 + static_cast<qint64>(random.bounded(380000)), anchor);
         REQUIRE_FALSE(lines.isEmpty());
         int acknowledged = 0;
         for (const QByteArray& line : lines)
