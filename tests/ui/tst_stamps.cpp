@@ -993,3 +993,107 @@ TEST_CASE("an image pasted on the page is one image stamp and text fields keep t
     }
     clipboard->clear();
 }
+
+// Stage 7 T13 (D7-36), Stage 7 guide A-89's dialog half: the fourth source -- a PDF's page, read as it is chosen.
+TEST_CASE("stamps.page_source: the custom stamp dialog lists PDF files and makes a stamp from the page chosen",
+          "[stamps][A-89][D7-36]")
+{
+    ui::CustomStampDialog dialog(QStringList{QStringLiteral("Office")});
+    // The PDF browser lists PDF files and nothing else; the image browser still lists no PDF (A-78).
+    CHECK(ui::CustomStampDialog::pdfFilter().contains(QStringLiteral("*.pdf")));
+    CHECK_FALSE(ui::CustomStampDialog::pdfFilter().contains(QStringLiteral("*.png")));
+    CHECK_FALSE(ui::CustomStampDialog::imageFilter().contains(QStringLiteral("pdf"), Qt::CaseInsensitive));
+
+    // The window's page reader, recorded: twelve pages, each as a page 300 by 150 points; page 9 refused by key.
+    std::vector<std::pair<QString, int>> asked;
+    dialog.setPageSource({[](const QString& path) -> core::Result<int> {
+                              if (!path.endsWith(QStringLiteral(".pdf")))
+                                  return core::Error{core::ErrorCode::Unsupported, QLatin1String("error.open.notPdf"), path};
+                              return 12;
+                          },
+                          [&asked](const QString& path, int page) -> core::Result<core::StampPage> {
+                              asked.emplace_back(path, page);
+                              if (page == 8)
+                                  return core::Error{core::ErrorCode::Unsupported, QLatin1String("error.edit.stampPageUnsupported"),
+                                                     QStringLiteral("filter")};
+                              return core::StampPage{QByteArray("%PDF-1.7 page ") + QByteArray::number(page), 300.0, 150.0};
+                          }});
+    dialog.setSource(ui::CustomStampDialog::Source::PdfPage);
+    CHECK_FALSE(dialog.made());   // nothing chosen yet: OK disabled, and why said under the source
+    CHECK_FALSE(dialog.refusal().isEmpty());
+    CHECK_FALSE(dialog.findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->isEnabled());
+
+    const QString pdf = QStringLiteral(RAWPAGE_CORPUS_DIR "/assembly/refs-every-kind.pdf");
+    REQUIRE(dialog.setPdfPath(pdf));
+    CHECK(dialog.pageNumberBox()->maximum() == 12);
+    CHECK(dialog.pageNumberBox()->value() == 1);
+    // Page 3, as a person turning the box: read once as it is chosen, its number and size said, named for it.
+    dialog.pageNumberBox()->setValue(3);
+    REQUIRE(asked.size() == 2);
+    CHECK(asked.back() == std::pair<QString, int>{pdf, 2});
+    CHECK(dialog.pageInfo().contains(QStringLiteral("3")));
+    CHECK(dialog.pageInfo().contains(QStringLiteral("12")));
+    CHECK(dialog.pageInfo().contains(QStringLiteral("300")));
+    auto made = dialog.made();
+    REQUIRE(made);
+    REQUIRE(made->page.has_value());
+    CHECK(made->page->graph == QByteArray("%PDF-1.7 page 2"));
+    CHECK(made->image.isEmpty());
+    CHECK(made->name.contains(QStringLiteral("refs-every-kind")));
+    CHECK(made->name.contains(QStringLiteral("3")));
+    CHECK(made->category == QStringLiteral("Office"));   // under the person's own, as an image is
+    CHECK(made->sourceName == QStringLiteral("refs-every-kind.pdf"));
+
+    // A page that cannot be a stamp: refused BY ITS KEY under the source, OK disabled -- and the next page is fine.
+    dialog.setPdfPage(9);
+    CHECK_FALSE(dialog.made());
+    CHECK(dialog.refusal().contains(QStringLiteral("filter")));
+    CHECK_FALSE(dialog.findChild<QDialogButtonBox*>()->button(QDialogButtonBox::Ok)->isEnabled());
+    dialog.setPdfPage(10);
+    CHECK(dialog.made());
+    // A name the person typed is theirs: a later page does not overwrite it.
+    dialog.setName(QStringLiteral("Letterhead"));
+    dialog.setPdfPage(11);
+    CHECK(dialog.made()->name == QStringLiteral("Letterhead"));
+    // A file that is not one: refused by name.
+    CHECK_FALSE(dialog.setPdfPath(QStringLiteral(RAWPAGE_CORPUS_DIR "/stamps/seal-rgba.png")));
+    CHECK_FALSE(dialog.made());
+    CHECK(dialog.refusal().contains(QStringLiteral("seal-rgba.png")));
+}
+
+TEST_CASE("stamps.page_source: a page stamp is kept, listed, chosen and placed through the window", "[stamps][A-89][D7-36]")
+{
+    Stamping s(true);
+    ui::StampPalettePane* palette = s.window->stampPalette();
+    ui::CustomStampDialog::Made made;
+    made.name = QStringLiteral("Page three");
+    made.category = QStringLiteral("Pages");
+    made.page = core::StampPage{QByteArray("%PDF-1.7 fake stamp page 2"), 300.0, 150.0};
+    made.sourceName = QStringLiteral("refs-every-kind.pdf");
+    REQUIRE(s.window->addCustomStamp(made));
+    REQUIRE(s.library->stamps().size() == 1);
+    const core::CustomStamp kept = s.library->stamps()[0];
+    CHECK(kept.format == QStringLiteral("pdf"));
+    const QString key = QStringLiteral("custom:") + kept.id;
+    CHECK(keysUnder(*palette, QStringLiteral("Pages")) == std::vector<QString>{key});
+    // Chosen, its page read from the library ONCE, the image empty, the tool armed.
+    CHECK(palette->chosenKey() == key);
+    CHECK(ui::currentStamp().kind == ui::StampChoice::Kind::Custom);
+    CHECK(ui::currentStamp().page == *made.page);
+    CHECK(ui::currentStamp().image.isEmpty());
+    CHECK(s.view->tools().armedAnnotation() == ui::AnnotationToolKind::Stamp);
+    // The tool makes a PAGE stamp of it: no /Name, no intent, its subject the library's name, sized as an image is.
+    auto placed = ui::StampTool::stampAt(*s.view, 0, core::PdfPoint{200, 400});
+    REQUIRE(placed);
+    CHECK(core::stampKind(placed.value()) == core::StampKind::Page);
+    CHECK(placed.value().subject == QStringLiteral("Page three"));
+    CHECK(std::abs(placed.value().rect.size.width - core::kImageStampMaxSide) < 1e-9);
+    CHECK(std::abs(placed.value().rect.size.height - core::kImageStampMaxSide / 2.0) < 1e-9);
+    // Its picture: the window opened the library's page from its bytes to draw it -- the fake backend has no rasterizer,
+    // so none is kept, and the palette lists it with a glyph and still chooses it.
+    CHECK(s.fixture.backend.openedBytes.contains(made.page->graph));
+    CHECK_FALSE(s.library->previewBytes(kept.id).has_value());
+    REQUIRE(palette->choose(QStringLiteral("standard:Draft")));
+    REQUIRE(palette->choose(key));
+    CHECK(ui::currentStamp().page == *made.page);
+}

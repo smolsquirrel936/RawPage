@@ -9,6 +9,7 @@
 #include "core/doc/DrawnShapes.h"
 #include "core/doc/Stamps.h"
 #include "pdf/cos/ContentStreamBuilder.h"
+#include "pdf/ops/PageStamp.h"
 
 #include <QLatin1String>
 #include <QString>
@@ -1114,6 +1115,27 @@ core::Result<Appearance> imageStamp(const core::Annotation& a, AppearanceObjects
                       content.bytes()};
 }
 
+// Stage 7 T13 (D7-36): a page stamp -- the page's form, written once per save by key, painted as the page shows. Its
+// `/BBox` is the page AS SHOWN, in the page's own points, not the natural box: the scale onto the rectangle is then the
+// reader's Algorithm 8.1, in its own precision, and the stream's `cm` only turns and moves -- a `cm` that scaled would be
+// written to a ten-thousandth (0.2566 for 0.256566…), 0.07 of a pixel across an A4 page, which snapped the identity's
+// baseline a whole row away from the page's own (Stage 7 guide A-89's first run). The box's PROPORTIONS are the natural
+// box's, so the turn, the resize and the rectangle are exactly as for any stamp.
+core::Result<Appearance> pageStamp(const core::Annotation& a, AppearanceObjects& objects)
+{
+    auto form = PageStamp::form(a.stampPage, objects);
+    if (!form) return form.error();
+    const core::PdfRect& box = form.value().box;
+    const bool sideways = form.value().rotate == 90 || form.value().rotate == 270;
+    const core::PdfSize shown{sideways ? box.size.height : box.size.width, sideways ? box.size.width : box.size.height};
+    const std::array<double, 6> m = PageStamp::showMatrix(box, form.value().rotate, shown.width, shown.height);
+    cos::ContentStreamBuilder content;
+    content.save().graphicsState("GS0").concat(m[0], m[1], m[2], m[3], m[4], m[5]).paintXObject("Pg0").restore();
+    return Appearance{stampForm(shown, core::stampRotation(a), opacityState(opacityOf(a), blendOf(a).value_or(QString())), {},
+                                {{"Pg0", CosObject::makeReference(form.value().at.number, form.value().at.generation)}}),
+                      content.bytes()};
+}
+
 core::Result<Appearance> stamp(const core::Annotation& a, AppearanceObjects& objects)
 {
     const core::StampKind kind = core::stampKind(a);
@@ -1122,6 +1144,7 @@ core::Result<Appearance> stamp(const core::Annotation& a, AppearanceObjects& obj
     core::Result<core::PdfSize> natural = core::stampNaturalSize(a);
     if (!natural) return natural.error();
     if (kind == core::StampKind::Image) return imageStamp(a, objects, natural.value());
+    if (kind == core::StampKind::Page) return pageStamp(a, objects);
     return wordStamp(a, objects, natural.value());
 }
 
@@ -1361,27 +1384,42 @@ class DryRun final : public AppearanceObjects {
 public:
     cos::CosRef shared(const std::string&, cos::CosObject) override { return cos::CosRef{0, 0}; }
     cos::CosRef sharedStream(const std::string&, cos::CosObject, std::string) override { return cos::CosRef{0, 0}; }
+    cos::CosRef reserved(const std::string&) override { return cos::CosRef{0, 0}; }
 };
 
 } // namespace
 
 cos::CosRef CollectedAppearanceObjects::shared(const std::string& key, cos::CosObject object)
 {
-    for (const Entry& entry : entries_) {
-        if (entry.key == key) return entry.at;
+    for (Entry& entry : entries_) {
+        if (entry.key != key) continue;
+        if (!entry.written) entry = Entry{key, entry.at, std::move(object), std::nullopt, true};
+        return entry.at;
     }
     const cos::CosRef at{first_ + static_cast<long long>(entries_.size()), 0};
-    entries_.push_back(Entry{key, at, std::move(object), std::nullopt});
+    entries_.push_back(Entry{key, at, std::move(object), std::nullopt, true});
     return at;
 }
 
 cos::CosRef CollectedAppearanceObjects::sharedStream(const std::string& key, cos::CosObject dictionary, std::string data)
 {
+    for (Entry& entry : entries_) {
+        if (entry.key != key) continue;
+        if (!entry.written) entry = Entry{key, entry.at, std::move(dictionary), std::move(data), true};
+        return entry.at;
+    }
+    const cos::CosRef at{first_ + static_cast<long long>(entries_.size()), 0};
+    entries_.push_back(Entry{key, at, std::move(dictionary), std::move(data), true});
+    return at;
+}
+
+cos::CosRef CollectedAppearanceObjects::reserved(const std::string& key)
+{
     for (const Entry& entry : entries_) {
         if (entry.key == key) return entry.at;
     }
     const cos::CosRef at{first_ + static_cast<long long>(entries_.size()), 0};
-    entries_.push_back(Entry{key, at, std::move(dictionary), std::move(data)});
+    entries_.push_back(Entry{key, at, cos::CosObject::makeNull(), std::nullopt, false});
     return at;
 }
 

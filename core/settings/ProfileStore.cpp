@@ -4,6 +4,8 @@
 #include "core/settings/ProfileStore.h"
 
 #include "core/doc/Annotation.h"
+#include "core/doc/CopiedPages.h"
+#include "core/doc/Stamps.h"
 
 #include <QDir>
 #include <QFile>
@@ -87,6 +89,8 @@ QString ProfileStore::imagePath(const CustomStamp& stamp) const
     return QDir(root_).filePath(stamp.id + QLatin1Char('.') + stamp.format);
 }
 
+QString ProfileStore::previewPath(const QString& id) const { return QDir(root_).filePath(id + QStringLiteral(".preview.png")); }
+
 void ProfileStore::load()
 {
     stamps_.clear();
@@ -132,9 +136,16 @@ void ProfileStore::load()
         stamp.favourite = o.value(QStringLiteral("favourite")).toBool();
         stamp.format = o.value(QStringLiteral("format")).toString();
         stamp.created = static_cast<std::int64_t>(o.value(QStringLiteral("created")).toDouble());
-        const bool formatKnown = stamp.format == QLatin1String("png") || stamp.format == QLatin1String("jpg");
+        // Stage 7 T13: a page's size checked as a command checks it -- the graph itself is read when it is placed.
+        const bool page = stamp.format == QLatin1String("pdf");
+        if (page) {
+            stamp.pageWidth = o.value(QStringLiteral("pageWidth")).toDouble();
+            stamp.pageHeight = o.value(QStringLiteral("pageHeight")).toDouble();
+        }
+        const bool sized = !page || !invalidStampPage(StampPage{QByteArray("%PDF-"), stamp.pageWidth, stamp.pageHeight});
+        const bool formatKnown = stamp.format == QLatin1String("png") || stamp.format == QLatin1String("jpg") || page;
         if (o.value(QStringLiteral("version")).toInt() != 1 || !validName(stamp.name) || !validCategory(stamp.category)
-            || !formatKnown || !QFileInfo(imagePath(stamp)).isFile()) {
+            || !formatKnown || !sized || !QFileInfo(imagePath(stamp)).isFile()) {
             damaged_ << file;
             continue;
         }
@@ -174,6 +185,10 @@ Status ProfileStore::writeDescription(const CustomStamp& stamp) const
     o.insert(QStringLiteral("favourite"), stamp.favourite);
     o.insert(QStringLiteral("format"), stamp.format);
     o.insert(QStringLiteral("created"), static_cast<double>(stamp.created));
+    if (stamp.format == QLatin1String("pdf")) {
+        o.insert(QStringLiteral("pageWidth"), stamp.pageWidth);
+        o.insert(QStringLiteral("pageHeight"), stamp.pageHeight);
+    }
     return writeWhole(descriptionPath(stamp.id), QJsonDocument(o).toJson(QJsonDocument::Indented));
 }
 
@@ -202,14 +217,63 @@ Result<CustomStamp> ProfileStore::add(const QString& name, const QString& catego
     stamp.category = category.trimmed();
     stamp.format = format;
     stamp.created = utcNow;
-    // The image first: a description is never on disk without the image it names.
-    if (Status written = writeWhole(imagePath(stamp), image); !written) return written.error();
+    return keep(std::move(stamp), image);
+}
+
+Result<CustomStamp> ProfileStore::keep(CustomStamp stamp, const QByteArray& file)
+{
+    // The file first: a description is never on disk without the file it names.
+    if (Status written = writeWhole(imagePath(stamp), file); !written) return written.error();
     if (Status written = writeDescription(stamp); !written) {
         QFile::remove(imagePath(stamp));
         return written.error();
     }
     stamps_.push_back(stamp);
     return stamp;
+}
+
+Result<CustomStamp> ProfileStore::addPage(const QString& name, const QString& category, const StampPage& page,
+                                          std::int64_t utcNow, const QString& sourceName)
+{
+    if (invalidStampPage(page)) return storeError("error.stamps.notAPage", sourceName);
+    if (!validName(name) || !validCategory(category.trimmed())) return storeError("error.stamps.badName", name);
+    if (static_cast<int>(stamps_.size()) >= kMaxStamps) return storeError("error.stamps.full");
+    if (!QDir().mkpath(root_)) return Error{ErrorCode::IoFailure, QLatin1String("error.stamps.writeFailed"), root_};
+    CustomStamp stamp;
+    stamp.id = newAnnotationName();
+    stamp.name = name.trimmed();
+    stamp.category = category.trimmed();
+    stamp.format = QStringLiteral("pdf");
+    stamp.created = utcNow;
+    stamp.pageWidth = page.width;
+    stamp.pageHeight = page.height;
+    return keep(std::move(stamp), page.graph);
+}
+
+Result<StampPage> ProfileStore::pageOf(const QString& id) const
+{
+    const std::optional<CustomStamp> stamp = find(id);
+    if (!stamp || stamp->format != QLatin1String("pdf")) return storeError("error.stamps.unknown", id);
+    std::optional<QByteArray> bytes = readCapped(imagePath(*stamp), kMaxCopiedGraphBytes);
+    StampPage page{bytes.value_or(QByteArray()), stamp->pageWidth, stamp->pageHeight};
+    if (!bytes || invalidStampPage(page))
+        return Error{ErrorCode::IoFailure, QLatin1String("error.stamps.damaged"), stamp->id + QStringLiteral(".pdf")};
+    return page;
+}
+
+Status ProfileStore::setPreview(const QString& id, const QByteArray& png)
+{
+    if (!find(id)) return storeError("error.stamps.unknown", id);
+    if (imageFormatOf(png) != QLatin1String("png") || png.size() > kMaxImageBytes) return storeError("error.stamps.notAnImage", id);
+    return writeWhole(previewPath(id), png);
+}
+
+std::optional<QByteArray> ProfileStore::previewBytes(const QString& id) const
+{
+    if (!find(id)) return std::nullopt;
+    std::optional<QByteArray> bytes = readCapped(previewPath(id), kMaxImageBytes);
+    if (!bytes || imageFormatOf(*bytes) != QLatin1String("png")) return std::nullopt;
+    return bytes;
 }
 
 Status ProfileStore::rename(const QString& id, const QString& name)
@@ -274,6 +338,7 @@ Status ProfileStore::remove(const QString& id)
     // The description first: an image with no description is not a stamp, and `load` never lists it.
     if (!QFile::remove(descriptionPath(id))) return Error{ErrorCode::IoFailure, QLatin1String("error.stamps.writeFailed"), id};
     QFile::remove(imagePath(*found));
+    QFile::remove(previewPath(id));
     stamps_.erase(found);
     return Status{};
 }
@@ -282,6 +347,8 @@ Result<QByteArray> ProfileStore::imageBytes(const QString& id) const
 {
     const std::optional<CustomStamp> stamp = find(id);
     if (!stamp) return storeError("error.stamps.unknown", id);
+    if (stamp->format == QLatin1String("pdf"))
+        return Error{ErrorCode::IoFailure, QLatin1String("error.stamps.damaged"), stamp->id + QStringLiteral(".pdf")};
     std::optional<QByteArray> bytes = readCapped(imagePath(*stamp), kMaxImageBytes);
     if (!bytes || imageFormatOf(*bytes) != stamp->format)
         return Error{ErrorCode::IoFailure, QLatin1String("error.stamps.damaged"), stamp->id + QStringLiteral(".") + stamp->format};

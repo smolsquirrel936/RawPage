@@ -1,5 +1,5 @@
-// ui/dialogs/CustomStampDialog -- implementation. Stage 6 T10. See the header for the three sources and why none
-// is a PDF.
+// ui/dialogs/CustomStampDialog -- implementation. Stage 6 T10; the PDF page, Stage 7 T13. See the header for the four
+// sources.
 
 #include "ui/dialogs/CustomStampDialog.h"
 
@@ -29,6 +29,7 @@
 #include <QScreen>
 #include <QScrollBar>
 #include <QSignalBlocker>
+#include <QSpinBox>
 #include <QStyledItemDelegate>
 #include <QTabWidget>
 #include <QTableWidget>
@@ -276,6 +277,29 @@ CustomStampDialog::CustomStampDialog(const QStringList& categories, QWidget* par
     typeColumn->addWidget(typed_);
     typeColumn->addWidget(typedPreview_, 1);
     sources_->addTab(typePage, catalog::translate(catalog::key::StampsDialogSourceTyped));
+    // A page of a PDF (Stage 7 T13).
+    auto* pdfPage = new QWidget(sources_);
+    auto* pdfColumn = new QVBoxLayout(pdfPage);
+    auto* pdfRow = new QHBoxLayout;
+    pdfPath_ = new QLineEdit(pdfPage);
+    pdfPath_->setObjectName(QStringLiteral("stampPdfPath"));
+    auto* pdfBrowse = new QPushButton(catalog::translate(catalog::key::StampsDialogBrowse), pdfPage);
+    pdfRow->addWidget(pdfPath_, 1);
+    pdfRow->addWidget(pdfBrowse);
+    pdfColumn->addLayout(pdfRow);
+    auto* numberRow = new QFormLayout;
+    pageNumber_ = new QSpinBox(pdfPage);
+    pageNumber_->setObjectName(QStringLiteral("stampPdfPageNumber"));
+    pageNumber_->setRange(1, 1);
+    pageNumber_->setEnabled(false);
+    numberRow->addRow(catalog::translate(catalog::key::StampsDialogPage), pageNumber_);
+    pdfColumn->addLayout(numberRow);
+    pageInfo_ = new QLabel(pdfPage);
+    pageInfo_->setObjectName(QStringLiteral("stampPdfPageInfo"));
+    pageInfo_->setMinimumHeight(48);
+    pageInfo_->setAlignment(Qt::AlignCenter);
+    pdfColumn->addWidget(pageInfo_, 1);
+    sources_->addTab(pdfPage, catalog::translate(catalog::key::StampsDialogSourcePage));
     column->addWidget(sources_, 1);
 
     form_ = new QFormLayout;
@@ -321,9 +345,14 @@ CustomStampDialog::CustomStampDialog(const QStringList& categories, QWidget* par
     connect(typed_, &QLineEdit::textChanged, this, [this] { refresh(); });
     connect(name_, &QLineEdit::textChanged, this, [this] { refresh(); });
     connect(category_, &QComboBox::currentTextChanged, this, [this] { refresh(); });
+    connect(pdfBrowse, &QPushButton::clicked, this, [this] { browsePdf(); });
+    connect(pdfPath_, &QLineEdit::editingFinished, this, [this] {
+        if (pdfPath_->text() != pdfFile_) (void)setPdfPath(pdfPath_->text());
+    });
+    connect(pageNumber_, &QSpinBox::valueChanged, this, [this] { readPage(); });
     connect(sources_, &QTabWidget::currentChanged, this, [this](int index) {
-        // Initials go under Signatures unless the person chose otherwise.
-        if (index != static_cast<int>(Source::ImageFile)) category_->setCurrentIndex(0);
+        // Initials go under Signatures unless the person chose otherwise; an image and a page under their own.
+        if (index == static_cast<int>(Source::Drawn) || index == static_cast<int>(Source::Typed)) category_->setCurrentIndex(0);
         refresh();
     });
     // An image is filed under the person's first category, or one named for them; initials under Signatures.
@@ -355,6 +384,78 @@ void CustomStampDialog::browse()
                                                             QString(), imageFilter());
     if (!paths.isEmpty()) (void)setImagePaths(paths);
 }
+
+QString CustomStampDialog::pdfFilter()
+{
+    return catalog::translate(catalog::key::StampsDialogPdfFilter) + QStringLiteral(" (*.pdf)");
+}
+
+void CustomStampDialog::browsePdf()
+{
+    const QString path = QFileDialog::getOpenFileName(this, catalog::translate(catalog::key::StampsDialogBrowse), QString(), pdfFilter());
+    if (!path.isEmpty()) (void)setPdfPath(path);
+}
+
+bool CustomStampDialog::setPdfPath(const QString& path)
+{
+    pdfFile_ = path;
+    pdfPath_->setText(path);
+    pageCount_ = 0;
+    page_.reset();
+    pageRefusal_.clear();
+    core::Result<int> count = pageSource_.count ? pageSource_.count(path)
+                                                : core::Result<int>(core::Error{core::ErrorCode::Unavailable,
+                                                                                QLatin1String("error.stamps.noLibrary"), QString()});
+    {
+        const QSignalBlocker quiet(pageNumber_);
+        pageNumber_->setRange(1, std::max(1, count ? count.value() : 1));
+        pageNumber_->setValue(1);
+    }
+    if (!count || count.value() <= 0) {
+        pageRefusal_ = count ? catalog::translateError(QStringLiteral("error.stamps.notAPage"), QFileInfo(path).fileName())
+                             : catalog::translateError(QString(count.error().messageKey), count.error().context.isEmpty()
+                                                                                                ? QFileInfo(path).fileName()
+                                                                                                : count.error().context);
+        pageNumber_->setEnabled(false);
+        refresh();
+        return false;
+    }
+    pageCount_ = count.value();
+    pageNumber_->setEnabled(true);
+    readPage();
+    return page_.has_value();
+}
+
+void CustomStampDialog::setPdfPage(int oneBased) { pageNumber_->setValue(oneBased); }
+
+void CustomStampDialog::readPage()
+{
+    page_.reset();
+    pageRefusal_.clear();
+    if (pageCount_ <= 0 || !pageSource_.page) {
+        refresh();
+        return;
+    }
+    const int index = pageNumber_->value() - 1;
+    core::Result<core::StampPage> read = pageSource_.page(pdfFile_, index);
+    if (read) {
+        page_ = std::move(read).value();
+        // A name for it to start with: the file's, and the page's number -- the person's to change.
+        const QString suggested = catalog::translate(catalog::key::StampsDialogPageName)
+                                      .arg(QFileInfo(pdfFile_).completeBaseName())
+                                      .arg(index + 1)
+                                      .left(core::ProfileStore::kMaxNameLength);
+        if (name_->text().trimmed().isEmpty() || name_->property("suggested").toString() == name_->text()) {
+            name_->setText(suggested);
+            name_->setProperty("suggested", suggested);
+        }
+    } else {
+        pageRefusal_ = catalog::translateError(QString(read.error().messageKey), read.error().context);
+    }
+    refresh();
+}
+
+QString CustomStampDialog::pageInfo() const { return pageInfo_->text(); }
 
 bool CustomStampDialog::setImagePath(const QString& path)
 {
@@ -526,6 +627,12 @@ std::vector<CustomStampDialog::Made> CustomStampDialog::madeAll() const
         base.image = pngOf(typedPicture());
         out.push_back(std::move(base));
         break;
+    case Source::PdfPage:
+        base.name = name_->text().trimmed();
+        base.page = page_;
+        base.sourceName = QFileInfo(pdfFile_).fileName();
+        out.push_back(std::move(base));
+        break;
     }
     return out;
 }
@@ -545,6 +652,10 @@ QString CustomStampDialog::refusal() const
         break;
     case Source::Typed:
         if (typed_->text().trimmed().isEmpty()) return catalog::translate(catalog::key::StampsDialogNeedText);
+        break;
+    case Source::PdfPage:
+        if (!pageRefusal_.isEmpty()) return pageRefusal_;
+        if (!page_) return catalog::translate(catalog::key::StampsDialogNeedPdf);
         break;
     }
     if (nameBoxShown()) {
@@ -580,6 +691,13 @@ void CustomStampDialog::refresh()
                                                 : QPixmap::fromImage(typed.scaled(320, 96, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
     }
     form_->setRowVisible(name_, nameBoxShown());
+    // The page read: its number of the file's, and the size it shows, in whole points.
+    pageInfo_->setText(page_ ? catalog::translate(catalog::key::StampsDialogPageInfo)
+                                   .arg(pageNumber_->value())
+                                   .arg(pageCount_)
+                                   .arg(std::lround(page_->width))
+                                   .arg(std::lround(page_->height))
+                             : QString());
     const QString why = refusal();
     refusal_->setText(why.isEmpty() ? notice() : why);
     if (QPushButton* ok = buttons_->button(QDialogButtonBox::Ok)) {

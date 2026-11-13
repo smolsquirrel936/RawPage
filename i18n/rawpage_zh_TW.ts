@@ -3294,6 +3294,10 @@
         <translation>此影像無法製成印章（%1）</translation>
     </message>
     <message>
+        <source>error.edit.stampPageUnsupported</source>
+        <translation>此頁面無法製成印章（%1）</translation>
+    </message>
+    <message>
         <source>error.edit.stampUnknown</source>
         <translation>沒有名為 %1 的印章</translation>
     </message>
@@ -3327,7 +3331,11 @@
     </message>
     <message>
         <source>error.stamps.notAnImage</source>
-        <translation>%1 不是影像：印章需以 PNG、JPEG、BMP 或 GIF 製作</translation>
+        <translation>%1 不是影像：影像印章需以 PNG、JPEG、BMP 或 GIF 製作，PDF 請使用「PDF 頁面」分頁</translation>
+    </message>
+    <message>
+        <source>error.stamps.notAPage</source>
+        <translation>%1 沒有可製成印章的頁面</translation>
     </message>
     <message>
         <source>error.stamps.reservedCategory</source>
@@ -6096,6 +6104,30 @@
     <message>
         <source>stamps.dialog.makeCount</source>
         <translation>建立 %1 個印章</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.source.page</source>
+        <translation>PDF 頁面</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.pdfFilter</source>
+        <translation>PDF 檔案</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.page</source>
+        <translation>頁碼：</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.pageInfo</source>
+        <translation>第 %1 頁，共 %2 頁，%3 × %4 點</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.pageName</source>
+        <translation>%1，第 %2 頁</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.need.pdf</source>
+        <translation>請選擇 PDF 檔案和頁面。</translation>
     </message>
     <message>
         <source>stamps.name.Approved</source>

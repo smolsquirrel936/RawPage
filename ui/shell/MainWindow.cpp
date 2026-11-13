@@ -5,6 +5,7 @@
 #include "core/cmd/commands/AttachmentCommands.h"
 #include "core/cmd/commands/PageCommands.h"
 #include "core/doc/MergeRunner.h"
+#include "core/doc/PageTree.h"
 #include "core/doc/PageWorkRunner.h"
 #include "core/doc/SplitRunner.h"
 #include "core/Log.h"
@@ -38,6 +39,7 @@
 #include "ui/viewer/ComparisonView.h"
 #include "ui/viewer/PropertiesBar.h"
 #include "ui/viewer/GridGuideLayer.h"
+#include "ui/viewer/HeldRaster.h"
 #include "ui/viewer/PageView.h"
 #include "ui/viewer/FullScreenController.h"
 #include "ui/viewer/PresentationSurface.h"
@@ -64,7 +66,10 @@
 #include "ui/shell/UiCustomization.h"
 #include "ui/shell/WindowArranger.h"
 
+#include <QBuffer>
+#include <QImageWriter>
 #include <QFile>
+#include <QPointer>
 #include <QStandardPaths>
 #include <QMessageBox>
 #include <QClipboard>
@@ -97,6 +102,7 @@
 #include <array>
 #include <optional>
 #include <string_view>
+#include <mutex>
 
 namespace rawpage::ui {
 
@@ -4159,6 +4165,10 @@ void MainWindow::registerAnnotationActions()
             MainWindow* window = activeShell();
             if (window == nullptr || window->services_.stamps == nullptr) return;
             CustomStampDialog dialog(window->services_.stamps->categories(), window);
+            // S7 T13: a PDF page is read through the backend as it is chosen -- copied once, by the layer that reads PDF.
+            core::IDocumentBackend* backend = &window->services_.backend;
+            dialog.setPageSource({[backend](const QString& path) { return backend->filePageCount(path); },
+                                  [backend](const QString& path, int page) { return backend->stampPage(path, page); }});
             if (dialog.exec() != QDialog::Accepted) return;
             if (const core::Status added = window->addCustomStamps(dialog.madeAll()); !added && window->status_)
                 window->status_->setMessage(catalog::translate(catalog::key::StatusAnnotationRefused)
@@ -4237,7 +4247,8 @@ core::Status MainWindow::addCustomStamps(const std::vector<CustomStampDialog::Ma
             continue;
         }
         core::Result<core::CustomStamp> added =
-            library->add(one.name, one.category, one.image, QDateTime::currentSecsSinceEpoch(), one.sourceName);
+            one.page ? library->addPage(one.name, one.category, *one.page, QDateTime::currentSecsSinceEpoch(), one.sourceName)
+                     : library->add(one.name, one.category, one.image, QDateTime::currentSecsSinceEpoch(), one.sourceName);
         if (!added) {
             if (!refused) refused = added.error();
             continue;
@@ -4246,6 +4257,7 @@ core::Status MainWindow::addCustomStamps(const std::vector<CustomStampDialog::Ma
         if (one.favourite) {
             if (const core::Status marked = library->setFavourite(added.value().id, true); !marked && !refused) refused = marked.error();
         }
+        if (one.page) (void)drawStampPicture(added.value().id);   // S7 T13: its picture, drawn once, after the fact
     }
     if (stampPalette_ != nullptr && !ids.empty()) {
         stampPalette_->reload();
@@ -4260,6 +4272,82 @@ core::Status MainWindow::addCustomStamps(const std::vector<CustomStampDialog::Ma
     }
     if (refused) return *refused;
     return core::Status{};
+}
+
+bool MainWindow::drawStampPicture(const QString& id)
+{
+    core::ProfileStore* library = services_.stamps;
+    if (library == nullptr) return false;
+    core::Result<core::StampPage> page = library->pageOf(id);
+    if (!page) return false;
+    if (!pageWork_) pageWork_ = std::make_unique<core::PageWorkRunner>(services_.renderScheduler);
+    if (pageWork_->isRunning()) {
+        RAWPAGE_LOG_INFO(LogSubsystem::Ui) << "stamp picture: the page runner is busy -- the palette shows a glyph for" << id;
+        return false;
+    }
+    // OPENED FROM ITS BYTES, as an attached PDF is (D6-17): a document no tab shows and nothing edits, closed when the
+    // picture is drawn. The REQUEST is made here; only the raster happens on the render thread.
+    core::IDocumentBackend* backend = &services_.backend;
+    core::Result<core::DocumentHandle> opened = backend->openBytes(page.value().graph, id, nullptr, core::BytesOrigin::Assembly);
+    if (!opened) {
+        RAWPAGE_LOG_WARNING(LogSubsystem::Ui) << "stamp picture: the page did not open --" << opened.error().messageKey;
+        return false;
+    }
+    const core::DocumentHandle handle = opened.value();
+    const core::PageTree* tree = backend->pages(handle);
+    const core::PdfSize shown = tree != nullptr && tree->count() == 1 ? tree->displaySize(0) : core::PdfSize{};
+    const double longest = std::max(shown.width, shown.height);
+    if (!(longest > 0.0) || backend->rasterizer(handle) == nullptr) {
+        (void)backend->close(handle);
+        return false;
+    }
+    core::render::RenderRequest request;
+    request.document = handle;
+    request.pageIndex = 0;
+    request.deviceScale = static_cast<double>(core::kThumbnailEdge) / longest;
+    request.revision = core::Revision::initial();
+    request.flags = core::render::RenderFlags::None;   // its content, as the stamp draws it: no comments
+    request.tile = core::render::TileRect{0, 0, std::max(1, static_cast<int>(std::ceil(shown.width * request.deviceScale))),
+                                          std::max(1, static_cast<int>(std::ceil(shown.height * request.deviceScale)))};
+    struct Drawn {
+        std::mutex mutex;
+        QImage picture;
+    };
+    auto drawn = std::make_shared<Drawn>();
+    const QPointer<MainWindow> self(this);
+    const core::Status started = pageWork_->start(
+        handle, {0},
+        [backend, handle, request, drawn](int) {
+            core::IPageRasterizer* rasterizer = backend->rasterizer(handle);
+            if (rasterizer == nullptr) return;
+            const core::Result<core::RasterImage> image = rasterizer->raster(request);
+            if (!image) return;
+            QImage picture = holdRaster(image.value()).image.convertToFormat(QImage::Format_RGB32);   // a deep copy
+            const std::lock_guard<std::mutex> guard(drawn->mutex);
+            drawn->picture = std::move(picture);
+        },
+        [self, backend, handle, id, drawn](core::Status) {
+            (void)backend->close(handle);
+            if (!self || self->services_.stamps == nullptr) return;
+            QByteArray png;
+            {
+                const std::lock_guard<std::mutex> guard(drawn->mutex);
+                if (drawn->picture.isNull()) return;
+                QBuffer buffer(&png);
+                QImageWriter writer(&buffer, "png");   // it opens the buffer: bytes in memory, no file
+                if (!writer.write(drawn->picture)) return;
+            }
+            if (const core::Status kept = self->services_.stamps->setPreview(id, png); !kept) {
+                RAWPAGE_LOG_WARNING(LogSubsystem::Ui) << "stamp picture: not kept --" << kept.error().messageKey;
+                return;
+            }
+            if (self->stampPalette_ != nullptr) self->stampPalette_->reload();
+        });
+    if (!started) {
+        (void)backend->close(handle);
+        return false;
+    }
+    return true;
 }
 
 core::Status MainWindow::pasteImage(const QImage& image)

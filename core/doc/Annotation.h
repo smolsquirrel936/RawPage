@@ -143,6 +143,21 @@ struct StampImage {
     bool operator==(const StampImage&) const = default;
 };
 
+// THE PAGE A PAGE STAMP DRAWS (Stage 7 T13, `Stage7-Assembly-Plan.md` D7-36) -- held by the model for a stamp RawPage
+// made from a PDF page, and by the command that made it, as `StampImage` is for a picture. `graph` is the page as
+// `pdf/ops/ObjectGraphCopier` copied it -- D7-6's payload, a PDF of its own holding that one page and everything its
+// content reaches -- which `core/` carries and never reads; `width` and `height` are the page as SHOWN, its CropBox
+// within its MediaBox turned by its `/Rotate`, in points, read once by `pdf/ops/PageStamp` when the stamp was made.
+// A stamp READ from a file has none: its page is in its own appearance, carried and never redrawn (`core/doc/Stamps`).
+struct StampPage {
+    QByteArray graph;
+    double width = 0.0;
+    double height = 0.0;
+
+    bool isEmpty() const noexcept { return graph.isEmpty(); }
+    bool operator==(const StampPage&) const = default;
+};
+
 // ONE EMBEDDED FILE AS THE MODEL HOLDS IT (Stage 6 T11, D6-17) -- what a file specification with an `/EF` says
 // about the file it carries: its name, description, type, size, dates and checksum. Declared HERE rather than in
 // `core/doc/Attachments` because a `FileAttachment` annotation carries one too (its `/FS`), and the annotation is
@@ -269,6 +284,7 @@ struct Annotation {
     int justification = 0;                      // /Q, free text: 0 left, 1 centred, 2 right (Stage 6 T7)
     bool hasAppearance = false;                 // /AP present
     StampImage image;                           // Stage 6 T10: an image stamp's pixels -- never read from a file
+    StampPage stampPage;                        // Stage 7 T13: a page stamp's page -- never read from a file
     // Stage 6 T11: a FileAttachment's `/FS` -- the file it carries, its bytes only when RawPage attached it.
     std::optional<EmbeddedFile> attachment;
 

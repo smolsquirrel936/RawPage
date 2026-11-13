@@ -106,6 +106,7 @@ struct DuplicatedPages;      // core/doc/PageMap.h         -- Stage 7 T2
 struct AnnotationCopy;       // core/doc/Annotation.h      -- Stage 7 T2
 struct CopiedPages;          // core/doc/CopiedPages.h     -- Stage 7 T5 (D7-4, D7-6)
 struct InsertedPages;        // core/doc/CopiedPages.h     -- Stage 7 T5
+struct StampPage;            // core/doc/Annotation.h      -- Stage 7 T13 (D7-36)
 struct PageBoxes;            // core/doc/Page.h            -- Stage 7 T9 (D7-15)
 struct PageContentWrap;      // core/doc/Page.h            -- Stage 7 T9 (D7-7, D7-32)
 struct PageLabelSpec;        // core/doc/Page.h            -- Stage 7 T9
@@ -727,6 +728,11 @@ public:
     // `count` BLANK pages of `size` points -- no content stream, an empty `/Resources` -- as the same payload (guide
     // A-45). Refused for a size outside ISO 32000-1 Annex C's 3 ... 14,400 units.
     virtual Result<CopiedPages> blankPages(PdfSize size, int count) = 0;
+    // A PAGE AS A STAMP -- Stage 7 T13 (`Stage7-Assembly-Plan.md` D7-36): page `page` of the PDF at `path`, copied as
+    // `copyPages` copies it, and checked as `pdf/ops/PageStamp` will draw it -- its content one form XObject, every
+    // filter it names one this writer reads -- with the size it shows. Refused by `copyPages`' keys, and by
+    // `error.edit.stampPageUnsupported` naming what the page holds that a stamp cannot draw. Changes nothing.
+    virtual Result<StampPage> stampPage(const QString& path, int page) = 0;
 
     // NEW DOCUMENTS FROM THIS ONE -- Stage 7 T7 (`Stage7-Assembly-Plan.md` D7-5, D7-30). A SNAPSHOT of `document` as
     // it stands now: the newest revision on disk followed by its unsaved update, composed as a save would compose

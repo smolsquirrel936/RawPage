@@ -40,6 +40,7 @@
 #include "core/doc/TypedText.h"
 #include "pdf/ops/ObjectGraphCopier.h"
 #include "pdf/ops/AppearanceStreamBuilder.h"
+#include "pdf/ops/PageStamp.h"
 
 #include <QFile>
 #include <QJsonDocument>
@@ -64,6 +65,21 @@ namespace fs = std::filesystem;
 
 // The instant every in-place command of the sweep stamps (2026-10-10T00:00:00Z).
 constexpr std::int64_t kEditInstant = 1791590400;
+
+// Stage 7 T13: refs-every-kind.pdf's page 3 as a stamp's page, read once for the whole sweep -- nothing when it cannot be.
+const std::optional<core::StampPage>& pageThree()
+{
+    static const std::optional<core::StampPage> page = []() -> std::optional<core::StampPage> {
+        QFile file(QString::fromStdString(std::string(RAWPAGE_CORPUS_DIR) + "/assembly/refs-every-kind.pdf"));
+        if (!file.open(QIODevice::ReadOnly)) return std::nullopt;
+        const QByteArray bytes = file.readAll();
+        auto copied = pdf::ops::ObjectGraphCopier::copyFile(std::string_view(bytes.constData(), static_cast<std::size_t>(bytes.size())), {2});
+        if (!copied) return std::nullopt;
+        auto made = pdf::ops::PageStamp::fromPayload(copied.value().graph);
+        return made ? std::optional<core::StampPage>(made.value()) : std::nullopt;
+    }();
+    return page;
+}
 
 // What page `page` owns, in its listing order.
 std::vector<core::AnnotationId> ownedIds(const core::Document& document, int page)
@@ -522,6 +538,16 @@ const Generators& registeredGenerators()
                      if (core::Result<core::Annotation> a = core::newImageStamp(image.value(), QStringLiteral("Swatch"), page,
                                                                                 core::PdfPoint{x, 460}, QStringLiteral("Reversibility"), 1791504000))
                          stamps.push_back(a.value());
+                 }
+             }
+             // Stage 7 T13 (D7-36): a PAGE stamp -- refs-every-kind.pdf's page 3, its graph one in the update -- placed
+             // twice, once turned.
+             if (const std::optional<core::StampPage>& three = pageThree()) {
+                 for (const int turn : {0, 90}) {
+                     if (core::Result<core::Annotation> a = core::newPageStamp(*three, QStringLiteral("P-0003"), page,
+                                                                               core::PdfPoint{220.0 + turn, 380}, QStringLiteral("Reversibility"), 1791504000)) {
+                         if (core::Result<core::Annotation> turned = core::rotatedStamp(a.value(), turn)) stamps.push_back(turned.value());
+                     }
                  }
              }
              out.push_back(std::make_unique<core::AddAnnotationCommand>(std::move(stamps)));
@@ -1058,6 +1084,7 @@ TEST_CASE("reversibility of every registered command over every editable corpus 
     const std::vector<std::string> missing = missingGenerators(registeredGenerators());
     INFO("registered type ids with no generator: " << missing.size());
     CHECK(missing.empty());
+    REQUIRE(pageThree().has_value());   // Stage 7 T13: the page stamp is in `annot.add`'s set, not silently left out
 
     const std::vector<fs::path> files = corpusFiles();
     const Report report = runReversibility(registeredGenerators(), files);

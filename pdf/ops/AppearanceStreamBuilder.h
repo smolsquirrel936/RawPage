@@ -81,6 +81,11 @@
 // ONE object in a save (guide A-78). A stamp RawPage cannot redraw -- a foreign one, or an image stamp read from
 // a file, whose pixels the model does not hold -- is refused by key (`error.edit.stampNotRedrawable`).
 //
+// A PAGE stamp (Stage 7 T13, D7-36) paints one form XObject over its box: the page, written by `pdf/ops/PageStamp`
+// through `AppearanceObjects` by the graph's SHA-256 -- so one page placed many times is ONE graph in a save (guide
+// A-90) -- its `/BBox` the page AS SHOWN in the page's own points, a `cm` turning the page upright (`PageStamp::showMatrix`),
+// and the scale onto the rectangle the reader's Algorithm 8.1: a scale in the stream would be written to a ten-thousandth.
+//
 // ===========================================================================================
 // A REDACTION MARK AND A SOUND -- Stage 6 T14 (D6-25, D6-18)
 // ===========================================================================================
@@ -129,6 +134,10 @@ public:
     // Stage 6 T10: the same for a STREAM -- `dictionary` with an empty data descriptor, `data` its bytes as they
     // are to be written (already encoded: the writer adds `/Length` and nothing else). An image stamp's picture.
     virtual cos::CosRef sharedStream(const std::string& key, cos::CosObject dictionary, std::string data) = 0;
+    // Stage 7 T13: the reference `key`'s object WILL be written at, before it is -- so objects that name each other (a
+    // page stamp's graph, `pdf/ops/PageStamp`) can each be written once. The caller then writes it, under the same
+    // key, with `shared` or `sharedStream`, which return this reference. A key already written returns its reference.
+    virtual cos::CosRef reserved(const std::string& key) = 0;
 };
 
 // Keeps what it is handed, numbered from `first` up -- for a dry run, and for a case that reads the objects.
@@ -137,12 +146,14 @@ public:
     explicit CollectedAppearanceObjects(long long first = 1) : first_(first) {}
     cos::CosRef shared(const std::string& key, cos::CosObject object) override;
     cos::CosRef sharedStream(const std::string& key, cos::CosObject dictionary, std::string data) override;
+    cos::CosRef reserved(const std::string& key) override;
 
     struct Entry {
         std::string key;
         cos::CosRef at;
         cos::CosObject object;
         std::optional<std::string> data;   // a stream's bytes (T10)
+        bool written = true;               // S7 T13: false while it is only reserved
     };
     const std::vector<Entry>& entries() const noexcept { return entries_; }
     const cos::CosObject* find(cos::CosRef at) const;

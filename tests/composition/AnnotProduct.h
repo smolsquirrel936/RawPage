@@ -84,6 +84,12 @@ struct Product {
         QFile::remove(target);
         REQUIRE(QFile::copy(source, target));
         QFile::setPermissions(target, QFile::ReadOwner | QFile::WriteOwner);
+        return openFile(target);
+    }
+
+    // A file the case made itself, already in the scratch directory (Stage 7 T13: a blank page).
+    ui::PageView* openFile(const QString& target)
+    {
         openedPath = target;
         window->openFiles({target});
         for (QWidget* widget : window->findChildren<QWidget*>())

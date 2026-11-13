@@ -19,6 +19,7 @@
 #include "pdf/ops/OutlineFiles.h"
 #include "pdf/ops/OutlineReader.h"
 #include "pdf/ops/PageOps.h"
+#include "pdf/ops/PageStamp.h"
 #include "pdf/ops/ObjectGraphCopier.h"
 #include "pdf/ops/TransitionReader.h"
 #include "pdf/ops/RevisionWriter.h"
@@ -807,6 +808,18 @@ core::Result<int> DocumentBackendImpl::filePageCount(const QString& path)
 core::Result<core::CopiedPages> DocumentBackendImpl::blankPages(core::PdfSize size, int count)
 {
     return ops::ObjectGraphCopier::blankPages(size, count);
+}
+
+// Stage 7 T13 (D7-36): the page copied as an insert copies it, then read as the stamp will draw it.
+core::Result<core::StampPage> DocumentBackendImpl::stampPage(const QString& path, int page)
+{
+    auto copied = copyPages(path, {page});
+    if (!copied) return copied.error();
+    auto made = ops::PageStamp::fromPayload(copied.value().graph);
+    if (!made) return made.error();
+    RAWPAGE_LOG_INFO(core::LogSubsystem::Save) << "backend: page" << page + 1 << "of" << path << "made a stamp --"
+                                                << made.value().width << "x" << made.value().height << "points";
+    return made;
 }
 
 // Stage 7 T7 (D7-5, D7-30): THE DOCUMENT AS IT STANDS -- the bytes a save would compose, the sink's own guard first

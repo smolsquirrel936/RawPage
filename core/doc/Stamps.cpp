@@ -3,6 +3,8 @@
 
 #include "core/doc/Stamps.h"
 
+#include "core/doc/CopiedPages.h"
+
 #include <QCryptographicHash>
 #include <QtGlobal>
 
@@ -105,8 +107,12 @@ QLatin1String stampImageIntent() noexcept { return QLatin1String("StampImage"); 
 StampKind stampKind(const Annotation& a) noexcept
 {
     if (a.subtype != AnnotationSubtype::Stamp) return StampKind::Foreign;
-    if (a.intent == stampImageIntent()) return a.image.isEmpty() ? StampKind::Foreign : StampKind::Image;
+    if (a.intent == stampImageIntent())
+        return a.image.isEmpty() || !a.stampPage.isEmpty() ? StampKind::Foreign : StampKind::Image;
     if (!a.image.isEmpty()) return StampKind::Foreign;   // pixels with no image intent: nothing says to draw them
+    // Stage 7 T13: a page, and nothing else that would say what to draw -- a `/Name` or an intent beside it is a
+    // stamp that claims two pictures, which no command makes.
+    if (!a.stampPage.isEmpty()) return a.icon.isEmpty() && a.intent.isEmpty() ? StampKind::Page : StampKind::Foreign;
     if (isStandardStampName(a.icon)) return StampKind::Standard;
     if (isDynamicStampName(a.icon)) return StampKind::Dynamic;
     return StampKind::Foreign;
@@ -183,6 +189,13 @@ Result<PdfSize> stampNaturalSize(const Annotation& a, TypedFont han)
         if (a.image.width <= 0 || a.image.height <= 0) return stampError("error.edit.stampImageUnsupported");
         const double scale = std::clamp(longer, kImageStampMinSide, kImageStampMaxSide) / longer;
         return PdfSize{a.image.width * scale, a.image.height * scale};
+    }
+    case StampKind::Page: {
+        // Stage 7 T13: sized as an image is (the user's choice, 2026-11-13), from the page as it shows.
+        if (invalidStampPage(a.stampPage)) return stampError("error.edit.stampPageUnsupported");
+        const double longer = std::max(a.stampPage.width, a.stampPage.height);
+        const double scale = std::clamp(longer, kImageStampMinSide, kImageStampMaxSide) / longer;
+        return PdfSize{a.stampPage.width * scale, a.stampPage.height * scale};
     }
     case StampKind::Foreign: break;
     }
@@ -310,6 +323,32 @@ Result<Annotation> newImageStamp(const StampImage& image, const QString& subject
     a.subject = subject;
     a.image = image;
     return centred(std::move(a), centre, TypedFont::Simplified);
+}
+
+Result<Annotation> newPageStamp(const StampPage& page, const QString& subject, int onPage, PdfPoint centre,
+                                const QString& author, std::int64_t utcNow)
+{
+    if (const std::optional<QString> invalid = invalidStampPage(page)) return stampError("error.edit.stampPageUnsupported", *invalid);
+    Annotation a = newAnnotation(AnnotationSubtype::Stamp, onPage, author, utcNow);
+    a.subject = subject;
+    a.stampPage = page;
+    return centred(std::move(a), centre, TypedFont::Simplified);
+}
+
+std::optional<QString> invalidStampPage(const StampPage& page)
+{
+    if (page.graph.size() < 5 || page.graph.size() > kMaxCopiedGraphBytes || !page.graph.startsWith("%PDF-"))
+        return QStringLiteral("stampPage.graph");
+    // ISO 32000-1 Annex C: a page is 3 to 14,400 units on a side -- and a turned one the same, swapped.
+    for (const double side : {page.width, page.height}) {
+        if (!std::isfinite(side) || side < 3.0 || side > 14400.0) return QStringLiteral("stampPage.size");
+    }
+    return std::nullopt;
+}
+
+QString stampPageKey(const StampPage& page)
+{
+    return QString::fromLatin1(QCryptographicHash::hash(page.graph, QCryptographicHash::Sha256).toHex());
 }
 
 // ---- Images ---------------------------------------------------------------------------------------

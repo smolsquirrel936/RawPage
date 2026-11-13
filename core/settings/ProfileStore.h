@@ -18,10 +18,20 @@
 // ===========================================================================================
 // The image FILE, never its pixels: `core/` names no Qt GUI type (convention 3), so `ui/` decodes a PNG and
 // `core/doc/Stamps` passes a JPEG through. This store checks only that the bytes ARE a PNG or a JPEG, by their
-// signature -- a PDF is refused here by name, the page source being Stage 7's (Q7). Categories are the
+// signature -- `add` refuses a PDF by name, because a PAGE is kept by `addPage`. Categories are the
 // stamps' own, plus one reserved: `kSignaturesCategory`, which the palette shows in the person's language and
 // which holds scanned signatures and drawn or typed initials -- markup, not a digital signature (Stage 11).
 // The library is the PERSON'S, not a document's: nothing here is a command, and no undo reaches it.
+//
+// ===========================================================================================
+// A PAGE, AND ITS PICTURE -- Stage 7 T13 (`Stage7-Assembly-Plan.md` D7-36)
+// ===========================================================================================
+// A stamp made from a PDF page is `<id>.pdf` -- the page as the copier copied it (`core::StampPage::graph`), format
+// `pdf` -- beside its description, which carries the size the page shows (`pageWidth`, `pageHeight`): what the
+// palette needs to place it without reading the PDF, which `core/` never does. Its PICTURE, `<id>.preview.png`, is
+// a raster the engine drew once, after the stamp was made (`setPreview`, the user's choice of 2026-11-13); it is a
+// convenience, never the stamp -- a page stamp with none, or with a damaged one, loads and places, and the palette
+// shows a page glyph. `remove` takes all three files.
 //
 // It writes files, which is `core/settings/`'s one added privilege (`tools/layer-lint/rules.json`) -- no
 // waiver. Pure QtCore: `tst_profilestore` in `rawpage_tests`.
@@ -30,6 +40,7 @@
 #define RAWPAGE_CORE_SETTINGS_PROFILESTORE_H
 
 #include "core/Result.h"
+#include "core/doc/Annotation.h"
 
 #include <QByteArray>
 #include <QString>
@@ -47,8 +58,10 @@ struct CustomStamp {
     QString name;            // what the palette calls it
     QString category;        // never empty: `kSignaturesCategory`, or a person's own
     bool favourite = false;
-    QString format;          // "png" or "jpg"
+    QString format;          // "png" or "jpg"; "pdf" for a page (Stage 7 T13)
     std::int64_t created = 0;   // UTC seconds
+    double pageWidth = 0.0;     // Stage 7 T13, a page: the size it shows, in points
+    double pageHeight = 0.0;
 
     bool operator==(const CustomStamp&) const = default;
 };
@@ -90,8 +103,21 @@ public:
     Status setFavourite(const QString& stamp, bool favourite);
     bool isFavourite(const QString& stamp) const;
     Status remove(const QString& id);
-    // The image a stamp was made from, as it was given.
+    // The image a stamp was made from, as it was given. `error.stamps.damaged` for a page stamp, which has none.
     Result<QByteArray> imageBytes(const QString& id) const;
+
+    // Stage 7 T13 (D7-36): `page` saved as a new stamp -- `error.stamps.notAPage` for one `core::invalidStampPage`
+    // refuses, named by `sourceName`; the name and category as `add` checks them.
+    Result<CustomStamp> addPage(const QString& name, const QString& category, const StampPage& page, std::int64_t utcNow,
+                                const QString& sourceName = QString());
+    // The page a page stamp was made from: its graph as it was kept, and its size. `error.stamps.damaged` for a file
+    // that is no longer one, `error.stamps.unknown` for an id that is not a page stamp's.
+    Result<StampPage> pageOf(const QString& id) const;
+    // A page stamp's picture: PNG bytes, written whole (`error.stamps.notAnImage` for anything else); asking again
+    // replaces it.
+    Status setPreview(const QString& id, const QByteArray& png);
+    // Its picture, or nothing -- none drawn yet, or a file that is no longer a PNG.
+    std::optional<QByteArray> previewBytes(const QString& id) const;
 
     // `png` or `jpg` for bytes that start as one does; empty for anything else.
     static QString imageFormatOf(const QByteArray& bytes);
@@ -99,6 +125,9 @@ public:
 private:
     QString descriptionPath(const QString& id) const;
     QString imagePath(const CustomStamp& stamp) const;
+    QString previewPath(const QString& id) const;
+    // `stamp`'s file and description, the file first; nothing kept when either fails.
+    Result<CustomStamp> keep(CustomStamp stamp, const QByteArray& file);
     Status writeDescription(const CustomStamp& stamp) const;
     Status writeFavourites() const;
 

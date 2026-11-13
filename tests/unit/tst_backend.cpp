@@ -133,6 +133,10 @@ public:
     {
         return core::notImplementedError(core::BackendInterface::DocumentBackend, "blankPages");
     }
+    core::Result<core::StampPage> stampPage(const QString&, int) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "stampPage");
+    }
     core::Result<int> filePageCount(const QString&) override
     {
         return core::notImplementedError(core::BackendInterface::DocumentBackend, "filePageCount");

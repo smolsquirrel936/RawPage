@@ -24,8 +24,9 @@ if(NOT rc EQUAL 0)
 endif()
 file(GLOB written "${ROOT}/*")
 list(LENGTH written count)
-if(NOT count EQUAL 5)
-    message(FATAL_ERROR "the writing process left ${count} files under ${ROOT}, not 5")
+# Five for Stage 6's library, and three for Stage 7 T13's page stamp: its page, its description, its picture.
+if(NOT count EQUAL 8)
+    message(FATAL_ERROR "the writing process left ${count} files under ${ROOT}, not 8")
 endif()
 
 execute_process(COMMAND "${TEST_BINARY}" "profile store restart probe reads"

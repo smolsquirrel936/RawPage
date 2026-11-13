@@ -37,6 +37,17 @@
 // a second plane for an `/SMask`, dropped when every pixel is opaque. One image placed many times is ONE
 // image object in a save: `stampImageKey` is what the writer shares it by (guide A-78).
 //
+// ===========================================================================================
+// A PAGE -- Stage 7 T13 (`Stage7-Assembly-Plan.md` D7-36; Stage 6's Q7)
+// ===========================================================================================
+// A FIFTH kind: a stamp made from a PDF page, its page in the model (`StampPage`, `core/doc/Annotation.h`) as the
+// copied graph `pdf/ops/ObjectGraphCopier` made of it -- a VECTOR, drawn by `pdf/ops/PageStamp` as one form XObject
+// over the page's content and resources, never a picture of it. It is written with no `/Name` and no `/IT`: ISO 32000
+// names no intent for it, and a `/Name` would be a word some reader draws instead. It is SIZED AS AN IMAGE IS (the
+// user's choice, 2026-11-13): the page as shown, scaled so its longer side is `kImageStampMinSide` …
+// `kImageStampMaxSide` -- a whole A4 page arrives three inches tall. Read back from a file it is Foreign, as an image
+// stamp is: the model holds no page for it. One page placed many times is ONE graph in a save: `stampPageKey`.
+//
 // Pure: QtCore only, no engine, no display -- `tst_stamps` in `rawpage_tests`.
 
 #ifndef RAWPAGE_CORE_DOC_STAMPS_H
@@ -59,9 +70,9 @@
 
 namespace rawpage::core {
 
-enum class StampKind : std::uint8_t { Standard, Dynamic, Image, Foreign };
+enum class StampKind : std::uint8_t { Standard, Dynamic, Image, Foreign, Page };
 
-// Which of the four `a` is -- the question a redraw asks first. Only a Stamp is ever not Foreign.
+// Which of the five `a` is -- the question a redraw asks first. Only a Stamp is ever not Foreign.
 StampKind stampKind(const Annotation& a) noexcept;
 
 // ISO 32000-1 Table 181's fourteen names, in its order.
@@ -149,6 +160,18 @@ Result<StampImage> stampImageFromPixels(int width, int height, const QByteArray&
 std::optional<QString> invalidStampImage(const StampImage& image);
 // SHA-256 over everything that decides the image's pixels, in hex -- what one save shares an image by.
 QString stampImageKey(const StampImage& image);
+
+// ---- Pages (Stage 7 T13) ----------------------------------------------------------------------------
+// A page stamp: no `/Name`, no `/IT`, `page` its page; `subject` its `/Subj` (the library's name for it). Refused by
+// `error.edit.stampPageUnsupported` for a page `invalidStampPage` refuses.
+Result<Annotation> newPageStamp(const StampPage& page, const QString& subject, int onPage, PdfPoint centre,
+                                const QString& author, std::int64_t utcNow);
+// What a command's parser refuses a page for: the field it names, or nullopt. Only what `core/` can see -- a graph
+// that is no PDF's bytes or past `kMaxCopiedGraphBytes`, a size that is not one a page can show (ISO 32000-1 Annex
+// C's 3 … 14,400 units); what the graph HOLDS is `pdf/ops/PageStamp`'s to judge when it is drawn.
+std::optional<QString> invalidStampPage(const StampPage& page);
+// SHA-256 over the graph, in hex -- what one save shares a page's objects by.
+QString stampPageKey(const StampPage& page);
 
 } // namespace rawpage::core
 

@@ -14,6 +14,8 @@
 #include "ui/viewer/tools/StampTool.h"
 
 #include <QAction>
+#include <QApplication>
+#include <QStyle>
 #include <QFont>
 #include <QFontMetrics>
 #include <QGuiApplication>
@@ -71,6 +73,15 @@ QColor colourOf(const std::vector<double>& rgb)
 QIcon customIcon(core::ProfileStore* library, const QString& id)
 {
     if (library == nullptr) return {};
+    // Stage 7 T13: a page stamp's picture is the one the engine drew once (`ProfileStore::setPreview`), or a page
+    // glyph while it has none -- the page itself is never drawn here.
+    const std::optional<core::CustomStamp> stamp = library->find(id);
+    if (stamp && stamp->format == QLatin1String("pdf")) {
+        const std::optional<QByteArray> preview = library->previewBytes(id);
+        const QImage picture = preview ? QImage::fromData(*preview) : QImage();
+        if (picture.isNull()) return QApplication::style()->standardIcon(QStyle::SP_FileIcon);
+        return QIcon(QPixmap::fromImage(picture.scaled(96, 32, Qt::KeepAspectRatio, Qt::SmoothTransformation)));
+    }
     const core::Result<QByteArray> bytes = library->imageBytes(id);
     if (!bytes) return {};
     QImage image = QImage::fromData(bytes.value());
@@ -296,16 +307,26 @@ bool StampPalettePane::choose(const QString& key)
             emit refused(core::Error{core::ErrorCode::NotFound, QLatin1String("error.stamps.unknown"), id});
             return false;
         }
-        const core::Result<QByteArray> bytes = library_->imageBytes(id);
-        core::Result<core::StampImage> image = bytes ? decodeStampImage(bytes.value(), stamp->name) : core::Result<core::StampImage>(bytes.error());
-        if (!image) {
-            emit refused(image.error());
-            return false;
-        }
         next.kind = StampChoice::Kind::Custom;
         next.name = stamp->name;
         next.libraryId = id;
-        next.image = std::move(image).value();
+        if (stamp->format == QLatin1String("pdf")) {
+            // Stage 7 T13: a page, read from the library once, as an image is decoded once.
+            core::Result<core::StampPage> page = library_->pageOf(id);
+            if (!page) {
+                emit refused(page.error());
+                return false;
+            }
+            next.page = std::move(page).value();
+        } else {
+            const core::Result<QByteArray> bytes = library_->imageBytes(id);
+            core::Result<core::StampImage> image = bytes ? decodeStampImage(bytes.value(), stamp->name) : core::Result<core::StampImage>(bytes.error());
+            if (!image) {
+                emit refused(image.error());
+                return false;
+            }
+            next.image = std::move(image).value();
+        }
     } else {
         emit refused(core::Error{core::ErrorCode::NotFound, QLatin1String("error.edit.stampUnknown"), key});
         return false;

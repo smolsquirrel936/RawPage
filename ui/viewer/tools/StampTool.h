@@ -41,6 +41,7 @@ struct StampChoice {
     QString name = QStringLiteral("Approved");   // a `/Name`, or a custom stamp's library name (its `/Subj`)
     QString libraryId;                           // Custom: which library stamp, for the palette to show it chosen
     core::StampImage image;                      // Custom: its pixels, decoded once
+    core::StampPage page;                        // Custom, Stage 7 T13: a page stamp's page, read once -- `image` empty
 };
 
 // What the stamp tool places now -- the session's, shared by every window.

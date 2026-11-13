@@ -222,7 +222,7 @@ FdfImport AnnotationStore::importFdf(const Fdf& exchange, const ImportCheck& che
             } else {
                 // A REPLACEMENT: every modelled field the exchange's, in the place the document gives it. What the
                 // model holds of the document's own and the exchange cannot say stays the document's: its pop-up,
-                // its file's description of itself, a stamp's pixels, whether it has an appearance.
+                // its file's description of itself, a stamp's pixels or page, whether it has an appearance.
                 Annotation after = a;
                 after.id = held.id;
                 after.nm = held.nm;
@@ -233,6 +233,7 @@ FdfImport AnnotationStore::importFdf(const Fdf& exchange, const ImportCheck& che
                 after.hasAppearance = held.hasAppearance;
                 after.attachment = held.attachment;
                 after.image = held.image;
+                after.stampPage = held.stampPage;   // Stage 7 T13: and a page stamp's page
                 if (const std::optional<Error> locked = lockRefusal(held, after)) {
                     refuse(*locked);
                 } else if (const Status writable = check ? check(after) : Status{}; !writable) {
@@ -388,6 +389,7 @@ Fdf AnnotationStore::exportFdf(const std::vector<std::size_t>& items) const
         }
         x.hasAppearance = false;   // an exchange carries no appearance: the reader that imports it draws its own
         x.image = StampImage{};    // nor an image stamp's pixels (XFDF and FDF name a stamp; its picture is its /AP)
+        x.stampPage = StampPage{}; // nor a page stamp's page (Stage 7 T13)
         out.annotations.push_back(std::move(x));
         out.sources.push_back(a.id);
     }

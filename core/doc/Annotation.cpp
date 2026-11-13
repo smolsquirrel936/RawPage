@@ -76,6 +76,30 @@ std::optional<StampImage> imageFromJson(const QJsonValue& value)
     return image;
 }
 
+// Stage 7 T13: a page stamp's page -- its payload as base64 (a journal line puts one over 64 KiB in a side file,
+// `RecoveryJournal`) and the size it shows. Read leniently; the command's parser refuses a hostile one.
+QJsonObject stampPageToJson(const StampPage& page)
+{
+    QJsonObject json;
+    json.insert(QStringLiteral("width"), page.width);
+    json.insert(QStringLiteral("height"), page.height);
+    json.insert(QStringLiteral("graph"), QString::fromLatin1(page.graph.toBase64()));
+    return json;
+}
+
+std::optional<StampPage> stampPageFromJson(const QJsonValue& value)
+{
+    if (!value.isObject()) return std::nullopt;
+    const QJsonObject json = value.toObject();
+    const QJsonValue width = json.value(QStringLiteral("width"));
+    const QJsonValue height = json.value(QStringLiteral("height"));
+    const QJsonValue graph = json.value(QStringLiteral("graph"));
+    if (!width.isDouble() || !height.isDouble() || !graph.isString()) return std::nullopt;
+    auto decoded = QByteArray::fromBase64Encoding(graph.toString().toLatin1(), QByteArray::AbortOnBase64DecodingErrors);
+    if (!decoded || (*decoded).isEmpty()) return std::nullopt;
+    return StampPage{std::move(*decoded), width.toDouble(), height.toDouble()};
+}
+
 } // namespace
 
 // ---- Stage 6 T11: an embedded file ------------------------------------------------------------------
@@ -525,6 +549,7 @@ QJsonObject Annotation::toJson() const
     if (justification != 0) json.insert(QStringLiteral("justification"), justification);
     if (hasAppearance) json.insert(QStringLiteral("hasAppearance"), true);
     if (!image.isEmpty()) json.insert(QStringLiteral("image"), imageToJson(image));
+    if (!stampPage.isEmpty()) json.insert(QStringLiteral("stampPage"), stampPageToJson(stampPage));
     if (attachment) json.insert(QStringLiteral("attachment"), attachment->toJson());
     // Stage 6 T12: a line's leaders and caption, and a measurement's scale -- each only when it says something.
     if (leaderLength != 0.0) json.insert(QStringLiteral("leaderLength"), leaderLength);
@@ -626,6 +651,11 @@ Result<Annotation> Annotation::fromJson(const QJsonObject& json)
         const std::optional<StampImage> image = imageFromJson(json.value(QStringLiteral("image")));
         if (!image) return malformed(QStringLiteral("annotation image"));
         a.image = *image;
+    }
+    if (json.contains(QStringLiteral("stampPage"))) {
+        std::optional<StampPage> page = stampPageFromJson(json.value(QStringLiteral("stampPage")));
+        if (!page) return malformed(QStringLiteral("annotation stampPage"));
+        a.stampPage = std::move(*page);
     }
     if (json.contains(QStringLiteral("attachment"))) {
         const QJsonValue value = json.value(QStringLiteral("attachment"));

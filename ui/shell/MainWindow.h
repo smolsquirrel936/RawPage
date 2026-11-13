@@ -432,6 +432,12 @@ public:
     // re-listed, and NONE chosen or armed unless there is exactly one. One the library refuses -- or whose category
     // is a built-in heading's name (I-42) -- is skipped, the rest made, and the first refusal returned.
     core::Status addCustomStamps(const std::vector<CustomStampDialog::Made>& made);
+    // Stage 7 T13 (D7-36): a page stamp's PICTURE for the palette -- the library's page opened in the engine from its
+    // bytes, drawn ONCE on the render thread (`core::PageWorkRunner`), kept beside the page (`ProfileStore::setPreview`)
+    // and the palette re-listed; the page closed again. False, and nothing drawn, when the runner is busy or the page
+    // does not open: the palette then shows a page glyph, and nothing draws the picture later (D7-36(e)).
+    // `addCustomStamps` calls it for each page it adds.
+    bool drawStampPicture(const QString& id);
     // D6-22's image half: `image` placed as an image stamp at the middle of what the tab in front shows -- ONE
     // command. What `edit.paste` does with an image on the clipboard.
     core::Status pasteImage(const QImage& image);

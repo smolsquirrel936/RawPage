@@ -263,6 +263,13 @@ public:
     {
         return put(key, std::move(dictionary), std::move(data));
     }
+    // Stage 7 T13: a page stamp's objects name each other -- each number the book's for its name, which `put` asks for
+    // again and is given the same.
+    cos::CosRef reserved(const std::string& key) override
+    {
+        if (const auto found = written_.find(key); found != written_.end()) return found->second;
+        return cos::CosRef{delta_.reserve("shared:" + key), 0};
+    }
 
     void startRecording() { recorded_.clear(); }
     const std::vector<std::string>& recorded() const noexcept { return recorded_; }

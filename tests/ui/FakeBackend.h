@@ -613,6 +613,17 @@ public:
         out.pageCount = count;
         return out;
     }
+    // S7 T13: a page as a stamp -- the fake payload, `stampSize` points, each page asked for recorded; a path that does
+    // not exist refused as `copyPages` refuses it.
+    core::PdfSize stampSize{300.0, 150.0};
+    std::vector<std::pair<QString, int>> stampPages;
+    core::Result<core::StampPage> stampPage(const QString& path, int page) override
+    {
+        if (!QFileInfo::exists(path)) return core::Error{core::ErrorCode::IoFailure, QLatin1String("error.open.notFound"), path};
+        if (page < 0 || page >= filePages) return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.pdf.pageOutOfRange"), QString::number(page)};
+        stampPages.emplace_back(path, page);
+        return core::StampPage{QByteArray("%PDF-1.7 fake stamp page ") + QByteArray::number(page), stampSize.width, stampSize.height};
+    }
 
     // S7 T7: a snapshot that RECORDS what it was asked -- `assembled`, each page set made in memory, and `writes`, each
     // folder and its outputs -- and writes NOTHING: what the assembler builds, and what reaches the disk, is

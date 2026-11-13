@@ -43,6 +43,10 @@
 #include "pdf/cos/XrefRepair.h"
 #include "pdf/ops/AnnotationReader.h"
 #include "pdf/ops/AppearanceStreamBuilder.h"
+#include "pdf/ops/ObjectGraphCopier.h"
+#include "pdf/ops/PageStamp.h"
+#include "pdf/cos/filters/Filter.h"
+#include "pdf/cos/filters/FlateFilter.h"
 #include "pdf/ops/RevisionWriter.h"
 
 #include <QFile>
@@ -53,6 +57,7 @@
 
 #include <cmath>
 #include <functional>
+#include <iostream>
 #include <numbers>
 #include <set>
 #include <string>
@@ -753,6 +758,392 @@ TEST_CASE("stamps: recovery replays every kind of stamp to the same model and th
     CHECK_FALSE(report.value().stoppedAtStep.has_value());
     CHECK(fresh->journal->document().modelHash() == expectedModel);
     CHECK(fresh->journal->canRedo());   // the undone turn, redoable after the replay
+    auto bytes = pdf::ops::RevisionWriter::compose(*fresh->sink(), false);
+    REQUIRE(bytes);
+    CHECK(tests::sha256(bytes.value().bytes) == tests::sha256(expected.value().bytes));
+}
+
+// ---- A page (Stage 7 T13, `Stage7-Assembly-Plan.md` D7-36; Stage 7 guide A-89's and A-90's file halves) -------------
+
+namespace {
+
+// Page `page` of a corpus file as a stamp's page: copied as an insert copies it, then read as the stamp draws it.
+core::StampPage pageStampOf(const char* relative, int page)
+{
+    const QByteArray bytes = fileBytes(relative);
+    auto copied = pdf::ops::ObjectGraphCopier::copyFile(viewOf(bytes), {page});
+    REQUIRE(copied);
+    auto made = pdf::ops::PageStamp::fromPayload(copied.value().graph);
+    INFO(relative << " page " << page + 1 << ": "
+                  << (made ? std::string() : keyOf(made.error()) + " " + made.error().context.toStdString()));
+    REQUIRE(made);
+    return made.value();
+}
+
+std::pair<double, double> applied(const std::array<double, 6>& m, double x, double y)
+{
+    return {m[0] * x + m[2] * y + m[4], m[1] * x + m[3] * y + m[5]};
+}
+
+// Every reference any collected object holds names a collected object: the form's graph is closed.
+std::vector<long long> dangling(const pdf::ops::CollectedAppearanceObjects& objects)
+{
+    std::set<long long> held;
+    for (const auto& entry : objects.entries()) held.insert(entry.at.number);
+    std::vector<long long> out;
+    std::function<void(const CosObject&)> walk = [&](const CosObject& value) {
+        if (value.isReference()) {
+            if (held.count(value.reference().number) == 0) out.push_back(value.reference().number);
+        } else if (value.isArray()) {
+            for (const CosObject& item : value.items()) walk(item);
+        } else if (value.isDictionary() || value.isStream()) {
+            for (const CosObject::Entry& entry : value.entries()) walk(entry.value);
+        }
+    };
+    for (const auto& entry : objects.entries()) walk(entry.object);
+    return out;
+}
+
+const pdf::ops::CollectedAppearanceObjects::Entry* formEntry(const pdf::ops::CollectedAppearanceObjects& objects)
+{
+    const pdf::ops::CollectedAppearanceObjects::Entry* found = nullptr;
+    for (const auto& entry : objects.entries()) {
+        if (entry.key.size() > 5 && entry.key.compare(entry.key.size() - 5, 5, ":form") == 0) {
+            if (found != nullptr) return nullptr;   // two forms for one page
+            found = &entry;
+        }
+    }
+    return found;
+}
+
+} // namespace
+
+TEST_CASE("stamps.page_source: a page is read for the size it shows and anything that is not one page is refused",
+          "[stamps][A-89][D7-36]")
+{
+    // refs-every-kind.pdf's page 3, A4: the size it shows.
+    const core::StampPage three = pageStampOf("assembly/refs-every-kind.pdf", 2);
+    CHECK(near(three.width, 595.276));
+    CHECK(near(three.height, 841.89));
+    // rotated-pages.pdf: one content at 0 and 90 degrees -- a turned page shows its sides the other way.
+    const core::StampPage upright = pageStampOf("ordinary/rotated-pages.pdf", 0);
+    const core::StampPage turned = pageStampOf("ordinary/rotated-pages.pdf", 1);
+    CHECK(near(turned.width, upright.height));
+    CHECK(near(turned.height, upright.width));
+    // rotate-inherited.pdf: page 1 inherits `/Rotate 90` from the root node and page 2 states `/Rotate 0` -- the copy
+    // made the inherited turn the page's own, so it is read.
+    const core::StampPage inherited = pageStampOf("ordinary/rotate-inherited.pdf", 0);
+    const core::StampPage stated = pageStampOf("ordinary/rotate-inherited.pdf", 1);
+    CHECK(near(inherited.width, stated.height));
+    CHECK(near(inherited.height, stated.width));
+    // boxes.pdf: a CropBox inside the MediaBox is what shows, and one past it is cut to it.
+    const core::StampPage cropped = pageStampOf("assembly/boxes.pdf", 0);
+    CHECK(near(cropped.width, 576.0));
+    CHECK(near(cropped.height, 756.0));
+    const core::StampPage clipped = pageStampOf("assembly/boxes.pdf", 1);
+    CHECK(near(clipped.width, 400.0));
+    CHECK(near(clipped.height, 841.89 - 200.0));
+
+    // Sized as an image is (the user's choice, 2026-11-13): the longer side 216 points ...
+    auto placed = core::newPageStamp(three, QStringLiteral("Three"), 0, PdfPoint{300, 400}, kAuthor, kPlaced);
+    REQUIRE(placed);
+    CHECK(core::stampKind(placed.value()) == core::StampKind::Page);
+    CHECK(placed.value().icon.isEmpty());
+    CHECK(placed.value().intent.isEmpty());
+    CHECK(near(placed.value().rect.size.height, core::kImageStampMaxSide));
+    CHECK(near(placed.value().rect.size.width, core::kImageStampMaxSide * 595.276 / 841.89));
+    // ... and a small page scaled UP to 72 -- it is a vector.
+    auto blank = pdf::ops::ObjectGraphCopier::blankPages(PdfSize{20.0, 10.0}, 1);
+    REQUIRE(blank);
+    auto small = pdf::ops::PageStamp::fromPayload(blank.value().graph);
+    REQUIRE(small);
+    auto tiny = core::newPageStamp(small.value(), QString(), 0, PdfPoint{100, 100}, kAuthor, kPlaced);
+    REQUIRE(tiny);
+    CHECK(near(tiny.value().rect.size.width, core::kImageStampMinSide));
+    CHECK(near(tiny.value().rect.size.height, core::kImageStampMinSide / 2.0));
+
+    // Refused: two pages, bytes that are no PDF, a page too large for a page -- each by its key, naming what it met.
+    const QByteArray refs = fileBytes("assembly/refs-every-kind.pdf");
+    auto two = pdf::ops::ObjectGraphCopier::copyFile(viewOf(refs), {0, 1});
+    REQUIRE(two);
+    auto refusedTwo = pdf::ops::PageStamp::fromPayload(two.value().graph);
+    REQUIRE_FALSE(refusedTwo);
+    CHECK(keyOf(refusedTwo.error()) == "error.edit.stampPageUnsupported");
+    CHECK(refusedTwo.error().context == QStringLiteral("pages:2"));
+    auto noPdf = pdf::ops::PageStamp::fromPayload(QByteArray("%PDF-1.7 and nothing after it"));
+    REQUIRE_FALSE(noPdf);
+    CHECK(keyOf(noPdf.error()) == "error.edit.stampPageUnsupported");
+    CHECK(core::invalidStampPage(core::StampPage{three.graph, 2.0, 100.0}) == QStringLiteral("stampPage.size"));
+    CHECK(core::invalidStampPage(core::StampPage{QByteArray("not a pdf"), 100.0, 100.0}) == QStringLiteral("stampPage.graph"));
+    CHECK_FALSE(core::newPageStamp(core::StampPage{three.graph, 100.0, 1e6}, QString(), 0, PdfPoint{}, kAuthor, kPlaced));
+}
+
+TEST_CASE("stamps.page_source: the page as shown is mapped onto the stamp's box at every turn", "[stamps][A-89][D7-36]")
+{
+    // A box 100 wide and 200 tall, drawn into a natural box twice the size it shows: each corner of the page lands on
+    // the corner a reader shows it at, `/Rotate` turning it CLOCKWISE.
+    const core::PdfRect box{PdfPoint{10.0, 20.0}, PdfSize{100.0, 200.0}};
+    struct Corner {
+        double x, y;     // on the page
+        double sx, sy;   // where it shows, as a fraction of the natural box
+    };
+    struct Turn {
+        int rotate;
+        std::vector<Corner> corners;
+    };
+    const double x0 = 10.0, y0 = 20.0, x1 = 110.0, y1 = 220.0;
+    const std::vector<Turn> turns{
+        {0, {{x0, y0, 0, 0}, {x1, y1, 1, 1}, {x0, y1, 0, 1}, {x1, y0, 1, 0}}},
+        {90, {{x0, y1, 1, 1}, {x0, y0, 0, 1}, {x1, y0, 0, 0}, {x1, y1, 1, 0}}},
+        {180, {{x0, y0, 1, 1}, {x1, y1, 0, 0}, {x0, y1, 1, 0}, {x1, y0, 0, 1}}},
+        {270, {{x0, y0, 1, 0}, {x1, y1, 0, 1}, {x0, y1, 0, 0}, {x1, y0, 1, 1}}},
+    };
+    for (const Turn& turn : turns) {
+        const bool sideways = turn.rotate == 90 || turn.rotate == 270;
+        const double width = 2.0 * (sideways ? 200.0 : 100.0);
+        const double height = 2.0 * (sideways ? 100.0 : 200.0);
+        const std::array<double, 6> m = pdf::ops::PageStamp::showMatrix(box, turn.rotate, width, height);
+        for (const Corner& c : turn.corners) {
+            INFO("rotate " << turn.rotate << ", page corner " << c.x << "," << c.y);
+            const auto [x, y] = applied(m, c.x, c.y);
+            CHECK(near(x, c.sx * width, 1e-9));
+            CHECK(near(y, c.sy * height, 1e-9));
+        }
+    }
+}
+
+TEST_CASE("stamps.page_source: the form is the page's own content and resources, a closed graph, one stream however written",
+          "[stamps][A-89][D7-36]")
+{
+    // decorated-elsewhere.pdf: pages whose `/Contents` is an ARRAY (another producer's header and watermark beside the
+    // page's own); image-lzw-ascii85.pdf: content behind filters this writer only passes through.
+    int arrays = 0;
+    for (const char* file : {"assembly/decorated-elsewhere.pdf", "ordinary/image-lzw-ascii85.pdf", "assembly/refs-every-kind.pdf"}) {
+        const QByteArray bytes = fileBytes(file);
+        auto count = pdf::ops::ObjectGraphCopier::countFile(viewOf(bytes));
+        REQUIRE(count);
+        for (int page = 0; page < count.value(); ++page) {
+            INFO(file << " page " << page + 1);
+            const core::StampPage source = pageStampOf(file, page);
+            pdf::ops::CollectedAppearanceObjects objects;
+            auto form = pdf::ops::PageStamp::form(source, objects);
+            REQUIRE(form);
+            const auto* entry = formEntry(objects);
+            REQUIRE(entry != nullptr);
+            CHECK(entry->at == form.value().at);
+            CHECK(dangling(objects).empty());
+            for (const auto& e : objects.entries()) CHECK(e.written);
+            const CosObject& dictionary = entry->object;
+            CHECK(dictionary.get("Subtype").text() == "Form");
+            CHECK(dictionary.get("Resources").isDictionary());
+            const std::vector<double> bbox = [&] {
+                std::vector<double> out;
+                for (const CosObject& n : dictionary.get("BBox").items()) out.push_back(n.numberValue());
+                return out;
+            }();
+            REQUIRE(bbox.size() == 4);
+            CHECK(near(bbox[2] - bbox[0], form.value().box.size.width));
+            CHECK(near(bbox[3] - bbox[1], form.value().box.size.height));
+
+            // What the page's content decodes to, from the payload: one stream, or several joined by a line break.
+            auto table = pdf::cos::XrefTable::load(viewOf(source.graph));
+            REQUIRE(table);
+            auto walk = pdf::ops::PageOps::walk(table.value());
+            REQUIRE(walk);
+            const CosObject page0 = table.value().fetch(walk.value().pages.front().number).value().object;
+            CosObject contents = page0.get("Contents");
+            if (contents.isReference()) contents = table.value().fetch(contents.reference().number).value().object;
+            std::string want;
+            if (contents.isArray()) {
+                ++arrays;
+                for (const CosObject& item : contents.items()) {
+                    const CosObject stream = table.value().fetch(item.reference().number).value().object;
+                    auto decoded = pdf::cos::decodeStream(stream, table.value().source());
+                    REQUIRE(decoded);
+                    if (!want.empty()) want += '\n';
+                    want += std::string(decoded.value().begin(), decoded.value().end());
+                }
+                CHECK(dictionary.get("Filter").text() == "FlateDecode");   // several, written again as one
+            } else {
+                auto decoded = pdf::cos::decodeStream(contents, table.value().source());
+                REQUIRE(decoded);
+                want = std::string(decoded.value().begin(), decoded.value().end());
+                CHECK(entry->data == std::string(contents.rawStreamData(table.value().source())));   // ONE: its own bytes
+            }
+            // The form's own bytes, decoded through its own filters, are the page's content.
+            if (!dictionary.find("Filter")) {
+                CHECK(*entry->data == want);
+            } else if (dictionary.get("Filter").isName() && dictionary.get("Filter").text() == "FlateDecode" && !dictionary.find("DecodeParms")) {
+                auto inflated = pdf::cos::filters::flateDecode(*entry->data);
+                REQUIRE(inflated);
+                CHECK(std::string(inflated.value().begin(), inflated.value().end()) == want);
+            }
+        }
+    }
+    CHECK(arrays >= 1);   // the array path met at least once -- else this case proves only the single-stream one
+}
+
+TEST_CASE("stamps.page_source_shared: one page placed twice in one save is one graph, read back foreign", "[stamps][A-90][D7-36]")
+{
+    auto session = tests::openCopy("ordinary/text-a4.pdf");
+    REQUIRE(session);
+    const core::StampPage three = pageStampOf("assembly/refs-every-kind.pdf", 2);
+    auto first = core::newPageStamp(three, QStringLiteral("P-0003"), 0, PdfPoint{200, 300}, kAuthor, kPlaced);
+    auto second = core::newPageStamp(three, QStringLiteral("P-0003"), 1, PdfPoint{300, 500}, kAuthor, kPlaced);
+    REQUIRE(first);
+    REQUIRE(second);
+    auto turned = core::rotatedStamp(second.value(), 30);   // turned: a redraw, its form the same page
+    REQUIRE(turned);
+    REQUIRE(add(*session, {first.value()}));
+    REQUIRE(add(*session, {turned.value()}));
+    const QByteArray saved = save(*session, QStringLiteral("stamps-page-shared.pdf"));
+    ReadBack back(saved);
+
+    const CosObject apA = back.appearanceOf(first.value().nm);
+    const CosObject apB = back.appearanceOf(second.value().nm);
+    const CosObject pgA = back.resolved(back.resolved(apA.get("Resources")).get("XObject")).get("Pg0");
+    const CosObject pgB = back.resolved(back.resolved(apB.get("Resources")).get("XObject")).get("Pg0");
+    REQUIRE(pgA.isReference());
+    REQUIRE(pgB.isReference());
+    CHECK(pgA.reference().number == pgB.reference().number);   // one page, two placements
+    CHECK(unresolved(back, apA).empty());
+    CHECK(unresolved(back, apB).empty());
+    CHECK(back.resolved(apB.get("Matrix")).isArray());   // the turn is the placement's, not the page's
+
+    // COUNTED: the saved file holds one form of the page and exactly the fonts the source page uses beside the
+    // document's own -- the graph written once, not once per placement.
+    const auto countFonts = [](pdf::cos::XrefTable& table) {
+        int n = 0;
+        for (const auto& [number, entry] : table.entries()) {
+            if (number <= 0 || entry.type == pdf::cos::XrefEntryType::Free) continue;
+            auto fetched = table.fetch(number);
+            if (!fetched) continue;
+            const CosObject* type = fetched.value().object.find("Type");
+            if (type != nullptr && type->isName() && type->text() == "Font") ++n;
+        }
+        return n;
+    };
+    const QByteArray original = fileBytes("ordinary/text-a4.pdf");
+    auto originalTable = pdf::cos::XrefTable::load(viewOf(original));
+    REQUIRE(originalTable);
+    auto pageTable = pdf::cos::XrefTable::load(viewOf(three.graph));
+    REQUIRE(pageTable);
+    pdf::ops::CollectedAppearanceObjects pageObjects;
+    REQUIRE(pdf::ops::PageStamp::form(three, pageObjects));
+    int pageFonts = 0;
+    for (const auto& entry : pageObjects.entries()) {
+        const CosObject* type = entry.object.find("Type");
+        if (type != nullptr && type->isName() && type->text() == "Font") ++pageFonts;
+    }
+    REQUIRE(pageFonts >= 1);   // P-0003 is set in Helvetica-Bold: the page reaches a font
+    CHECK(countFonts(*back.table) == countFonts(originalTable.value()) + pageFonts);
+    int forms = 0;
+    for (const auto& [number, entry] : back.table->entries()) {
+        if (number <= 0 || entry.type == pdf::cos::XrefEntryType::Free) continue;
+        auto fetched = back.table->fetch(number);
+        if (!fetched || !fetched.value().object.isStream()) continue;
+        // Each placement's own appearance has the page's box too (D7-36(d)): it is not the page.
+        if (number == back.dictionaryOf(first.value().nm).get("AP").get("N").reference().number
+            || number == back.dictionaryOf(second.value().nm).get("AP").get("N").reference().number)
+            continue;
+        const std::vector<double> bbox = numbersOf(back, fetched.value().object.get("BBox"));
+        if (bbox.size() == 4 && near(bbox[3] - bbox[1], 841.89) && near(bbox[2] - bbox[0], 595.276)) ++forms;
+    }
+    CHECK(forms == 1);
+    std::cout << "A-90's file half: two placements of page 3, one form object " << pgA.reference().number << ", " << pageFonts
+              << " font(s) of the page's written once\n";
+
+    // READ BACK FOREIGN, as an image stamp is: the model holds no page for it -- it moves and resizes, and no turn.
+    const Annotation* readA = back.withNm(first.value().nm);
+    REQUIRE(readA != nullptr);
+    CHECK(readA->stampPage.isEmpty());
+    CHECK(core::stampKind(*readA) == core::StampKind::Foreign);
+    CHECK_FALSE(core::rotatedStamp(*readA, 90));
+}
+
+TEST_CASE("stamps.page_source: a page stamp travels in a journal line and a hostile page is refused",
+          "[stamps][A-89][D7-36][serialize:AddAnnotationCommand]")
+{
+    const core::StampPage three = pageStampOf("assembly/refs-every-kind.pdf", 2);
+    auto made = core::newPageStamp(three, QStringLiteral("P-0003"), 1, PdfPoint{100, 100}, kAuthor, kPlaced);
+    REQUIRE(made);
+    const AddAnnotationCommand command({made.value()});
+    const QJsonObject json = command.serialize();
+    auto back = core::CommandRegistry::deserialize(json);
+    REQUIRE(back);
+    CHECK(back.value()->serialize() == json);
+    auto parsed = Annotation::fromJson(json.value(QStringLiteral("annotations")).toArray().first().toObject());
+    REQUIRE(parsed);
+    // Compared as JSON: a rectangle travels as its corners, so a width of 152.73… comes back as `right - left`, a
+    // rounding away from the double it was -- every annotation's, not the page's.
+    CHECK(parsed.value().toJson() == made.value().toJson());
+    CHECK(parsed.value().stampPage == three);
+
+    const auto refusedBy = [&json](const std::function<void(QJsonObject& annotation, QJsonObject& page)>& plant, const char* why) {
+        QJsonObject hostile = json;
+        QJsonArray list = hostile.value(QStringLiteral("annotations")).toArray();
+        QJsonObject annotation = list.first().toObject();
+        QJsonObject page = annotation.value(QStringLiteral("stampPage")).toObject();
+        plant(annotation, page);
+        annotation.insert(QStringLiteral("stampPage"), page);
+        list.replace(0, annotation);
+        hostile.insert(QStringLiteral("annotations"), list);
+        INFO(why);
+        auto r = core::CommandRegistry::deserialize(hostile);
+        REQUIRE_FALSE(r);
+        CHECK(keyOf(r.error()) == "error.command.malformed");
+    };
+    refusedBy([](QJsonObject& a, QJsonObject&) { a.insert(QStringLiteral("subtype"), QStringLiteral("Square")); }, "a page on a Square");
+    refusedBy([](QJsonObject& a, QJsonObject&) { a.insert(QStringLiteral("icon"), QStringLiteral("Approved")); }, "a page and a /Name");
+    refusedBy([](QJsonObject&, QJsonObject& p) { p.insert(QStringLiteral("graph"), QStringLiteral("not*base64")); }, "bytes that are not base64");
+    refusedBy([](QJsonObject&, QJsonObject& p) { p.insert(QStringLiteral("graph"), QString::fromLatin1(QByteArray("no pdf").toBase64())); },
+              "bytes that are no PDF");
+    refusedBy([](QJsonObject&, QJsonObject& p) { p.insert(QStringLiteral("width"), 1e9); }, "a page wider than a page can be");
+    refusedBy([](QJsonObject&, QJsonObject& p) { p.remove(QStringLiteral("height")); }, "no height");
+}
+
+TEST_CASE("stamps.page_source: recovery replays a page stamp, turned and undone, to the same model and bytes", "[stamps][A-89][recovery]")
+{
+    auto session = tests::openCopy("ordinary/text-a4.pdf");
+    REQUIRE(session);
+    QTemporaryDir root;
+    REQUIRE(root.isValid());
+    auto recovery = core::RecoveryJournal::open(root.path(), session->path, session->journal->document().id(),
+                                                &session->durableFiles);
+    REQUIRE(recovery->isRecoverable());
+    session->journal->setRecorder(recovery.get());
+    core::CommandJournal& journal = *session->journal;
+
+    const core::StampPage three = pageStampOf("assembly/refs-every-kind.pdf", 2);
+    const core::StampPage turned = pageStampOf("ordinary/rotated-pages.pdf", 1);
+    auto a = core::newPageStamp(three, QStringLiteral("P-0003"), 0, PdfPoint{200, 300}, kAuthor, kPlaced);
+    auto b = core::newPageStamp(turned, QStringLiteral("Turned"), 1, PdfPoint{300, 300}, kAuthor, kPlaced);
+    REQUIRE(a);
+    REQUIRE(b);
+    REQUIRE(add(*session, {a.value()}));
+    REQUIRE(add(*session, {b.value()}));
+    auto again = core::rotatedStamp(a.value(), 90);
+    REQUIRE(again);
+    REQUIRE(journal.run(std::make_unique<core::EditAnnotationCommand>(std::vector<Annotation>{again.value()})));
+    REQUIRE(journal.undo());
+
+    const QByteArray expectedModel = journal.document().modelHash();
+    auto expected = pdf::ops::RevisionWriter::compose(*session->sink(), false);
+    REQUIRE(expected);
+    recovery.reset();
+    journal.setRecorder(nullptr);
+
+    const auto candidates = core::RecoveryJournal::discover(root.path());
+    REQUIRE(candidates.size() == 1);
+    std::cout << "a page stamp's journal: the graph " << three.graph.size() << " bytes, "
+              << QDir(candidates.front().directory).entryList(QDir::Files).size() << " file(s) in the recovery directory\n";
+    auto fresh = tests::openCopy("ordinary/text-a4.pdf");
+    REQUIRE(fresh);
+    auto report = core::RecoveryJournal::replay(candidates.front().directory, *fresh->journal);
+    REQUIRE(report);
+    CHECK_FALSE(report.value().stoppedAtStep.has_value());
+    CHECK(fresh->journal->document().modelHash() == expectedModel);
+    CHECK(fresh->journal->canRedo());
     auto bytes = pdf::ops::RevisionWriter::compose(*fresh->sink(), false);
     REQUIRE(bytes);
     CHECK(tests::sha256(bytes.value().bytes) == tests::sha256(expected.value().bytes));

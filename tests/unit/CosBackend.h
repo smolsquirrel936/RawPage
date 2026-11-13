@@ -38,6 +38,7 @@
 #include "pdf/ops/OutlineReader.h"
 #include "core/doc/OutlineGenerator.h"
 #include "pdf/ops/ObjectGraphCopier.h"
+#include "pdf/ops/PageStamp.h"
 #include "pdf/ops/DocumentAssembler.h"
 #include "pdf/ops/DocumentMerger.h"
 #include "pdf/ops/RevisionWriter.h"
@@ -262,6 +263,13 @@ public:
     core::Result<core::CopiedPages> blankPages(core::PdfSize size, int count) override
     {
         return pdf::ops::ObjectGraphCopier::blankPages(size, count);
+    }
+    // Stage 7 T13: the shipped backend's path -- the copy, then the stamp's reading of it.
+    core::Result<core::StampPage> stampPage(const QString& path, int page) override
+    {
+        auto copied = copyPages(path, {page});
+        if (!copied) return copied.error();
+        return pdf::ops::PageStamp::fromPayload(copied.value().graph);
     }
     // Stage 7 T7: the shipped backend's snapshot -- the sink's composed file, or the bytes opened -- through the same
     // assembler.

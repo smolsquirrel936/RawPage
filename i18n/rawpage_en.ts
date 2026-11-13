@@ -3294,6 +3294,10 @@
         <translation>This image cannot be made into a stamp (%1)</translation>
     </message>
     <message>
+        <source>error.edit.stampPageUnsupported</source>
+        <translation>This page cannot be made into a stamp (%1)</translation>
+    </message>
+    <message>
         <source>error.edit.stampUnknown</source>
         <translation>There is no stamp called %1</translation>
     </message>
@@ -3327,7 +3331,11 @@
     </message>
     <message>
         <source>error.stamps.notAnImage</source>
-        <translation>%1 is not an image: a stamp is made from a PNG, JPEG, BMP or GIF</translation>
+        <translation>%1 is not an image: an image stamp is made from a PNG, JPEG, BMP or GIF, and a PDF from the PDF Page tab</translation>
+    </message>
+    <message>
+        <source>error.stamps.notAPage</source>
+        <translation>%1 has no page that can be made into a stamp</translation>
     </message>
     <message>
         <source>error.stamps.reservedCategory</source>
@@ -6096,6 +6104,30 @@
     <message>
         <source>stamps.dialog.makeCount</source>
         <translation>Make %1 Stamps</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.source.page</source>
+        <translation>PDF Page</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.pdfFilter</source>
+        <translation>PDF files</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.page</source>
+        <translation>Page:</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.pageInfo</source>
+        <translation>Page %1 of %2, %3 × %4 points</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.pageName</source>
+        <translation>%1, page %2</translation>
+    </message>
+    <message>
+        <source>stamps.dialog.need.pdf</source>
+        <translation>Choose a PDF file and a page.</translation>
     </message>
     <message>
         <source>stamps.name.Approved</source>

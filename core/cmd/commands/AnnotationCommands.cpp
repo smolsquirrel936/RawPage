@@ -119,6 +119,13 @@ std::optional<QString> invalidShape(const Annotation& a)
         if (a.subtype != AnnotationSubtype::Stamp || a.intent != stampImageIntent()) return QStringLiteral("annotation.image");
         if (const std::optional<QString> invalid = invalidStampImage(a.image)) return QStringLiteral("annotation.") + *invalid;
     }
+    // Stage 7 T13: a page only on a stamp that says nothing else about what it draws -- no `/Name`, no intent, no
+    // pixels -- and one `core/` can see is a page (`invalidStampPage`).
+    if (!a.stampPage.isEmpty()) {
+        if (a.subtype != AnnotationSubtype::Stamp || !a.icon.isEmpty() || !a.intent.isEmpty() || !a.image.isEmpty())
+            return QStringLiteral("annotation.stampPage");
+        if (const std::optional<QString> invalid = invalidStampPage(a.stampPage)) return QStringLiteral("annotation.") + *invalid;
+    }
     // Stage 6 T11: a file only on a FileAttachment, and named; a CARRIED one -- a file RawPage attaches -- with a name
     // and bytes no larger than one command may carry. A file READ from the document is the document's: its name is
     // what its specification says, at whatever length its producer wrote it, and a command that moves or edits its

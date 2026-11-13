@@ -76,6 +76,10 @@ add_library(rawpage_ops STATIC
     AnnotationOps.cpp
     AppearanceStreamBuilder.h
     AppearanceStreamBuilder.cpp
+    # S7 T13 (D7-36): a PDF page as a stamp's picture -- read once from the copier's payload, and drawn as one form
+    # XObject whose graph a save writes once however many times it is placed.
+    PageStamp.h
+    PageStamp.cpp
 
     # S6 T13 (D6-20): FDF, which is PDF syntax and so read with pdf/cos/'s repair scan and AnnotationReader's own
     # dictionary parse -- and the one read and one write of an exchange FILE, either syntax (XFDF is core/doc/'s).

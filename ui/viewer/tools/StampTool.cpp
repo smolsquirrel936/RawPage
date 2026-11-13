@@ -87,7 +87,9 @@ core::Result<core::Annotation> StampTool::stampAt(ToolHost& host, int page, core
             const int offset = QDateTime::fromSecsSinceEpoch(now).offsetFromUtc();
             return core::newDynamicStamp(stamp.name, page, centre, author, now, offset, host.hanPreference());
         }
-        case StampChoice::Kind::Custom: return core::newImageStamp(stamp.image, stamp.name, page, centre, author, now);
+        case StampChoice::Kind::Custom:
+            if (!stamp.page.isEmpty()) return core::newPageStamp(stamp.page, stamp.name, page, centre, author, now);
+            return core::newImageStamp(stamp.image, stamp.name, page, centre, author, now);
         }
         return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.edit.stampUnknown"), stamp.name};
     }();
