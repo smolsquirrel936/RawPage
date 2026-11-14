@@ -308,6 +308,37 @@ TEST_CASE("pages embed thumbnails draws every page on the render thread and embe
 }
 
 // =============================================================================================
+// I-17 -- a window taken down after engine work leaves no lambda on its documents' `destroyed`
+// =============================================================================================
+
+TEST_CASE("a window taken down after engine work leaves no lambda on its documents' destroyed", "[pagesproduct][I-17]")
+{
+    // WHAT IT DOES NOT COVER (convention 19): it asks whether the window is still CONNECTED when the document dies, not
+    // whether its lambda would crash -- that depends on what the freed heap holds (6 of 48 eight at a time, I-17). One
+    // start site (`pageWork_`, the thumbnails) runs here; the other four connect the same signal to the same window,
+    // which is what the question names.
+    Product product;
+    product.open("assembly/odd-count-3.pdf");
+    ui::DocumentWindow* document = product.document();
+    const QObject* window = product.window.get();
+    // CONNECTED FIRST, so it runs before the window's own lambda: slots run in the order they were connected.
+    // DISCONNECTING is the question -- true when something was still connected -- and it also keeps the bug's lambda
+    // from running, so a red run fails here rather than crashing when the freed heap says so.
+    bool probed = false;
+    bool stillConnected = false;
+    QObject::connect(document, &QObject::destroyed, [&](QObject* dying) {
+        probed = true;
+        stillConnected = QObject::disconnect(dying, &QObject::destroyed, window, nullptr);
+    });
+    REQUIRE(product.root->services().actions.dispatch(core::ActionId::PageEmbedThumbnails, core::KeyContext::Global));
+    REQUIRE(awaitPageWork(product));
+    product.window.reset();
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    REQUIRE(probed);   // the document died with the window, and the probe saw it
+    CHECK_FALSE(stillConnected);
+}
+
+// =============================================================================================
 // A-27's warning half -- D7-20, on the signed corpus
 // =============================================================================================
 

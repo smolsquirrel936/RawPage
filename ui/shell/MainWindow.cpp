@@ -529,6 +529,13 @@ MainWindow::~MainWindow()
         }
     }
 
+    // AND EVERY DOCUMENT'S `destroyed` (Stage 7 guide I-17). Engine work started from this window -- a split, the margins,
+    // the thumbnails, the bookmarks' and the links' reading -- connects the document's `destroyed` to a lambda that reads
+    // `splitRunner_` or `pageWork_`, and `~QWidget` deletes the documents AFTER those members are gone: the lambda read a
+    // freed runner, and crashed when the freed memory said it was running. Every DocumentWindow BELOW this one, not only
+    // the tabs `documentAt` counts, because `~QWidget` deletes them all.
+    for (DocumentWindow* document : findChildren<DocumentWindow*>()) disconnect(document, &QObject::destroyed, this, nullptr);
+
     // OUT OF THE SET, and out of `g_activeShell` with it. The registry outlives every window and
     // holds handlers that resolve `activeShell()` at dispatch time; a destroyed window left in the
     // set would be dispatched into. This is the same class of bug as I-12 -- an object reached
