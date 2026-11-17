@@ -14,6 +14,7 @@
 
 #include "tests/composition/AnnotProduct.h"
 
+#include "core/cmd/ActionRegistry.h"
 #include "core/cmd/commands/PageCommands.h"
 #include "core/doc/PageMap.h"
 #include "core/doc/PageTree.h"
@@ -26,10 +27,14 @@
 #include "ui/viewer/TilePresenter.h"
 #include "ui/write/FindReplaceBar.h"
 
+#include <QElapsedTimer>
 #include <QFile>
 #include <QLineEdit>
+#include <QScrollBar>
 #include <QTreeWidget>
+#include <QWheelEvent>
 
+#include <algorithm>
 #include <cmath>
 #include <iomanip>
 #include <functional>
@@ -311,6 +316,156 @@ TEST_CASE("remap: the views, the history, the thumbnails, the selection and the 
         CHECK_FALSE(identityAt(product, state.page).contains(QStringLiteral("page 101 of 900")));
     CHECK(primary->pageCount() == 899);
     CHECK(second->pageCount() == 899);
+}
+
+// ==========================================================================================
+// A-129 -- a move of the page the view shows is shown moving (D7-39, the user's choice after M-12)
+// ==========================================================================================
+//
+// THROUGH THE SURFACE: a thumbnail's click (`activated`, what the pane emits for a plain press) and `page.moveLater`
+// dispatched in the pane's context, as `Alt+Down` resolves; the far move as the pane's drop asks for it. What it does
+// NOT cover (convention 19): the key itself -- `ShortcutBinder` is T8's A-53 -- and whether the scroll LOOKS like a
+// move to a person, which is M-12's.
+namespace {
+
+// Events pumped for `ms`, the move's frames among them -- never `settle()`, which waits the move out.
+void pump(int ms)
+{
+    QElapsedTimer timer;
+    timer.start();
+    while (timer.elapsed() < ms) QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+}
+
+void waitOutMove(ui::PageView* view)
+{
+    QElapsedTimer timer;
+    timer.start();
+    while (view->isFollowingMove() && timer.elapsed() < 3000) QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+}
+
+bool moveLater(Product& product)
+{
+    return static_cast<bool>(
+        product.root->services().actions.dispatch(core::ActionId::PageMoveLater, core::KeyContext::PageThumbnails));
+}
+
+} // namespace
+
+TEST_CASE("remap: a move of the page the view shows is shown moving and the view stays on it", "[remap][A-129][run-serial]")
+{
+    Product product;
+    product.open("ordinary/pages-900.pdf");
+    ui::PageView* view = product.view;
+    ui::ThumbnailsPane* thumbnails = product.window->thumbnailsPane();
+    REQUIRE(thumbnails != nullptr);
+
+    // THE CLICK: page 450 shown and selected alone.
+    thumbnails->setSelectedPages({449});
+    thumbnails->setCurrentPage(449);
+    emit thumbnails->activated(449);
+    product.settle();
+    REQUIRE(view->controller().currentPage() == 449);
+    REQUIRE(thumbnails->commandPages() == std::vector<int>{449});
+    const core::DevicePoint s0 = view->controller().scroll();
+
+    // ONE STEP: the screen has not moved yet -- the page that passed it stands where it stood -- and the view is on
+    // the moved page, which the selection therefore still is.
+    REQUIRE(moveLater(product));
+    CHECK(view->isFollowingMove());
+    CHECK(view->controller().scroll() == s0);
+    CHECK(view->controller().currentPage() == 450);
+    CHECK(identityAt(product, 449).contains(QStringLiteral("page 451 of 900")));
+    // Its frames: between the two, and on the moved page at every one.
+    int between = 0;
+    bool stayed = true;
+    QElapsedTimer timer;
+    timer.start();
+    while (view->isFollowingMove() && timer.elapsed() < 3000) {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 5);
+        if (view->controller().currentPage() != 450 || thumbnails->commandPages() != std::vector<int>{450}) stayed = false;
+        if (view->isFollowingMove() && view->controller().scroll().y > s0.y) ++between;
+    }
+    CHECK(stayed);
+    CHECK(between > 0);
+    const core::DevicePoint s1 = view->controller().scroll();
+    const double pitch = s1.y - s0.y;
+    REQUIRE(pitch > 0.0);
+    CHECK(s1.x == s0.x);
+    CHECK(view->controller().currentPage() == 450);
+    CHECK(identityAt(product, 450).contains(QStringLiteral("page 450 of 900")));
+
+    // A HELD KEY: each step taken before the last one's scroll ends follows from where that one was going.
+    for (int step = 1; step <= 5; ++step) {
+        REQUIRE(moveLater(product));
+        CHECK(view->controller().currentPage() == 450 + step);
+        pump(30);
+        CHECK(view->controller().currentPage() == 450 + step);
+        CHECK(thumbnails->commandPages() == std::vector<int>{450 + step});
+    }
+    waitOutMove(view);
+    CHECK(view->controller().currentPage() == 455);
+    CHECK(std::abs(view->controller().scroll().y - (s1.y + 5 * pitch)) < 1.0);
+    CHECK(identityAt(product, 455).contains(QStringLiteral("page 450 of 900")));
+    CHECK(thumbnails->commandPages() == std::vector<int>{455});
+
+    // THE WHEEL ENDS IT, and the view stays where the wheel left it.
+    const core::DevicePoint held = view->controller().scroll();
+    REQUIRE(moveLater(product));
+    REQUIRE(view->isFollowingMove());
+    {
+        const QPointF at(view->viewport()->width() / 2.0, view->viewport()->height() / 2.0);
+        QWheelEvent wheel(at, view->viewport()->mapToGlobal(at), QPoint(), QPoint(0, -120), Qt::NoButton, Qt::NoModifier,
+                          Qt::NoScrollPhase, false);
+        QCoreApplication::sendEvent(view->viewport(), &wheel);
+    }
+    CHECK_FALSE(view->isFollowingMove());
+    const core::DevicePoint wheeled = view->controller().scroll();
+    CHECK(wheeled.y > held.y);
+    pump(300);
+    CHECK(view->controller().scroll() == wheeled);
+    product.settle();
+
+    // THE COLUMN FOLLOWS TOO (M-12's second look, 2026-11-17): twelve steps carry the thumbnail further than the
+    // pane is tall, and it is still in sight -- the column scrolled with it.
+    thumbnails->setSelectedPages({299});
+    thumbnails->setCurrentPage(299);
+    emit thumbnails->activated(299);
+    product.settle();
+    {
+        const std::vector<int> shown = thumbnails->visiblePages();
+        REQUIRE_FALSE(shown.empty());   // convention 12: the pane is laid out
+        REQUIRE(std::find(shown.begin(), shown.end(), 299) != shown.end());
+        REQUIRE(static_cast<int>(shown.size()) < 12);   // twelve slots on is past what it shows
+    }
+    const int column = thumbnails->verticalScrollBar()->value();
+    for (int step = 1; step <= 12; ++step) {
+        REQUIRE(moveLater(product));
+        pump(30);
+    }
+    waitOutMove(view);
+    product.settle();
+    CHECK(view->controller().currentPage() == 311);
+    CHECK(thumbnails->currentPage() == 311);
+    CHECK(thumbnails->commandPages() == std::vector<int>{311});
+    {
+        const std::vector<int> shown = thumbnails->visiblePages();
+        CHECK(std::find(shown.begin(), shown.end(), 311) != shown.end());
+    }
+    CHECK(thumbnails->verticalScrollBar()->value() > column);
+
+    // NOT SHOWN MOVING: a drop of the page far away jumps to it, as before; a delete before it shifts the page
+    // without moving it.
+    view->goToPage(100);
+    product.settle();
+    REQUIRE(view->controller().currentPage() == 100);
+    emit thumbnails->movePagesRequested({100}, 801);
+    CHECK_FALSE(view->isFollowingMove());
+    CHECK(view->controller().currentPage() == 800);
+    product.settle();
+    CHECK(identityAt(product, 800).contains(QStringLiteral("page 101 of 900")));
+    REQUIRE(product.document()->journal()->run(std::make_unique<core::DeletePagesCommand>(std::vector<int>{0})));
+    CHECK_FALSE(view->isFollowingMove());
+    CHECK(view->controller().currentPage() == 799);
 }
 
 namespace {

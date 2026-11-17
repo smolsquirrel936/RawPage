@@ -77,6 +77,7 @@ class IDisplayTopology;
 }
 
 class QTimer;
+class QVariantAnimation;
 
 namespace rawpage::ui {
 
@@ -161,7 +162,17 @@ public:
     // removed it, on the page that took its place); the history follows its pages; a fit stays anchored to
     // its page; the held tiles move with their pages, so the screen never shows a page's pixels in another
     // page's place while the new revision's tiles arrive.
+    //
+    // A MOVE OF THAT PAGE IS SHOWN MOVING (D7-38, the user's choice after M-12): where the command only
+    // reordered the pages and the page landed within three of its slots, the screen stays where it was for
+    // one frame -- the neighbour that passed it now in its place -- and scrolls to the page over `kFollowMs`.
+    // While it scrolls the view reports the FOLLOWED page as current, never the one the scroll is passing,
+    // because a single selected thumbnail follows the current page and `Alt+Down` moves the selection; and a
+    // second move taken mid-scroll follows from where the first was going. Any other scroll or zoom ends it.
     void remapPages(const core::PageMap& map);
+
+    // True while a move is being shown (D7-38) -- for the cases that grade it.
+    bool isFollowingMove() const noexcept { return following_.has_value(); }
 
     core::DocumentHandle document() const noexcept { return document_; }
 
@@ -537,8 +548,20 @@ private:
     struct PageAnchor {
         int page = 0;
         core::DevicePoint within;
+        bool animate = false;   // D7-38: a reordering that moved this page -- shown moving if it landed near
     };
     std::optional<PageAnchor> pendingAnchor_;
+    // D7-38: THE MOVE BEING SHOWN -- where the scroll is going, what it last wrote and at what zoom, so that a
+    // scroll or zoom from anywhere else is seen in `refresh()` and ends it. `kFollowReach` is in the page's own
+    // slots: a move of the selection by one place lands one slot away, a held key's catching up two at most,
+    // and a drag of hundreds of pages jumps as it always did.
+    std::optional<PageAnchor> following_;
+    core::DevicePoint followedTo_;
+    core::render::Zoom followedZoom_;
+    QVariantAnimation* follow_ = nullptr;
+    static constexpr int kFollowMs = 150;
+    static constexpr double kFollowReach = 3.0;
+    void stopFollowing();
     // Where page `page`'s slot starts in content space at `zoom`, in the layout of the tree this view holds.
     std::optional<core::DevicePoint> originAt(int page, core::render::Zoom zoom) const;
 

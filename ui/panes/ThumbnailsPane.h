@@ -148,6 +148,9 @@ public:
 
     // S7 T3 (D7-3): a page command moved pages -- called before `modelChanged`. The current page follows its
     // page; the pane is the second of `Stage7-Assembly-Testing-Guide.md` A-31's "both panes' selections".
+    // AND THE COLUMN FOLLOWS IT (D7-39, M-12): where the command moved the current page, the `modelChanged`
+    // that follows scrolls the least that shows the set -- the current page alone if the set is taller than
+    // the pane -- so a held `Alt+Down` carries the thumbnails down the column and the column with them.
     void remapPages(const core::PageMap& map);
 
     core::DocumentHandle document() const noexcept { return document_; }
@@ -296,6 +299,10 @@ private:
     void rebuildSlots();
     void updateScrollBar();
     void requestVisible();
+    // Scrolls the least that shows slots `first` … `last`; false, scrolling nothing, when they are taller than
+    // the viewport. D7-39's reveal after a page command.
+    bool scrollIntoView(int first, int last);
+    bool revealAfterRemap_ = false;   // D7-39: set by `remapPages`, spent by the `modelChanged` after it
     void cancelAll();
     void dropEntry(int pageIndex);
     core::render::RenderRequest requestFor(int pageIndex) const;

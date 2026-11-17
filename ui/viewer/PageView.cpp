@@ -40,6 +40,7 @@
 #include <QScrollBar>
 #include <QTimer>
 #include <QTransform>
+#include <QVariantAnimation>
 #include <QCoreApplication>
 #include <QWheelEvent>
 
@@ -125,6 +126,24 @@ PageView::PageView(core::render::RenderScheduler& scheduler,
         if (shown) loupeRaster_->aim(pendingLoupe_);
     });
 
+    // A MOVE SHOWN MOVING (D7-38): each frame writes the scroll, and the controller's `changed` lays out and asks
+    // for tiles as any scroll does. A frame that finds the scroll not where the last one left it was preceded by
+    // somebody else's scroll -- `refresh()` has already ended the move, and the frame writes nothing.
+    follow_ = new QVariantAnimation(this);
+    follow_->setDuration(kFollowMs);
+    follow_->setEasingCurve(QEasingCurve::OutCubic);
+    connect(follow_, &QVariantAnimation::valueChanged, this, [this](const QVariant& value) {
+        if (!following_) return;
+        // RECORDED BEFORE IT IS WRITTEN: the write lays out, and the layout must find the frame its own.
+        const QPointF to = value.toPointF();
+        followedTo_ = core::DevicePoint{to.x(), to.y()};
+        controller_->setScroll(followedTo_);
+    });
+    connect(follow_, &QVariantAnimation::finished, this, [this] {
+        following_.reset();
+        refresh();   // the dominant page is the current one again
+    });
+
     // THE SNAPSHOT'S CLIENT (S5 T10, D5-11): the loupe's shape, its request builder, its lane -- and the
     // tile cache BYPASSED, because a snapshot is consumed once and may be 200 MB (`LoupeRaster.h`).
     snapshotRaster_ = std::make_unique<LoupeRaster>(scheduler_, this, core::render::CachePolicy::Bypass);
@@ -172,6 +191,16 @@ PageView::~PageView()
     loupeRaster_.reset();
     snapshotRaster_.reset();
     presenter_.reset();
+    // A move still being shown writes no frame into a view that is going (convention 10's reason).
+    stopFollowing();
+    follow_->disconnect(this);
+}
+
+void PageView::stopFollowing()
+{
+    // Stopping emits no `finished`, so nothing lays out here: the caller is mid-change or about to refresh.
+    following_.reset();
+    if (follow_ != nullptr) follow_->stop();
 }
 
 void PageView::setDocument(core::DocumentHandle document, core::Revision revision,
@@ -185,6 +214,8 @@ void PageView::setDocument(core::DocumentHandle document, core::Revision revisio
     // A SNAPSHOT STILL ON ITS WAY IS THE OLD DOCUMENT'S, and is dropped rather than delivered into a
     // view that now shows another (S5 T10).
     if (snapshotRaster_) snapshotRaster_->clear();
+    stopFollowing();
+    pendingAnchor_.reset();
 
     engine_.setDocument(pages);
     presenter_->setDocument(document, revision, pages);
@@ -217,11 +248,16 @@ std::optional<core::DevicePoint> PageView::originAt(int page, core::render::Zoom
 
 void PageView::remapPages(const core::PageMap& map)
 {
-    // READ FROM THE OLD LAYOUT, which `engine_` still holds: where the view stands inside the page it shows.
-    const int was = controller_->currentPage();
+    // READ FROM THE OLD LAYOUT, which `engine_` still holds: where the view stands inside the page it shows --
+    // or, while a move is being shown (D7-38), where it was going: the page it follows, not the page it passes.
+    const int was = following_ ? following_->page : controller_->currentPage();
     core::DevicePoint within;
-    if (const core::render::PageSlot* slot = engine_.layout().slotForPage(was))
+    if (following_)
+        within = following_->within;
+    else if (const core::render::PageSlot* slot = engine_.layout().slotForPage(was))
         within = core::DevicePoint{controller_->scroll().x - slot->rect.left(), controller_->scroll().y - slot->rect.top()};
+    // The scroll stays wherever the last frame left it; `modelChanged` starts the next one from there.
+    stopFollowing();
 
     // The page it showed, at its new index -- or, removed, the first page after it that stayed, which now
     // stands where it stood.
@@ -235,7 +271,11 @@ void PageView::remapPages(const core::PageMap& map)
     };
     const int now = follow(was);
     const bool kept = map.newIndexOf(was) != core::PageMap::kNone;
-    pendingAnchor_ = PageAnchor{now, kept ? within : core::DevicePoint{within.x, 0.0}};
+    // D7-38: SHOWN MOVING only where the command REORDERED pages (a delete, an insert or a duplicate shifts the
+    // page without moving it) and every page is laid out, so the screen has somewhere to scroll from.
+    const bool animate = kept && now != was && map.oldCount() == map.newCount()
+                         && core::render::isContinuous(controller_->layoutMode());
+    pendingAnchor_ = PageAnchor{now, kept ? within : core::DevicePoint{within.x, 0.0}, animate};
     if (fitAnchorPage_ >= 0) fitAnchorPage_ = follow(fitAnchorPage_);
 
     // THE HISTORY, placed in the layout AFTER the command -- `pages_` is the model, already changed.
@@ -264,6 +304,7 @@ void PageView::modelChanged(core::Revision revision)
         const PageAnchor anchor = *pendingAnchor_;
         pendingAnchor_.reset();
         const QSignalBlocker quiet(controller_);   // one refresh, below, rather than one per setter
+        const core::DevicePoint from = controller_->scroll();   // what the screen shows, before the new layout
         engine_.setDocument(pages_);
         controller_->setPageCount(pageCount());
         engine_.update(controller_->zoom(), screenMetrics(), controller_->layoutMode(), anchor.page,
@@ -271,9 +312,27 @@ void PageView::modelChanged(core::Revision revision)
         controller_->setContentSize(engine_.layout().contentSize());
         {
             controller_->setCurrentPage(anchor.page);
-            if (const core::render::PageSlot* slot = engine_.layout().slotForPage(anchor.page))
+            if (const core::render::PageSlot* slot = engine_.layout().slotForPage(anchor.page)) {
                 controller_->setScroll(core::DevicePoint{slot->rect.left() + anchor.within.x,
                                                          slot->rect.top() + anchor.within.y});
+                // D7-38: SHOWN MOVING -- back to where the screen was, and scrolled to the page from there. Both
+                // ends are read back from the controller, clamped, so every frame between them is a scroll it
+                // keeps as written and `refresh()` can tell the move's own frames from anybody else's.
+                const core::DevicePoint to = controller_->scroll();
+                controller_->setScroll(from);
+                const core::DevicePoint start = controller_->scroll();
+                const double reach = kFollowReach * std::max(slot->rect.size.width, slot->rect.size.height);
+                if (anchor.animate && !(start == to) && std::abs(to.x - start.x) + std::abs(to.y - start.y) <= reach) {
+                    following_ = PageAnchor{anchor.page, anchor.within, false};
+                    followedTo_ = start;
+                    followedZoom_ = controller_->zoom();
+                    follow_->setStartValue(QPointF(start.x, start.y));
+                    follow_->setEndValue(QPointF(to.x, to.y));
+                    follow_->start();
+                } else {
+                    controller_->setScroll(to);
+                }
+            }
         }
     }
     // The tree is the same object, mutated, and `refresh()` lays out from it again -- which is what makes a
@@ -1434,6 +1493,7 @@ void PageView::goToPage(int pageIndex)
     // here out of range every time somebody holds the key down, and refusing would be an error
     // path taken during ordinary use.
     const int target = std::clamp(pageIndex, 0, pageCount() - 1);
+    stopFollowing();   // a navigation ends a move being shown before it names its page (D7-38)
     controller_->setCurrentPage(target);
     pageIndex = target;
 
@@ -1479,6 +1539,11 @@ void PageView::refresh()
 {
     if (syncing_ || refreshing_) return;
     refreshing_ = true;
+
+    // D7-38: A SCROLL OR ZOOM THE SHOWN MOVE DID NOT WRITE -- the wheel, the scrollbar, a navigation -- ends it,
+    // and the view is wherever that left it.
+    if (following_ && (!(controller_->scroll() == followedTo_) || !(controller_->zoom() == followedZoom_)))
+        stopFollowing();
 
     const ScreenMetrics metrics = screenMetrics();
 
@@ -1541,8 +1606,12 @@ void PageView::refresh()
                              controller_->viewRotation());
 
     // The page the user is actually looking at, by AREA rather than by which one starts highest --
-    // see `PageLayoutEngine::dominantPage`. T14's status bar is the consumer.
-    if (const int dominant = engine_.dominantPage(controller_->visibleRect()); dominant >= 0)
+    // see `PageLayoutEngine::dominantPage`. T14's status bar is the consumer. While a move is being shown it is
+    // the page the view follows (D7-38): the page the scroll passes is not one anybody navigated to, and a
+    // single selected thumbnail would follow it there and the next `Alt+Down` move it.
+    if (following_)
+        controller_->setCurrentPage(following_->page);
+    else if (const int dominant = engine_.dominantPage(controller_->visibleRect()); dominant >= 0)
         controller_->setCurrentPage(dominant);
 
     refreshing_ = false;

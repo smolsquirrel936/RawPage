@@ -163,8 +163,29 @@ void ThumbnailsPane::modelChanged(core::Revision revision)
 
     rebuildSlots();
     updateScrollBar();
+    // D7-39: THE MOVED SET IN SIGHT, laid out in the new order first. Before the tiles are asked for, so the
+    // ones asked for are the ones the column now shows.
+    if (revealAfterRemap_) {
+        revealAfterRemap_ = false;
+        if (!selected_.empty() && !scrollIntoView(selected_.front(), selected_.back()))
+            (void)scrollIntoView(currentPage_, currentPage_);
+    }
     requestVisible();
     viewport()->update();
+}
+
+bool ThumbnailsPane::scrollIntoView(int first, int last)
+{
+    const int count = static_cast<int>(slots_.size());
+    if (first < 0 || last < first || last >= count) return false;
+    const int top = slots_[static_cast<std::size_t>(first)].rect.top();
+    const int bottom = slots_[static_cast<std::size_t>(last)].rect.bottom();
+    const int height = viewport()->height();
+    if (bottom - top > height) return false;
+    const int at = verticalScrollBar()->value();
+    if (top < at) verticalScrollBar()->setValue(top);
+    else if (bottom > at + height) verticalScrollBar()->setValue(bottom - height);
+    return true;
 }
 
 void ThumbnailsPane::remapPages(const core::PageMap& map)
@@ -180,8 +201,12 @@ void ThumbnailsPane::remapPages(const core::PageMap& map)
             if (map.newIndexOf(before) != core::PageMap::kNone) ++kept;
         return std::clamp(kept, 0, std::max(0, map.newCount() - 1));
     };
+    const int was = currentPage_;
     currentPage_ = follow(currentPage_);
     anchor_ = follow(anchor_);
+    // D7-39: a page the person is working on that the command MOVED is followed down the column. A command that
+    // left it where it was -- a change after it, a replace -- leaves the column where the person put it.
+    revealAfterRemap_ = currentPage_ != was;
 
     // THE SET IS THE SAME PAGES (S7 T8, guide A-53): each where it went, a deleted one gone. A set the command emptied
     // becomes the page that took the current page's place, so a command always has something to act on next.
