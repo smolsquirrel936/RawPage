@@ -16,6 +16,7 @@
 #include "SaveSession.h"
 #include "core/cmd/commands/PageCommands.h"
 #include "core/doc/Assembly.h"
+#include "core/doc/Outline.h"
 #include "pdf/cos/FullWriter.h"
 #include "pdf/cos/XrefRepair.h"
 #include "pdf/cos/XrefTable.h"
@@ -29,6 +30,7 @@
 
 #include <algorithm>
 #include <filesystem>
+#include <functional>
 #include <iostream>
 #include <set>
 #include <string>
@@ -437,4 +439,167 @@ TEST_CASE("assembler extract a file that fails its verify takes back every file 
     CHECK(written.error().messageKey == QLatin1String("error.assembly.verifyFailed"));
     CHECK(built == 2);
     CHECK(QDir(folder).entryList(QDir::Files | QDir::Hidden | QDir::System).isEmpty());   // neither file, nor a temporary
+}
+
+// ==========================================================================================
+// Stage 7 guide I-25 (D7-38) -- an extract and a split carry the bookmarks to THEIR pages, with the ancestors those
+// need, and the form fields their pages carry -- read back as a document, by the model a reader of it would build
+// ==========================================================================================
+
+namespace {
+
+// Each outline item as `title=page` -- `-1` for one going nowhere -- its children in brackets, in order.
+std::string outlineShape(const std::vector<core::OutlineItem>& items)
+{
+    std::string out;
+    for (const core::OutlineItem& item : items) {
+        if (!out.empty()) out += ' ';
+        out += item.title.toStdString() + '=' + std::to_string(item.destination.pageIndex);
+        if (!item.children.empty()) out += '[' + outlineShape(item.children) + ']';
+    }
+    return out;
+}
+
+std::string outlineOf(const std::string& bytes)
+{
+    auto session = tests::openBuilt(QStringLiteral("made.pdf"), bytes);
+    REQUIRE(session);
+    return outlineShape(session->journal->document().outline().roots());
+}
+
+// The fully qualified names of the terminal fields `/AcroForm /Fields` reaches, each `name:value` where it has one.
+std::set<std::string> fieldsOf(Read& made)
+{
+    std::set<std::string> out;
+    const CosObject& rootRef = made.table->trailer().get("Root");
+    REQUIRE(rootRef.isReference());
+    const CosObject catalog = made.object(rootRef.reference().number);
+    const CosObject* form = catalog.find("AcroForm");
+    if (form == nullptr) return out;
+    const CosObject acroForm = form->isReference() ? made.object(form->reference().number) : *form;
+    std::function<void(const CosObject&, const std::string&, int)> walk = [&](const CosObject& node, const std::string& above,
+                                                                              int depth) {
+        if (depth > 16) return;
+        const CosObject field = node.isReference() ? made.object(node.reference().number) : node;
+        const CosObject& t = field.get("T");
+        const std::string name = t.isString() ? (above.empty() ? t.text() : above + '.' + t.text()) : above;
+        const CosObject& kids = field.get("Kids");
+        bool fieldKids = false;
+        if (kids.isArray()) {
+            for (const CosObject& kid : kids.items()) {
+                const CosObject k = kid.isReference() ? made.object(kid.reference().number) : kid;
+                if (k.has("T")) {
+                    fieldKids = true;
+                    walk(kid, name, depth + 1);
+                }
+            }
+        }
+        if (!fieldKids) {
+            const CosObject& v = field.get("V");
+            out.insert(v.isString() ? name + ':' + v.text() : name);
+        }
+    };
+    const CosObject& fields = acroForm.get("Fields");
+    if (fields.isArray()) {
+        for (const CosObject& field : fields.items()) walk(field, std::string(), 0);
+    }
+    return out;
+}
+
+bool catalogHas(Read& made, const char* key)
+{
+    const CosObject& rootRef = made.table->trailer().get("Root");
+    return rootRef.isReference() && made.object(rootRef.reference().number).has(key);
+}
+
+} // namespace
+
+TEST_CASE("assembler extract carries the bookmarks to its pages and the ancestors they need", "[assembler][extract][I-25]")
+{
+    // refs-every-kind's outline: P-0001 (page 1) over P-0002 and P-0003; P-0005 over P-0006 and P-0008; P-0012. Pages
+    // 3 ... 8 extracted: P-0003 under its parent, which names a page left behind and so goes nowhere; P-0005's whole
+    // subtree; neither P-0002 nor P-0012.
+    auto source = sourceOf("assembly/refs-every-kind.pdf");
+    REQUIRE(source);
+    auto made = source->assemble({2, 3, 4, 5, 6, 7});
+    REQUIRE(made);
+    const std::string bytes = bytesOf(made.value().bytes);
+    keep(bytes, QStringLiteral("assembly-extract-outline.pdf"));
+    CHECK(outlineOf(bytes) == "P-0001=-1[P-0003=0] P-0005=2[P-0006=3 P-0008=5]");
+    // The ancestor kept for its child is said, as a merge says one (D7-2's *cleared*).
+    bool cleared = false;
+    for (const core::PageReference& reference : made.value().report.references)
+        cleared = cleared || (reference.kind == core::PageReference::Kind::OutlineItem && reference.name == QLatin1String("P-0001"));
+    CHECK(cleared);
+
+    // P-0002 alone: its bookmark, under the parent it needs.
+    auto second = source->assemble({1});
+    REQUIRE(second);
+    CHECK(outlineOf(bytesOf(second.value().bytes)) == "P-0001=-1[P-0002=0]");
+    // A page no bookmark names: no outline at all, never an empty one.
+    auto unnamed = source->assemble({8});   // P-0009
+    REQUIRE(unnamed);
+    Read bare(bytesOf(unnamed.value().bytes));
+    CHECK_FALSE(catalogHas(bare, "Outlines"));
+}
+
+TEST_CASE("assembler split each file carries the bookmarks to its own pages", "[assembler][split][I-25]")
+{
+    auto source = sourceOf("assembly/refs-every-kind.pdf");
+    REQUIRE(source);
+    QTemporaryDir root;
+    // At every top-level bookmark, as M-02 splits it: P-0001 ... P-0004, P-0005 ... P-0011, P-0012.
+    auto written = source->write({{{0, 1, 2, 3}, QStringLiteral("a.pdf")},
+                                  {{4, 5, 6, 7, 8, 9, 10}, QStringLiteral("b.pdf")},
+                                  {{11}, QStringLiteral("c.pdf")}},
+                                 root.path());
+    REQUIRE(written);
+    REQUIRE(written.value().size() == 3);
+    const std::vector<std::string> expected{"P-0001=0[P-0002=1 P-0003=2]", "P-0005=0[P-0006=1 P-0008=3]", "P-0012=0"};
+    for (std::size_t at = 0; at < 3; ++at) {
+        INFO("file " << at);
+        const std::string bytes = bytesOf(tests::readAllBytes(written.value()[at].path));
+        CHECK(outlineOf(bytes) == expected[at]);
+        keep(bytes, QStringLiteral("assembly-split-outline-%1.pdf").arg(at + 1));
+    }
+}
+
+TEST_CASE("assembler extract carries the form fields its pages carry with their values", "[assembler][extract][I-25]")
+{
+    // annots-on-pages: page n carries the widget of the text field `field-n`.
+    auto source = sourceOf("assembly/annots-on-pages.pdf");
+    REQUIRE(source);
+    Read original(bytesOf(tests::readAllBytes(tests::corpusFile("assembly/annots-on-pages.pdf"))));
+    const std::set<std::string> all = fieldsOf(original);
+    REQUIRE(all.size() == 4);
+    std::set<std::string> expected;
+    for (const std::string& field : all) {
+        if (field.rfind("field-2", 0) == 0 || field.rfind("field-3", 0) == 0) expected.insert(field);
+    }
+    REQUIRE(expected.size() == 2);
+
+    auto made = source->assemble({1, 2});
+    REQUIRE(made);
+    Read back(bytesOf(made.value().bytes));
+    keep(back.bytes, QStringLiteral("assembly-extract-fields.pdf"));
+    CHECK(fieldsOf(back) == expected);   // as the source has them, values and all; field-1 and field-4 stayed behind
+    for (const core::PageReference& reference : made.value().report.references)
+        CHECK(reference.kind != core::PageReference::Kind::WidgetNotCopied);
+}
+
+TEST_CASE("assembler the control an insert's copy still carries no outline and no fields", "[assembler][I-25]")
+{
+    // DW-5 and D7-33(j), the user's choice at T10: pages inserted into an open document bring neither.
+    auto source = sourceOf("assembly/annots-on-pages.pdf");
+    REQUIRE(source);
+    auto copied = source->copy({1, 2});
+    REQUIRE(copied);
+    Read payload(bytesOf(copied.value().graph));
+    CHECK_FALSE(catalogHas(payload, "AcroForm"));
+    auto refs = sourceOf("assembly/refs-every-kind.pdf");
+    REQUIRE(refs);
+    auto outline = refs->copy({2, 3});
+    REQUIRE(outline);
+    Read refsPayload(bytesOf(outline.value().graph));
+    CHECK_FALSE(catalogHas(refsPayload, "Outlines"));
 }

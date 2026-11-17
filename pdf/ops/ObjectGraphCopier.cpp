@@ -563,6 +563,36 @@ std::optional<long long> Copier::copyOutline()
     const CosObject root = resolved(catalog.value().object.get("Outlines"));
     if (!root.isDictionary() || !root.get("First").isReference()) return std::nullopt;
 
+    // Stage 7 guide I-25 (D7-38): which items an extract or a split keeps -- each that names a copied page and each
+    // above one -- read before any item is copied, so an item left behind numbers nothing and copies nothing. The same
+    // walk as the copy below: siblings by `/Next`, children by `/First`, a visited set and a depth bound.
+    std::set<long long> kept;
+    if (options_.pruneOutline) {
+        std::set<long long> visited;
+        std::function<bool(const CosObject&, int)> keeps = [&](const CosObject& first, int depth) {
+            bool any = false;
+            CosObject at = first;
+            while (at.isReference() && depth <= 64) {
+                const long long number = at.reference().number;
+                if (!visited.insert(number).second) break;
+                const CosObject item = resolved(at);
+                if (!item.isDictionary()) break;
+                bool fromAction = false;
+                const std::optional<CosObject> target = linkTarget(item, fromAction);
+                const bool names = target && target->items().front().isReference()
+                                   && copiedPages_.count(target->items().front().reference().number) != 0;
+                const bool below = keeps(item.get("First"), depth + 1);
+                if (names || below) {
+                    kept.insert(number);
+                    any = true;
+                }
+                at = item.get("Next");
+            }
+            return any;
+        };
+        if (!keeps(root.get("First"), 0)) return std::nullopt;
+    }
+
     std::vector<OutlineItem> items;
     std::set<long long> seen;
     // The items of one sibling chain, as indices into `items`, each with its own children read first.
@@ -574,6 +604,10 @@ std::optional<long long> Copier::copyOutline()
             if (!seen.insert(number).second) break;
             const CosObject item = resolved(at);
             if (!item.isDictionary()) break;
+            if (options_.pruneOutline && kept.count(number) == 0) {   // left behind, its subtree with it (I-25)
+                at = item.get("Next");
+                continue;
+            }
             if (!spend()) break;
             OutlineItem made;
             made.local = next_++;

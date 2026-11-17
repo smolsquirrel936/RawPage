@@ -110,10 +110,10 @@ QPoint widgetAt(const ui::PageView& view, int page, core::PdfPoint point)
                   static_cast<int>(std::lround((d->y - visible.top()) / dpr)));
 }
 
-void mouse(ui::PageView& view, QEvent::Type type, QPoint pos)
+void mouse(ui::PageView& view, QEvent::Type type, QPoint pos, Qt::KeyboardModifiers modifiers = Qt::NoModifier)
 {
     QMouseEvent event(type, QPointF(pos), view.viewport()->mapToGlobal(QPointF(pos)), Qt::LeftButton,
-                      type == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::LeftButton, Qt::NoModifier);
+                      type == QEvent::MouseButtonRelease ? Qt::NoButton : Qt::LeftButton, modifiers);
     QCoreApplication::sendEvent(view.viewport(), &event);
     QCoreApplication::processEvents();
 }
@@ -297,6 +297,72 @@ TEST_CASE("ui.composition.links a link clicked with the hand goes to the page it
     REQUIRE(linking.dispatch(core::ActionId::AnnotFinishShape, core::KeyContext::AnnotationTools));
     product.settle();
     CHECK(shownIdentity(product) == QStringLiteral("P-0007"));
+}
+
+// ==========================================================================================
+// Stage 7 guide I-24 -- `Shift`, the temporary hand, follows a link under the Selection tool, and still drags one
+// ==========================================================================================
+
+TEST_CASE("ui.composition.links a Shift click on a link with the Selection tool follows it and a Shift drag still moves it",
+          "[linkproduct][I-24]")
+{
+    Answers answers;
+    Linking linking;
+    Product& product = linking.p();
+    ui::PageView* view = product.open("assembly/refs-every-kind.pdf");
+    view->setZoom(core::render::Zoom{0.8});
+    product.settle();
+    view->setTool(ui::ToolKind::Select);
+    // NO `Shift` KEY EVENT reaches the view: the modifier rides on the mouse events alone, as it does when the key went to
+    // another widget -- the thumbnails pane, focused (the user's walk, 2026-11-17).
+    REQUIRE_FALSE(view->tools().temporaryHandActive());
+    int clicked = 0;   // every link the view hands the window to follow
+    const QMetaObject::Connection counting =
+        QObject::connect(view, &ui::PageView::linkClicked, view, [&clicked](const core::AnnotationId&) { ++clicked; });
+
+    const std::size_t history = product.document()->journal()->historySize();
+    const core::Annotation& toNine = linkObject(product, 19);
+    view->revealPageRect(toNine.page, toNine.rect);
+    product.settle();
+    const QPoint at = widgetAt(*view, toNine.page,
+                               core::PdfPoint{toNine.rect.left() + toNine.rect.size.width / 2, toNine.rect.bottom() + toNine.rect.size.height / 2});
+    REQUIRE(view->viewport()->rect().contains(at));
+    mouse(*view, QEvent::MouseButtonPress, at, Qt::ShiftModifier);
+    mouse(*view, QEvent::MouseButtonRelease, at, Qt::ShiftModifier);
+    product.settle();
+    REQUIRE(product.window->lastLinkFollow());
+    CHECK(product.window->lastLinkFollow()->step == LinkFollow::Step::Navigate);
+    CHECK(shownIdentity(product) == QStringLiteral("P-0009"));
+    CHECK(product.document()->journal()->historySize() == history);   // a click moves nothing
+
+    // A `Shift`+DRAG on a link is still Stage 6's constrained move: the link moves, and nothing is followed.
+    const core::Annotation& toSix = linkObject(product, 20);
+    const core::PdfRect before = toSix.rect;
+    view->revealPageRect(toSix.page, toSix.rect);
+    product.settle();
+    const int followed = clicked;
+    const QPoint from = widgetAt(*view, toSix.page,
+                                 core::PdfPoint{toSix.rect.left() + toSix.rect.size.width / 2, toSix.rect.bottom() + toSix.rect.size.height / 2});
+    mouse(*view, QEvent::MouseButtonPress, from, Qt::ShiftModifier);
+    mouse(*view, QEvent::MouseMove, from + QPoint(0, 40), Qt::ShiftModifier);
+    mouse(*view, QEvent::MouseButtonRelease, from + QPoint(0, 40), Qt::ShiftModifier);
+    product.settle();
+    CHECK(clicked == followed);
+    CHECK(product.document()->journal()->historySize() == history + 1);
+    CHECK_FALSE(linkObject(product, 20).rect == before);
+
+    // THE CONTROL: the same click with no `Shift` under the Selection tool SELECTS the link and follows nothing (D7-35(h)).
+    const core::Annotation& toSeven = linkObject(product, 21);
+    view->revealPageRect(toSeven.page, toSeven.rect);
+    product.settle();
+    const QPoint plain = widgetAt(*view, toSeven.page,
+                                  core::PdfPoint{toSeven.rect.left() + toSeven.rect.size.width / 2, toSeven.rect.bottom() + toSeven.rect.size.height / 2});
+    mouse(*view, QEvent::MouseButtonPress, plain);
+    mouse(*view, QEvent::MouseButtonRelease, plain);
+    product.settle();
+    CHECK(clicked == followed);
+    CHECK(product.overlay()->selection() == std::vector<core::AnnotationId>{core::AnnotationId::ofObject(21)});
+    QObject::disconnect(counting);
 }
 
 // ==========================================================================================

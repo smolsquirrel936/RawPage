@@ -321,7 +321,14 @@ core::Result<std::unique_ptr<DocumentAssembler::Source>> DocumentAssembler::Sour
 
 core::Result<DocumentAssembler::Assembled> DocumentAssembler::Source::make(const std::vector<int>& pages)
 {
-    auto copied = ObjectGraphCopier::copy(opened_->table, walk_, pages);
+    // Stage 7 guide I-25 (`Stage7-Assembly-Plan.md` D7-38): a new document made of these pages takes the bookmarks that
+    // name them -- with the ancestors those need -- and the form fields whose widgets they carry, values and all, into
+    // the payload's catalog, which `build` keeps as it is. Until then an extract and a split wrote neither.
+    ObjectGraphCopier::Options options;
+    options.outline = true;
+    options.pruneOutline = true;
+    options.fields = true;
+    auto copied = ObjectGraphCopier::copy(opened_->table, walk_, pages, options);
     if (!copied) return copied.error();
     // The seed: this process's clock, this source's count and the pages -- unique per document made, so two extracts
     // of the same pages are two files with two identifiers.

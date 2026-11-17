@@ -1300,6 +1300,25 @@ void PageView::mousePressEvent(QMouseEvent* event)
         lastPressPos_ = event->pos();
     }
 
+    // S7 T12 (D7-12, D7-35): A LINK UNDER THE HAND -- armed, or the temporary hand of a held `Shift` -- is remembered at
+    // the press and followed at a release that did not drag; the hand still pans from it, so a drag that starts on a link
+    // is a pan, as in every reader. Stage 7 guide I-24: read HERE, before the overlay below can take the press -- with the
+    // Selection tool armed a `Shift`+press on a link is the overlay's, whose drag constrains the link's move (Stage 6),
+    // and a release where it went down is still a click on a link -- and with the click's OWN modifiers, so a `Shift`
+    // whose key went to another widget is the hand here too.
+    pressedLink_.reset();
+    if (event->button() == Qt::LeftButton) tools_->setModifiers(event->modifiers());
+    if (event->button() == Qt::LeftButton && tools_->effective() == ToolKind::Hand && annotations_ != nullptr
+        && annotations_->store() != nullptr) {
+        if (const std::optional<core::AnnotationId> id = annotations_->annotationAt(annotationViewport(), event->pos())) {
+            const std::optional<std::size_t> index = annotations_->store()->find(*id);
+            if (index && annotations_->store()->at(*index).subtype == core::AnnotationSubtype::Link) {
+                pressedLink_ = *id;
+                pressedLinkAt_ = event->pos();
+            }
+        }
+    }
+
     // THE ANNOTATIONS BEFORE THE TOOL (S6 T5): with the Selection tool or an annotation tool armed, a press
     // on an annotation, one of its handles or a pop-up is the overlay's -- a pick, a drag, a resize. A press
     // anywhere else is the tool's, as it always was. A temporary hand still reaches the overlay first:
@@ -1327,19 +1346,6 @@ void PageView::mousePressEvent(QMouseEvent* event)
     // so the pop-up a click opened goes, unless the press is on it.
     if (annotations_ != nullptr && !overlayFirst()) (void)annotations_->dismissPopupAt(annotationViewport(), event->pos());
 
-    // S7 T12 (D7-12, D7-35): A LINK UNDER THE HAND is remembered at the press and followed at a release that did not drag
-    // -- the hand still pans from it, so a drag that starts on a link is a pan, as in every reader.
-    pressedLink_.reset();
-    if (event->button() == Qt::LeftButton && tools_->effective() == ToolKind::Hand && annotations_ != nullptr
-        && annotations_->store() != nullptr) {
-        if (const std::optional<core::AnnotationId> id = annotations_->annotationAt(annotationViewport(), event->pos())) {
-            const std::optional<std::size_t> index = annotations_->store()->find(*id);
-            if (index && annotations_->store()->at(*index).subtype == core::AnnotationSubtype::Link) {
-                pressedLink_ = *id;
-                pressedLinkAt_ = event->pos();
-            }
-        }
-    }
     const bool taken = tools_->press(event->pos(), event->button(), event->modifiers(), clicks_);
     if (event->button() == Qt::RightButton) rightPressTaken_ = taken;
     if (!taken) {
@@ -1393,13 +1399,8 @@ void PageView::mouseReleaseEvent(QMouseEvent* event)
         return;
     }
 
-    if (annotations_ != nullptr && event->button() == Qt::LeftButton
-        && annotations_->release(annotationViewport(), event->pos(), event->modifiers())) {
-        event->accept();
-        return;
-    }
-
-    // S7 T12: a release on the link the press landed on, within the platform's drag distance, follows it.
+    // S7 T12: a release on the link the press landed on, within the platform's drag distance, follows it -- whoever took
+    // the press: the hand's tool, or the overlay under a temporary hand (Stage 7 guide I-24).
     std::optional<core::AnnotationId> clickedLink;
     if (pressedLink_ && event->button() == Qt::LeftButton) {
         const QStyleHints* hints = QGuiApplication::styleHints();
@@ -1407,6 +1408,14 @@ void PageView::mouseReleaseEvent(QMouseEvent* event)
         if ((event->pos() - pressedLinkAt_).manhattanLength() <= slop) clickedLink = pressedLink_;
         pressedLink_.reset();
     }
+
+    if (annotations_ != nullptr && event->button() == Qt::LeftButton
+        && annotations_->release(annotationViewport(), event->pos(), event->modifiers())) {
+        event->accept();
+        if (clickedLink) emit linkClicked(*clickedLink);
+        return;
+    }
+
     if (!tools_->release(event->pos(), event->button())) {
         QAbstractScrollArea::mouseReleaseEvent(event);
         if (clickedLink) emit linkClicked(*clickedLink);

@@ -46,6 +46,8 @@
 //     the source's order (a root `/Fields` never listed after them), with the source's `/DA`, `/Q`, `/DR`,
 //     `/NeedAppearances` and `/SigFlags` and its `/CO` narrowed likewise; `/XFA` stays behind. Insert and replace
 //     still copy no widget (the user's choice at T10: their fields are an open document's, `Deferred-Work.md`).
+//   * Stage 7 guide I-25 -- `Options::pruneOutline`, which an extract and a split set with `outline` and `fields`
+//     (`DocumentAssembler::Source::make`): only the items that name a copied page, and their ancestors (see `Options`).
 //   * STAGE 7 T10 -- `Options::outline`, which merge sets: the source's OUTLINE comes too, as the payload catalog's
 //     `/Outlines`, every item kept with its title, colour, style, open state and any other key, its links rebuilt
 //     and its `/Count` recounted. A destination is treated as a link's is: one whose page is copied names the copy (a
@@ -106,6 +108,12 @@ public:
         // the source's OUTLINE comes with them -- each written into the payload's catalog (see the header).
         bool fields = false;
         bool outline = false;
+        // Stage 7 guide I-25 (`Stage7-Assembly-Plan.md` D7-38), AN EXTRACT'S AND A SPLIT'S, with `outline`: only the items
+        // that name a copied page come, with the ancestors they need so the tree still reads -- an ancestor kept for its
+        // children alone keeps its title and loses its own destination (D7-2's *cleared*, reported) -- and every other
+        // item stays behind, its subtree with it, decided before anything of it is copied. Merge takes the outline
+        // whole and clears what names a page left behind.
+        bool pruneOutline = false;
         // ... and every optional-content group the source lists, not only those the copied pages reach: a merge takes a
         // document's layers whole, a label-only parent group included (D7-16).
         bool allLayers = false;
