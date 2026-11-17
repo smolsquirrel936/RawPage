@@ -160,6 +160,8 @@ add_executable(rawpage_tests
                                   #   and bookmarks renamed and cleared with it, a page command's remap (S7 guide A-82)
     tst_links.cpp                 # Stage 7 T12 -- following, verifying and URL detection, pure; a link's fields through
                                   #   Stage 6's commands and the shipped sink (S7 guide A-84 ... A-88, headless halves)
+    tst_pagereconnect.cpp         # Stage 7 guide I-23 -- a page cut or copied and pasted back keeps its bookmarks, named
+                                  #   destinations and links, through the shipped sink, saved and read back (D7-37)
     tst_splitplan.cpp             # Stage 7 T7  -- the six split rules and the page-range syntax, pure, against hand
                                   #   values and the split-blanks labels (S7 guide A-49's planning half)
     tst_dpipolicy.cpp             # Stage 2 T10 -- guide cases A-28, A-29, A-30

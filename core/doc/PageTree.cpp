@@ -12,8 +12,10 @@ PageTree::PageTree(std::vector<Page> pages) : pages_(std::move(pages))
     // takes an index and a `Page`, and a page whose own `index()` disagreed with where it sits
     // would produce tiles attributed to the wrong page. Renumbered here rather than trusted, so a
     // caller building a tree from a filtered list cannot get it wrong.
-    for (std::size_t at = 0; at < pages_.size(); ++at)
+    for (std::size_t at = 0; at < pages_.size(); ++at) {
         pages_[at].setIndex(static_cast<int>(at));
+        pages_[at].setSerial(nextSerial_++);
+    }
 }
 
 const Page* PageTree::at(int index) const noexcept
@@ -53,6 +55,7 @@ bool PageTree::setPage(int index, Page page)
 {
     if (index < 0 || index >= count()) return false;
     page.setIndex(index);
+    page.setSerial(pages_[static_cast<std::size_t>(index)].serial());   // a replaced page is still that page
     pages_[static_cast<std::size_t>(index)] = std::move(page);
     return true;
 }
@@ -100,9 +103,19 @@ bool PageTree::apply(const PageMap& map, std::vector<Page> inserted)
         const int old = map.oldIndexOf(now);
         rebuilt.push_back(old == PageMap::kNone ? std::move(inserted[next++]) : pages_[static_cast<std::size_t>(old)]);
         rebuilt.back().setIndex(now);
+        if (rebuilt.back().serial() == 0) rebuilt.back().setSerial(nextSerial_++);
     }
     pages_ = std::move(rebuilt);
     return true;
+}
+
+int PageTree::indexOfSerial(std::uint64_t serial) const noexcept
+{
+    if (serial == 0) return -1;
+    for (std::size_t at = 0; at < pages_.size(); ++at) {
+        if (pages_[at].serial() == serial) return static_cast<int>(at);
+    }
+    return -1;
 }
 
 std::vector<Page> PageTree::removedBy(const PageMap& map) const

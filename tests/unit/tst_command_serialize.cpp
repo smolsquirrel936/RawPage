@@ -314,6 +314,25 @@ const std::map<std::string, std::function<std::vector<std::unique_ptr<Command>>(
              binary.pageCount = 3;
              out.push_back(std::make_unique<core::InsertPagesCommand>(RotatePageCommand::kMaxPageIndex, binary,
                                                                       QString(32, QLatin1Char('b'))));
+             // Stage 7 guide I-23 (D7-37): a paste back into its own document, every kind it names again.
+             core::PageReconnection reconnect;
+             reconnect.incoming.push_back({core::ReconnectKind::Bookmark, core::OutlineItemId::ofObject(31), {}, {}, 11});
+             reconnect.incoming.push_back({core::ReconnectKind::BookmarkAction, core::OutlineItemId::ofCreated(QStringLiteral("abc-0")),
+                                           {}, {}, 0});
+             reconnect.incoming.push_back({core::ReconnectKind::NamedDestination, {}, QStringLiteral("dest-alpha"), {}, 3});
+             reconnect.incoming.push_back({core::ReconnectKind::Link, {}, {}, core::AnnotationId::ofObject(20), 11});
+             reconnect.incoming.push_back({core::ReconnectKind::Link, {}, {}, core::AnnotationId::ofCreated(QStringLiteral("k-1")),
+                                           RotatePageCommand::kMaxPageIndex});
+             core::Destination there;
+             there.pageIndex = 7;
+             there.fit = core::Destination::Fit::XYZ;
+             there.hasY = true;
+             there.y = 700;
+             reconnect.outgoing.push_back({0, 1, core::OutlineAction::goTo(there)});
+             out.push_back(std::make_unique<core::InsertPagesCommand>(11, blank.value(), QString(), reconnect));
+             core::PageReconnection linksOnly;
+             linksOnly.outgoing.push_back({1, 0, core::OutlineAction::goTo(there)});
+             out.push_back(std::make_unique<core::InsertPagesCommand>(0, blank.value(), QString(), linksOnly));
              return out;
          }},
         {"page.replace",
@@ -540,9 +559,9 @@ TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][s
     // Stage 7 T9: crop, resize, renumber and thumbnails, two each.
     // Stage 7 T11: the six bookmark commands -- two each, and a target of every kind a command can carry (9; 12 since
     // Stage 7 T12, the three form actions added). Stage 7 T12: annot.add's fourth sample, the links; the three destination
-    // commands, 1, 1 and 2.
+    // commands, 1, 1 and 2. Stage 7 guide I-23: page.insert's two pastes back into their own document (+ 2).
     CHECK(roundTrips == 16 + 3 + 4 + 2 + 2 + 2 + 2 + 2 + 2 + 3 + 2 + 2 + 3 + 3 + 2 + 2 + 2 + 1 + 2 + 2 + 2 + 2 + 2 + 2 + 2 + 2 + 12 + 2
-                            + 1 + 1 + 2);
+                            + 1 + 1 + 2 + 2);
 }
 
 // Stage 6 T13 (D6-20): an import is a journal line carrying two sets -- what it adds must be what an add accepts,
@@ -690,6 +709,14 @@ TEST_CASE("CommandRegistry refuses every malformed page-order command by Result"
     const QString huge(10 * 1024 * 1024, QLatin1Char('9'));
     QJsonArray tooMany;
     for (int page = 0; page <= core::kMaxPagesPerCommand; ++page) tooMany.append(page);
+    // Stage 7 guide I-23: an insert well formed in every field but its `reconnect`.
+    const auto insertWith = [&key](const QJsonValue& reconnect) {
+        return QJsonObject{{"type", "page.insert"}, {"at", 0}, {"key", key}, {"pages", 1}, {"graph", "JVBERg=="},
+                           {"reconnect", reconnect}};
+    };
+    core::Destination seven;
+    seven.pageIndex = 7;
+    const QJsonObject goToSeven = core::OutlineAction::goTo(seven).toJson();
     const std::vector<std::pair<const char*, QJsonObject>> hostile{
         {"move: pages missing", QJsonObject{{"type", "page.move"}, {"to", 0}}},
         {"move: pages empty", QJsonObject{{"type", "page.move"}, {"pages", QJsonArray{}}, {"to", 0}}},
@@ -725,6 +752,35 @@ TEST_CASE("CommandRegistry refuses every malformed page-order command by Result"
         {"insert: pages a million and one",
          QJsonObject{{"type", "page.insert"}, {"at", 0}, {"key", key}, {"pages", core::kMaxPagesPerCommand + 1}, {"graph", "JVBERg=="}}},
         {"insert: key missing", QJsonObject{{"type", "page.insert"}, {"at", 0}, {"pages", 1}, {"graph", "JVBERg=="}}},
+        // Stage 7 guide I-23 (D7-37): what a paste names again, every field checked.
+        {"insert: reconnect a string", insertWith(QJsonValue(QStringLiteral("{}")))},
+        {"insert: reconnect empty", insertWith(QJsonObject{})},
+        {"insert: reconnect an unknown key", insertWith(QJsonObject{{"incoming", QJsonArray{}}, {"extra", 1}})},
+        {"insert: reconnect incoming an object", insertWith(QJsonObject{{"incoming", QJsonObject{}}})},
+        {"insert: reconnect a kind unknown",
+         insertWith(QJsonObject{{"incoming", QJsonArray{QJsonObject{{"kind", "page"}, {"id", "o:3"}, {"page", 0}}}}})},
+        {"insert: reconnect a bookmark id malformed",
+         insertWith(QJsonObject{{"incoming", QJsonArray{QJsonObject{{"kind", "bookmark"}, {"id", "x:3"}, {"page", 0}}}}})},
+        {"insert: reconnect a bookmark with a name too",
+         insertWith(QJsonObject{{"incoming", QJsonArray{QJsonObject{{"kind", "bookmark"}, {"id", "o:3"}, {"name", "a"}, {"page", 0}}}}})},
+        {"insert: reconnect a page -1",
+         insertWith(QJsonObject{{"incoming", QJsonArray{QJsonObject{{"kind", "bookmark"}, {"id", "o:3"}, {"page", -1}}}}})},
+        {"insert: reconnect a page past the limit",
+         insertWith(QJsonObject{{"incoming", QJsonArray{QJsonObject{
+             {"kind", "bookmark"}, {"id", "o:3"}, {"page", RotatePageCommand::kMaxPageIndex + 1}}}}})},
+        {"insert: reconnect a destination name empty",
+         insertWith(QJsonObject{{"incoming", QJsonArray{QJsonObject{{"kind", "destination"}, {"name", ""}, {"page", 0}}}}})},
+        {"insert: reconnect a destination name 10 MB",
+         insertWith(QJsonObject{{"incoming", QJsonArray{QJsonObject{{"kind", "destination"}, {"name", huge}, {"page", 0}}}}})},
+        {"insert: reconnect a direct link",
+         insertWith(QJsonObject{{"incoming", QJsonArray{QJsonObject{{"kind", "link"}, {"id", "direct:0:3"}, {"page", 0}}}}})},
+        {"insert: reconnect an outgoing action not a GoTo",
+         insertWith(QJsonObject{{"outgoing", QJsonArray{QJsonObject{
+             {"page", 0}, {"link", 0}, {"action", QJsonObject{{"kind", "uri"}, {"uri", "https://example.com"}}}}}}})},
+        {"insert: reconnect an outgoing link -1",
+         insertWith(QJsonObject{{"outgoing", QJsonArray{QJsonObject{{"page", 0}, {"link", -1}, {"action", goToSeven}}}}})},
+        {"insert: reconnect an outgoing with a fourth field",
+         insertWith(QJsonObject{{"outgoing", QJsonArray{QJsonObject{{"page", 0}, {"link", 0}, {"action", goToSeven}, {"x", 1}}}}})},
         {"replace: graph missing", QJsonObject{{"type", "page.replace"}, {"pages", QJsonArray{1}}, {"key", key}}},
         {"replace: graph 10 MB of not base64", QJsonObject{{"type", "page.replace"}, {"pages", QJsonArray{1}}, {"key", key}, {"graph", huge + QStringLiteral("!")}}},
         {"replace: pages descending", QJsonObject{{"type", "page.replace"}, {"pages", QJsonArray{2, 0}}, {"key", key}, {"graph", "JVBERg=="}}},
@@ -750,6 +806,21 @@ TEST_CASE("CommandRegistry refuses every malformed page-order command by Result"
         auto copied = CommandRegistry::deserialize(QJsonObject{{"type", "page.duplicate"}, {"pages", QJsonArray{4}}, {"key", key}});
         REQUIRE(copied);
         CHECK(dynamic_cast<core::DuplicatePagesCommand*>(copied.value().get())->copyName(2) == key + QStringLiteral("-2"));
+        // I-23: a reconnection at its bounds is read, field for field.
+        auto pasted = CommandRegistry::deserialize(insertWith(QJsonObject{
+            {"incoming", QJsonArray{QJsonObject{{"kind", "destination"}, {"name", QString(core::kMaxDestinationNameLength, QLatin1Char('n'))},
+                                                {"page", RotatePageCommand::kMaxPageIndex}},
+                                    QJsonObject{{"kind", "link"}, {"id", "nm:k-1"}, {"page", 0}}}},
+            {"outgoing", QJsonArray{QJsonObject{{"page", 0}, {"link", 2}, {"action", goToSeven}}}}}));
+        REQUIRE(pasted);
+        const auto* insert = dynamic_cast<core::InsertPagesCommand*>(pasted.value().get());
+        REQUIRE(insert != nullptr);
+        REQUIRE(insert->reconnection().incoming.size() == 2);
+        CHECK(insert->reconnection().incoming[0].page == RotatePageCommand::kMaxPageIndex);
+        CHECK(insert->reconnection().incoming[1].link == core::AnnotationId::ofCreated(QStringLiteral("k-1")));
+        REQUIRE(insert->reconnection().outgoing.size() == 1);
+        CHECK(insert->reconnection().outgoing[0].link == 2);
+        CHECK(insert->reconnection().outgoing[0].action.destination.pageIndex == 7);
     }
 }
 

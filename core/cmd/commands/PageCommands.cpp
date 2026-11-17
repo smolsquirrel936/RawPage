@@ -476,6 +476,7 @@ bool DuplicatePagesCommand::apply(Document& document, MutationSink& sink)
     for (std::size_t at = 0; at < pages_.size(); ++at) {
         Page page = *document.pages().at(pages_[at]);
         page.setLabel(duplicated.value().labels[at]);
+        page.setSerial(0);   // a copy is another page: the tree gives it a serial of its own (`Page::serial`)
         made.push_back(std::move(page));
     }
     report_ = std::move(duplicated.value().report);
@@ -546,8 +547,9 @@ std::optional<int> wholeIn(const QJsonValue& value, double low, double high)
 
 // ---- InsertPagesCommand ------------------------------------------------------------------------
 
-InsertPagesCommand::InsertPagesCommand(int at, CopiedPages pages, QString key)
-    : at_(at), pages_(std::move(pages)), key_(key.isEmpty() ? newCommandKey() : std::move(key))
+InsertPagesCommand::InsertPagesCommand(int at, CopiedPages pages, QString key, PageReconnection reconnect)
+    : at_(at), pages_(std::move(pages)), key_(key.isEmpty() ? newCommandKey() : std::move(key)),
+      reconnect_(std::move(reconnect))
 {
 }
 
@@ -580,12 +582,134 @@ bool InsertPagesCommand::apply(Document& document, MutationSink& sink)
     report_.references.insert(report_.references.end(), inserted.value().report.references.begin(),
                               inserted.value().report.references.end());
     map_ = map;
-    return applyPageMapToModel(document, *map, std::move(inserted.value().pages), std::move(inserted.value().listings));
+    // New pages, each given a serial of its own by the tree (`Page::serial`): whatever the sink's pages carry is not one.
+    for (Page& page : inserted.value().pages) page.setSerial(0);
+    if (!applyPageMapToModel(document, *map, std::move(inserted.value().pages), std::move(inserted.value().listings)))
+        return false;
+    if (reconnect_.isEmpty()) return true;
+    if (Status reconnected = reconnect(document, sink); !reconnected) {
+        // ALL OR NOTHING: the pages back out, as the revert takes them, and the refusal is the reconnection's.
+        refusal_ = reconnected.error();
+        if (sink.removePages(map_->inserted(), key_)) (void)applyPageMapToModel(document, map_->inverse(), {}, {});
+        map_.reset();
+        return false;
+    }
+    return true;
+}
+
+Status InsertPagesCommand::reconnect(Document& document, MutationSink& sink)
+{
+    const int count = document.pages().count();
+    const int made = map_ ? static_cast<int>(map_->inserted().size()) : 0;
+    const AnnotationStore& store = document.annotations();
+    const bool outlineOpen = static_cast<bool>(document.outline().status());
+    const bool destinationsOpen = static_cast<bool>(document.destinations().status());
+    Outline outline = document.outline();
+    Destinations destinations = document.destinations();
+    bool outlineChanged = false;
+    bool destinationsChanged = false;
+    std::map<std::size_t, Annotation> links;   // by the store's index, what each becomes
+
+    // ONLY WHAT STILL GOES NOWHERE (D7-37(c)) -- a reference pointed elsewhere since the cut stays where it was put.
+    for (const PageReconnection::Incoming& in : reconnect_.incoming) {
+        if (in.page < 0 || in.page >= count) continue;
+        switch (in.kind) {
+        case ReconnectKind::Bookmark:
+            if (OutlineItem* item = outlineOpen ? outline.find(in.item) : nullptr; item && !item->destination.isResolved()) {
+                item->destination.pageIndex = in.page;
+                outlineChanged = true;
+            }
+            break;
+        case ReconnectKind::BookmarkAction:
+            if (OutlineItem* item = outlineOpen ? outline.find(in.item) : nullptr;
+                item && item->action.kind == OutlineAction::Kind::GoTo && !item->action.destination.isResolved()) {
+                item->action.destination.pageIndex = in.page;
+                outlineChanged = true;
+            }
+            break;
+        case ReconnectKind::NamedDestination:
+            if (NamedDestination* entry = destinationsOpen ? destinations.find(in.name) : nullptr;
+                entry && !entry->destination.isResolved()) {
+                entry->destination.pageIndex = in.page;
+                destinationsChanged = true;
+            }
+            break;
+        case ReconnectKind::Link: {
+            const std::optional<std::size_t> index = store.find(in.link);
+            if (!index) break;
+            Annotation link = links.count(*index) != 0 ? links[*index] : store.at(*index);
+            if (link.subtype != AnnotationSubtype::Link || link.action.kind != OutlineAction::Kind::GoTo
+                || link.action.destination.isResolved() || !document.permissions().mayAnnotate(link.page))
+                break;
+            link.action.destination.pageIndex = in.page;
+            links[*index] = std::move(link);
+            break;
+        }
+        }
+    }
+    // A PASTED PAGE'S OWN LINKS: the `link`th link of the pasted page, cleared by the copier, at the page its source named.
+    for (const PageReconnection::Outgoing& out : reconnect_.outgoing) {
+        const int page = at_ + out.ordinal;
+        if (out.ordinal < 0 || out.ordinal >= made || out.action.kind != OutlineAction::Kind::GoTo
+            || out.action.destination.pageIndex < 0 || out.action.destination.pageIndex >= count
+            || !document.permissions().mayAnnotate(page))
+            continue;
+        int number = 0;
+        for (const AnnotationListingEntry& entry : store.listing(page)) {
+            if (!entry.annotation || store.at(*entry.annotation).subtype != AnnotationSubtype::Link) continue;
+            if (number++ != out.link) continue;
+            Annotation link = links.count(*entry.annotation) != 0 ? links[*entry.annotation] : store.at(*entry.annotation);
+            if (goesNowhere(link.action)) {
+                link.action = out.action;
+                links[*entry.annotation] = std::move(link);
+            }
+            break;
+        }
+    }
+
+    std::vector<Annotation> before;
+    std::vector<Annotation> after;
+    for (auto& [index, changed] : links) {
+        before.push_back(store.at(index));
+        after.push_back(std::move(changed));
+    }
+    // SINK FIRST, MODEL SECOND -- and a refusal part-way takes back what the sink already took.
+    if (outlineChanged) {
+        if (Status valid = outline.validate(); !valid) return valid;
+        if (Status set = sink.setOutline(outline); !set) return set;
+    }
+    if (destinationsChanged) {
+        if (Status valid = destinations.validate(); !valid) {
+            if (outlineChanged) (void)sink.setOutline(document.outline());
+            return valid;
+        }
+        if (Status set = sink.setDestinations(destinations); !set) {
+            if (outlineChanged) (void)sink.setOutline(document.outline());
+            return set;
+        }
+    }
+    if (!after.empty()) {
+        if (Status replaced = sink.replaceAnnotations(before, after); !replaced) {
+            if (destinationsChanged) (void)sink.setDestinations(document.destinations());
+            if (outlineChanged) (void)sink.setOutline(document.outline());
+            return replaced;
+        }
+    }
+    if (outlineChanged) document.outline() = std::move(outline);
+    if (destinationsChanged) document.destinations() = std::move(destinations);
+    if (!after.empty()) {
+        if (Status replaced = document.annotations().replace(after); !replaced) return replaced;
+    }
+    return Status{};
 }
 
 bool InsertPagesCommand::revert(Document& document, MutationSink& sink)
 {
     if (!map_ || map_->newCount() != document.pages().count()) return false;
+    // THE RECONNECTION NEEDS NO UNDO OF ITS OWN (Stage 7 guide I-23): everything it pointed names a PASTED page -- a
+    // reference at the page it names, a link on the page it sits on -- so the removal below leaves each going nowhere
+    // with its view, exactly as before the paste, in the model and in what the sink writes. Measured: an explicit undo
+    // of it, planted out, left every case green, a save after the undo included (guide I-23's P6).
     // The pages go, KEPT under the key: a redo puts back the same ones (the sink's contract).
     if (!sink.removePages(map_->inserted(), key_)) return false;
     return applyPageMapToModel(document, map_->inverse(), {}, {});
@@ -593,11 +717,13 @@ bool InsertPagesCommand::revert(Document& document, MutationSink& sink)
 
 QJsonObject InsertPagesCommand::serialize() const
 {
-    return QJsonObject{{QStringLiteral("type"), QLatin1String(kTypeId)},
-                       {QStringLiteral("at"), at_},
-                       {QStringLiteral("key"), key_},
-                       {QStringLiteral("pages"), pages_.pageCount},
-                       {QStringLiteral("graph"), graphJson(pages_.graph)}};
+    QJsonObject json{{QStringLiteral("type"), QLatin1String(kTypeId)},
+                     {QStringLiteral("at"), at_},
+                     {QStringLiteral("key"), key_},
+                     {QStringLiteral("pages"), pages_.pageCount},
+                     {QStringLiteral("graph"), graphJson(pages_.graph)}};
+    if (!reconnect_.isEmpty()) json.insert(QStringLiteral("reconnect"), reconnect_.toJson());
+    return json;
 }
 
 Result<std::unique_ptr<Command>> InsertPagesCommand::deserialize(const QJsonObject& json)
@@ -614,7 +740,15 @@ Result<std::unique_ptr<Command>> InsertPagesCommand::deserialize(const QJsonObje
     CopiedPages pages;
     pages.graph = std::move(graph).value();
     pages.pageCount = *count;
-    return std::unique_ptr<Command>(new InsertPagesCommand(*at, std::move(pages), std::move(key).value()));
+    PageReconnection reconnection;
+    if (const QJsonValue reconnect = json.value(QStringLiteral("reconnect")); !reconnect.isUndefined()) {
+        if (!reconnect.isObject()) return badPageCommand(kTypeId, "reconnect");
+        auto parsed = PageReconnection::fromJson(reconnect.toObject());
+        if (!parsed) return parsed.error();
+        reconnection = std::move(parsed).value();
+    }
+    return std::unique_ptr<Command>(
+        new InsertPagesCommand(*at, std::move(pages), std::move(key).value(), std::move(reconnection)));
 }
 
 // ---- ReplacePagesCommand -----------------------------------------------------------------------

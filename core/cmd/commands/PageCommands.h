@@ -32,9 +32,11 @@
 #include "core/cmd/Command.h"
 #include "core/doc/AnnotationStore.h"
 #include "core/doc/CopiedPages.h"
+#include "core/doc/Destinations.h"
 #include "core/doc/Outline.h"
 #include "core/doc/Page.h"
 #include "core/doc/PageMap.h"
+#include "core/doc/PageReconnect.h"
 
 #include <QString>
 
@@ -250,11 +252,19 @@ public:
 
     // The payload's pages land at index `at` (0 ... the page count), in order; the page at `at` and those after it
     // follow them. An empty `key` makes a new one.
-    InsertPagesCommand(int at, CopiedPages pages, QString key = {});
+    //
+    // `reconnect` (Stage 7 guide I-23, D7-37): a paste into the document its pages were copied or cut from names them
+    // again -- once the pages are in, each bookmark, named destination and link it lists that STILL goes nowhere is
+    // pointed at the pasted page it named, and each pasted link the copier cleared at the page its source named
+    // (`core/doc/PageReconnect`). Part of this command, so the paste is one undo step and a replay does the same; what
+    // the document will not let change -- an outline whose readings disagree, a page that may not be annotated -- is
+    // left as it is. All or nothing with the insert: a sink that refuses a reconnection takes the pages back out.
+    InsertPagesCommand(int at, CopiedPages pages, QString key = {}, PageReconnection reconnect = {});
 
     int at() const noexcept { return at_; }
     const CopiedPages& pages() const noexcept { return pages_; }
     const QString& key() const noexcept { return key_; }
+    const PageReconnection& reconnection() const noexcept { return reconnect_; }
     // What the copy and the sink met (D7-2) -- a link whose page stayed behind, a widget, a tag tree.
     const PageCommandReport& report() const noexcept { return report_; }
     Operation operation() const override { return Operation::EditPages; }
@@ -268,14 +278,20 @@ public:
     bool apply(Document& document, MutationSink& sink) override;
     bool revert(Document& document, MutationSink& sink) override;
 
-    // {"type": "page.insert", "at": n, "key": "<hex>", "pages": count, "graph": "<base64>"}
+    // {"type": "page.insert", "at": n, "key": "<hex>", "pages": count, "graph": "<base64>"} -- and, only when it has
+    // one, "reconnect": {...} (`PageReconnection::toJson`), so an insert without one writes the line it always wrote
     QJsonObject serialize() const override;
     static Result<std::unique_ptr<Command>> deserialize(const QJsonObject& json);
 
 private:
+    // The references `reconnect_` names that still go nowhere, pointed again -- sink first, model second. Nothing
+    // changed on a refusal. Its undo is the removal of the pages (see `revert`).
+    Status reconnect(Document& document, MutationSink& sink);
+
     int at_ = 0;
     CopiedPages pages_;
     QString key_;
+    PageReconnection reconnect_;
     PageCommandReport report_;
     std::optional<Error> refusal_;
     std::optional<PageMap> map_;

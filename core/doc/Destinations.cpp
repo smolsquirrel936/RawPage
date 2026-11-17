@@ -9,6 +9,7 @@
 #include <algorithm>
 #include <cstring>
 #include <set>
+#include <utility>
 
 namespace rawpage::core {
 namespace {
@@ -99,6 +100,11 @@ const NamedDestination* Destinations::find(const QString& name) const
     const auto at = std::find_if(entries_.begin(), entries_.end(),
                                  [&](const NamedDestination& entry) { return entry.name == name; });
     return at == entries_.end() ? nullptr : &*at;
+}
+
+NamedDestination* Destinations::find(const QString& name)
+{
+    return const_cast<NamedDestination*>(std::as_const(*this).find(name));
 }
 
 std::size_t Destinations::unresolvedCount() const

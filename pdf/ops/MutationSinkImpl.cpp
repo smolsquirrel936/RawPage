@@ -889,8 +889,23 @@ core::Status MutationSinkImpl::replaceAnnotations(const std::vector<core::Annota
         // S7 T2: a COPY on a duplicated page is written from its source's dictionary, and editing one before
         // the duplicate is saved is refused by key -- after the save it is an annotation the file holds.
         if (now.id.kind == core::AnnotationId::Kind::Created && copies_.count(now.id.nm) != 0
-            && createdOnDisk_.count(now.id.nm) == 0)
-            return sinkError(core::ErrorCode::Unsupported, "error.edit.copyNotSaved", where);
+            && createdOnDisk_.count(now.id.nm) == 0) {
+            // Stage 7 guide I-23 (D7-37): but a LINK copy whose only change is its TARGET -- a pasted page's link named
+            // again -- is a target the model set, held as any link's is (`linkTargets_`) and written over the copied
+            // dictionary when it is composed (`copiedDictionary`); its target as copied again holds none.
+            core::Annotation retargeted = was;
+            retargeted.action = now.action;
+            if (now.subtype != core::AnnotationSubtype::Link || !(retargeted == now))
+                return sinkError(core::ErrorCode::Unsupported, "error.edit.copyNotSaved", where);
+            if (now == copies_.at(now.id.nm).model) {
+                targets.insert_or_assign(now.id, std::nullopt);
+                continue;
+            }
+            auto target = linkTarget(now, false);
+            if (!target) return target.error();
+            targets.insert_or_assign(now.id, std::move(target).value());
+            continue;
+        }
         // A created annotation not yet saved is drawn anew from the model at compose: the change is the model's.
         if (now.id.kind == core::AnnotationId::Kind::Created && created_.count(now.id.nm) != 0) {
             if (!AppearanceStreamBuilder::drawsNothing(now)) {
@@ -2738,6 +2753,10 @@ core::Result<cos::CosObject> MutationSinkImpl::copiedDictionary(const QString& n
     // A copied link to a page the document no longer has loses its action, as any link does (D7-2).
     const cos::CosObject& subtype = dictionary.get("Subtype");
     if (subtype.isName() && subtype.text() == "Link") {
+        // Stage 7 guide I-23 (D7-37): a target the model set on the copy since it was copied (`replaceAnnotations`).
+        auto targeted = withLinkTarget(dictionary, core::AnnotationId::ofCreated(nm));   // a copy: `subtype` reads this one
+        if (!targeted) return targeted.error();
+        dictionary = std::move(targeted).value();
         const std::set<long long> gone = gonePages();
         if (!gone.empty()) {
             const ReferenceRepair::View view(table_, ledger_);

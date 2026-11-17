@@ -109,8 +109,15 @@ public:
     // The pages `map` removes, in ascending old order -- what its inverse inserts.
     std::vector<Page> removedBy(const PageMap& map) const;
 
+    // WHERE A PAGE IS NOW, by its serial (`Page::serial`, Stage 7 guide I-23), or -1 when the tree does not hold it. The
+    // constructor numbers the pages 1 ... n; `apply` gives each inserted page whose serial is 0 the next one and keeps
+    // the serial of a page that has one -- a deleted page put back by its undo -- and `setPage` keeps the serial of the
+    // page it replaces.
+    int indexOfSerial(std::uint64_t serial) const noexcept;
+
 private:
     std::vector<Page> pages_;
+    std::uint64_t nextSerial_ = 1;
 };
 
 } // namespace rawpage::core

@@ -78,6 +78,7 @@
 #include "app/Services.h"
 #include "core/backend.h"
 #include "core/cmd/RecoveryJournal.h"
+#include "core/doc/PageReconnect.h"
 #include "core/doc/Revision.h"
 #include "core/doc/SaveCoordinator.h"
 #include "core/text/SearchEngine.h"
@@ -87,6 +88,7 @@
 #include <optional>
 #include <vector>
 
+#include <QByteArray>
 #include <QList>
 #include <QString>
 #include <QWidget>
@@ -271,6 +273,20 @@ public:
     void setCondition(int kind, const QString& text) { conditions_[kind] = text; }
     void clearCondition(int kind) { conditions_.erase(kind); }
     const std::map<int, QString>& conditions() const noexcept { return conditions_; }
+
+    // WHAT NAMED THE PAGES LAST COPIED OUT OF THIS DOCUMENT (Stage 7 guide I-23, D7-37), with the SHA-256 of the
+    // clipboard payload they were copied as. Kept HERE because the record means something only to this document's model
+    // in this process (`core/doc/PageReconnect`): a paste into this document of that same payload is offered it, and
+    // nothing else is -- another document, another payload, another process each paste plainly. A newer copy replaces it.
+    void setCopiedReferences(QByteArray payloadDigest, core::CopiedPageReferences references)
+    {
+        copiedDigest_ = std::move(payloadDigest);
+        copiedReferences_ = std::move(references);
+    }
+    const core::CopiedPageReferences* copiedReferencesFor(const QByteArray& payloadDigest) const
+    {
+        return !copiedDigest_.isEmpty() && copiedDigest_ == payloadDigest ? &copiedReferences_ : nullptr;
+    }
 
     int pageCount() const;
 
@@ -575,6 +591,8 @@ private:
     std::unique_ptr<core::SaveCoordinator> coordinator_;
     bool recoveryReported_ = false;
     std::map<int, QString> conditions_;
+    QByteArray copiedDigest_;
+    core::CopiedPageReferences copiedReferences_;
     std::optional<core::ReplayReport> recoveryReport_;
     std::optional<core::Error> recoveryFailure_;
 };

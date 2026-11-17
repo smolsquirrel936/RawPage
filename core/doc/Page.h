@@ -89,6 +89,15 @@ public:
     const QString& label() const noexcept { return label_; }
     void setLabel(QString label) { label_ = std::move(label); }
 
+    // WHICH PAGE THIS IS, for as long as the model holds it -- Stage 7 guide I-23. An index names a PLACE, and a page
+    // command changes what is at it; a serial goes with the page through every move, and a deleted page put back by
+    // its undo comes back with its own. `PageTree` gives it: 1 ... n when built, a new one to each page a command
+    // INSERTS (0 here means *not yet given*), so a copy -- a duplicate, a paste -- is another page. It is not in the
+    // file, it is not compared by `==`, and it means nothing outside the process: a journal line names pages by index
+    // (D7-24), never by serial.
+    std::uint64_t serial() const noexcept { return serial_; }
+    void setSerial(std::uint64_t serial) noexcept { serial_ = serial; }
+
     friend bool operator==(const Page& a, const Page& b);
     friend bool operator!=(const Page& a, const Page& b) { return !(a == b); }
 
@@ -101,6 +110,7 @@ private:
     std::optional<PdfRect> artBox_;
     PageRotation rotation_ = PageRotation::None;
     QString label_;
+    std::uint64_t serial_ = 0;
 };
 
 // The intersection of two rectangles in PDF space, empty when they do not overlap. Exposed because

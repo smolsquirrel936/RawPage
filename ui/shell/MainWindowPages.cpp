@@ -23,6 +23,7 @@
 #include "core/doc/Document.h"
 #include "core/doc/PageMap.h"
 #include "core/doc/PageRanges.h"
+#include "core/doc/PageReconnect.h"
 #include "core/doc/PageTree.h"
 #include "core/doc/PageWorkRunner.h"
 #include "core/render/RenderRequest.h"
@@ -36,6 +37,7 @@
 #include "ui/viewer/ViewportController.h"
 
 #include <QClipboard>
+#include <QCryptographicHash>
 #include <QGuiApplication>
 #include <QMimeData>
 #include <QPointer>
@@ -227,8 +229,13 @@ core::Status MainWindow::copyPages(DocumentWindow* document, const std::vector<i
     if (!snapshot) return refuse(snapshot.error());
     core::Result<core::CopiedPages> copied = snapshot.value()->copy(pages);
     if (!copied) return refuse(copied.error());
+    const QByteArray payload = core::encodeCopiedPages(copied.value());
+    // WHAT NAMED THEM, AND WHAT THEY NAME (Stage 7 guide I-23, D7-37): kept with this document, for a paste back into it.
+    if (document->journal() != nullptr)
+        document->setCopiedReferences(QCryptographicHash::hash(payload, QCryptographicHash::Sha256),
+                                      core::referencesOfPages(document->journal()->document(), pages));
     auto* mime = new QMimeData;
-    mime->setData(QLatin1String(core::kPagesMimeType), core::encodeCopiedPages(copied.value()));
+    mime->setData(QLatin1String(core::kPagesMimeType), payload);
     QGuiApplication::clipboard()->setMimeData(mime);
     RAWPAGE_LOG_INFO(LogSubsystem::Ui) << "pages: copied" << copied.value().pageCount << "page(s) of" << document->title() << "--"
                                        << copied.value().graph.size() << "bytes";
@@ -264,10 +271,24 @@ core::Status MainWindow::pastePages(DocumentWindow* document, int at)
     if (document == nullptr || held == nullptr || !held->hasFormat(QLatin1String(core::kPagesMimeType)))
         return refuse(core::Error{core::ErrorCode::Unavailable, QLatin1String("error.clipboard.noPages"), QString()});
     // SOMEONE ELSE'S BYTES, maybe another process's: bounded and checked before a command exists (`decodeCopiedPages`).
-    core::Result<core::CopiedPages> pages = core::decodeCopiedPages(held->data(QLatin1String(core::kPagesMimeType)));
+    const QByteArray payload = held->data(QLatin1String(core::kPagesMimeType));
+    core::Result<core::CopiedPages> pages = core::decodeCopiedPages(payload);
     if (!pages) return refuse(pages.error());
-    return runPageCommand(document, std::make_unique<core::InsertPagesCommand>(std::clamp(at, 0, document->pageCount()),
-                                                                               std::move(pages).value()));
+    const int where = std::clamp(at, 0, document->pageCount());
+    // PASTED BACK INTO THE DOCUMENT IT CAME FROM (Stage 7 guide I-23, D7-37): what named the pages, and what they named,
+    // that still goes nowhere is named again -- the record this document kept when the same payload was copied out.
+    core::PageReconnection reconnection;
+    if (document->journal() != nullptr) {
+        if (const core::CopiedPageReferences* references =
+                document->copiedReferencesFor(QCryptographicHash::hash(payload, QCryptographicHash::Sha256))) {
+            reconnection = core::reconnectionFor(document->journal()->document(), *references, where, pages.value().pageCount);
+            RAWPAGE_LOG_INFO(LogSubsystem::Ui) << "pages: pasted back into" << document->title() << "--"
+                                               << static_cast<int>(reconnection.incoming.size()) << "reference(s) to them and"
+                                               << static_cast<int>(reconnection.outgoing.size()) << "of their link(s) named again";
+        }
+    }
+    return runPageCommand(document, std::make_unique<core::InsertPagesCommand>(where, std::move(pages).value(), QString(),
+                                                                               std::move(reconnection)));
 }
 
 core::Status MainWindow::insertPages(DocumentWindow* document, const InsertPagesDialog::Choice& choice)

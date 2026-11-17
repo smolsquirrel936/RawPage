@@ -150,6 +150,8 @@ add_library(rawpage_core STATIC
     doc/PageMap.cpp
     doc/CopiedPages.h             # Stage 7 T5 -- pages copied out of another document, as a command carries them
     doc/CopiedPages.cpp           # Stage 7 T8 -- and as the clipboard carries them (D7-13)
+    doc/PageReconnect.h           # Stage 7 guide I-23 (D7-37) -- pages pasted back keep what pointed at them
+    doc/PageReconnect.cpp
     doc/PaperSize.h               # Stage 7 T8 -- `documents/defaultPageSize`'s sizes (guide A-45)
     # Stage 7 T7 (D7-5, D7-30) -- new documents from an open one: the snapshot extract and split make them from, a page
     # set as a person types it, the six splits' rules over facts, and the run that gathers those facts and writes.

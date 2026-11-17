@@ -19,6 +19,7 @@
 #include "core/cmd/ActionRegistry.h"
 #include "core/cmd/CommandJournal.h"
 #include "core/doc/CopiedPages.h"
+#include "core/doc/Document.h"
 #include "core/cmd/commands/PageCommands.h"
 #include "core/doc/PageTree.h"
 #include "pdf/render/PdfiumDocument.h"
@@ -167,6 +168,93 @@ TEST_CASE("thumbnails.clipboard pages copied cut and pasted in one process show 
     CHECK(other.document->pageCount() == 5);
     CHECK(identityAt(product, other.document, 3).contains(QStringLiteral("P-0001")));
     CHECK(identityAt(product, other.document, 4).contains(QStringLiteral("P-0012")));
+}
+
+// =============================================================================================
+// Stage 7 guide I-23 (D7-37) -- M-01 step 3: a page cut and pasted back is named again by what named it, and its links
+// name what they named -- read by the live engine, by what each named page SHOWS
+// =============================================================================================
+
+namespace {
+
+const core::Document& modelOf(ui::DocumentWindow* document)
+{
+    return document->journal()->document();
+}
+
+int bookmarkPage(ui::DocumentWindow* document, const char* title)
+{
+    for (const core::OutlineItem* item : modelOf(document).outline().preorder()) {
+        if (item->title == QLatin1String(title)) return item->destination.pageIndex;
+    }
+    return -2;
+}
+
+std::vector<int> linkPagesOn(ui::DocumentWindow* document, int page)
+{
+    std::vector<int> out;
+    const core::AnnotationStore& store = modelOf(document).annotations();
+    for (const core::AnnotationListingEntry& entry : store.listing(page)) {
+        if (!entry.annotation || store.at(*entry.annotation).subtype != core::AnnotationSubtype::Link) continue;
+        const core::OutlineAction& action = store.at(*entry.annotation).action;
+        out.push_back(action.kind == core::OutlineAction::Kind::GoTo ? action.destination.pageIndex : -1);
+    }
+    return out;
+}
+
+} // namespace
+
+TEST_CASE("thumbnails.clipboard a page cut and pasted back is named again by its bookmarks and links", "[pagesproduct][I-23]")
+{
+    ClipboardCleared cleared;
+    Product product;
+    product.open("assembly/refs-every-kind.pdf");
+    ui::DocumentWindow* document = product.document();
+
+    // M-01's step 3, as the walk made it: P-0006 cut, pasted after P-0012.
+    REQUIRE(product.window->cutPages(document, {5}));
+    CHECK(bookmarkPage(document, "P-0006") == -1);
+    REQUIRE(product.window->pastePages(document, 11));
+    REQUIRE(document->pageCount() == 12);
+    const int named = bookmarkPage(document, "P-0006");
+    REQUIRE(named == 11);
+    CHECK(identityAt(product, document, named).contains(QStringLiteral("P-0006")));
+    // Page 1's second link named P-0006 (the label) -- and names it again, wherever it now is.
+    REQUIRE(linkPagesOn(document, 0).size() == 2);
+    CHECK(identityAt(product, document, linkPagesOn(document, 0)[1]).contains(QStringLiteral("P-0006")));
+
+    // P-0001 cut and pasted at the end: its bookmark names it, and its own two links name P-0009 and P-0006 again.
+    REQUIRE(product.window->cutPages(document, {0}));
+    REQUIRE(product.window->pastePages(document, 11));
+    REQUIRE(bookmarkPage(document, "P-0001") == 11);
+    CHECK(identityAt(product, document, 11).contains(QStringLiteral("P-0001")));
+    const std::vector<int> own = linkPagesOn(document, 11);
+    REQUIRE(own.size() == 2);
+    REQUIRE(own[0] >= 0);
+    REQUIRE(own[1] >= 0);
+    CHECK(identityAt(product, document, own[0]).contains(QStringLiteral("P-0009")));
+    CHECK(identityAt(product, document, own[1]).contains(QStringLiteral("P-0006")));
+
+    // A paste is ONE undo step: undone, the pasted page and what named it go together.
+    REQUIRE(document->journal()->undo());
+    CHECK(document->pageCount() == 11);
+    CHECK(bookmarkPage(document, "P-0001") == -1);
+
+    // THE CONTROL: the same clipboard pasted into ANOTHER document is the plain insert -- it holds no record of what
+    // named the page there, so nothing in it changes but its pages, and the cut's document stays as the undo left it.
+    Second other(product, "assembly/refs-every-kind.pdf");
+    const int before = bookmarkPage(other.document, "P-0001");
+    REQUIRE(other.window->pastePages(other.document, 12));
+    CHECK(bookmarkPage(other.document, "P-0001") == before);
+    CHECK(linkPagesOn(other.document, 12) == std::vector<int>{-1, -1});   // the copier's clearing, as before I-23
+    CHECK(bookmarkPage(document, "P-0001") == -1);
+
+    // AND ITS RECORD ONLY FOR ITS OWN PAYLOAD: a page copied in the other document put on the clipboard and pasted into
+    // the first, which still holds the record of its own cut of P-0001 -- the plain insert, P-0001's bookmark untouched.
+    REQUIRE(other.window->copyPages(other.document, {2}));   // P-0003
+    REQUIRE(product.window->pastePages(document, 0));
+    CHECK(identityAt(product, document, 0).contains(QStringLiteral("P-0003")));
+    CHECK(bookmarkPage(document, "P-0001") == -1);
 }
 
 // =============================================================================================

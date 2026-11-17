@@ -146,6 +146,7 @@ public:
     // strings and are case-SENSITIVE, so folding them here would make two distinct destinations
     // one.
     const NamedDestination* find(const QString& name) const;
+    NamedDestination* find(const QString& name);   // Stage 7 guide I-23: a pasted page named again
 
     // How many entries name a page that is not there. Zero on every well-formed document, which is
     // why a pane can show it without shouting.
