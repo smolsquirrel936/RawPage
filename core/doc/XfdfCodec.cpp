@@ -5,6 +5,7 @@
 
 #include <QXmlStreamReader>
 
+#include <algorithm>
 #include <array>
 #include <charconv>
 #include <cmath>
@@ -702,6 +703,15 @@ struct Writer {
     }
 
     // A rich-text body, written as the elements it is -- or nothing, when it is not well-formed XML on its own.
+    //
+    // THE BODY BEGINS WHERE THE PARSER MET THE ROOT ELEMENT, never where a scan for `<` from the front lands: a prolog
+    // is a parser's to read, and a processing instruction may hold `<` anywhere -- S7 guide I-26, the soak's
+    // `<?xodDate ... trailer << /Size 8 ...?><body>`, whose body was written from the `<<` inside the instruction and
+    // could not be read back. The root's start tag ENDS where the parser stands once it has read it, and begins at the
+    // last `<` before that, since well-formed XML has none inside a tag. (Not the offset BEFORE the tag: with no
+    // declaration the reader's first token has already read two characters of it -- measured, Qt 6.11.1.)
+    // And what is written is parsed once more inside an element of its own first, so the promise above is kept by a
+    // reading, not by the reasoning that found the start.
     void richText(const QString& rc)
     {
         if (rc.isEmpty()) return;
@@ -713,15 +723,20 @@ struct Writer {
             if (token == QXmlStreamReader::DTD || token == QXmlStreamReader::EntityReference) return;
             if (token == QXmlStreamReader::StartElement && !sawRoot) {
                 sawRoot = true;
-                bodyStart = rc.indexOf(QLatin1Char('<'), qsizetype{0});
-                // The body begins at the first element: past an XML declaration and anything before it.
-                while (bodyStart >= 0 && bodyStart + 1 < rc.size()
-                       && (rc[bodyStart + 1] == QLatin1Char('?') || rc[bodyStart + 1] == QLatin1Char('!')))
-                    bodyStart = rc.indexOf(QLatin1Char('<'), bodyStart + 1);
+                const qsizetype tagEnd = static_cast<qsizetype>(probe.characterOffset());
+                if (tagEnd > 0) bodyStart = rc.lastIndexOf(QLatin1Char('<'), std::min(tagEnd, rc.size()) - 1);
             }
         }
-        if (probe.hasError() || !sawRoot || bodyStart < 0) return;
-        out += QStringLiteral("<contents-richtext>") + xmlSafe(rc.mid(bodyStart)) + QStringLiteral("</contents-richtext>\n");
+        if (probe.hasError() || !sawRoot || bodyStart < 0 || bodyStart >= rc.size() || rc[bodyStart] != QLatin1Char('<'))
+            return;
+        const QString body = xmlSafe(rc.mid(bodyStart));
+        QXmlStreamReader inside(QStringLiteral("<contents-richtext>") + body + QStringLiteral("</contents-richtext>"));
+        while (!inside.atEnd()) {
+            const QXmlStreamReader::TokenType token = inside.readNext();
+            if (token == QXmlStreamReader::DTD || token == QXmlStreamReader::EntityReference) return;
+        }
+        if (inside.hasError()) return;
+        out += QStringLiteral("<contents-richtext>") + body + QStringLiteral("</contents-richtext>\n");
     }
 
     void annotation(const Annotation& a, const Annotation* popup)

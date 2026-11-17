@@ -1097,3 +1097,56 @@ TEST_CASE("an FDF we write reads back as written whatever a stream of it spells"
     REQUIRE(pinned.value().annotations[0].attachment);
     CHECK(pinned.value().annotations[0].attachment->data == file.data);
 }
+
+TEST_CASE("an XFDF we write reads back whatever a rich text's prolog holds", "[fdf][exchange][fuzz][A-23][I-26]")
+{
+    // S7 guide I-26, the soak's finding (run 44076823592, `fuzz_annot_pipeline`): an FDF comment's `/RC` whose XML
+    // declaration the fuzzer had grown into a processing instruction spanning lines and holding `<<` -- well-formed, so
+    // the writer kept it, and the body written from the first `<` that did not open `<?` or `<!`, which was INSIDE the
+    // instruction: the XFDF it wrote could not be read. The body begins where the parser met the root.
+    const QString body = QStringLiteral("<body xmlns=\"http://www.w3.org/1999/xhtml\"><p>A thread of its own.</p></body>");
+    const std::vector<QString> prologs = {
+        QStringLiteral("<?xodDate (D:20260831000000Z) >>\nendobj\ntrailer\n<< /Size 8 /Root 6 0 R /ID [ <D7CFB5Eml version=\"1.0\"?>"),
+        QStringLiteral("<?xml version=\"1.0\"?><?note <p>not the body</p>?>"),
+        QStringLiteral("<!-- <body> is not here --><?xml-stylesheet href=\"<a\"?>\n  "),
+        QStringLiteral("<?xml version=\"1.0\"?>"),   // the shape Acrobat and `richTextFor` write: unchanged
+        QString(),
+    };
+    Fdf exchange;
+    int n = 0;
+    for (const QString& prolog : prologs) {
+        Annotation a = core::newAnnotation(AnnotationSubtype::Text, 0, QStringLiteral("Ben Okafor"), 1791590400);
+        a.rect = core::PdfRect{core::PdfPoint{500, 700}, core::PdfSize{20, 20}};
+        a.nm = QStringLiteral("rich-%1").arg(++n);
+        a.id = AnnotationId::ofCreated(a.nm);
+        a.contents = QStringLiteral("A thread of its own.");
+        a.richText = prolog + body;
+        exchange.annotations.push_back(a);
+    }
+
+    const QByteArray xfdf = core::XfdfCodec::write(exchange);
+    const core::Result<Fdf> back = core::XfdfCodec::read(xfdf);
+    if (!back) UNSCOPED_INFO(QString(back.error().messageKey).toStdString() << " " << back.error().context.toStdString());
+    REQUIRE(back);
+    REQUIRE(back.value().annotations.size() == exchange.annotations.size());
+    for (const Annotation& a : back.value().annotations) {
+        // Every body kept, and kept WHOLE: the declaration the reader puts back, then the body as it was written.
+        INFO(a.nm.toStdString() << ": " << a.richText.toStdString());
+        CHECK(a.richText == QStringLiteral("<?xml version=\"1.0\"?>") + body);
+        CHECK(a.contents == QStringLiteral("A thread of its own."));
+    }
+
+    // A rich text that is not well-formed on its own is still left out, not written broken.
+    Fdf broken;
+    broken.annotations.push_back(exchange.annotations.front());
+    broken.annotations.front().richText = QStringLiteral("<?xml version=\"1.0\"?><body><p>open</body>");
+    const QByteArray without = core::XfdfCodec::write(broken);
+    CHECK_FALSE(without.contains("contents-richtext"));
+    CHECK(core::XfdfCodec::read(without));
+
+    // ... and the fuzz body's exchange branch over the FDF the soak's shape is carried in, which writes it both ways.
+    const QByteArray fdf = QByteArray::fromStdString(pdf::ops::FdfCodec::write(exchange));
+    const std::optional<std::string> failed = fuzz::exchangeFuzzOnce(fdf);
+    if (failed) UNSCOPED_INFO(*failed);
+    CHECK_FALSE(failed.has_value());
+}
