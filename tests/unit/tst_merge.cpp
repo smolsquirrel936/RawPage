@@ -385,7 +385,7 @@ TEST_CASE("merge.layers every input's groups unioned, each input's order under i
     CHECK_FALSE(read.resolve(d.get("AS")).items().empty());
 }
 
-TEST_CASE("merge.skipped inputs are reported with their reason and the others merged", "[merge][merge.skipped][A-70]")
+TEST_CASE("merge.skipped inputs are reported with their reason and the others merged", "[merge][merge.skipped][A-70][S7-I-27]")
 {
     std::vector<core::MergeInput> inputs = inputsOf({"assembly/merge-a.pdf", "encrypted/aes-128.pdf", "assembly/merge-not-a-pdf.pdf",
                                                      "malformed/truncated-mid-stream.pdf", "assembly/merge-b.pdf"});
@@ -404,6 +404,12 @@ TEST_CASE("merge.skipped inputs are reported with their reason and the others me
     CHECK(done.report.pageCount == 3 + 2);
     Read read(done.bytes);
     CHECK(read.pages.size() == 5);
+
+    // I-27: a key whose sentence takes the file (`%1`) carries it -- the report once read "%1 is not a PDF file.".
+    for (const core::MergeSkip& skip : done.report.skipped) {
+        if (skip.reasonKey == QLatin1String("error.open.notPdf")) CHECK(skip.context == QStringLiteral("merge-not-a-pdf.pdf"));
+        if (skip.reasonKey == QLatin1String("error.open.notFound")) CHECK(skip.context == inputs[2].path);
+    }
 
     // NOTHING TO MERGE is refused whole, by key.
     auto none = DocumentMerger::mergeFiles(inputsOf({"encrypted/aes-128.pdf", "assembly/merge-not-a-pdf.pdf"}), core::MergeOptions{}, {});

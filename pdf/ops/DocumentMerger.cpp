@@ -641,7 +641,9 @@ core::Result<core::MergedDocument> DocumentMerger::merge(const std::vector<Input
             continue;
         }
         if (!looksLikePdf(bytes.value())) {
-            skip(mergeError(core::ErrorCode::ParseFailure, "error.open.notPdf"));
+            // The key's sentence names the file (`%1`); without it the report read "%1 is not a PDF file." (guide I-27).
+            // The name this call knows has no suffix -- `mergeFiles` puts the file's own name in its place.
+            skip(mergeError(core::ErrorCode::ParseFailure, "error.open.notPdf", input.name));
             continue;
         }
         auto opened = cos::openWithRepair(bytes.value());
@@ -730,7 +732,11 @@ core::Result<core::MergedDocument> DocumentMerger::mergeFiles(const std::vector<
     auto merged = merge(read, options, progress);
     if (merged) {
         // The skipped inputs named by PATH, which is what the person picked.
-        for (core::MergeSkip& skipped : merged.value().report.skipped) skipped.path = inputs[static_cast<std::size_t>(skipped.input)].path;
+        // A file that is not a PDF is named as the engine names one (`PdfiumDocument`): by its file name, suffix and all.
+        for (core::MergeSkip& skipped : merged.value().report.skipped) {
+            skipped.path = inputs[static_cast<std::size_t>(skipped.input)].path;
+            if (skipped.reasonKey == QLatin1String("error.open.notPdf")) skipped.context = QFileInfo(skipped.path).fileName();
+        }
     }
     return merged;
 }
