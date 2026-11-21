@@ -219,6 +219,10 @@ public:
     // `Ctrl+B`: a bookmark to the current view after the selected one, titled by the text selected -- and, from the
     // pane, its title opened for typing when there was none.
     core::Status newBookmark(DocumentWindow* document, bool renameAfter);
+    // A DOUBLE-CLICK on the bookmark `id` (`Stage7-Assembly-Plan.md` D7-40): it goes to `destination` -- unless it is the
+    // bookmark the last double-click in this document went to, no other bookmark selected since, and going there again
+    // moves the view not at all; then it RENAMES (the pane's editor, as `F2`), where the outline may be edited.
+    void bookmarkDoubleClicked(const core::OutlineItemId& id, const core::Destination& destination);
     // The generators (`core::OutlineGenerator`): every page read on the render thread, then ONE `GenerateBookmarksCommand`
     // from the pump -- refused if a command ran meanwhile, or another page run is going.
     core::Status generateBookmarks(DocumentWindow* document, const core::OutlineGeneratorOptions& options);
@@ -829,6 +833,12 @@ private:
     SidebarDock*      sidebar_ = nullptr;
     ThumbnailsPane*   thumbnails_ = nullptr;
     BookmarksPane*    bookmarks_ = nullptr;
+    // D7-40: the bookmark the last double-click went to, and in which document -- forgotten when another is selected.
+    struct BookmarkJump {
+        core::DocumentHandle document;
+        core::OutlineItemId id;
+    };
+    BookmarkJump lastBookmarkJump_;
     DestinationsPane* destinations_ = nullptr;
     CommentsPane*     comments_ = nullptr;
     AttachmentsPane*  attachments_ = nullptr;   // S6 T11

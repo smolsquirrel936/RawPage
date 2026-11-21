@@ -17,6 +17,7 @@
 #include "tests/ui/ShellFixture.h"
 #include "ui/dialogs/BookmarkDialogs.h"
 #include "ui/panes/BookmarksPane.h"
+#include "ui/shell/Catalog.h"
 #include "ui/shell/DocumentWindow.h"
 #include "ui/shell/MainWindow.h"
 #include "ui/shell/SidebarDock.h"
@@ -31,9 +32,12 @@
 #include <QFileInfo>
 #include <QHeaderView>
 #include <QKeyEvent>
+#include <QContextMenuEvent>
 #include <QLayout>
 #include <QLineEdit>
+#include <QMenu>
 #include <QMimeData>
+#include <QMouseEvent>
 
 #include <memory>
 
@@ -164,7 +168,72 @@ struct Window {
         return event.isAccepted();
     }
     void select(long long object) { REQUIRE(pane->selectId(OutlineItemId::ofObject(object))); }
+
+    // ---- D7-40: the mouse, as a person's reaches the tree -- through its viewport ------------------------------
+    // The centre of the row of `object`, in the viewport's coordinates; its ancestors expanded, nothing selected by it.
+    QPoint rowOf(long long object) const
+    {
+        const QRect row = pane->rowRect(OutlineItemId::ofObject(object));
+        REQUIRE_FALSE(row.isEmpty());
+        return row.center();
+    }
+    void mouse(QEvent::Type type, QPoint at, Qt::MouseButton button = Qt::LeftButton) const
+    {
+        QWidget* to = pane->viewport();
+        QMouseEvent event(type, QPointF(at), QPointF(to->mapToGlobal(at)), button,
+                          type == QEvent::MouseButtonRelease ? Qt::NoButton : button, Qt::NoModifier);
+        QCoreApplication::sendEvent(to, &event);
+        QCoreApplication::processEvents();
+    }
+    void click(long long object) const
+    {
+        const QPoint at = rowOf(object);
+        mouse(QEvent::MouseButtonPress, at);
+        mouse(QEvent::MouseButtonRelease, at);
+    }
+    // Press, release, double-click, release: the sequence Qt delivers, the double-click read against the press.
+    void doubleClick(long long object) const
+    {
+        const QPoint at = rowOf(object);
+        mouse(QEvent::MouseButtonPress, at);
+        mouse(QEvent::MouseButtonRelease, at);
+        mouse(QEvent::MouseButtonDblClick, at);
+        mouse(QEvent::MouseButtonRelease, at);
+    }
+    void rightClickAt(QPoint at) const
+    {
+        mouse(QEvent::MouseButtonPress, at, Qt::RightButton);
+        mouse(QEvent::MouseButtonRelease, at, Qt::RightButton);
+        QWidget* to = pane->viewport();
+        QContextMenuEvent event(QContextMenuEvent::Mouse, at, to->mapToGlobal(at));
+        QCoreApplication::sendEvent(to, &event);
+        QCoreApplication::processEvents();
+    }
+    void cancelRename()
+    {
+        REQUIRE(pane->isRenaming());
+        press(Qt::Key_Escape);
+        REQUIRE_FALSE(pane->isRenaming());
+    }
+    int page() const { return window->currentView()->controller().currentPage(); }
 };
+
+// The right-click menu's rows, separators left out, as their text reads.
+QStringList rows(const QMenu* menu)
+{
+    QStringList out;
+    for (const QAction* action : menu->actions())
+        if (!action->isSeparator()) out << action->text();
+    return out;
+}
+
+QAction* rowNamed(const QMenu* menu, ActionId id)
+{
+    const QString label = ui::catalog::translateAction(id);
+    for (QAction* action : menu->actions())
+        if (!action->isSeparator() && (action->text() == label || action->text().startsWith(label + QLatin1Char('\t')))) return action;
+    return nullptr;
+}
 
 } // namespace
 
@@ -423,4 +492,182 @@ TEST_CASE("ui.viewer_commands: Ctrl+B with the page focused adds a bookmark to t
     CHECK(made.destination.hasZoom);
     CHECK(made.destination.zoom == view->controller().zoom().factor);
     CHECK_FALSE(w.pane->isRenaming());   // from the Viewer: added, not opened for typing
+}
+
+// ==========================================================================================
+// A-130, A-131 -- D7-40: a double-click goes and then renames; a right-click menu
+// ==========================================================================================
+//
+// WHAT THIS DOES NOT COVER (convention 19): the mouse reaches the tree's viewport as events sent to it, below Windows'
+// input queue -- so the platform's double-click interval and a pointer that moved between the clicks are not here; and
+// the menu is read and triggered, never clicked. A person's double-click and right-click are M-05's (D7-40's note).
+
+TEST_CASE("ui.bookmarks_edit: a double-click goes to the bookmark, and a second one there renames it", "[bookmarksedit][A-130][D7-40]")
+{
+    Answers answers;
+    Window w;
+    REQUIRE(w.pane->isEditable());
+    REQUIRE(w.page() == 0);
+    const std::size_t steps = w.journal()->position();
+
+    // THE FIRST DOUBLE-CLICK GOES -- B is page 3 -- and opens nothing for typing.
+    w.doubleClick(20);
+    CHECK(w.page() == 3);
+    CHECK_FALSE(w.pane->isRenaming());
+    // THE SECOND, the view where the first left it: the title opens for typing, and nothing is a command yet.
+    w.doubleClick(20);
+    CHECK(w.page() == 3);
+    CHECK(w.pane->isRenaming());
+    w.cancelRename();
+
+    // A VIEW MOVED SINCE: the double-click goes again, and only the next one renames.
+    w.window->currentView()->goToPage(6);
+    QCoreApplication::processEvents();
+    w.doubleClick(20);
+    CHECK(w.page() == 3);
+    CHECK_FALSE(w.pane->isRenaming());
+    w.doubleClick(20);
+    CHECK(w.pane->isRenaming());
+    w.cancelRename();
+
+    // ANOTHER BOOKMARK SELECTED IN BETWEEN -- a single click, which goes nowhere -- forgets the jump: the next
+    // double-click on B goes (here, nowhere new), and only the one after renames.
+    w.click(30);
+    CHECK(w.page() == 3);   // a click selects; it does not go
+    CHECK(w.pane->selectedId() == OutlineItemId::ofObject(30));
+    w.doubleClick(20);
+    CHECK_FALSE(w.pane->isRenaming());
+    w.doubleClick(20);
+    CHECK(w.pane->isRenaming());
+    w.cancelRename();
+
+    // A DOUBLE-CLICK ON ANOTHER BOOKMARK goes there, whatever the last one did.
+    w.doubleClick(31);
+    CHECK(w.page() == 6);
+    CHECK_FALSE(w.pane->isRenaming());
+
+    // ENTER ALWAYS GOES, however often: it is `bookmark.goTo`, not the double-click.
+    w.select(20);
+    w.focusPane();
+    CHECK(w.press(Qt::Key_Return));
+    CHECK(w.page() == 3);
+    CHECK(w.press(Qt::Key_Return));
+    CHECK_FALSE(w.pane->isRenaming());
+
+    // NOTHING ABOVE WAS A COMMAND: every rename was abandoned.
+    CHECK(w.journal()->position() == steps);
+}
+
+TEST_CASE("ui.bookmarks_edit: a double-click never renames a bookmark the document cannot edit", "[bookmarksedit][A-130][D7-40]")
+{
+    Answers answers;
+    Window w(true, core::Error{core::ErrorCode::PermissionDenied, QLatin1String("error.outline.readingsDisagree"), QStringLiteral("item 3")});
+    REQUIRE_FALSE(w.pane->isEditable());
+    w.doubleClick(20);
+    CHECK(w.page() == 3);
+    w.doubleClick(20);
+    CHECK(w.page() == 3);
+    CHECK_FALSE(w.pane->isRenaming());
+    // AND NO MENU: every row in it would be disabled.
+    w.rightClickAt(w.rowOf(20));
+    CHECK_FALSE(w.pane->itemMenu()->isVisible());
+}
+
+TEST_CASE("ui.bookmarks_edit: a right click selects a bookmark without going there and offers its four rows", "[bookmarksedit][A-131][D7-40]")
+{
+    Answers answers;
+    Window w;
+    QMenu* menu = w.pane->itemMenu();
+    REQUIRE(menu != nullptr);
+    ui::PageView* view = w.window->currentView();
+    view->goToPage(6);
+    QCoreApplication::processEvents();
+    REQUIRE(w.page() == 6);
+    std::size_t steps = w.journal()->position();
+
+    // ON B: selected, the view NOT moved -- Set Destination reads it -- and the menu open.
+    w.select(10);
+    w.rightClickAt(w.rowOf(20));
+    CHECK(w.pane->selectedId() == OutlineItemId::ofObject(20));
+    CHECK(w.page() == 6);
+    REQUIRE(menu->isVisible());
+
+    // THE FOUR ROWS, in order: the three with their chords after a tab and never as a shortcut (convention 15), then
+    // Properties, which has no chord.
+    const QStringList labels = rows(menu);
+    REQUIRE(labels.size() == 4);
+    const std::vector<ActionId> order{ActionId::BookmarkRename, ActionId::BookmarkSetDestination, ActionId::BookmarkDelete,
+                                      ActionId::BookmarkProperties};
+    for (std::size_t i = 0; i < order.size(); ++i) {
+        INFO(labels[static_cast<int>(i)].toStdString());
+        CHECK(labels[static_cast<int>(i)].startsWith(ui::catalog::translateAction(order[i])));
+        REQUIRE(rowNamed(menu, order[i]) != nullptr);
+        CHECK(rowNamed(menu, order[i])->shortcut().isEmpty());
+    }
+    for (const ActionId id : {ActionId::BookmarkRename, ActionId::BookmarkSetDestination, ActionId::BookmarkDelete})
+        CHECK(rowNamed(menu, id)->text().contains(QLatin1Char('\t')));
+    CHECK_FALSE(rowNamed(menu, ActionId::BookmarkProperties)->text().contains(QLatin1Char('\t')));
+    CHECK(menu->actions().size() == 5);   // the four and one separator, before Properties
+
+    // SET DESTINATION: B now goes to the view the right click left alone -- ONE step.
+    rowNamed(menu, ActionId::BookmarkSetDestination)->trigger();
+    QCoreApplication::processEvents();
+    CHECK(w.journal()->position() == steps + 1);
+    steps = w.journal()->position();
+    CHECK(w.model().find(OutlineItemId::ofObject(20))->destination.pageIndex == 6);
+
+    // RENAME: the editor, as F2 opens it.
+    menu->hide();
+    w.rightClickAt(w.rowOf(20));
+    rowNamed(menu, ActionId::BookmarkRename)->trigger();
+    QCoreApplication::processEvents();
+    w.cancelRename();
+
+    // DELETE ASKS what the key asks: A has two children; kept, they take its place -- ONE step.
+    int asked = 0;
+    ui::DeleteBookmarkDialog::setAnswerForTesting([&asked](const QString& title, int children) -> std::optional<bool> {
+        ++asked;
+        CHECK(title == QStringLiteral("A"));
+        CHECK(children == 2);
+        return true;
+    });
+    menu->hide();
+    w.rightClickAt(w.rowOf(10));
+    CHECK(w.pane->selectedId() == OutlineItemId::ofObject(10));
+    rowNamed(menu, ActionId::BookmarkDelete)->trigger();
+    QCoreApplication::processEvents();
+    CHECK(asked == 1);
+    CHECK(shape(w.model().roots()) == std::vector<std::string>{"A1", "A2", "B", "C", "  C1"});
+    CHECK(w.journal()->position() == steps + 1);
+    steps = w.journal()->position();
+
+    // PROPERTIES opens the dialog on the bookmark the menu was opened on; abandoned, nothing changes.
+    int opened = 0;
+    ui::BookmarkPropertiesDialog::setAnswerForTesting([&opened](const OutlineItem& item, int, const core::Destination&) {
+        ++opened;
+        CHECK(item.title == QStringLiteral("C"));
+        return std::optional<ui::BookmarkPropertiesDialog::Choice>();
+    });
+    menu->hide();
+    w.rightClickAt(w.rowOf(30));
+    rowNamed(menu, ActionId::BookmarkProperties)->trigger();
+    QCoreApplication::processEvents();
+    CHECK(opened == 1);
+    CHECK(w.journal()->position() == steps);
+
+    // THE MENU KEY opens it on the CURRENT row, wherever Qt puts the event.
+    menu->hide();
+    w.select(31);
+    w.focusPane();
+    QContextMenuEvent key(QContextMenuEvent::Keyboard, QPoint(0, 0), w.pane->mapToGlobal(QPoint(0, 0)));
+    QCoreApplication::sendEvent(w.pane, &key);
+    QCoreApplication::processEvents();
+    CHECK(menu->isVisible());
+    CHECK(w.pane->selectedId() == OutlineItemId::ofObject(31));
+
+    // PAST EVERY ROW there is nothing to act on, and no menu.
+    menu->hide();
+    w.rightClickAt(QPoint(10, w.pane->viewport()->height() - 4));
+    CHECK_FALSE(menu->isVisible());
+    CHECK(w.page() == 6);
 }

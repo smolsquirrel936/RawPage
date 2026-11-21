@@ -19,6 +19,7 @@
 #include "core/Log.h"
 #include "core/cmd/ActionRegistry.h"
 #include "core/cmd/CommandJournal.h"
+#include "core/cmd/KeyBindingStore.h"
 #include "core/cmd/commands/BookmarkCommands.h"
 #include "core/cmd/commands/PageCommands.h"
 #include "core/doc/Document.h"
@@ -530,7 +531,41 @@ void MainWindow::registerBookmarkActions()
             if (document == nullptr) return;
             (void)runBookmarkCommand(document, std::make_unique<core::ReparentBookmarkCommand>(id, to), id);
         });
+        // D7-40: a double-click goes, or renames; another bookmark selected forgets the last jump.
+        connect(bookmarks_, &BookmarksPane::doubleClicked, this,
+                [this](OutlineItemId id, core::Destination destination) { bookmarkDoubleClicked(id, destination); });
+        connect(bookmarks_, &BookmarksPane::currentBookmarkChanged, this, [this](OutlineItemId id) {
+            if (id != lastBookmarkJump_.id) lastBookmarkJump_ = {};
+        });
+        // D7-40: THE RIGHT-CLICK MENU's rows are the registered commands, dispatched where the keys are, each shown with
+        // its chord as it is NOW -- a remap included (the Comments pane's rule, Stage 6 guide I-32).
+        connect(bookmarks_, &BookmarksPane::actionRequested, this,
+                [this](ActionId id) { (void)services_.actions.dispatch(id, KeyContext::Bookmarks); });
+        bookmarks_->setChordText([this](ActionId id) {
+            for (const KeyContext context : {KeyContext::Bookmarks, KeyContext::Common, KeyContext::Global}) {
+                if (const std::optional<core::Chord> chord = services_.keyBindings.primaryChordFor(id, context))
+                    return QString::fromStdString(chord->toString());
+            }
+            return QString();
+        });
     }
+}
+
+void MainWindow::bookmarkDoubleClicked(const OutlineItemId& id, const core::Destination& destination)
+{
+    DocumentWindow* document = currentDocument();
+    PageView* view = currentView();
+    if (document == nullptr || view == nullptr) return;
+    const bool again = id.isValid() && lastBookmarkJump_.document == document->handle() && lastBookmarkJump_.id == id;
+    // GO, AND SEE WHETHER THAT MOVED ANYTHING (the user's rule, 2026-11-22: rename only while the view is still where the
+    // last jump left it). Going again is what asks the question: a view scrolled or zoomed since moves back, and that
+    // is a jump; one that has not moves nowhere. It also answers for a fit the engine settles later (`/FitB` reads a
+    // content box on the render thread), where a state recorded at the first jump would never be met again.
+    const ViewportController::ViewState before = view->controller().currentView();
+    view->goToDestination(destination);
+    const bool moved = !(view->controller().currentView() == before);
+    lastBookmarkJump_ = {document->handle(), id};
+    if (again && !moved && bookmarks_ != nullptr) (void)bookmarks_->beginRename();
 }
 
 } // namespace rawpage::ui

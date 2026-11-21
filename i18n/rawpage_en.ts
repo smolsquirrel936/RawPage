@@ -1121,7 +1121,7 @@
     </message>
     <message>
         <source>action.bookmark.generate</source>
-        <translation>Generate</translation>
+        <translation>Generate Bookmarks</translation>
     </message>
     <message>
         <source>action.bookmark.rename</source>

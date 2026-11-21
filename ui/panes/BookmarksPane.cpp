@@ -1,10 +1,14 @@
 #include "ui/panes/BookmarksPane.h"
 
 #include "core/doc/Outline.h"
+#include "ui/shell/ActionFactory.h"
 #include "ui/shell/Catalog.h"
 #include "ui/shell/ShortcutBinder.h"
 
+#include <QAction>
+#include <QContextMenuEvent>
 #include <QDropEvent>
+#include <QMenu>
 #include <algorithm>
 #include <QHeaderView>
 #include <QKeyEvent>
@@ -124,14 +128,20 @@ BookmarksPane::BookmarksPane(QWidget* parent) : QTreeWidget(parent)
         emit renameRequested(idOf(item), typed);
     });
 
-    // A CLICK IS THE GESTURE, and `itemActivated` rather than `itemClicked`: activation is a
-    // double-click or `Enter` depending on the platform's own convention, and a single click is
-    // how a person SELECTS a row to read it. Navigating on selection would make walking the tree
-    // with the mouse a series of jumps nobody asked for -- the same rule the thumbnails pane
-    // follows for its arrows.
-    connect(this, &QTreeWidget::itemActivated, this, [this](QTreeWidgetItem* item, int) {
-        if (item != nullptr) emit activated(unpackDestination(item));
+    // A DOUBLE-CLICK IS THE GESTURE, and a single click is how a person SELECTS a row to read it. Navigating on
+    // selection would make walking the tree with the mouse a series of jumps nobody asked for -- the same rule the
+    // thumbnails pane follows for its arrows. `itemDoubleClicked` rather than `itemActivated` (D7-40): activation is a
+    // double-click OR `Enter` by the platform's convention, and the two now differ -- `Enter` always goes
+    // (`bookmark.goTo`, `goToSelected`), while what a double-click does is the window's to decide.
+    connect(this, &QTreeWidget::itemDoubleClicked, this, [this](QTreeWidgetItem* item, int) {
+        if (item != nullptr) emit doubleClicked(idOf(item), unpackDestination(item));
     });
+    connect(this, &QTreeWidget::currentItemChanged, this, [this](QTreeWidgetItem* current, QTreeWidgetItem*) {
+        if (!populating_) emit currentBookmarkChanged(idOf(current));
+    });
+
+    itemMenu_ = new QMenu(this);
+    itemMenu_->setObjectName(QStringLiteral("bookmarksItemMenu"));
 }
 
 BookmarksPane::~BookmarksPane() = default;
@@ -277,6 +287,12 @@ bool BookmarksPane::isExpanded(const core::OutlineItemId& id) const
     return row != nullptr && row->isExpanded();
 }
 
+QRect BookmarksPane::rowRect(const core::OutlineItemId& id) const
+{
+    const QTreeWidgetItem* row = rowOf(id);
+    return row == nullptr ? QRect() : visualItemRect(row);
+}
+
 bool BookmarksPane::beginRename()
 {
     QTreeWidgetItem* row = currentItem();
@@ -356,6 +372,52 @@ void BookmarksPane::keyPressEvent(QKeyEvent* event)
         return;
     }
     QTreeWidget::keyPressEvent(event);
+}
+
+void BookmarksPane::setChordText(std::function<QString(core::ActionId)> chordText)
+{
+    chordText_ = std::move(chordText);
+}
+
+void BookmarksPane::contextMenuEvent(QContextMenuEvent* event)
+{
+    // THE MENU KEY opens it on the CURRENT row -- the event's point is wherever Qt guessed, so the row's own is used;
+    // the mouse opens it on the row under the pointer. The event comes here in the tree's coordinates from the key
+    // and in the viewport's from the mouse (`QAbstractScrollArea::viewportEvent`).
+    QPoint at = event->pos();
+    if (event->reason() == QContextMenuEvent::Keyboard) {
+        const QTreeWidgetItem* row = currentItem();
+        if (row == nullptr) return;
+        at = visualItemRect(row).center();
+    }
+    if (showItemMenu(at)) event->accept();
+}
+
+bool BookmarksPane::showItemMenu(QPoint at)
+{
+    QTreeWidgetItem* row = itemAt(at);
+    if (!editable_ || row == nullptr || isRenaming()) return false;
+    // SELECTED, NOT GONE TO: `setCurrentItem` emits no `doubleClicked` and no `activated`, so the view stays where the
+    // person left it -- which is what Set Destination reads.
+    if (currentItem() != row) setCurrentItem(row);
+
+    itemMenu_->clear();
+    // A REGISTERED COMMAND, by its label and the chord it has now, dispatched by the window -- so the menu's Delete
+    // asks what the key's does. The chord is shown after a tab, as a menu shows one; no shortcut is made.
+    const auto command = [this](core::ActionId id) {
+        QString label = catalog::translateAction(id);
+        if (chordText_) {
+            if (const QString chord = chordText_(id); !chord.isEmpty()) label += QLatin1Char('\t') + chord;
+        }
+        connect(ActionFactory::addNonCommandMenuItem(itemMenu_, label), &QAction::triggered, this, [this, id] { emit actionRequested(id); });
+    };
+    command(core::ActionId::BookmarkRename);
+    command(core::ActionId::BookmarkSetDestination);
+    command(core::ActionId::BookmarkDelete);
+    ActionFactory::addMenuSeparator(itemMenu_);
+    command(core::ActionId::BookmarkProperties);
+    itemMenu_->popup(viewport()->mapToGlobal(at));
+    return true;
 }
 
 std::size_t BookmarksPane::nodeCount() const

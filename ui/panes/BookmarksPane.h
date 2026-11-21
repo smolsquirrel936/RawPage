@@ -49,18 +49,31 @@
 // **What is still not applied: `/FitR`'s rectangle.** `core::Destination` has no fields for the
 // other two of its four numbers, so a `/FitR` destination lands on its page at the current zoom.
 // The vocabulary grows in Stage 7, which owns the editing half of both destination tables.
+//
+// ===========================================================================================
+// A RIGHT-CLICK MENU, AND A DOUBLE-CLICK THAT GOES AND THEN RENAMES (`Stage7-Assembly-Plan.md` D7-40)
+// ===========================================================================================
+// Asked for by the user after M-05's sign-off, 2026-11-22, and built as the Comments pane's menu was (Stage 6 guide
+// I-32): a right click on a bookmark -- or the Menu key on the current one -- selects it WITHOUT going there and offers
+// Rename, Set Destination, Delete and Bookmark Properties, each the window's registered command by its label and
+// chord. A DOUBLE-CLICK goes to the bookmark; the window renames on the next one instead while the view is still where
+// that left it. `Enter` always goes.
 
 #ifndef RAWPAGE_UI_PANES_BOOKMARKSPANE_H
 #define RAWPAGE_UI_PANES_BOOKMARKSPANE_H
 
 #include "core/backend.h"
+#include "core/cmd/ActionId.h"
 #include "core/doc/Destinations.h"
 #include "core/doc/Outline.h"
 
 #include <QTreeWidget>
 
 #include <cstddef>
+#include <functional>
 #include <map>
+
+class QMenu;
 
 namespace rawpage::ui {
 
@@ -93,6 +106,9 @@ public:
     bool isRenaming() const;
     // Whether the row of `id` is expanded now.
     bool isExpanded(const core::OutlineItemId& id) const;
+    // Where the row of `id` is drawn, in the viewport's coordinates -- empty when no row has it or it is collapsed out
+    // of sight. Selects nothing: what a case clicks at.
+    QRect rowRect(const core::OutlineItemId& id) const;
     // THE DROP, as `dropEvent` makes it: the selected row dropped at viewport point `at` -- onto the row there (its last
     // child), above or below it (its top or bottom quarter), or past every row (last at the top level) -- requested as
     // `moveRequested`. False when the outline is not editable or nothing is selected.
@@ -106,6 +122,15 @@ public:
     // name to call and so a case reads the same entry point the chord does.
     void expandAllItems();
     void collapseAllItems();
+
+    // ---- The right-click menu (D7-40) ------------------------------------------------------------------
+    // Rename, Set Destination, Delete, then Bookmark Properties -- each by its label and the chord `chordText` gives it
+    // NOW (a remap included; nothing becomes a shortcut, convention 15). Opened on the row at viewport point `at`, which
+    // it SELECTS without going there: Set Destination reads the view, and a menu that moved the view would set a
+    // bookmark to its own place. False -- no menu -- on no row, or an outline that cannot be edited.
+    void setChordText(std::function<QString(core::ActionId)> chordText);
+    bool showItemMenu(QPoint at);
+    QMenu* itemMenu() const noexcept { return itemMenu_; }
 
     // ---- What a case can assert, rather than a screenshot ------------------------------------
     std::size_t nodeCount() const;
@@ -125,11 +150,23 @@ signals:
     void renameRequested(core::OutlineItemId id, QString title);
     void moveRequested(core::OutlineItemId id, core::OutlinePosition to);
 
-    // A GESTURE asked to go to this destination -- `Enter`, or a click. Never emitted by a
+    // A GESTURE asked to go to this destination -- `Enter` (`goToSelected`). Never emitted by a
     // programmatic selection, for the reason `ThumbnailsPane` states at length: a pane whose
     // selection navigated, and whose navigation moved the selection, is a scroll that fights the
     // user's hand.
     void activated(core::Destination destination);
+
+    // A DOUBLE-CLICK on the row of `id` (`Stage7-Assembly-Plan.md` D7-40). Not `activated`: the window decides whether
+    // it goes to `destination` or renames -- a second double-click on the bookmark the first one went to, while the
+    // view is still where that left it, renames (`MainWindow::bookmarkDoubleClicked`).
+    void doubleClicked(core::OutlineItemId id, core::Destination destination);
+    // The current row became `id` (invalid: none) -- by a person or a selection the window made, never by the pane
+    // rebuilding itself from the model (`setDocument`), which puts the same row back. What forgets D7-40's last jump.
+    void currentBookmarkChanged(core::OutlineItemId id);
+
+    // A ROW OF THE RIGHT-CLICK MENU (D7-40): the window's registered command, dispatched in the Bookmarks context -- so
+    // the menu's Delete asks what the key's does.
+    void actionRequested(core::ActionId id);
 
 protected:
     // THE MODIFIED ARROWS, AND ONLY TO LET THEM GO. `Alt+Up` and `Alt+Down` are §8's
@@ -149,11 +186,16 @@ protected:
     // model, handed back, does.
     void dropEvent(QDropEvent* event) override;
 
+    // THE RIGHT-CLICK MENU (D7-40), from the mouse on a row or the Menu key on the current one.
+    void contextMenuEvent(QContextMenuEvent* event) override;
+
 private:
     void appendItems(QTreeWidgetItem* parent, const std::vector<core::OutlineItem>& items,
                      const std::map<QString, bool>& expanded);
     QTreeWidgetItem* rowOf(const core::OutlineItemId& id) const;
 
+    std::function<QString(core::ActionId)> chordText_;
+    QMenu* itemMenu_ = nullptr;   // made afresh each time it shows
     core::DocumentHandle document_;
     bool editable_ = false;
     bool populating_ = false;

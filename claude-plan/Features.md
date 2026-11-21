@@ -904,6 +904,8 @@ still resolves. `platform::ISpeech`, `platform/win/WinSpeech` and `ui/shell/Read
 - Set the tree's default expanded/collapsed state on open.
 - Generate a table of contents *page* from the bookmark tree, with working links.
 - Import and export the bookmark tree as an indented text or XML file.
+- A right-click menu on a bookmark: rename it, set its destination to the current view, delete it, open its properties.
+- Double-click a bookmark to go to it; double-click it again, the view not moved since, to rename it.
 
 ### 5.5 Tags and document structure
 
