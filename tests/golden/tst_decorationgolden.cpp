@@ -31,6 +31,12 @@ const golden::Manifest& manifest()
     return loaded;
 }
 
+const golden::CaptureLog& captureLog()
+{
+    static const golden::CaptureLog loaded = golden::loadCaptureLog(QDir(goldenRoot()).filePath(QStringLiteral("captured.json")));
+    return loaded;
+}
+
 } // namespace
 
 TEST_CASE("decoration every case has a baseline and every baseline is a case", "[golden][decoration][A-98]")
@@ -53,12 +59,14 @@ TEST_CASE("decoration every case has a baseline and every baseline is a case", "
 TEST_CASE("decoration every case matches its baseline", "[golden][decoration][A-98]")
 {
     REQUIRE(manifest().error.isEmpty());
+    REQUIRE(captureLog().error.isEmpty());
     golden::EngineSession session;
     REQUIRE(session.isReady());
     QTemporaryDir scratch;
     REQUIRE(scratch.isValid());
 
     int compared = 0;
+    int skipped = 0;
     for (const golden::DecorationCase& item : golden::decorationCases()) {
         INFO(item.name.toStdString() << " -- " << item.note.toStdString());
         const std::string bytes = golden::decorationPdf(item);
@@ -76,6 +84,24 @@ TEST_CASE("decoration every case matches its baseline", "[golden][decoration][A-
         const golden::RenderOutcome outcome = golden::renderPage(scratch.path(), probe, 0, golden::kDecorationDpi);
         REQUIRE(outcome.ok);
 
+        // A MACHINE-DEPENDENT case is compared only where this machine substitutes the faces the capture recorded --
+        // the corpus suite's rule (`golden/README.md`, point 3), and anywhere else reported NOT APPLICABLE by name. Stage 7
+        // guide I-35: CI's Windows runner drew `cjk`'s Han, kana and Hangul in faces of its own, 0.119 % of its pixels
+        // past the threshold, and this case compared it anyway.
+        if (item.machineDependent) {
+            const golden::CaptureRecord* record = captureLog().find(QStringLiteral("decoration/") + item.name, 0, golden::kDecorationDpi);
+            REQUIRE(record != nullptr);
+            const QStringList here = golden::describeSubstitutions(outcome.substitutions);
+            if (here != record->substitutions) {
+                ++skipped;
+                WARN("golden: not applicable -- decoration/" << item.name.toStdString() << ": this machine substitutes ["
+                                                             << here.join(QLatin1String("; ")).toStdString()
+                                                             << "], the baseline records ["
+                                                             << record->substitutions.join(QLatin1String("; ")).toStdString() << "]");
+                continue;
+            }
+        }
+
         core::RasterImage expected;
         QString error;
         REQUIRE(golden::readPng(QDir(goldenRoot()).filePath(golden::decorationBaselinePath(item)), &expected, &error));
@@ -88,5 +114,10 @@ TEST_CASE("decoration every case matches its baseline", "[golden][decoration][A-
         CHECK(comparison.passes(manifest().thresholds));
         ++compared;
     }
-    CHECK(compared == static_cast<int>(golden::decorationCases().size()));
+    // Only a machine-dependent case may be skipped: every other one is compared, here and on any machine.
+    int dependent = 0;
+    for (const golden::DecorationCase& item : golden::decorationCases()) dependent += item.machineDependent ? 1 : 0;
+    CHECK(skipped <= dependent);
+    CHECK(compared + skipped == static_cast<int>(golden::decorationCases().size()));
+    CHECK(compared >= static_cast<int>(golden::decorationCases().size()) - dependent);
 }
