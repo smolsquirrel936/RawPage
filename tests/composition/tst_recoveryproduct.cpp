@@ -34,6 +34,8 @@
 #include "ui/shell/DocumentWindow.h"
 #include "ui/shell/MainWindow.h"
 #include "ui/shell/MessageBar.h"
+#include "ui/shell/Catalog.h"
+#include "core/cmd/commands/PageCommands.h"
 
 #include <QCoreApplication>
 #include <QCryptographicHash>
@@ -297,4 +299,121 @@ TEST_CASE("a session whose annotations end in a save or a discard leaves nothing
     CHECK(shaOf(discarded) == discardedBefore);
     std::cout << "A-107: two annotated sessions closed -- one saved, one discarded -- left "
               << core::RecoveryJournal::discover(recoveryRoot).size() << " journal(s) to offer\n";
+}
+
+// =====================================================================================================
+// Stage 7 guide I-11: AN UNDO, AFTER A SAVE, OF A PAGE DELETE FROM BEFORE IT -- through the product
+// =====================================================================================================
+// The unit half (`tests/unit/tst_recovery.cpp`, `[S7-I-11]`) grades the checkpoint and the replay over the first-party
+// backend, and opens the recovery with a helper that does what the window does. This is the window doing it: the real
+// engine and `WinDurableFiles`; the delete run through the tab's journal, saved by the tab, UNDONE by `edit.undo` -- so
+// the checkpoint is written by the tab's writer, `IDocumentBackend::writeRevision` -- and a rotation after it; then the
+// live session's recovery directory COPIED, lock and all but the lock, under a second root, which is how a crashed
+// session's directory looks to the next launch (convention 19: the session is not killed -- A-74 and the kill harness
+// are where a process dies); then `RecoveryPrompt::checkAndOffer` in a second composition, the twin answering Recover.
+
+TEST_CASE("the product recovers an undo after a save of a page delete from its checkpoint", "[recoveryproduct][S7-I-11]")
+{
+    TwinReset twinReset;
+    QTemporaryDir scratch;
+    REQUIRE(scratch.isValid());
+    const QString document = QDir(scratch.path()).filePath(QStringLiteral("refs-every-kind.pdf"));
+    REQUIRE(QFile::copy(corpusFile("assembly/refs-every-kind.pdf"), document));
+    QFile::setPermissions(document, QFile::ReadOwner | QFile::WriteOwner);
+    const QString liveRoot = QDir(scratch.path()).filePath(QStringLiteral("recovery-live"));
+    const QString crashedRoot = QDir(scratch.path()).filePath(QStringLiteral("recovery-crashed"));
+
+    QByteArray expected;
+    QString liveDirectory;
+    {
+        app::CompositionRoot::Options options;
+        options.settingsPath = QDir(scratch.path()).filePath(QStringLiteral("settings-1.ini"));
+        options.recoveryRoot = liveRoot;
+        auto root = std::make_unique<app::CompositionRoot>(std::move(options));
+        auto window = std::make_unique<ui::MainWindow>(root->services());
+        window->resize(1000, 800);
+        window->show();
+        QCoreApplication::processEvents();
+        window->openFiles({document});
+        ui::DocumentWindow* live = window->currentDocument();
+        REQUIRE(live != nullptr);
+        REQUIRE(live->journal() != nullptr);
+        REQUIRE(live->recovery() != nullptr);
+        REQUIRE(live->journal()->document().pages().count() == 12);
+
+        REQUIRE(live->journal()->run(std::make_unique<core::DeletePagesCommand>(std::vector<int>{1})));
+        auto saved = live->save();
+        REQUIRE(saved);
+        REQUIRE(saved.value().kind == core::SaveOutcome::Kind::Saved);
+        REQUIRE(root->actions().dispatch(core::ActionId::EditUndo, core::KeyContext::Viewer));   // past the save
+        REQUIRE(live->journal()->settle());
+        REQUIRE(live->journal()->document().pages().count() == 12);
+        REQUIRE(live->journal()->run(std::make_unique<core::RotatePageCommand>(0, 90)));
+        REQUIRE(live->journal()->settle());
+        expected = live->journal()->document().modelHash();
+
+        liveDirectory = live->recovery()->directory();
+        const QStringList files = QDir(liveDirectory).entryList(QDir::Files);
+        CHECK(files.contains(QStringLiteral("checkpoint-1.pdf")));
+        const QString copy = QDir(crashedRoot).filePath(QFileInfo(liveDirectory).fileName());
+        REQUIRE(QDir().mkpath(copy));
+        for (const QString& name : files)
+            if (name != QStringLiteral("lock")) REQUIRE(QFile::copy(QDir(liveDirectory).filePath(name), QDir(copy).filePath(name)));
+
+        window.reset();   // no close: the live directory stays where it is, under the other root
+        QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+        root.reset();
+    }
+
+    const auto candidates = core::RecoveryJournal::discover(crashedRoot);
+    REQUIRE(candidates.size() == 1);
+    CHECK(candidates.front().sourceMatches);
+    CHECK(QFileInfo(candidates.front().checkpointPath).fileName() == QStringLiteral("checkpoint-1.pdf"));
+
+    app::CompositionRoot::Options options;
+    options.settingsPath = QDir(scratch.path()).filePath(QStringLiteral("settings-2.ini"));
+    options.recoveryRoot = crashedRoot;
+    auto root = std::make_unique<app::CompositionRoot>(std::move(options));
+    auto window = std::make_unique<ui::MainWindow>(root->services());
+    window->resize(1000, 800);
+    window->show();
+    QCoreApplication::processEvents();
+    ui::RecoveryDialog::setAnswerForTesting([](const std::vector<ui::RecoveryDialog::Offer>& offers) {
+        return std::optional<std::vector<ui::RecoveryDisposition>>(
+            std::vector<ui::RecoveryDisposition>(offers.size(), ui::RecoveryDisposition::Recover));
+    });
+    const app::RecoveryPrompt::Outcome outcome = app::RecoveryPrompt::checkAndOffer(*window, root->services());
+    REQUIRE(outcome.recovered == 1);
+
+    ui::DocumentWindow* recovered = window->currentDocument();
+    REQUIRE(recovered != nullptr);
+    CHECK(core::DocumentId::normalizePath(recovered->path()) == core::DocumentId::normalizePath(document));
+    CHECK_FALSE(recovered->isUntitled());
+    REQUIRE(recovered->recoveryReport().has_value());
+    CHECK(recovered->recoveryReport()->fromCheckpoint);
+    CHECK_FALSE(recovered->recoveryReport()->stoppedAtStep.has_value());
+    CHECK(recovered->recoveryReport()->stepsApplied == 1);
+    CHECK(recovered->journal()->document().pages().count() == 12);
+    CHECK(rotationOf(recovered, 0) == 90);
+    CHECK(recovered->journal()->document().modelHash() == expected);
+    CHECK(window->messageBar()->textFor(ui::MessageBar::Kind::Recovered)
+              .contains(ui::catalog::translate(ui::catalog::key::MessageBarRecoveredCheckpoint)));
+    // THE USER'S FILE, as itself: its identity, so the save is a Save over it (D3-16) -- not "Save As required".
+    CHECK(core::DocumentId::normalizePath(recovered->journal()->document().id().path) == core::DocumentId::normalizePath(document));
+    // The next journal starts from a copy of the checkpoint, and the crashed directory is gone.
+    REQUIRE(recovered->recovery() != nullptr);
+    CHECK(recovered->recovery()->isRecoverable());
+    CHECK(QDir(recovered->recovery()->directory()).entryList(QStringList{QStringLiteral("checkpoint-*")}, QDir::Files)
+          == QStringList{QStringLiteral("checkpoint-1.pdf")});
+    CHECK(core::RecoveryJournal::discover(crashedRoot).empty());
+    auto resaved = recovered->save();
+    REQUIRE(resaved);
+    CHECK(resaved.value().kind == core::SaveOutcome::Kind::Saved);
+    CHECK(QDir(recovered->recovery()->directory()).entryList(QStringList{QStringLiteral("checkpoint-*")}, QDir::Files).isEmpty());
+    std::cout << "I-11: a delete saved, undone and followed by a rotation, recovered from its checkpoint -- "
+              << recovered->journal()->document().pages().count() << " pages, the model as it was live\n";
+
+    window.reset();
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    root.reset();
 }

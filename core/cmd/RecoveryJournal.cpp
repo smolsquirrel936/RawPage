@@ -29,6 +29,8 @@ constexpr qint64 kMaxMetaBytes = 1024 * 1024;
 // RawPage wrote -- the largest payload a command carries, `kMaxAttachmentBytes`, is 342 MiB as base64.
 constexpr qsizetype kSideFileThreshold = 64 * 1024;
 constexpr qint64 kMaxSideFileBytes = 360LL * 1024 * 1024;
+// Stage 7 guide I-11: a checkpoint is a whole document. Larger than this is not one RawPage wrote.
+constexpr qint64 kMaxCheckpointBytes = 4LL * 1024 * 1024 * 1024;
 const char* const kFormatLine = "{\"format\":1}";
 
 std::mutex& observerMutex()
@@ -185,6 +187,43 @@ QStringList sideFilesIn(const QString& directory)
     return QDir(directory).entryList(QStringList{QStringLiteral("*.side"), QStringLiteral("*.side.tmp")}, QDir::Files);
 }
 
+// ---- Stage 7 guide I-11: checkpoints ----------------------------------------------------------------
+// `checkpoint-<k>.pdf`, k a positive decimal of at most nine digits; anything else is no name this journal wrote, and a
+// `base` line naming one is refused rather than followed out of the directory.
+int checkpointNumber(const QString& name)
+{
+    const QString prefix = QStringLiteral("checkpoint-");
+    const QString suffix = QStringLiteral(".pdf");
+    if (!name.startsWith(prefix) || !name.endsWith(suffix)) return -1;
+    const QString digits = name.mid(prefix.size(), name.size() - prefix.size() - suffix.size());
+    if (digits.isEmpty() || digits.size() > 9 || digits.startsWith(QLatin1Char('0'))) return -1;
+    for (const QChar c : digits)
+        if (c < QLatin1Char('0') || c > QLatin1Char('9')) return -1;
+    return digits.toInt();
+}
+
+// Every checkpoint in `directory`, and any a kill left half-written, by name.
+QStringList checkpointsIn(const QString& directory)
+{
+    return QDir(directory).entryList(QStringList{QStringLiteral("checkpoint-*.pdf"), QStringLiteral("checkpoint-*.pdf.tmp")},
+                                     QDir::Files);
+}
+
+QString sha256Hex(const QByteArray& bytes)
+{
+    return QString::fromLatin1(QCryptographicHash::hash(bytes, QCryptographicHash::Sha256).toHex());
+}
+
+// The `base` line of `journalBytes`, when its first operation line is one; nothing otherwise.
+std::optional<QJsonObject> baseLineOf(const QByteArray& journalBytes)
+{
+    const QList<QByteArray> lines = journalBytes.split('\n');
+    if (lines.size() < 3) return std::nullopt;   // the format line, the base line, and the newline ending it
+    const QJsonObject op = QJsonDocument::fromJson(lines[1]).object();
+    if (op.value(QStringLiteral("op")).toString() != QLatin1String("base")) return std::nullopt;
+    return op;
+}
+
 // THE ONE APPEND: the journal is opened for appending when it is created and again after a save truncates
 // it, and both go through here so the waiver census counts the operation once.
 bool openForAppend(QFile& journal)
@@ -323,6 +362,22 @@ std::unique_ptr<RecoveryJournal> RecoveryJournal::open(const QString& root, cons
             }
         }
     }
+    // Stage 7 guide I-11: and the checkpoint the seeded lines start from, under its own name, so the new journal's
+    // `base` line names a file beside it. Copied whole, through the same write.
+    if (!seedDirectory.isEmpty()) {
+        if (const std::optional<QJsonObject> base = baseLineOf(QByteArray(kFormatLine) + '\n' + seedLines)) {
+            const QString name = base->value(QStringLiteral("file")).toString();
+            const int number = checkpointNumber(name);
+            const auto bytes = number > 0
+                                   ? readCapped(QDir(seedDirectory).filePath(name), kMaxCheckpointBytes, "error.recovery.checkpoint")
+                                   : Result<QByteArray>(Error{ErrorCode::ParseFailure, QLatin1String("error.recovery.checkpoint"), name});
+            if (!bytes || !writeWholeFile(*durableFiles, QDir(directory).filePath(name), bytes.value())) {
+                journal->degrade("error.recovery.unavailable", directory);
+                return journal;
+            }
+            journal->checkpointSequence_ = number;
+        }
+    }
     const QString journalPath = QDir(directory).filePath(QStringLiteral("journal.ndjson"));
     if (!writeWholeFile(*durableFiles, journalPath, QByteArray(kFormatLine) + '\n' + seedLines)) {
         journal->degrade("error.recovery.unavailable", directory);
@@ -424,10 +479,16 @@ std::optional<QJsonArray> serializeStep(const std::vector<const Command*>& step,
 
 } // namespace
 
-void RecoveryJournal::recordUndo(const CatalogText& stepName, const std::vector<const Command*>& step)
+void RecoveryJournal::recordUndo(const CatalogText& stepName, const std::vector<const Command*>& step, bool fromBeforeBase)
 {
     if (!isRecoverable())
         return;
+    // Stage 7 guide I-11: a step from before the base is not in a replay's history, and its revert may need what only
+    // this session holds -- so the document is checkpointed instead (see the header).
+    if (fromBeforeBase && checkpointWriter_) {
+        checkpoint();
+        return;
+    }
     QString unserializable;
     const auto commands = serializeStep(step, unserializable, QDir(directory_), *durableFiles_);
     if (!commands) {
@@ -438,6 +499,51 @@ void RecoveryJournal::recordUndo(const CatalogText& stepName, const std::vector<
     appendLine(compact(QJsonObject{{QStringLiteral("op"), QStringLiteral("undo")},
                                    {QStringLiteral("name"), catalogJson(stepName)},
                                    {QStringLiteral("cmds"), *commands}}));
+}
+
+void RecoveryJournal::checkpoint()
+{
+    const QDir directory(directory_);
+    const QString name = QStringLiteral("checkpoint-%1.pdf").arg(checkpointSequence_ + 1);
+    const QString path = directory.filePath(name);
+    const QString temporary = path + QStringLiteral(".tmp");
+    // 1. The document, written by the tab's writer -- its bytes are the PDF layer's to make -- then synced and renamed,
+    //    so a kill leaves a temporary file and the journal as it was, never a half checkpoint that a line names.
+    if (const Status written = checkpointWriter_(temporary); !written) {
+        durableFiles_->removeFile(temporary);
+        degrade("error.recovery.checkpoint", QStringLiteral("%1 -- %2").arg(name, QLatin1String(written.error().messageKey)));
+        return;
+    }
+    if (!durableFiles_->syncToDisk(temporary) || !durableFiles_->replaceFile(path, temporary)) {
+        durableFiles_->removeFile(temporary);
+        degrade("error.recovery.checkpoint", name);
+        return;
+    }
+    ++checkpointSequence_;
+    const auto bytes = readCapped(path, kMaxCheckpointBytes, "error.recovery.checkpoint");
+    if (!bytes) {
+        degrade("error.recovery.checkpoint", name);
+        return;
+    }
+    // 2. The journal REPLACED, whole, by the line naming it: one rename, so a kill before it leaves the old lines over the
+    //    old base and a kill after it the checkpoint with nothing after it -- never both, which would apply them twice.
+    const QByteArray base = compact(QJsonObject{{QStringLiteral("op"), QStringLiteral("base")},
+                                                {QStringLiteral("file"), name},
+                                                {QStringLiteral("sha256"), sha256Hex(bytes.value())}});
+    journal_.close();
+    if (!writeWholeFile(*durableFiles_, directory.filePath(QStringLiteral("journal.ndjson")),
+                        QByteArray(kFormatLine) + '\n' + base + '\n')
+        || !openForAppend(journal_)) {
+        degrade("error.recovery.unavailable", directory_);
+        return;
+    }
+    // 3. What no line names any more: the side files of the lines replaced, and the checkpoints before this one.
+    for (const QString& side : sideFilesIn(directory_))
+        durableFiles_->removeFile(directory.filePath(side));
+    for (const QString& older : checkpointsIn(directory_))
+        if (older != name) durableFiles_->removeFile(directory.filePath(older));
+    RAWPAGE_LOG_INFO(LogSubsystem::Save) << "recovery: an undo went back past the last save -- the document checkpointed as"
+                                        << path << bytes.value().size() << "bytes";
 }
 
 void RecoveryJournal::recordRedo(const CatalogText& stepName, const std::vector<const Command*>& step)
@@ -474,8 +580,11 @@ void RecoveryJournal::recordSaved(const Document& document, const QString& path)
         degrade("error.recovery.unavailable", directory_);
         return;
     }
-    // D6-23: no line names a side file any more -- the history before the save is the saved file.
+    // D6-23: no line names a side file any more -- the history before the save is the saved file. Nor a checkpoint
+    // (Stage 7 guide I-11): the saved file is the base now.
     for (const QString& name : sideFilesIn(directory_))
+        durableFiles_->removeFile(QDir(directory_).filePath(name));
+    for (const QString& name : checkpointsIn(directory_))
         durableFiles_->removeFile(QDir(directory_).filePath(name));
 }
 
@@ -487,6 +596,8 @@ void RecoveryJournal::discard()
         for (const char* name : {"journal.ndjson", "meta.json", "journal.ndjson.tmp", "meta.json.tmp"})
             durableFiles_->removeFile(dir.filePath(QLatin1String(name)));
         for (const QString& name : sideFilesIn(directory_))   // D6-23
+            durableFiles_->removeFile(dir.filePath(name));
+        for (const QString& name : checkpointsIn(directory_))   // S7 I-11
             durableFiles_->removeFile(dir.filePath(name));
     }
     if (lock_)
@@ -567,7 +678,12 @@ std::vector<RecoveryCandidate> RecoveryJournal::discover(const QString& root)
             candidate.problemKey = journalBytes.error().messageKey;
         } else {
             const int newlines = static_cast<int>(journalBytes.value().count('\n'));
-            candidate.operationLines = newlines > 0 ? newlines - 1 : 0;
+            candidate.operationLines = newlines > 0 ? newlines - 1 : 0;   // a `base` line counts: it holds changes
+            // Stage 7 guide I-11: the checkpoint the lines start from, checked -- a damaged one is not offered as is.
+            if (const auto checkpoint = checkpointOf(candidate.directory); !checkpoint)
+                candidate.problemKey = QLatin1String("error.recovery.checkpoint");
+            else
+                candidate.checkpointPath = checkpoint.value();
         }
 
         const QFileInfo source(candidate.meta.sourcePath);
@@ -580,6 +696,23 @@ std::vector<RecoveryCandidate> RecoveryJournal::discover(const QString& root)
         candidates.push_back(candidate);
     }
     return candidates;
+}
+
+Result<QString> RecoveryJournal::checkpointOf(const QString& directory)
+{
+    const auto bytes = readCapped(QDir(directory).filePath(QStringLiteral("journal.ndjson")), kMaxJournalBytes, "error.recovery.tooLarge");
+    if (!bytes) return bytes.error();
+    const std::optional<QJsonObject> base = baseLineOf(bytes.value());
+    if (!base) return QString();
+    const QString name = base->value(QStringLiteral("file")).toString();
+    const QString hash = base->value(QStringLiteral("sha256")).toString();
+    if (checkpointNumber(name) < 0 || !isSideFileHash(hash))
+        return Error{ErrorCode::ParseFailure, QLatin1String("error.recovery.checkpoint"), name.left(80)};
+    const QString path = QDir(directory).absoluteFilePath(name);
+    const auto file = readCapped(path, kMaxCheckpointBytes, "error.recovery.checkpoint");
+    if (!file) return Error{ErrorCode::NotFound, QLatin1String("error.recovery.checkpoint"), name};
+    if (sha256Hex(file.value()) != hash) return Error{ErrorCode::Corrupted, QLatin1String("error.recovery.checkpoint"), name};
+    return path;
 }
 
 Status RecoveryJournal::discardDirectory(const QString& directory, platform::IDurableFiles* durableFiles)
@@ -596,6 +729,10 @@ Status RecoveryJournal::discardDirectory(const QString& directory, platform::IDu
             return removed;
     }
     for (const QString& name : sideFilesIn(directory)) {   // D6-23
+        if (const Status removed = durableFiles->removeFile(dir.filePath(name)); !removed)
+            return removed;
+    }
+    for (const QString& name : checkpointsIn(directory)) {   // S7 I-11
         if (const Status removed = durableFiles->removeFile(dir.filePath(name)); !removed)
             return removed;
     }
@@ -693,6 +830,16 @@ Result<ReplayReport> RecoveryJournal::replay(const QString& directory, CommandJo
             break;
         }
 
+        if (kind == QLatin1String("base")) {
+            // Stage 7 guide I-11: the checkpoint the caller opened -- not a step, and only ever the first line.
+            if (index != 1 || inGroup) {
+                stop(step + 1, QLatin1String("error.recovery.malformedLine"), QStringLiteral("line %1").arg(index + 1));
+                break;
+            }
+            report.fromCheckpoint = true;
+            report.appliedLines += line + '\n';
+            continue;
+        }
         if (kind == QLatin1String("groupBegin")) {
             const auto name = catalogFrom(op.value(QStringLiteral("name")));
             if (inGroup || !name) {

@@ -189,7 +189,11 @@ private:
     struct Step {
         CatalogText name;
         std::vector<std::unique_ptr<Command>> commands;
+        // Stage 7 guide I-11: run, or last redone, since the recorder's base -- the last save, or the last checkpoint a
+        // recorder took for an undo of a step that was not (`OperationRecorder`). A replay's history holds exactly these.
+        bool sinceBase = true;
     };
+    void baseMoved();   // every step of the history now from before the base
 
     bool revertStep(Step& step);
     static std::vector<const Command*> commandsOf(const Step& step);

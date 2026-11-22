@@ -2175,6 +2175,10 @@
         <translation>The last change was still being made when RawPage closed, and was not recovered.</translation>
     </message>
     <message>
+        <source>shell.messageBar.recoveredCheckpoint</source>
+        <translation>The changes up to an undo that went back past the last save were recovered together, and cannot be undone one by one.</translation>
+    </message>
+    <message>
         <source>shell.messageBar.recoveryFailed</source>
         <translation>The changes to %1 could not be recovered: %2</translation>
     </message>
@@ -3448,6 +3452,10 @@
     <message>
         <source>error.recovery.sideFile</source>
         <translation>A file the recovery journal names is missing or damaged (%1).</translation>
+    </message>
+    <message>
+        <source>error.recovery.checkpoint</source>
+        <translation>The copy of the document the recovery journal starts from is missing or damaged (%1).</translation>
     </message>
     <message>
         <source>error.exchange.tooLarge</source>

@@ -14,6 +14,10 @@
 //                     whole-file write before the line that names it as {"sideFile":"<sha256>"}; replay checks
 //                     each file's hash against its name and puts the string back
 //
+//     checkpoint-<k>.pdf  Stage 7 guide I-11: the document as it was at an undo of a step from before the base (below),
+//                     written by the tab's CHECKPOINT WRITER -- the saved file's bytes and the update Save would append,
+//                     so the file it describes plus every unsaved change -- and named by the journal's `base` line
+//
 // `<n>` makes the same file opened twice in one process two directories; `<pid>` does the same for two
 // processes (two instances with `general/singleInstance` off). **A name already on disk is never reused**
 // (Stage 3 T11): Windows reuses process ids, and a new session whose pid and counter matched a crashed
@@ -51,6 +55,26 @@
 // **DEGRADATION** (Tech-Stack-Plan.md §5.5): a directory that cannot be created, locked or written, a
 // null `IDurableFiles`, or a command whose `serialize()` is empty -- and the journal keeps editing in
 // memory, writes nothing more, and says so ONCE (`isRecoverable()`, `unrecoverableKey()`, one log line).
+//
+// -------------------------------------------------------------------------------------------
+// CHECKPOINTS -- Stage 7 guide I-11 (the user's choice, 2026-11-22)
+// -------------------------------------------------------------------------------------------
+// An undo of a step from BEFORE THE BASE -- run, or last redone, before the last save -- cannot be replayed as a
+// line: its revert may need what only the session that ran the step holds. A page delete's restore puts back the
+// pages the sink KEPT under the command's key (`MutationSink::restorePages`); a replaying process never ran the
+// delete, so it holds nothing under that key, and the replay used to stop there and lose every later step. So for such
+// an undo the journal takes a CHECKPOINT instead of a line: the checkpoint writer -- `IDocumentBackend::writeRevision`,
+// append form, set by the tab -- writes the document as it now is to `checkpoint-<k>.pdf.tmp`, which is synced and
+// renamed; then the journal is REPLACED, whole, by the format line and one `base` line naming the checkpoint and its
+// SHA-256, and older checkpoints and side files go. Discovery names the checkpoint (`RecoveryCandidate::checkpointPath`),
+// recovery opens IT rather than the source -- giving it the source's identity (`IDocumentBackend::assumeIdentity`), so
+// Save still checks the user's file -- and replays the lines after it. A save removes every checkpoint, as it removes
+// side files. Without a writer (a headless caller), such an undo is the line it always was.
+//
+//   {"op":"base","file":"checkpoint-<k>.pdf","sha256":"<hex>"}      only ever the first line after the format line
+//
+// A kill while the checkpoint is written leaves the journal as it was -- the undo lost, nothing doubled -- because the
+// journal is replaced in one rename AFTER the checkpoint is on disk. Each such undo costs one write of the document.
 //
 // -------------------------------------------------------------------------------------------
 // REPLAY: the unit is the UNDO STEP
@@ -108,6 +132,7 @@ struct RecoveryCandidate {
     bool sourceMatches = false;     // false: offer "recover to a new file", never a replay onto the source
     int operationLines = 0;         // complete lines after the format line
     QLatin1String problemKey{""};   // non-empty: the directory is damaged and cannot be offered as is
+    QString checkpointPath;         // S7 I-11: the checkpoint the lines start from -- open IT, not the source; empty: none
 };
 
 struct ReplayReport {
@@ -118,6 +143,7 @@ struct ReplayReport {
     bool tornTrailingLine = false;
     bool droppedUnterminatedGroup = false;
     QByteArray appliedLines;            // the lines of the applied steps, to seed the next journal
+    bool fromCheckpoint = false;        // S7 I-11: the lines started from a checkpoint, which the caller opened
 };
 
 class RecoveryJournal final : public OperationRecorder {
@@ -147,9 +173,18 @@ public:
     // OperationRecorder.
     void recordRun(const Command& command, const std::optional<CatalogText>& opensGroup) override;
     void recordGroupEnd() override;
-    void recordUndo(const CatalogText& stepName, const std::vector<const Command*>& step) override;
+    void recordUndo(const CatalogText& stepName, const std::vector<const Command*>& step, bool fromBeforeBase) override;
     void recordRedo(const CatalogText& stepName, const std::vector<const Command*>& step) override;
     void recordSaved(const Document& document, const QString& path) override;
+
+    // Stage 7 guide I-11: writes the document as it now is to the path it is given -- in the product,
+    // `IDocumentBackend::writeRevision` in its append form. Unset: no checkpoint is taken (see the header).
+    using CheckpointWriter = std::function<Status(const QString& path)>;
+    void setCheckpointWriter(CheckpointWriter writer) { checkpointWriter_ = std::move(writer); }
+
+    // The checkpoint `directory`'s journal starts from, checked against the hash its `base` line gives; an empty string
+    // when it starts from the source; an error when the line names a file that is missing, misnamed or not that file.
+    static Result<QString> checkpointOf(const QString& directory);
 
     // Every directory under `root` whose owner is gone. A directory whose lock is held by a live process
     // is not listed.
@@ -182,8 +217,11 @@ private:
     void appendLine(const QByteArray& line);
     void degrade(const char* key, const QString& context);
     bool writeMeta(const QString& sourcePath, const DocumentId& id);
+    void checkpoint();   // S7 I-11: see the header
 
     QString directory_;
+    CheckpointWriter checkpointWriter_;
+    int checkpointSequence_ = 0;   // the last `<k>` used in this directory
     platform::IDurableFiles* durableFiles_;
     bool untitled_ = false;
     std::unique_ptr<QLockFile> lock_;

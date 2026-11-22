@@ -332,6 +332,14 @@ public:
         const auto* entry = find(handle);
         return entry ? &entry->id : nullptr;
     }
+    // Stage 7 guide I-11: as the shipped backend does it.
+    core::Status assumeIdentity(core::DocumentHandle handle, const core::DocumentId& identity) override
+    {
+        auto* entry = findMutable(handle);
+        if (entry == nullptr) return core::Error{core::ErrorCode::NotFound, QLatin1String("error.open.notFound"), identity.path};
+        entry->id = identity;
+        return core::Status{};
+    }
     // S4 T4 (D4-3, D4-4). This double reads no file, so it carries EMPTY models rather than null:
     // null means *not a handle of mine*, and empty means *this document has none*, which is the
     // distinction `core/backend.h` asks callers to make. A case that needs an outline fills these.

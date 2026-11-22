@@ -2175,6 +2175,10 @@
         <translation>RawPage 關閉時最後一項變更尚未完成，因此未被復原。</translation>
     </message>
     <message>
+        <source>shell.messageBar.recoveredCheckpoint</source>
+        <translation>直到某次復原操作回溯至上次儲存之前的變更已一併復原，無法再逐一復原。</translation>
+    </message>
+    <message>
         <source>shell.messageBar.recoveryFailed</source>
         <translation>無法復原 %1 的變更：%2</translation>
     </message>
@@ -3448,6 +3452,10 @@
     <message>
         <source>error.recovery.sideFile</source>
         <translation>復原日誌所指的檔案遺失或已損毀 (%1)。</translation>
+    </message>
+    <message>
+        <source>error.recovery.checkpoint</source>
+        <translation>復原日誌所依據的文件副本遺失或已損毀 (%1)。</translation>
     </message>
     <message>
         <source>error.exchange.tooLarge</source>

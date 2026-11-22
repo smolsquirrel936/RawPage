@@ -114,6 +114,60 @@ private:
     core::RotatePageCommand real_;
 };
 
+
+// Stage 7 guide I-11 -- RECOVERY AS `MainWindow::recoverDocument` DOES IT, over the first-party backend: the checkpoint
+// when the candidate names one, given the source's identity, else the source; then the journal replayed.
+struct Recovered {
+    tests::CosBackend backend;
+    core::DocumentHandle handle;
+    std::unique_ptr<core::CommandJournal> journal;
+    core::ReplayReport report;
+    const core::Document& document() const { return journal->document(); }
+};
+
+std::unique_ptr<Recovered> recoverAsTheWindowDoes(const core::RecoveryCandidate& candidate)
+{
+    auto out = std::make_unique<Recovered>();
+    const QString from = candidate.checkpointPath.isEmpty() ? candidate.meta.sourcePath : candidate.checkpointPath;
+    auto opened = out->backend.open(from, nullptr);
+    REQUIRE(opened);
+    out->handle = opened.value();
+    if (!candidate.checkpointPath.isEmpty()) {
+        core::DocumentId identity;
+        identity.path = core::DocumentId::normalizePath(candidate.meta.sourcePath);
+        identity.size = candidate.meta.size;
+        identity.modifiedMsecs = candidate.meta.modifiedMsecs;
+        identity.contentHash = candidate.meta.contentHash;
+        REQUIRE(out->backend.assumeIdentity(out->handle, identity));
+    }
+    core::Document document;
+    REQUIRE(document.hydrate(out->backend, out->handle));
+    out->journal = std::make_unique<core::CommandJournal>(std::move(document), out->backend.mutationSink(out->handle));
+    auto report = RecoveryJournal::replay(candidate.directory, *out->journal);
+    REQUIRE(report);
+    out->report = report.value();
+    return out;
+}
+
+// A recording journal over `session`, with the checkpoint writer the tab sets -- the backend's append form -- or none.
+std::unique_ptr<RecoveryJournal> recording(SaveSession& session, const QString& root, bool checkpoints)
+{
+    auto recovery = RecoveryJournal::open(root, session.path, session.journal->document().id(), &session.durableFiles);
+    REQUIRE(recovery->isRecoverable());
+    if (checkpoints) {
+        recovery->setCheckpointWriter([&session](const QString& path) {
+            return session.backend.writeRevision(session.handle, path, core::SaveForm::Append);
+        });
+    }
+    session.journal->setRecorder(recovery.get());
+    return recovery;
+}
+
+QStringList checkpointFiles(const QString& directory)
+{
+    return QDir(directory).entryList(QStringList{QStringLiteral("checkpoint-*")}, QDir::Files);
+}
+
 } // namespace
 
 // ==========================================================================================
@@ -621,4 +675,267 @@ TEST_CASE("recovery never opens a journal in a directory that is already on disk
     CHECK(QDir(second->directory()).absolutePath() != QDir(planted).absolutePath());
     CHECK(tests::readAllBytes(QDir(planted).filePath("journal.ndjson")) == plantedBytes);
     CHECK(tests::readAllBytes(QDir(planted).filePath("meta.json")).contains("elsewhere.pdf"));
+}
+
+// ==========================================================================================
+// Stage 7 guide I-11 -- an undo, after a save, of a page command from before it
+// ==========================================================================================
+// THE ISSUE'S OWN SCENARIO: `assembly/refs-every-kind.pdf` -- whose pages every kind of reference names -- page 2
+// deleted, saved, the delete UNDONE, and a later edit; the session then gone. A page delete's undo puts back the pages
+// the sink kept under the command's key, which a replaying process never held, so the replay used to stop at the undo
+// and lose it and every step after (the CONTROL below, still so without a checkpoint writer). With one, the undo is a
+// checkpoint, and the recovery is the live document exactly -- model hash, outline and links included -- and saves back
+// over the user's file as that file.
+
+TEST_CASE("recovery checkpoints an undo past the last save of a page delete and recovers it exactly",
+          "[recovery][S7-I-11]")
+{
+    for (const bool checkpoints : {true, false}) {
+        INFO((checkpoints ? "with checkpoints" : "the control: no checkpoint writer, I-11 as it was"));
+        auto session = tests::openCopy("assembly/refs-every-kind.pdf");
+        REQUIRE(session);
+        const int pages = session->journal->document().pages().count();
+        REQUIRE(pages == 12);
+        QTemporaryDir root;
+        REQUIRE(root.isValid());
+        auto recovery = recording(*session, root.path(), checkpoints);
+        const QString directory = recovery->directory();
+
+        REQUIRE(session->journal->run(std::make_unique<core::DeletePagesCommand>(std::vector<int>{1})));
+        auto saved = session->coordinator->save(*session->journal, session->path);
+        REQUIRE(saved);
+        REQUIRE(saved.value().kind == core::SaveOutcome::Kind::Saved);
+        REQUIRE(session->journal->undo());                         // the deleted page back, after the save
+        REQUIRE(session->journal->document().pages().count() == pages);
+        REQUIRE(session->rotate(0));                               // and an edit after it, which a stop would lose
+        const QByteArray expected = session->journal->document().modelHash();
+
+        if (checkpoints) {
+            CHECK(operationsIn(directory) == QStringList{"base", "run"});
+            CHECK(checkpointFiles(directory) == QStringList{"checkpoint-1.pdf"});
+        } else {
+            CHECK(operationsIn(directory) == QStringList{"undo", "run"});
+            CHECK(checkpointFiles(directory).isEmpty());
+        }
+
+        session->journal->setRecorder(nullptr);
+        recovery.reset();                                          // the owner is gone
+        const auto candidates = RecoveryJournal::discover(root.path());
+        REQUIRE(candidates.size() == 1);
+        const core::RecoveryCandidate& candidate = candidates.front();
+        CHECK(candidate.sourceMatches);
+        CHECK(keyOf(candidate.problemKey).empty());
+        CHECK(candidate.operationLines == 2);
+        auto recovered = recoverAsTheWindowDoes(candidate);
+
+        if (!checkpoints) {
+            // I-11, REPRODUCED: the undo refused -- the key unknown to this process -- and the edit after it lost.
+            REQUIRE(recovered->report.stoppedAtStep.has_value());
+            CHECK(*recovered->report.stoppedAtStep == 1);
+            CHECK(recovered->report.stepsApplied == 0);
+            CHECK(recovered->document().pages().count() == pages - 1);
+            CHECK(recovered->document().modelHash() != expected);
+            continue;
+        }
+
+        CHECK(QFileInfo(candidate.checkpointPath).fileName() == QStringLiteral("checkpoint-1.pdf"));
+        CHECK(recovered->report.fromCheckpoint);
+        CHECK_FALSE(recovered->report.stoppedAtStep.has_value());
+        CHECK(recovered->report.stepsApplied == 1);               // the rotation; the checkpoint is not a step
+        CHECK(recovered->document().pages().count() == pages);
+        CHECK(static_cast<int>(recovered->document().pages().rotation(0)) == 90);
+        CHECK(recovered->document().modelHash() == expected);     // pages, outline, annotations and links
+        CHECK(recovered->document().outline().digest() == session->journal->document().outline().digest());
+        // AS THE USER'S FILE: its identity, so Save checks that file and writes over it (D3-16).
+        CHECK(recovered->document().id().path == core::DocumentId::normalizePath(session->path));
+        CHECK(recovered->document().id().contentHash == candidate.meta.contentHash);
+        tests::FakeDurableFiles durable;
+        core::SaveCoordinator coordinator(recovered->backend, &durable);
+        auto resaved = coordinator.save(*recovered->journal, session->path);
+        REQUIRE(resaved);
+        CHECK(resaved.value().kind == core::SaveOutcome::Kind::Saved);
+        tests::CosBackend reread;
+        auto reopened = reread.open(session->path, nullptr);
+        REQUIRE(reopened);
+        core::Document again;
+        REQUIRE(again.hydrate(reread, reopened.value()));
+        CHECK(again.pages().count() == pages);
+        CHECK(static_cast<int>(again.pages().rotation(0)) == 90);
+        CHECK(again.outline().digest() == recovered->document().outline().digest());
+    }
+}
+
+TEST_CASE("recovery checkpoints an undo past a save that rewrote and one past a renumber", "[recovery][S7-I-11]")
+{
+    SECTION("a page delete, saved as a rewrite (D7-29: its objects then only in the session's memory)")
+    {
+        auto session = tests::openCopy("assembly/refs-every-kind.pdf");
+        REQUIRE(session);
+        QTemporaryDir root;
+        REQUIRE(root.isValid());
+        auto recovery = recording(*session, root.path(), true);
+        REQUIRE(session->journal->run(std::make_unique<core::DeletePagesCommand>(std::vector<int>{1, 4})));
+        const QString rewritten = session->directory.filePath("rewritten.pdf");
+        auto saved = session->coordinator->saveAs(*session->journal, rewritten);
+        REQUIRE(saved);
+        REQUIRE(saved.value().kind == core::SaveOutcome::Kind::Saved);
+        REQUIRE(session->backend.lastSaveForm() == core::SaveForm::Rewrite);
+        REQUIRE(session->journal->undo());
+        const QByteArray expected = session->journal->document().modelHash();
+        session->journal->setRecorder(nullptr);
+        recovery.reset();
+        const auto candidates = RecoveryJournal::discover(root.path());
+        REQUIRE(candidates.size() == 1);
+        CHECK(candidates.front().meta.sourcePath == rewritten);
+        auto recovered = recoverAsTheWindowDoes(candidates.front());
+        CHECK(recovered->report.fromCheckpoint);
+        CHECK_FALSE(recovered->report.stoppedAtStep.has_value());
+        CHECK(recovered->document().pages().count() == 12);
+        CHECK(recovered->document().modelHash() == expected);
+    }
+    SECTION("a renumber, whose undo puts back the numbering the sink kept")
+    {
+        auto session = tests::openCopy("assembly/refs-every-kind.pdf");
+        REQUIRE(session);
+        QTemporaryDir root;
+        REQUIRE(root.isValid());
+        auto recovery = recording(*session, root.path(), true);
+        const QByteArray opened = session->journal->document().modelHash();
+        REQUIRE(session->journal->run(std::make_unique<core::RenumberPagesCommand>(
+            std::vector<int>{0, 1, 2}, core::PageLabelStyle::LettersUpper, QStringLiteral("X-"), 1)));
+        auto saved = session->coordinator->save(*session->journal, session->path);
+        REQUIRE(saved);
+        REQUIRE(session->journal->undo());
+        CHECK(session->journal->document().modelHash() == opened);
+        session->journal->setRecorder(nullptr);
+        recovery.reset();
+        const auto candidates = RecoveryJournal::discover(root.path());
+        REQUIRE(candidates.size() == 1);
+        auto recovered = recoverAsTheWindowDoes(candidates.front());
+        CHECK(recovered->report.fromCheckpoint);
+        CHECK_FALSE(recovered->report.stoppedAtStep.has_value());
+        CHECK(recovered->document().modelHash() == opened);
+    }
+}
+
+TEST_CASE("recovery keeps one checkpoint, drops it at a save, and carries it into the next journal", "[recovery][S7-I-11]")
+{
+    auto session = tests::openCopy("ordinary/text-a4.pdf");
+    REQUIRE(session);
+    QTemporaryDir root;
+    REQUIRE(root.isValid());
+    auto recovery = recording(*session, root.path(), true);
+    const QString directory = recovery->directory();
+
+    REQUIRE(session->rotate(0));
+    REQUIRE(session->rotate(1));
+    auto saved = session->coordinator->save(*session->journal, session->path);
+    REQUIRE(saved);
+    REQUIRE(session->journal->undo());                            // past the save: a checkpoint
+    CHECK(checkpointFiles(directory) == QStringList{"checkpoint-1.pdf"});
+    REQUIRE(session->journal->undo());                            // past the new base: another, the first gone
+    CHECK(checkpointFiles(directory) == QStringList{"checkpoint-2.pdf"});
+    CHECK(operationsIn(directory) == QStringList{"base"});
+    REQUIRE(session->journal->redo());                            // an ordinary line after it
+    CHECK(operationsIn(directory) == QStringList{"base", "redo"});
+    const QByteArray expected = session->journal->document().modelHash();
+
+    SECTION("a save removes it: the saved file is the base")
+    {
+        REQUIRE(session->coordinator->save(*session->journal, session->path));
+        CHECK(checkpointFiles(directory).isEmpty());
+        CHECK(tests::readAllBytes(QDir(directory).filePath("journal.ndjson")) == QByteArray("{\"format\":1}\n"));
+    }
+    SECTION("a recovery's next journal starts from a copy of it, and a second crash recovers the same")
+    {
+        session->journal->setRecorder(nullptr);
+        recovery.reset();
+        auto candidates = RecoveryJournal::discover(root.path());
+        REQUIRE(candidates.size() == 1);
+        auto first = recoverAsTheWindowDoes(candidates.front());
+        REQUIRE(first->document().modelHash() == expected);
+        // As `DocumentWindow` seeds it: the applied lines -- the base line first -- and the old directory's files.
+        auto next = RecoveryJournal::open(root.path(), session->path, first->document().id(), &session->durableFiles,
+                                          first->report.appliedLines, false, candidates.front().directory);
+        REQUIRE(next->isRecoverable());
+        const QString nextDirectory = next->directory();
+        CHECK(checkpointFiles(nextDirectory) == QStringList{"checkpoint-2.pdf"});
+        REQUIRE(RecoveryJournal::discardDirectory(candidates.front().directory, &session->durableFiles));
+        next.reset();
+        candidates = RecoveryJournal::discover(root.path());
+        REQUIRE(candidates.size() == 1);
+        CHECK(candidates.front().directory == QDir(nextDirectory).absolutePath());
+        CHECK(QFileInfo(candidates.front().checkpointPath).fileName() == QStringLiteral("checkpoint-2.pdf"));
+        auto second = recoverAsTheWindowDoes(candidates.front());
+        CHECK_FALSE(second->report.stoppedAtStep.has_value());
+        CHECK(second->document().modelHash() == expected);
+    }
+    SECTION("discarding removes it with the directory")
+    {
+        session->journal->setRecorder(nullptr);
+        recovery.reset();
+        REQUIRE(RecoveryJournal::discardDirectory(directory, &session->durableFiles));
+        CHECK_FALSE(QFileInfo::exists(directory));
+    }
+}
+
+TEST_CASE("recovery refuses a checkpoint that is damaged, misnamed or not first", "[recovery][S7-I-11][hostile]")
+{
+    auto session = tests::openCopy("ordinary/text-a4.pdf");
+    REQUIRE(session);
+    QTemporaryDir root;
+    REQUIRE(root.isValid());
+    auto recovery = recording(*session, root.path(), true);
+    const QString directory = recovery->directory();
+    REQUIRE(session->rotate(0));
+    REQUIRE(session->coordinator->save(*session->journal, session->path));
+    REQUIRE(session->journal->undo());
+    session->journal->setRecorder(nullptr);
+    recovery.reset();
+    const QString checkpoint = QDir(directory).filePath("checkpoint-1.pdf");
+    const QByteArray good = tests::readAllBytes(checkpoint);
+    REQUIRE_FALSE(good.isEmpty());
+    REQUIRE(RecoveryJournal::checkpointOf(directory));
+    const QString journalPath = QDir(directory).filePath("journal.ndjson");
+    const QByteArray journal = tests::readAllBytes(journalPath);
+    const auto write = [](const QString& path, const QByteArray& bytes) {
+        QFile file(path);
+        REQUIRE(file.open(QIODevice::WriteOnly | QIODevice::Truncate));
+        REQUIRE(file.write(bytes) == bytes.size());
+    };
+    const auto problem = [&root]() {
+        const auto candidates = RecoveryJournal::discover(root.path());
+        REQUIRE(candidates.size() == 1);
+        return keyOf(candidates.front().problemKey);
+    };
+
+    SECTION("one byte of it changed")
+    {
+        QByteArray bad = good;
+        bad[bad.size() / 2] = static_cast<char>(bad[bad.size() / 2] ^ 0x20);
+        write(checkpoint, bad);
+        CHECK(problem() == "error.recovery.checkpoint");
+    }
+    SECTION("missing")
+    {
+        REQUIRE(QFile::remove(checkpoint));
+        CHECK(problem() == "error.recovery.checkpoint");
+    }
+    SECTION("a base line naming a file outside the directory")
+    {
+        write(journalPath, QByteArray(journal).replace("checkpoint-1.pdf", "../checkpoint-1.pdf"));
+        CHECK(problem() == "error.recovery.checkpoint");
+    }
+    SECTION("a base line after an operation: malformed where it stands")
+    {
+        write(journalPath, "{\"format\":1}\n" + rotateLine(1) + "\n" + journal.split('\n').at(1) + "\n");
+        CHECK(problem().empty());                                 // the first line is not a base: none is named
+        auto fresh = tests::openCopy("ordinary/text-a4.pdf");
+        REQUIRE(fresh);
+        auto report = RecoveryJournal::replay(directory, *fresh->journal);
+        REQUIRE(report);
+        CHECK(report.value().stepsApplied == 1);
+        REQUIRE(report.value().stoppedAtStep.has_value());
+        CHECK(keyOf(report.value().stopKey) == "error.recovery.malformedLine");
+    }
 }

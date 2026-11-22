@@ -506,9 +506,9 @@ struct Told final : core::OperationRecorder {
         lines.push_back("run " + std::string(command.typeId().data(), static_cast<std::size_t>(command.typeId().size())));
     }
     void recordGroupEnd() override { lines.push_back("group end"); }
-    void recordUndo(const CatalogText&, const std::vector<const core::Command*>& step) override
+    void recordUndo(const CatalogText&, const std::vector<const core::Command*>& step, bool fromBeforeBase) override
     {
-        lines.push_back("undo " + std::to_string(step.size()));
+        lines.push_back("undo " + std::to_string(step.size()) + (fromBeforeBase ? " before base" : ""));
     }
     void recordRedo(const CatalogText&, const std::vector<const core::Command*>& step) override
     {
@@ -631,4 +631,46 @@ TEST_CASE("journal settles a command inside a group before it counts", "[cmd][jo
     CHECK(session->rotation(0) == 90);   // the command before it in the group stays
     REQUIRE(journal.endGroup());
     CHECK(journal.canUndo());
+}
+
+// Stage 7 guide I-11: an undo SAYS whether its step is from before the recorder's base -- run, or last redone, before
+// the last save or the last undo that was itself from before it -- which is the step a replay's history will not hold,
+// and for which the recovery journal takes a checkpoint. The rule is the replay's own (`RecoveryJournal::replay`): a
+// step run or redone since the base is re-run there and is in its history; any other is not.
+TEST_CASE("journal tells its recorder which undo reaches back past the base", "[cmd][journal][S7-I-11]")
+{
+    auto session = openSession("ordinary/text-a4.pdf");
+    CommandJournal& journal = *session->journal;
+    Told told;
+    journal.setRecorder(&told);
+
+    REQUIRE(journal.run(rotate(0)));   // A
+    REQUIRE(journal.run(rotate(1)));   // B
+    journal.markSaved();               // the base: A and B are the saved file now
+    REQUIRE(journal.run(rotate(2)));   // C, since the base
+    told.lines.clear();
+
+    REQUIRE(journal.undo());   // C: since the base
+    REQUIRE(journal.undo());   // B: from before it -- and the base moves with it
+    REQUIRE(journal.redo());   // B again: redone, so since the (new) base
+    REQUIRE(journal.undo());   // B: since the base
+    REQUIRE(journal.undo());   // A: from before it
+    CHECK(told.lines == std::vector<std::string>{"undo 1", "undo 1 before base", "redo 1", "undo 1", "undo 1 before base"});
+
+    // After a base moved, every step the history holds is from before it: C, redone now, is since it; B is not.
+    told.lines.clear();
+    REQUIRE(journal.redo());   // A
+    REQUIRE(journal.redo());   // B
+    REQUIRE(journal.redo());   // C
+    REQUIRE(journal.undo());   // C: redone since the base
+    REQUIRE(journal.undo());   // B: redone since the base
+    REQUIRE(journal.undo());   // A: redone since the base
+    CHECK(told.lines == std::vector<std::string>{"redo 1", "redo 1", "redo 1", "undo 1", "undo 1", "undo 1"});
+
+    // A run after an undo throws the redo away; the step it makes is since the base. And a save is a base again.
+    REQUIRE(journal.run(rotate(2, 180)));
+    journal.markSaved();
+    told.lines.clear();
+    REQUIRE(journal.undo());
+    CHECK(told.lines == std::vector<std::string>{"undo 1 before base"});
 }

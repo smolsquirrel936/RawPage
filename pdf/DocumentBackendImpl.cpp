@@ -1350,6 +1350,18 @@ const core::DocumentId* DocumentBackendImpl::documentId(core::DocumentHandle doc
     return entry ? &entry->id : nullptr;
 }
 
+core::Status DocumentBackendImpl::assumeIdentity(core::DocumentHandle document, const core::DocumentId& identity)
+{
+    // Stage 7 guide I-11: see `core/backend.h`. Only the identity moves -- the bytes are the checkpoint's, and an append
+    // save writes them as this document's original, which is what the checkpoint holds: the saved file and more.
+    const std::lock_guard<std::mutex> guard(mutex_);
+    Open* entry = find(document);
+    if (entry == nullptr)
+        return core::Error{core::ErrorCode::NotFound, QLatin1String("error.open.notFound"), identity.path};
+    entry->id = identity;
+    return core::Status{};
+}
+
 const core::Outline* DocumentBackendImpl::outline(core::DocumentHandle document) const
 {
     const std::lock_guard<std::mutex> guard(mutex_);

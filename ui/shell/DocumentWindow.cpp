@@ -496,6 +496,11 @@ void DocumentWindow::build(const Recovery* recovery)
                 recovery_ = core::RecoveryJournal::open(root, sourcePath_, journal_->document().id(),
                                                         services_.platform.durableFiles.get(), seedLines, isUntitled(),
                                                         recovery ? recovery->directory : QString());   // S6 T11: side files
+                // Stage 7 guide I-11: an undo that goes back past the last save is checkpointed -- the document as Save
+                // would append it, written into the recovery folder and never over the user's file.
+                recovery_->setCheckpointWriter([this](const QString& path) {
+                    return services_.backend.writeRevision(handle_, path, core::SaveForm::Append);
+                });
                 journal_->setRecorder(recovery_.get());
             }
             journal_->subscribeMutated([this](const core::Scope& scope) {

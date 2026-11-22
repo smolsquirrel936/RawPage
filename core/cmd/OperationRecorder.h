@@ -13,7 +13,11 @@
 //     group that recorded anything closes. An empty group reports nothing;
 //   * an undo or redo reports the WHOLE step it moved -- its name and every command in it, in the order
 //     they were run -- so a replay never depends on a history it did not rebuild;
-//   * a refused or failed command reports nothing.
+//   * a refused or failed command reports nothing;
+//   * an undo says whether its step is FROM BEFORE THE BASE -- run, or last redone, before the last save or the last
+//     checkpoint the recorder took -- which is the step a replay will not have in the history it rebuilds (Stage 7
+//     guide I-11). The journal then counts every step of its history as from before the base: a recorder that took a
+//     checkpoint for it starts again there, and one that did not loses nothing by the count.
 //
 // A recorder may fail -- a full disk, a directory that vanished -- and must not refuse the edit: the
 // journal ignores what a recorder does and never asks it a question (D3-11's degradation to memory).
@@ -39,7 +43,7 @@ public:
     // `opensGroup` is the group's name when this command is the first one recorded in it.
     virtual void recordRun(const Command& command, const std::optional<CatalogText>& opensGroup) = 0;
     virtual void recordGroupEnd() = 0;
-    virtual void recordUndo(const CatalogText& stepName, const std::vector<const Command*>& step) = 0;
+    virtual void recordUndo(const CatalogText& stepName, const std::vector<const Command*>& step, bool fromBeforeBase) = 0;
     virtual void recordRedo(const CatalogText& stepName, const std::vector<const Command*>& step) = 0;
 
     // The document is saved at `path`: from now on the recorded history starts here.

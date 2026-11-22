@@ -84,6 +84,7 @@ public:
     // Stage 3 T4 (D3-7, D3-16): assessed and taken once, in `open()`.
     const core::Permissions* permissions(core::DocumentHandle document) const override;
     const core::DocumentId* documentId(core::DocumentHandle document) const override;
+    core::Status assumeIdentity(core::DocumentHandle document, const core::DocumentId& identity) override;   // S7 I-11
 
     // S4 T4 (D4-3, D4-4). Each forwards to what `PdfiumDocument` read once at open.
     const core::Outline* outline(core::DocumentHandle document) const override;

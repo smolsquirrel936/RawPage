@@ -1583,10 +1583,25 @@ core::Result<DocumentWindow*> MainWindow::recoverDocument(const core::RecoveryCa
 
     // No password prompt: a document this build could not edit never had a recovery journal, so an encrypted
     // source means the file was replaced by one -- and the open refuses it by key, which is the right answer.
+    // Stage 7 guide I-11: a journal that starts from a CHECKPOINT is replayed onto it, not onto the source -- the
+    // checkpoint is the saved file and every change up to an undo that went back past the save. It is opened as the
+    // source: the source's identity, so Save checks the user's file (D3-16) and the next journal describes it.
+    const QString openedFrom = candidate.checkpointPath.isEmpty() ? sourcePath : candidate.checkpointPath;
     const core::Result<core::DocumentHandle> opened =
-        services_.backend.open(sourcePath, [](int) { return std::optional<QString>(); });
+        services_.backend.open(openedFrom, [](int) { return std::optional<QString>(); });
     if (!opened)
         return refuse(opened.error());
+    if (!candidate.checkpointPath.isEmpty()) {
+        core::DocumentId identity;
+        identity.path = core::DocumentId::normalizePath(sourcePath);
+        identity.size = candidate.meta.size;
+        identity.modifiedMsecs = candidate.meta.modifiedMsecs;
+        identity.contentHash = candidate.meta.contentHash;
+        if (const core::Status assumed = services_.backend.assumeIdentity(opened.value(), identity); !assumed) {
+            (void)services_.backend.close(opened.value());
+            return refuse(assumed.error());
+        }
+    }
 
     auto* document = new DocumentWindow(services_, opened.value(),
                                         DocumentWindow::Recovery{directory, sourcePath, !intoFile});
@@ -1614,6 +1629,8 @@ core::Result<DocumentWindow*> MainWindow::recoverDocument(const core::RecoveryCa
                      .arg(QString::number(*report.stoppedAtStep),
                           catalog::translateError(QString(report.stopKey), report.stopContext));
     }
+    if (report.fromCheckpoint)   // S7 I-11: the steps up to it are one change now, and no undo goes past it
+        lines << catalog::translate(catalog::key::MessageBarRecoveredCheckpoint);
     if (report.tornTrailingLine || report.droppedUnterminatedGroup)
         lines << catalog::translate(catalog::key::MessageBarRecoveredIncomplete);
     document->setCondition(static_cast<int>(MessageBar::Kind::Recovered), lines.join(QLatin1Char('\n')));

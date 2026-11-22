@@ -207,8 +207,13 @@ bool CommandJournal::undo()
         return false;
     }
     --position_;
-    if (recorder_ != nullptr)
-        recorder_->recordUndo(step.name, commandsOf(step));
+    if (recorder_ != nullptr) {
+        // Stage 7 guide I-11: a step from before the base is one a replay's history will not hold, so its undo is
+        // the recorder's to make recoverable some other way -- a checkpoint -- and the base moves with it.
+        const bool fromBeforeBase = !step.sinceBase;
+        recorder_->recordUndo(step.name, commandsOf(step), fromBeforeBase);
+        if (fromBeforeBase) baseMoved();
+    }
     if (showHandler_) unsettled_ = Unsettled::Undo;
     afterOperation(undone, wasDirty);
     return true;
@@ -231,6 +236,7 @@ bool CommandJournal::redo()
         return false;
     }
     ++position_;
+    step.sinceBase = true;   // Stage 7 guide I-11: a replay re-runs it, so its history holds it from here
     if (recorder_ != nullptr)
         recorder_->recordRedo(step.name, commandsOf(step));
     if (showHandler_) unsettled_ = Unsettled::Redo;
@@ -307,10 +313,16 @@ std::vector<const Command*> CommandJournal::redoStep() const
     return canRedo() ? commandsOf(history_[position_]) : std::vector<const Command*>{};
 }
 
+void CommandJournal::baseMoved()
+{
+    for (Step& step : history_) step.sinceBase = false;
+}
+
 void CommandJournal::markSaved()
 {
     const bool wasDirty = isDirty();
     savedPosition_ = position_;
+    baseMoved();   // Stage 7 guide I-11: history before a save is the saved file, not the recorder's lines
     if (wasDirty != isDirty()) {
         const auto handlers = dirtyHandlers_;
         for (const auto& [token, handler] : handlers)
@@ -367,7 +379,7 @@ void CommandJournal::takeBack(Unsettled operation, const Error& why)
             RAWPAGE_LOG_ERROR(LogSubsystem::Save) << "journal: a refused command could not be taken back";
         }
         if (recorder_ != nullptr)
-            recorder_->recordUndo(step.name, commandsOf(step));
+            recorder_->recordUndo(step.name, commandsOf(step), false);   // run since the base: it was just run
         history_.erase(history_.begin() + static_cast<std::ptrdiff_t>(position_ - 1));
         --position_;
         break;
@@ -376,6 +388,7 @@ void CommandJournal::takeBack(Unsettled operation, const Error& why)
         if (!applyStep(history_[position_])) {
             RAWPAGE_LOG_ERROR(LogSubsystem::Save) << "journal: a refused undo could not be taken back";
         }
+        history_[position_].sinceBase = true;   // re-applied: a replay re-runs the redo line below
         if (recorder_ != nullptr)
             recorder_->recordRedo(history_[position_].name, commandsOf(history_[position_]));
         ++position_;
@@ -384,8 +397,8 @@ void CommandJournal::takeBack(Unsettled operation, const Error& why)
         if (!revertStep(history_[position_ - 1])) {
             RAWPAGE_LOG_ERROR(LogSubsystem::Save) << "journal: a refused redo could not be taken back";
         }
-        if (recorder_ != nullptr)
-            recorder_->recordUndo(history_[position_ - 1].name, commandsOf(history_[position_ - 1]));
+        if (recorder_ != nullptr)   // the step was just redone, so since the base
+            recorder_->recordUndo(history_[position_ - 1].name, commandsOf(history_[position_ - 1]), false);
         --position_;
         break;
     }

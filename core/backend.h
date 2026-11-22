@@ -611,6 +611,16 @@ public:
     // only possible where the bytes are read, and a second read of the file by a caller could hash a
     // file that had already changed.
     virtual const DocumentId* documentId(DocumentHandle document) const = 0;
+    // A DOCUMENT OPENED FROM A RECOVERY CHECKPOINT takes the identity of the file it stands for -- Stage 7 guide I-11.
+    // A checkpoint (`core/cmd/RecoveryJournal`) is the saved file's bytes and an update appended to them, written in the
+    // recovery folder; the document opened from it IS the user's file with unsaved changes, so Save must check THAT
+    // file (D3-16) and the next journal must describe it. Not pure: a backend that never recovers refuses it.
+    virtual Status assumeIdentity(DocumentHandle document, const DocumentId& identity)
+    {
+        (void)document;
+        (void)identity;   // a forward declaration here: `core/backend.h` includes no model header it can avoid
+        return Error{ErrorCode::Unsupported, QLatin1String("error.recovery.checkpoint"), QString()};
+    }
 
     // WHAT THE DOCUMENT SAYS ABOUT ITSELF -- the outline, the named destinations and the Info
     // dictionary -- or null for a handle this backend did not open. Added at Stage 4 T4 (D4-3,

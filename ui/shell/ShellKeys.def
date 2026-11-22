@@ -319,6 +319,7 @@ RAWPAGE_SHELL_STRING(MessageBarRecoveredSourceChanged,  "shell.messageBar.recove
 RAWPAGE_SHELL_STRING(MessageBarRecoveredUntitled,       "shell.messageBar.recoveredUntitled")
 RAWPAGE_SHELL_STRING(MessageBarRecoveredStopped,        "shell.messageBar.recoveredStopped")
 RAWPAGE_SHELL_STRING(MessageBarRecoveredIncomplete,     "shell.messageBar.recoveredIncomplete")
+RAWPAGE_SHELL_STRING(MessageBarRecoveredCheckpoint,     "shell.messageBar.recoveredCheckpoint")   // S7 I-11
 RAWPAGE_SHELL_STRING(MessageBarRecoveryFailed,          "shell.messageBar.recoveryFailed")
 
 // Stage 4 T12 -- Document Properties (`Ctrl+D`, D4-4), reading mode (`Ctrl+L`) and the page box's
