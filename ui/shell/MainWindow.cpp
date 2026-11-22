@@ -330,6 +330,19 @@ MainWindow::MainWindow(const app::Services& services, QWidget* parent)
             [this](core::DocumentHandle source, const std::vector<int>& pages, int insertionIndex) {
                 if (DocumentWindow* document = currentDocument()) (void)dropPages(document, source, pages, insertionIndex);
             });
+    // D7-41: THE RIGHT-CLICK MENU's rows are the registered commands, dispatched where the keys are -- so its Delete
+    // deletes the set with no question, as `Delete` in the pane does -- each shown with its chord as it is NOW (a remap
+    // included; the Comments pane's rule, Stage 6 guide I-32) and greyed where the registry says it cannot run now.
+    connect(thumbnails_, &ThumbnailsPane::actionRequested, this,
+            [this](core::ActionId id) { (void)services_.actions.dispatch(id, core::KeyContext::PageThumbnails); });
+    thumbnails_->setChordText([this](core::ActionId id) {
+        for (const core::KeyContext context : {core::KeyContext::PageThumbnails, core::KeyContext::Common, core::KeyContext::Global}) {
+            if (const std::optional<core::Chord> chord = services_.keyBindings.primaryChordFor(id, context))
+                return QString::fromStdString(chord->toString());
+        }
+        return QString();
+    });
+    thumbnails_->setCommandEnabled([this](core::ActionId id) { return services_.actions.isEnabled(id); });
 
     // S4 · T6 -- the two navigation panes, over the models T4 hydrated at open (D4-3). Both are
     // read-only halves: every editing row in §8's Bookmarks table is Stage 7's and stays
@@ -522,6 +535,9 @@ MainWindow::~MainWindow()
     // And the message bar's `closedByUser` (Stage 7 guide I-29): a banner's ✕ reached by an event while `~QWidget`
     // takes the window down would call a lambda on a half-destroyed MainWindow.
     if (messageBar_) disconnect(messageBar_, nullptr, this, nullptr);
+    // And the thumbnails pane's (D7-41's menu among them): a row chosen, or a set changed, while `~QWidget` takes the
+    // sidebar down would reach a lambda on a half-destroyed MainWindow.
+    if (thumbnails_) disconnect(thumbnails_, nullptr, this, nullptr);
 
     // AND EVERY PANE'S TOOL (S6 guide I-24, convention 10). A note's editor COMMITS when the focus leaves it, and a
     // commit puts the tool away -- so a window taken down with an editor open would reach `followTool`'s lambda

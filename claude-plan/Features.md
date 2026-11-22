@@ -866,7 +866,7 @@ still resolves. `platform::ISpeech`, `platform/win/WinSpeech` and `ui/shell/Read
 - Drag a thumbnail to reorder pages.
 - Multi-select thumbnails with click, shift-click, and ctrl-click.
 - Adjust the thumbnail size.
-- Context actions on the selection: rotate, delete, extract, crop, insert, replace.
+- Context actions on the selection: rotate, delete, extract, crop, insert, replace -- a right-click menu on a page offering the pane's commands (cut, copy, paste, delete, duplicate, move earlier and later, rotate) and the page dialogs (insert, replace, extract, page boxes, resize, renumber), the right-clicked page selected as a file manager selects it, the page view left where it was.
 - Cut, copy, and paste pages between positions.
 - Drag pages from one open document's thumbnail pane into another's.
 - Show page labels alongside thumbnails.

@@ -4,10 +4,13 @@
 #include "core/doc/Page.h"
 #include "core/doc/PageMap.h"
 #include "core/doc/PageTree.h"
+#include "ui/shell/ActionFactory.h"
 #include "ui/shell/Catalog.h"
 #include "ui/shell/ShortcutBinder.h"
 
+#include <QAction>
 #include <QApplication>
+#include <QContextMenuEvent>
 #include <QDrag>
 #include <QDragEnterEvent>
 #include <QDropEvent>
@@ -16,6 +19,7 @@
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QKeyEvent>
+#include <QMenu>
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QPainter>
@@ -62,6 +66,9 @@ ThumbnailsPane::ThumbnailsPane(core::render::RenderScheduler& scheduler, QWidget
     setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
     viewport()->setAutoFillBackground(true);
     setAcceptDrops(true);   // S7 T8: pages dragged here (D7-13); `QAbstractScrollArea` hands the viewport's drag events on
+
+    pageMenu_ = new QMenu(this);   // D7-41
+    pageMenu_->setObjectName(QStringLiteral("thumbnailsPageMenu"));
 
     subscription_ = scheduler_.subscribeReady(
         [this](const RenderRequest& request, const core::RasterImage& image) {
@@ -932,6 +939,99 @@ void ThumbnailsPane::mouseReleaseEvent(QMouseEvent* event)
     }
     press_.reset();
     QAbstractScrollArea::mouseReleaseEvent(event);
+}
+
+// =============================================================================================
+// The right-click menu -- `Stage7-Assembly-Plan.md` D7-41
+// =============================================================================================
+
+const std::vector<std::optional<core::ActionId>>& ThumbnailsPane::pageMenuRows()
+{
+    using core::ActionId;
+    // THE PANE'S §8 TABLE, THEN THE ORGANIZE TAB'S PAGE DIALOGS (the user's choice), grouped as the ribbon groups them:
+    // the clipboard and delete; the set rearranged; pages in and out; the pages' size and numbers.
+    static const std::vector<std::optional<ActionId>> rows{
+        ActionId::PageCut,      ActionId::PageCopy,      ActionId::PagePaste,     ActionId::PageDelete,   std::nullopt,
+        ActionId::PageDuplicate, ActionId::PageMoveEarlier, ActionId::PageMoveLater, ActionId::PageRotate, std::nullopt,
+        ActionId::PageInsert,   ActionId::PageReplace,   ActionId::PageExtract,   std::nullopt,
+        ActionId::PageSetBoxes, ActionId::PageResize,    ActionId::PageRenumber,
+    };
+    return rows;
+}
+
+QString ThumbnailsPane::pageMenuLabel(core::ActionId id)
+{
+    using core::ActionId;
+    switch (id) {
+    case ActionId::PageRotate: return catalog::translate(catalog::key::PagesMenuRotate);
+    case ActionId::PageInsert: return catalog::translate(catalog::key::PagesMenuInsert);
+    case ActionId::PageReplace: return catalog::translate(catalog::key::PagesMenuReplace);
+    case ActionId::PageExtract: return catalog::translate(catalog::key::PagesMenuExtract);
+    case ActionId::PageResize: return catalog::translate(catalog::key::PagesMenuResize);
+    case ActionId::PageRenumber: return catalog::translate(catalog::key::PagesMenuRenumber);
+    default: return catalog::translateAction(id);
+    }
+}
+
+void ThumbnailsPane::setChordText(std::function<QString(core::ActionId)> chordText)
+{
+    chordText_ = std::move(chordText);
+}
+
+void ThumbnailsPane::setCommandEnabled(std::function<bool(core::ActionId)> enabled)
+{
+    commandEnabled_ = std::move(enabled);
+}
+
+void ThumbnailsPane::contextMenuEvent(QContextMenuEvent* event)
+{
+    // THE MENU KEY opens it on the CURRENT page, at its sheet -- the event's point is wherever Qt guessed; the mouse opens
+    // it on the page under the pointer. The mouse's point comes in the viewport's coordinates
+    // (`QAbstractScrollArea::viewportEvent`), the key's in the pane's.
+    if (event->reason() == QContextMenuEvent::Keyboard) {
+        if (currentPage_ < 0 || currentPage_ >= static_cast<int>(slots_.size())) return;
+        const QPoint at = slots_[static_cast<std::size_t>(currentPage_)].imageRect.center() - QPoint(0, verticalScrollBar()->value());
+        if (showPageMenu(currentPage_, at)) event->accept();
+        return;
+    }
+    if (showPageMenu(slotAt(event->pos()), event->pos())) event->accept();
+}
+
+bool ThumbnailsPane::showPageMenu(int page, QPoint at)
+{
+    // PAST EVERY PAGE, NOTHING (the user's choice): Paste and Insert stay on their keys and the ribbon.
+    if (!document_.isValid() || page < 0 || page >= pageCount()) return false;
+    press_.reset();
+
+    // THE FILE MANAGER'S RULE, AND NO NAVIGATION (the user's choice). A page outside the set becomes the set alone,
+    // as a plain click makes it -- `pressPage`, which emits `selectionChanged` and never `activated`; a page inside it
+    // keeps the set, and becomes the current page. Either way the page view stays where the person left it.
+    if (!std::binary_search(selected_.begin(), selected_.end(), page)) {
+        pressPage(page, Qt::NoModifier);
+    } else {
+        currentPage_ = page;
+        viewport()->update();
+    }
+
+    pageMenu_->clear();
+    // A REGISTERED COMMAND, by the menu's label and the chord it has now, dispatched by the window -- greyed where it
+    // would do nothing now (an empty clipboard's Paste, page 1's Move Earlier, a document that cannot be edited).
+    for (const std::optional<core::ActionId>& row : pageMenuRows()) {
+        if (!row) {
+            ActionFactory::addMenuSeparator(pageMenu_);
+            continue;
+        }
+        const core::ActionId id = *row;
+        QString label = pageMenuLabel(id);
+        if (chordText_) {
+            if (const QString chord = chordText_(id); !chord.isEmpty()) label += QLatin1Char('\t') + chord;
+        }
+        QAction* action = ActionFactory::addNonCommandMenuItem(pageMenu_, label);
+        action->setEnabled(!commandEnabled_ || commandEnabled_(id));
+        connect(action, &QAction::triggered, this, [this, id] { emit actionRequested(id); });
+    }
+    pageMenu_->popup(viewport()->mapToGlobal(at));
+    return true;
 }
 
 bool ThumbnailsPane::viewportEvent(QEvent* event)

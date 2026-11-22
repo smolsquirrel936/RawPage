@@ -41,6 +41,7 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
+#include <QContextMenuEvent>
 #include <QDir>
 #include <QDropEvent>
 #include <QFile>
@@ -49,6 +50,7 @@
 #include <QLabel>
 #include <QLayout>
 #include <QLineEdit>
+#include <QMenu>
 #include <QMimeData>
 #include <QMouseEvent>
 #include <QRadioButton>
@@ -146,6 +148,22 @@ struct Window {
         QCoreApplication::sendEvent(pane->viewport(), &released);
         QCoreApplication::processEvents();
     }
+
+    // D7-41: a right press and release at viewport point `at`, then the context-menu event Windows sends after them.
+    void rightClickAt(QPoint at) const
+    {
+        QWidget* to = pane->viewport();
+        QMouseEvent pressed(QEvent::MouseButtonPress, at, to->mapToGlobal(at), Qt::RightButton, Qt::RightButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(to, &pressed);
+        QMouseEvent released(QEvent::MouseButtonRelease, at, to->mapToGlobal(at), Qt::RightButton, Qt::NoButton, Qt::NoModifier);
+        QCoreApplication::sendEvent(to, &released);
+        QContextMenuEvent event(QContextMenuEvent::Mouse, at, to->mapToGlobal(at));
+        QCoreApplication::sendEvent(to, &event);
+        QCoreApplication::processEvents();
+    }
+
+    // The page the page VIEW shows -- what a right-click must leave alone.
+    int viewPage() const { return window->currentView()->controller().currentPage(); }
 
     // The centre of page `page`'s sheet in viewport coordinates, found by asking where a drop would land on each side.
     QPoint slotCentre(int page) const
@@ -773,4 +791,143 @@ TEST_CASE("pages a signed warning closed by the user stays closed across a tab s
     CHECK(first->journal()->historySize() == 2);
     shell.window->activateDocument(1);
     CHECK(bar->isShowing(ui::MessageBar::Kind::Signed));
+}
+
+// =============================================================================================
+// A-132 -- the right-click menu (D7-41)
+// =============================================================================================
+
+namespace {
+
+// The menu's row for `id`, by the label the menu gives it -- its chord, if any, after a tab.
+QAction* menuRow(const QMenu* menu, ActionId id)
+{
+    const QString label = ui::ThumbnailsPane::pageMenuLabel(id);
+    for (QAction* action : menu->actions())
+        if (!action->isSeparator() && (action->text() == label || action->text().startsWith(label + QLatin1Char('\t')))) return action;
+    return nullptr;
+}
+
+} // namespace
+
+TEST_CASE("pages a right click on a thumbnail selects by the file manager's rule and leaves the view", "[thumbnailsedit][A-132][D7-41]")
+{
+    Answers answers;
+    if (QClipboard* clipboard = QGuiApplication::clipboard()) clipboard->clear();   // Paste is greyed below
+    Fixture fixture;
+    fixture.backend.pagesPerDocument = 6;
+    fixture.backend.editable = true;
+    Window shell(fixture, QStringLiteral("six.pdf"));
+    ui::ThumbnailsPane* pane = shell.pane;
+    QMenu* menu = pane->pageMenu();
+    REQUIRE(menu != nullptr);
+
+    // THE SET (pages 2 and 3), then the view moved elsewhere -- a set of several stays where it is.
+    shell.click(1);
+    shell.click(2, Qt::ShiftModifier);
+    REQUIRE(pane->selectedPages() == std::vector<int>{1, 2});
+    shell.window->currentView()->goToPage(4);
+    QCoreApplication::processEvents();
+    REQUIRE(shell.viewPage() == 4);
+    REQUIRE(pane->selectedPages() == std::vector<int>{1, 2});
+
+    // ON A PAGE INSIDE THE SET: the set kept, the view NOT moved, the menu open.
+    shell.rightClickAt(shell.slotCentre(2));
+    CHECK(pane->selectedPages() == std::vector<int>{1, 2});
+    CHECK(shell.viewPage() == 4);
+    REQUIRE(menu->isVisible());
+
+    // THE ROWS, in the table's order, with its three separators; none a shortcut (convention 15).
+    const std::vector<std::optional<ActionId>>& table = ui::ThumbnailsPane::pageMenuRows();
+    CHECK(table.size() == 17);
+    CHECK(std::count(table.begin(), table.end(), std::nullopt) == 3);
+    const QList<QAction*> actions = menu->actions();
+    REQUIRE(actions.size() == static_cast<int>(table.size()));
+    for (std::size_t i = 0; i < table.size(); ++i) {
+        const QAction* action = actions[static_cast<int>(i)];
+        if (!table[i]) {
+            CHECK(action->isSeparator());
+            continue;
+        }
+        INFO(action->text().toStdString());
+        CHECK(action->text().startsWith(ui::ThumbnailsPane::pageMenuLabel(*table[i])));
+        CHECK(action->shortcut().isEmpty());
+    }
+    // The six dialogs the menu names more fully than their actions do (the user's choice) ...
+    for (const auto& [id, key] : {std::pair{ActionId::PageRotate, ui::catalog::key::PagesMenuRotate},
+                                  std::pair{ActionId::PageInsert, ui::catalog::key::PagesMenuInsert},
+                                  std::pair{ActionId::PageReplace, ui::catalog::key::PagesMenuReplace},
+                                  std::pair{ActionId::PageExtract, ui::catalog::key::PagesMenuExtract},
+                                  std::pair{ActionId::PageResize, ui::catalog::key::PagesMenuResize},
+                                  std::pair{ActionId::PageRenumber, ui::catalog::key::PagesMenuRenumber}}) {
+        CHECK(ui::ThumbnailsPane::pageMenuLabel(id) == ui::catalog::translate(key));
+        CHECK(ui::ThumbnailsPane::pageMenuLabel(id) != ui::catalog::translateAction(id));
+    }
+    // ... and §8's Page Thumbnails rows show their chords after a tab.
+    for (const ActionId id : {ActionId::PageCut, ActionId::PageCopy, ActionId::PagePaste, ActionId::PageDelete, ActionId::PageDuplicate,
+                              ActionId::PageMoveEarlier, ActionId::PageMoveLater, ActionId::PageRotate, ActionId::PageExtract}) {
+        REQUIRE(menuRow(menu, id) != nullptr);
+        CHECK(menuRow(menu, id)->text().contains(QLatin1Char('\t')));
+    }
+    // GREYED where the command cannot run now: no pages on the clipboard to paste.
+    CHECK_FALSE(menuRow(menu, ActionId::PagePaste)->isEnabled());
+    CHECK(menuRow(menu, ActionId::PageDelete)->isEnabled());
+
+    // DELETE IS THE KEY'S: the set, no question, one step.
+    int asked = 0;
+    ui::DeletePagesDialog::setAnswerForTesting([&asked](int, const std::vector<int>&) -> std::optional<ui::DeletePagesDialog::Choice> {
+        ++asked;
+        return std::nullopt;
+    });
+    const std::size_t before = shell.journal().historySize();
+    menuRow(menu, ActionId::PageDelete)->trigger();
+    QCoreApplication::processEvents();
+    CHECK(asked == 0);
+    CHECK(shell.document()->pageCount() == 4);
+    CHECK(shell.journal().historySize() == before + 1);
+    menu->hide();
+
+    // ON A PAGE OUTSIDE THE SET: that page alone, the view still not moved -- and a dialog opens on it. The answer is
+    // installed BEFORE the menu is built: with nobody to ask, a dialog's command is disabled (convention 16) and its
+    // row greyed, which is the menu telling the truth.
+    std::vector<int> offered;
+    ui::ReplacePagesDialog::setAnswerForTesting([&offered](int, const std::vector<int>& initial) -> std::optional<ui::ReplacePagesDialog::Choice> {
+        offered = initial;
+        return std::nullopt;
+    });
+    shell.window->currentView()->goToPage(3);
+    QCoreApplication::processEvents();
+    pane->setSelectedPages({0});
+    REQUIRE(pane->selectedPages() == std::vector<int>{0});
+    const int viewed = shell.viewPage();
+    shell.rightClickAt(shell.slotCentre(2));
+    CHECK(pane->selectedPages() == std::vector<int>{2});
+    CHECK(shell.viewPage() == viewed);
+    REQUIRE(menu->isVisible());
+    REQUIRE(menuRow(menu, ActionId::PageReplace)->isEnabled());
+    menuRow(menu, ActionId::PageReplace)->trigger();
+    QCoreApplication::processEvents();
+    CHECK(offered == std::vector<int>{2});
+    menu->hide();
+
+    // THE FIRST PAGE: Move Earlier greyed, Move Later not.
+    shell.rightClickAt(shell.slotCentre(0));
+    REQUIRE(menu->isVisible());
+    CHECK_FALSE(menuRow(menu, ActionId::PageMoveEarlier)->isEnabled());
+    CHECK(menuRow(menu, ActionId::PageMoveLater)->isEnabled());
+    menu->hide();
+
+    // PAST EVERY PAGE -- the column's margin, left of every sheet -- NO MENU (the user's choice), the set untouched.
+    pane->setSelectedPages({1});
+    shell.rightClickAt(QPoint(2, shell.slotCentre(1).y()));
+    CHECK_FALSE(menu->isVisible());
+    CHECK(pane->selectedPages() == std::vector<int>{1});
+
+    // THE MENU KEY opens it on the current page, which keeps the set.
+    QContextMenuEvent key(QContextMenuEvent::Keyboard, QPoint(0, 0), pane->mapToGlobal(QPoint(0, 0)));
+    QCoreApplication::sendEvent(pane, &key);
+    QCoreApplication::processEvents();
+    CHECK(menu->isVisible());
+    CHECK(pane->selectedPages() == std::vector<int>{1});
+    menu->hide();
 }

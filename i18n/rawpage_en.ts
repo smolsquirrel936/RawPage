@@ -6434,6 +6434,30 @@
         <translation>Links on this page</translation>
     </message>
     <message>
+        <source>pages.menu.rotate</source>
+        <translation>Rotate Pages…</translation>
+    </message>
+    <message>
+        <source>pages.menu.insert</source>
+        <translation>Insert Pages…</translation>
+    </message>
+    <message>
+        <source>pages.menu.replace</source>
+        <translation>Replace Pages…</translation>
+    </message>
+    <message>
+        <source>pages.menu.extract</source>
+        <translation>Extract Pages…</translation>
+    </message>
+    <message>
+        <source>pages.menu.resize</source>
+        <translation>Resize Pages…</translation>
+    </message>
+    <message>
+        <source>pages.menu.renumber</source>
+        <translation>Renumber Pages…</translation>
+    </message>
+    <message>
         <source>pages.rotate.selected</source>
         <translation>Selected pages (%1)</translation>
     </message>

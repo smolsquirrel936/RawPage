@@ -6434,6 +6434,30 @@
         <translation>此頁有連結</translation>
     </message>
     <message>
+        <source>pages.menu.rotate</source>
+        <translation>旋轉頁面…</translation>
+    </message>
+    <message>
+        <source>pages.menu.insert</source>
+        <translation>插入頁面…</translation>
+    </message>
+    <message>
+        <source>pages.menu.replace</source>
+        <translation>取代頁面…</translation>
+    </message>
+    <message>
+        <source>pages.menu.extract</source>
+        <translation>擷取頁面…</translation>
+    </message>
+    <message>
+        <source>pages.menu.resize</source>
+        <translation>調整頁面大小…</translation>
+    </message>
+    <message>
+        <source>pages.menu.renumber</source>
+        <translation>重新編號頁面…</translation>
+    </message>
+    <message>
         <source>pages.rotate.selected</source>
         <translation>選取的頁面（%1）</translation>
     </message>

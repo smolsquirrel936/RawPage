@@ -103,6 +103,7 @@
 #define RAWPAGE_UI_PANES_THUMBNAILSPANE_H
 
 #include "core/backend.h"
+#include "core/cmd/ActionId.h"
 #include "core/doc/AnnotationStore.h"
 #include "core/doc/Revision.h"
 #include "core/render/RenderRequest.h"
@@ -112,11 +113,13 @@
 #include <QAbstractScrollArea>
 #include <QRect>
 
+#include <functional>
 #include <optional>
 #include <unordered_map>
 #include <utility>
 #include <vector>
 
+class QMenu;
 class QMimeData;
 
 namespace rawpage::core {
@@ -209,6 +212,23 @@ public:
     // `Enter`, through `page.goToSelected`, and what a click does. Emits `activated()`.
     void activateCurrentPage();
 
+    // ---- The right-click menu -- `Stage7-Assembly-Plan.md` D7-41 ------------------------------------------------
+    // A right-click on a page, or the Menu key on the current one, opens a menu of the window's REGISTERED page
+    // commands -- the pane's §8 table and the Organize tab's page dialogs -- each `actionRequested` when chosen, so the
+    // window dispatches it in the Page Thumbnails context as its key would be (the menu's Delete deletes the set with no
+    // question, as `Delete` here does). THE FILE MANAGER'S RULE (the user's choice): a page outside the set becomes the
+    // set alone, a page inside it keeps the set -- and NEITHER moves the page view, which a plain left click does. Past
+    // every page there is no menu (the user's choice). Each row shows its chord as it is NOW after a tab and is never a
+    // shortcut (convention 15), and is greyed where its command is not available now.
+    void setChordText(std::function<QString(core::ActionId)> chordText);
+    void setCommandEnabled(std::function<bool(core::ActionId)> enabled);
+    QMenu* pageMenu() const noexcept { return pageMenu_; }
+    // The menu's rows in order, a separator as `std::nullopt` -- for the suite, and the one place the order is written.
+    static const std::vector<std::optional<core::ActionId>>& pageMenuRows();
+    // The label a row shows before its chord: the action's own, or the menu's fuller one where the action's names no
+    // pages and opens a dialog (*Rotate Pages…* beside the ribbon's *Rotate*; the user's choice, D7-41).
+    static QString pageMenuLabel(core::ActionId id);
+
     // ---- What a case can assert, rather than a screenshot ------------------------------------
     // THE SLOTS THE LAYOUT ACTUALLY SHOWS, which is the number convention 12 requires a case to
     // find non-zero before it asserts anything about what is visible. A pane that was never laid
@@ -252,6 +272,9 @@ signals:
     // before page `insertionIndex` -- one `InsertPagesCommand`, the source unchanged.
     void pagesDropped(core::DocumentHandle source, const std::vector<int>& pages, int insertionIndex);
 
+    // D7-41: a row of the right-click menu was chosen. The window dispatches it in the Page Thumbnails context.
+    void actionRequested(core::ActionId id);
+
 protected:
     void paintEvent(QPaintEvent* event) override;
     void resizeEvent(QResizeEvent* event) override;
@@ -268,6 +291,8 @@ protected:
     void mousePressEvent(QMouseEvent* event) override;
     void mouseMoveEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
+    // D7-41: the mouse's, in the viewport's coordinates; the Menu key's, on the current page.
+    void contextMenuEvent(QContextMenuEvent* event) override;
 
     // S7 T8: the drop half of a drag (D7-13), delivered by `QAbstractScrollArea` from the viewport.
     void dragEnterEvent(QDragEnterEvent* event) override;
@@ -344,6 +369,12 @@ private:
     std::optional<Drag> press_;
     int dropIndex_ = -1;
     std::vector<core::AnnotationStore::PageCarries> badges_;
+
+    // D7-41: the menu on page `page`, opened at viewport point `at`; false, opening nothing, past every page.
+    bool showPageMenu(int page, QPoint at);
+    QMenu* pageMenu_ = nullptr;   // filled afresh each time it shows
+    std::function<QString(core::ActionId)> chordText_;
+    std::function<bool(core::ActionId)> commandEnabled_;
 
     core::render::RenderScheduler::SubscriptionToken subscription_ = 0;
 };
