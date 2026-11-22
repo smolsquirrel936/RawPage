@@ -75,15 +75,17 @@ where the work is and points at the owner; the numbers live there and are re-mea
 
 **What is live, in one sentence each, with the owner of every figure:**
 
-- **The product reads, draws, reads text, annotates and saves.** `rawpage.exe` opens PDFs into tabs,
-  renders them through the pinned PDFium behind our own facade with a first-party COS reader beneath,
-  navigates and lays them out (Stage 4), selects, finds, searches, reflows and compares their text
-  (Stage 5), makes and manages annotations through journalled commands (Stage 6), saves
-  incrementally through our own writer, and offers what was unsaved after a crash. What each file does
-  is ③; how far each stage got is ④.
+- **The product reads, draws, reads text, annotates, assembles and saves.** `rawpage.exe` opens PDFs
+  into tabs, renders them through the pinned PDFium behind our own facade with a first-party COS
+  reader beneath, navigates and lays them out (Stage 4), selects, finds, searches, reflows and compares
+  their text (Stage 5), makes and manages annotations through journalled commands (Stage 6), moves,
+  copies, extracts, splits and merges pages and edits bookmarks and links without breaking what points
+  at them (Stage 7a), saves incrementally through our own writer or rewrites the file on Save As, and
+  offers what was unsaved after a crash. What each file does is ③; how far each stage got is ④; what
+  a person can do, as an overview, is ⑧.
 - **Verdicts** A2 to A7 are recorded in ② §3.3 (A1 is open), each with its measurement and its bound.
   **A2 is re-measured at each stage that adds engine work** -- Stage 4's measurement decided
-  `platform::IAcceleratedSurface`: not built, and Stages 5 and 6 each carry their own row (② §3.3).
+  `platform::IAcceleratedSurface`: not built, and Stages 5, 6 and 7 each carry their own row (② §3.3).
 - **Test counts, gate figures and waivers** are quoted, re-measured, in [`CLAUDE.md`](../CLAUDE.md) →
   *Where the work is* and *Commands*, and per stage in ⑥.
 - **Accessibility was removed from the product on 2026-08-23**, entirely and not deferred. The single

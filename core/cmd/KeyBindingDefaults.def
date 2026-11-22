@@ -145,7 +145,8 @@ RAWPAGE_BINDING(Viewer, "Ctrl+Alt+A",    AnnotMeasureArea)
 RAWPAGE_BINDING(Viewer, "Ctrl+Alt+K",    RedactMark)
 
 // =============================================================================================
-// Write mode -- the context the "thirteen deliberate collisions" figure is scoped to (twelve until 2026-10-04)
+// Write mode -- the context the "twelve deliberate collisions" figure is scoped to (twelve until 2026-10-04,
+// thirteen from then until Stage 7 D7-42 withdrew the Viewer's Ctrl+E on 2026-11-22)
 // =============================================================================================
 RAWPAGE_BINDING(Write, "Ctrl+B",         WriteBold)
 RAWPAGE_BINDING(Write, "Ctrl+I",         WriteItalic)

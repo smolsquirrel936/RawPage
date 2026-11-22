@@ -3,8 +3,9 @@
 A Windows-first desktop PDF editor. C++20 · Qt 6.11.1 Widgets · PDFium for read/raster · a
 first-party COS layer for every write.
 
-> **Status: Stages 0 to 6 are complete and signed off, the last (Stage 6, annotations and review)
-> on 2026-10-28.**
+> **Status: Stages 0 to 6 are complete and signed off (Stage 6, annotations and review, on
+> 2026-10-28), and so is the first half of Stage 7, document assembly — Stage 7a, on 2026-11-22.
+> Stage 7b is not started.**
 > `rawpage.exe` opens real PDFs into tabs and draws their pages through the pinned PDFium behind our
 > own facade, over a first-party COS reader. What a person can do with it today:
 >
@@ -26,10 +27,18 @@ first-party COS layer for every write.
 >   annotations copied and pasted between tabs; redaction marks over text or an area (applying them
 >   is a later stage's); and sound comments, recorded or taken from a WAV. Each one is drawn by our
 >   own appearance builder and saved as written.
+> - **Assemble pages** (Stage 7a): move, delete, duplicate, rotate, insert and replace pages --
+>   from the Page Thumbnails pane by drag, clipboard or right-click, or by dialog -- with every
+>   bookmark, link and destination that points at them kept pointing at them; extract and split
+>   into new documents; merge many files into one; crop (with a tool, or to the white margins),
+>   resize, renumber and embedded thumbnails; edit, generate, import and export bookmarks, and
+>   make a contents page; make, follow and verify links and named destinations; Save As that
+>   rewrites and compacts the file, and Save a Copy; and a custom stamp made from a PDF page.
 >
-> **Not built yet:** document assembly, export and optimization, forms, security and applying
-> redaction, signatures, creation and import, Write mode, batch and the CLI, packaging and release (Stages 7 to
-> 15), and the post-v1 subsystems (Stage 16).
+> **Not built yet:** Stage 7b's headers, footers and Bates numbering, watermarks, imposition,
+> layers and tags; then export and optimization, forms, security and applying redaction,
+> signatures, creation and import, Write mode, batch and the CLI, packaging and release (Stages 8
+> to 15), and the post-v1 subsystems (Stage 16).
 > **This section carries no counts on purpose.** Live status is [`CLAUDE.md`](./CLAUDE.md) →
 > *Where the work is right now* and each stage's block in
 > [`Implementation-Plan.md`](./claude-plan/Implementation-Plan.md) §4. The design lives in
@@ -120,7 +129,7 @@ Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned   # once pe
 cmake --preset x64-release
 cmake --build --preset x64-release --target checks            # the gates -- always first
 cmake --build --preset x64-release
-ctest --preset x64-release --output-on-failure                # 1846/1846 on 2026-10-28 (Stage 6 guide I-50)
+ctest --preset x64-release --output-on-failure                # 2132/2132 on 2026-11-22 (Stage 7a's closing run)
 ```
 
 A stock Windows install runs no scripts at all: without the first line, both `.ps1` files fail with
@@ -147,7 +156,7 @@ process that immediately exits; the script detects this and tells you.
 | `gates` | any | **tools/ and tests/gates/ only — no Qt, no vcpkg.** What CI runs first; ~4 s |
 | `arm64-release` | Windows | **Placeholder — does not configure.** Fails with an explanation: the pin is x86_64 GCC 13.1.0, and whether arm64 means moving to LLVM-MinGW is open decision O6 |
 | `portable-asan` | Linux | `core/` + `pdf/cos/` + `pdf/ops/` under ASan+UBSan — MinGW GCC has no sanitizer runtime |
-| `portable-fuzz` | Linux | libFuzzer over five targets: the COS lexer and parser, the reader-writer round trip, the text pipeline and the annotation pipeline. CI only; `.github/workflows/fuzz-soak.yml` is the daily ten-minute soak |
+| `portable-fuzz` | Linux | libFuzzer over six targets: the COS lexer and parser, the reader-writer round trip, the text pipeline, the annotation pipeline and page assembly (copy, insert, replace and merge). CI only; `.github/workflows/fuzz-soak.yml` is the daily ten-minute soak |
 
 The two portable presets are not a portability aspiration: `core/` must build with no display and no
 PDF engine linked, and those jobs are what prove it mechanically rather than by assertion.
@@ -160,7 +169,7 @@ survive CTest's filter round trip and the case then "fails" with a passing body.
 
 ```powershell
 ctest --preset x64-debug -R "distinct error codes" --output-on-failure
-ctest --preset x64-debug -R "thirteen Write-mode collisions" --output-on-failure
+ctest --preset x64-debug -R "twelve Write-mode collisions" --output-on-failure
 
 ctest --preset x64-release -R reversibility     # apply+revert restores the structural hash (Stage 3)
 ctest --preset x64-release -R roundtrip         # incremental save keeps untouched bytes (Stage 3)

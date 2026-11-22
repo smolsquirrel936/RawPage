@@ -113,7 +113,7 @@ int main(int argc, char** argv)
     }
 
     out << "ribbon-validate: clean -- " << parsed.spec.tabs.size() << " tabs, "
-        << parsed.spec.catalogKeys().size() - parsed.spec.tabs.size() << " groups, "
+        << parsed.spec.groupCount() << " groups, "   // not catalogKeys() less tabs: Stage 7 guide I-33
         << parsed.spec.controlCount() << " controls\n";
     return 0;
 }

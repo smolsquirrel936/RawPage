@@ -86,6 +86,11 @@ struct Spec {
     // the failure ShellKeys.def exists to prevent for the shell's own strings.
     QStringList catalogKeys() const;
 
+    // Counted from `tabs[].groups`, NEVER derived from `catalogKeys()`: that list holds each tab's
+    // access key as well as its title (I-42), so `catalogKeys().size() - tabs.size()` is groups PLUS
+    // tabs. `ribbon-validate` printed exactly that from I-42 until Stage 7 guide I-33 (2026-11-22).
+    int groupCount() const;
+
     int controlCount() const;
 };
 

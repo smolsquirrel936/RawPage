@@ -249,12 +249,16 @@ against the document's own fields, and undone with the command -- `MutationSinkI
 second time, with its own serialize, revert and reversibility cases. Offered on 2026-11-09 as merge only, or
 both at T10, **the user chose merge only**.
 
-**What exists today** (checked 2026-11-09, Stage 7 T10):
+**What exists today** (checked 2026-11-22, after Stage 7a's sign-off; first checked 2026-11-09, Stage 7 T10):
 
 - `pdf/ops/ObjectGraphCopier::Options::fields` copies the pages' widgets, the field nodes above them narrowed
-  to what was copied, and an `/AcroForm` into the payload's catalog -- **set only by `DocumentMerger`**.
+  to what was copied, and an `/AcroForm` into the payload's catalog -- **set only where the result is a NEW
+  document**: by `DocumentMerger`, and since 2026-11-17 by `DocumentAssembler::Source::make`, an extract's and a
+  split's (`Stage7-Assembly-Plan.md` D7-38, Stage 7 guide I-25). Neither is an insert, and D7-38(d) left inserts
+  and pastes as they were.
 - `IDocumentBackend::copyPages`, `AssemblySource::copy` and `blankPages` -- every payload an insert or a replace
-  carries -- copy with the option OFF: each widget left behind is reported (`PageReference::Kind::WidgetNotCopied`)
+  carries -- copy with the option OFF (`DocumentAssembler::Source::copy`, the engine's `AssemblySource`, passes the
+  copier's default options): each widget left behind is reported (`PageReference::Kind::WidgetNotCopied`)
   and said on the status bar with the command's other references (D7-31(f)).
 - `DocumentMerger`'s rename and merge-on-purpose rules (D7-16, D7-33(d)) work on a document being BUILT, not on
   one with a sink.

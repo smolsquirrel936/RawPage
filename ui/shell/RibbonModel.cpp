@@ -85,6 +85,13 @@ QString tabAccessKeyKey(const QString& tabId)
     return QStringLiteral("ribbon.keytip.") + tabId;
 }
 
+int Spec::groupCount() const
+{
+    int count = 0;
+    for (const Tab& tab : tabs) count += static_cast<int>(tab.groups.size());
+    return count;
+}
+
 int Spec::controlCount() const
 {
     int count = 0;

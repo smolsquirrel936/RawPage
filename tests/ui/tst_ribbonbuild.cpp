@@ -22,6 +22,10 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonValue>
 #include <QLabel>
 #include <QSet>
 #include <QTranslator>
@@ -101,6 +105,31 @@ TEST_CASE("the shipped ribbon resource is found and is sound", "[ribbon]")
     CHECK(parsed.spec.schemaVersion == ribbon::kSchemaVersion);
     CHECK(parsed.spec.tabs.size() > 1);
     CHECK(parsed.spec.controlCount() > 100);
+}
+
+TEST_CASE("the group count is the resource's groups and not its catalog keys", "[ribbon][I-33]")
+{
+    // Stage 7 guide I-33: `ribbon-validate` printed `catalogKeys().size() - tabs.size()` as the group
+    // count, which since I-42 holds each tab's access key too -- "58 groups" for 49, quoted from its
+    // output into the file map for two months. The reference here is the JSON read by Qt's own
+    // reader, not by `ribbon::parse`, so a parser that dropped groups could not agree with itself.
+    // NOT COVERED (convention 19): the tool's printed line itself -- it calls `groupCount()` and
+    // nothing else, and no test runs the tool's success path and reads its stdout.
+    QFile file(ribbon::shippedPath());
+    REQUIRE(file.open(QIODevice::ReadOnly));
+    const QJsonDocument json = QJsonDocument::fromJson(file.readAll());
+    REQUIRE(json.isObject());
+    int groupsInJson = 0;
+    for (const QJsonValue tab : json.object().value(QStringLiteral("tabs")).toArray())
+        groupsInJson += static_cast<int>(tab.toObject().value(QStringLiteral("groups")).toArray().size());
+    REQUIRE(groupsInJson > 0);
+
+    const ribbon::Spec& spec = shippedSpec().spec;
+    CHECK(spec.groupCount() == groupsInJson);
+
+    // The control: the old arithmetic disagrees with the resource on the shipped ribbon, so the case
+    // above would have failed against the code it replaces.
+    CHECK(static_cast<int>(spec.catalogKeys().size() - spec.tabs.size()) != groupsInJson);
 }
 
 TEST_CASE("every tab and group in the resource is present in the widget tree", "[ribbon]")

@@ -3,7 +3,8 @@
 //
 // WHAT THIS SUITE IS TRYING TO CATCH: an arming chord that cannot be pressed from the page with nothing
 // armed (Stage 5's D5-15 in a new place); arming a tool taking every page chord away; `K` doing nothing.
-// The row-for-row agreement with `Features.md` §8 -- its census at thirteen Write-mode collisions -- is
+// The row-for-row agreement with `Features.md` §8 -- its census at twelve Write-mode collisions since
+// `Stage7-Assembly-Plan.md` D7-42 withdrew the Viewer's `Ctrl+E` (2026-11-22; thirteen from 2026-10-04) -- is
 // `tests/unit/tst_keybindings.cpp`'s, which parses §8; this suite presses keys.
 //
 // WHAT IT DOES NOT COVER (convention 19): what each tool CREATES -- its task's (T6 ...), and a press on an
