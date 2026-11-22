@@ -144,6 +144,12 @@ public:
 signals:
     void messageCountChanged(int count);
 
+    // A PERSON closed this banner with its ✕ -- never `dismiss()` called by the program, nor a tab switch's
+    // `clearDocumentConditions()`. The two differ in what they mean: a tab switch takes a banner off the screen, a close
+    // says it was read. Stage 7 guide I-29: a signed document's warning closed by the user came back on every tab switch,
+    // because the window could not tell the one from the other.
+    void closedByUser(Kind kind);
+
 private:
     struct Entry {
         Kind kind = Kind::Repaired;

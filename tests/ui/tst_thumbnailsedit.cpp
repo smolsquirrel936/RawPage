@@ -54,6 +54,7 @@
 #include <QRadioButton>
 #include <QScrollBar>
 #include <QSpinBox>
+#include <QToolButton>
 
 #include <memory>
 
@@ -718,4 +719,58 @@ TEST_CASE("pages a signed document is warned once before its first page command 
     REQUIRE(signedOne.window->duplicatePages(signedOne.document(), {1}));
     CHECK_FALSE(signedOne.window->messageBar()->isShowing(ui::MessageBar::Kind::Signed));
     CHECK(signedOne.journal().historySize() == 2);
+}
+
+// Stage 7 guide I-29 (M-13's walk): the warning CLOSED with its ✕ stays closed for that document -- through a tab switch
+// away and back and through a later page command -- while another tab's, left open, still shows when that tab does. The
+// case above closes the banner with `dismiss()`, which is the program's call and not a person's, and never switches tabs:
+// that is why it could not see I-29. This one presses the banner's own close button.
+TEST_CASE("pages a signed warning closed by the user stays closed across a tab switch and a later command", "[thumbnailsedit][A-27][D7-20][S7-I-29]")
+{
+    Answers answers;
+    Fixture fixture;
+    fixture.backend.pagesPerDocument = 6;
+    fixture.backend.editable = true;
+    Window shell(fixture, QStringLiteral("first.pdf"));
+    shell.window->openFiles({fixture.writeFile(QStringLiteral("second.pdf"))});
+    QCoreApplication::processEvents();
+    REQUIRE(shell.window->documentCount() == 2);
+    ui::DocumentWindow* first = shell.window->documentAt(0);
+    ui::DocumentWindow* second = shell.window->documentAt(1);
+    fixture.backend.signatures[first->handle().id] = 1;
+    fixture.backend.signatures[second->handle().id] = 1;
+    ui::MessageBar* bar = shell.window->messageBar();
+    const int signedKind = static_cast<int>(ui::MessageBar::Kind::Signed);
+
+    // The second tab warned, and its warning LEFT open.
+    shell.window->activateDocument(1);
+    REQUIRE(shell.window->duplicatePages(second, {0}));
+    REQUIRE(bar->isShowing(ui::MessageBar::Kind::Signed));
+
+    // The first tab warned, and its warning CLOSED by its ✕ -- the only close button on the bar.
+    shell.window->activateDocument(0);
+    REQUIRE_FALSE(bar->isShowing(ui::MessageBar::Kind::Signed));   // not before a change to THIS document
+    REQUIRE(shell.window->duplicatePages(first, {0}));
+    REQUIRE(bar->isShowing(ui::MessageBar::Kind::Signed));
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);   // the second tab's banner, taken down by the switch
+    const QList<QToolButton*> closes = bar->findChildren<QToolButton*>(QStringLiteral("messageDismiss"));
+    REQUIRE(closes.size() == 1);
+    closes.front()->click();
+    QCoreApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+    CHECK_FALSE(bar->isShowing(ui::MessageBar::Kind::Signed));
+    CHECK(first->conditions().count(signedKind) == 0);
+
+    // Away and back: the second tab's open warning shows; the first's closed one does not come back.
+    shell.window->activateDocument(1);
+    CHECK(bar->isShowing(ui::MessageBar::Kind::Signed));
+    shell.window->activateDocument(0);
+    CHECK_FALSE(bar->isShowing(ui::MessageBar::Kind::Signed));
+
+    // And a later page command on the first does not warn again -- it was warned, and the warning read.
+    REQUIRE(shell.window->stepPages(first, {0}, 1));
+    CHECK_FALSE(bar->isShowing(ui::MessageBar::Kind::Signed));
+    CHECK(first->conditions().count(signedKind) == 0);
+    CHECK(first->journal()->historySize() == 2);
+    shell.window->activateDocument(1);
+    CHECK(bar->isShowing(ui::MessageBar::Kind::Signed));
 }

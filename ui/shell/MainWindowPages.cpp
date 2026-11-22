@@ -131,11 +131,14 @@ core::Status MainWindow::runPageCommand(DocumentWindow* document, std::unique_pt
     }
 
     // D7-20: SAID BEFORE THE FIRST, AND ONCE. The banner is a condition the document keeps, so a tab switch away and back
-    // shows it again and a second command does not raise it twice.
+    // shows it again -- until the person CLOSES it, which drops the condition (`MessageBar::closedByUser`, Stage 7 guide
+    // I-29). Whether it was SAID is the document's separate flag, so neither a second command nor one after the close
+    // raises it again.
     const int signatures = services_.backend.signatureCount(document->handle());
     const int signedKind = static_cast<int>(MessageBar::Kind::Signed);
-    if (signatures > 0 && document->conditions().count(signedKind) == 0) {
+    if (signatures > 0 && !document->signedWarned()) {
         const QString text = catalog::translate(catalog::key::PagesSignedWarning).arg(signatures);
+        document->markSignedWarned();
         document->setCondition(signedKind, text);
         if (messageBar_ && document == currentDocument()) messageBar_->showMessage({MessageBar::Kind::Signed, text, {}, {}});
         RAWPAGE_LOG_INFO(LogSubsystem::Ui) << "pages: warned that" << signatures << "signature(s) of" << document->title()

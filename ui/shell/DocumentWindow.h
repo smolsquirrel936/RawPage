@@ -274,6 +274,13 @@ public:
     void clearCondition(int kind) { conditions_.erase(kind); }
     const std::map<int, QString>& conditions() const noexcept { return conditions_; }
 
+    // WHETHER THIS DOCUMENT HAS BEEN WARNED THAT IT IS SIGNED (D7-20), kept APART from its `Signed` condition (Stage 7
+    // guide I-29). The condition is what a tab switch shows again; this is what keeps a later page command from warning
+    // twice. A person who CLOSES the warning has read it, so the window drops the condition and keeps this -- until then
+    // the two were one, and the only way to stop a second warning was to keep showing the first.
+    void markSignedWarned() noexcept { signedWarned_ = true; }
+    bool signedWarned() const noexcept { return signedWarned_; }
+
     // WHAT NAMED THE PAGES LAST COPIED OUT OF THIS DOCUMENT (Stage 7 guide I-23, D7-37), with the SHA-256 of the
     // clipboard payload they were copied as. Kept HERE because the record means something only to this document's model
     // in this process (`core/doc/PageReconnect`): a paste into this document of that same payload is offered it, and
@@ -591,6 +598,7 @@ private:
     std::unique_ptr<core::SaveCoordinator> coordinator_;
     bool recoveryReported_ = false;
     std::map<int, QString> conditions_;
+    bool signedWarned_ = false;
     QByteArray copiedDigest_;
     core::CopiedPageReferences copiedReferences_;
     std::optional<core::ReplayReport> recoveryReport_;

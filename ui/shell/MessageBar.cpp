@@ -115,7 +115,10 @@ void MessageBar::showMessage(Message message)
     close->setAutoRaise(true);
     close->setToolTip(catalog::translate(catalog::key::MessageBarDismiss));
     const Kind kind = message.kind;
-    QObject::connect(close, &QToolButton::clicked, close, [this, kind] { dismiss(kind); });
+    QObject::connect(close, &QToolButton::clicked, close, [this, kind] {
+        dismiss(kind);
+        emit closedByUser(kind);
+    });
     row->addWidget(close, 0);
 
     entries_.push_back(Entry{kind, banner, message.text});

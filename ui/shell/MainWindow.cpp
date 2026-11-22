@@ -519,6 +519,9 @@ MainWindow::~MainWindow()
     if (qat_) disconnect(qat_, nullptr, this, nullptr);
     if (ribbon_) disconnect(ribbon_, nullptr, this, nullptr);
     if (tabs_) disconnect(tabs_, nullptr, this, nullptr);
+    // And the message bar's `closedByUser` (Stage 7 guide I-29): a banner's ✕ reached by an event while `~QWidget`
+    // takes the window down would call a lambda on a half-destroyed MainWindow.
+    if (messageBar_) disconnect(messageBar_, nullptr, this, nullptr);
 
     // AND EVERY PANE'S TOOL (S6 guide I-24, convention 10). A note's editor COMMITS when the focus leaves it, and a
     // commit puts the tool away -- so a window taken down with an editor open would reach `followTool`'s lambda
@@ -727,6 +730,16 @@ void MainWindow::buildCentralSurface()
     };
     paintMessageBar();
     connect(theme_.get(), &ThemeManager::themeChanged, messageBar_, paintMessageBar);
+
+    // A SIGNED DOCUMENT'S WARNING, CLOSED BY THE PERSON, IS READ (Stage 7 guide I-29, D7-20): the tab in front's `Signed`
+    // condition goes, so a tab switch away and back does not show it again; the document stays WARNED
+    // (`DocumentWindow::signedWarned`), so no later page command raises it either. Only this kind: the others the
+    // document keeps -- a failed save, a forced Save As, recovery off, a recovery -- each say something still true until
+    // an action changes it, and a tab switch shows them again on purpose. Disconnected in the destructor (convention 10).
+    connect(messageBar_, &MessageBar::closedByUser, this, [this](MessageBar::Kind kind) {
+        if (kind != MessageBar::Kind::Signed) return;
+        if (DocumentWindow* document = currentDocument()) document->clearCondition(static_cast<int>(kind));
+    });
 
     documents_ = new QStackedWidget;
     documents_->setObjectName(QStringLiteral("documentStack"));
