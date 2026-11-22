@@ -253,12 +253,12 @@ TEST_CASE("stamps placed with the tool are shown as they are saved and undone to
     auto seal = ui::decodeStampImage(corpusBytes("stamps/seal-rgba.png"));
     REQUIRE(seal);
     REQUIRE(dispatch(product, core::ActionId::AnnotStamp));
-    ui::setCurrentStamp(ui::StampChoice{ui::StampChoice::Kind::Custom, QStringLiteral("Seal"), QString(), seal.value()});
+    ui::setCurrentStamp(ui::StampChoice{ui::StampChoice::Kind::Custom, QStringLiteral("Seal"), QString(), seal.value(), {}});
     click(*view, at(150, 640));
     auto signature = ui::decodeStampImage(corpusBytes("stamps/signature.jpg"));
     REQUIRE(signature);
     REQUIRE(dispatch(product, core::ActionId::AnnotStamp));
-    ui::setCurrentStamp(ui::StampChoice{ui::StampChoice::Kind::Custom, QStringLiteral("Signature"), QString(), signature.value()});
+    ui::setCurrentStamp(ui::StampChoice{ui::StampChoice::Kind::Custom, QStringLiteral("Signature"), QString(), signature.value(), {}});
     drag(*view, at(300, 680), at(540, 590));
     product.settle();
     REQUIRE(journal.position() == 4);   // four gestures, four commands
