@@ -76,3 +76,15 @@
 - **PDFium** 153.0.8009.0
 - **Images regenerated** 99 (filtered on `assembly/`)
 - **Reason** Stage 7 T1: the assembly corpus (Stage7-Assembly-Plan.md 5.2), captured after Stage 7 guide I-01's fix; every page looked at in a scratch capture first
+
+## 2026-11-22T16:36:44Z
+
+- **PDFium** 153.0.8009.0
+- **Images regenerated** 9 (filtered on `decoration/`)
+- **Reason** Stage 7 T14: first capture of the decoration baselines -- headers, footers and Bates numbers written through the sink (guide A-98); each looked at before it is kept
+- **Looked at, all nine, before they were kept:** `align-six` -- the six areas at 18 pt from the sides and 14 pt from the top and
+  bottom; `size-large` -- 24 pt centred 8 pt from the top; `colour-underline` -- red, underlined, `<<page>> / <<count>>` as
+  `1 / 1`; `edges` -- each distance its own; `rotated-90` and `rotated-270` -- the header across the top and the footer at
+  the bottom right of the page AS SHOWN, upright; `shrink` -- the content scaled between the bands, clear of both lines;
+  `cjk` -- Han, kana, Hangul and Latin in one line; `bates` -- `GOLD-000042-A` at the bottom right. Additions only: no
+  corpus or appearance baseline regenerated.

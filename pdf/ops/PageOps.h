@@ -78,6 +78,7 @@
 #define RAWPAGE_PDF_OPS_PAGEOPS_H
 
 #include "core/Result.h"
+#include "core/doc/HeaderFooter.h"
 #include "core/doc/Page.h"
 #include "pdf/cos/CosObject.h"
 
@@ -212,22 +213,42 @@ public:
                                     const core::PageBoxes& boxes);
 
     // A RESIZE'S WRAPPER (D7-7): the two marked streams a page's content is drawn between. `id` is the command's key.
+    // Stage 7 T14: a DECORATION's wrapper too (D7-44) -- marked with the decoration's kind and `/Wrap true`, so it is
+    // told apart from the stream that draws the decoration, which carries the same kind and id.
     static std::string wrapPrefix(const core::PageContentWrap& wrap);   // q a b c d e f cm x y w h re W n
     static std::string wrapSuffix();                                    // Q
     static cos::CosObject wrapDictionary(const QString& id);
-    // The id a stream dictionary's `/RawPageDecoration` names for a resize's wrapper; empty for any other.
+    static cos::CosObject wrapDictionary(const QString& id, core::DecorationKind kind);
+    // The id a stream dictionary's `/RawPageDecoration` names for a wrapper -- a resize's, or since T14 a decoration's;
+    // empty for any other.
     static QString wrapId(const cos::CosObject& stream);
+    // Stage 7 T14: the decoration a stream dictionary's mark names -- a stream that DRAWS one, not its wrapper -- or none.
+    struct DecorationMark {
+        QString id;
+        core::DecorationKind kind;
+    };
+    static std::optional<DecorationMark> decorationOf(const cos::CosObject& stream);
     // A page's `/Contents` as layers: the wrappers RawPage wrote around it, OUTERMOST first -- each the matching pair
     // of a marked stream at the front and one at the back -- and the content they wrap. `contents` is the value as
     // written (a stream reference, an array, or a reference to one); a value that is none of them is all content.
+    // Stage 7 T14: and the DECORATIONS RawPage drew outside them -- marked single streams at the very front (behind
+    // everything) and at the very back (in front of everything), each in the order listed. Read from the outside in:
+    // a decoration at either end, else a matching pair of wrappers, until neither is there.
     struct ContentLayers {
         struct Layer {
             QString id;
             cos::CosObject before;   // the reference at the front
             cos::CosObject after;    // the reference at the back
         };
+        struct Decoration {
+            QString id;
+            core::DecorationKind kind;
+            cos::CosObject stream;   // the reference
+        };
         std::vector<Layer> layers;
         std::vector<cos::CosObject> content;
+        std::vector<Decoration> behind;   // T14: in the order listed
+        std::vector<Decoration> front;
     };
     static ContentLayers contentLayers(cos::XrefTable& table, const cos::CosObject& contents);
 

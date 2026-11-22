@@ -391,8 +391,11 @@
           "collapsePriority": 3,
           "controls": [
             { "action": "headerFooter.add", "size": "large" },
+            { "action": "headerFooter.update", "size": "small" },
+            { "action": "headerFooter.remove", "size": "small" },
             { "action": "watermark.add", "size": "small" },
             { "action": "bates.add", "size": "small" },
+            { "action": "bates.remove", "size": "small" },
             { "action": "imposition.booklet", "size": "small" }
           ]
         },

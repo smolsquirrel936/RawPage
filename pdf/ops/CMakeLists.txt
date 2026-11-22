@@ -50,6 +50,10 @@ add_library(rawpage_ops STATIC
     SignatureFields.h
     SignatureFields.cpp
 
+    # S7 T14 (D7-7, D7-44): a decoration's streams and marks, and the page's resources while it is decorated.
+    DecorationOps.h
+    DecorationOps.cpp
+
     # S4 T10 (D4-12). A READER in a directory named for operations, and the reason is that /Trans
     # is document semantics rather than object model: PageOps sits on the same line. It exists at
     # all because PDFium's C API exposes page transitions nowhere, which makes it the first read

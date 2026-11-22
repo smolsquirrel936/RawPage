@@ -14,6 +14,7 @@
 #include "pdf/ops/AnnotationOps.h"
 #include "pdf/ops/AnnotationReader.h"
 #include "pdf/ops/AppearanceStreamBuilder.h"
+#include "pdf/ops/DecorationOps.h"
 #include "pdf/ops/EmbeddedFileReader.h"
 #include "pdf/cos/filters/FlateFilter.h"
 #include "pdf/cos/filters/Filter.h"
@@ -2078,6 +2079,38 @@ core::Status MutationSinkImpl::adopt(std::string_view bytes)
         else
             ++it;
     }
+    // S7 T14: a page whose decorations and wrappers are now EXACTLY what the written file lists is no longer held -- it is
+    // read again from its contents when a command asks (`decorationsOf`, `wrapsOf`), each layer with the streams it lists --
+    // so a compose after the save does not compare every decorated page with the file. Measured at T14 on pages-900.pdf
+    // with a saved header on every page: 10.9 ms a command before this, the pages compared at every compose.
+    for (int index = 0; index < pageCount(); ++index) {
+        const long long number = walk_.pages[static_cast<std::size_t>(index)].number;
+        const auto decorated = decorations_.find(number);
+        const auto wrapped = wraps_.find(number);
+        if (decorated == decorations_.end() && wrapped == wraps_.end()) continue;
+        const std::optional<cos::CosObject> base = baseDictionary(index);
+        if (!base) continue;
+        const PageOps::ContentLayers read = PageOps::contentLayers(table_, base->get("Contents"));
+        bool same = true;
+        if (decorated != decorations_.end()) {
+            std::vector<QString> want;
+            std::vector<QString> have;
+            for (const DecorationLayer& layer : decorated->second) want.push_back((layer.behind ? QStringLiteral("b:") : QStringLiteral("f:")) + layer.id);
+            for (const auto& d : read.behind) have.push_back(QStringLiteral("b:") + d.id);
+            for (const auto& d : read.front) have.push_back(QStringLiteral("f:") + d.id);
+            same = want == have;
+        }
+        if (same && wrapped != wraps_.end()) {
+            std::vector<QString> want;
+            for (auto layer = wrapped->second.rbegin(); layer != wrapped->second.rend(); ++layer) want.push_back(layer->id);
+            std::vector<QString> have;
+            for (const PageOps::ContentLayers::Layer& layer : read.layers) have.push_back(layer.id);
+            same = want == have;
+        }
+        if (!same) continue;
+        if (decorated != decorations_.end()) decorations_.erase(decorated);
+        if (wrapped != wraps_.end()) wraps_.erase(wrapped);
+    }
     return core::Status{};
 }
 
@@ -2460,6 +2493,9 @@ core::Result<core::DuplicatedPages> MutationSinkImpl::duplicatePages(const std::
             // S7 T9: a copy of the page as it is now -- its boxes, its resize's wrapper and its thumbnail with it.
             if (const auto boxes = boxes_.find(source.number); boxes != boxes_.end()) boxes_.insert_or_assign(slot.entry.number, boxes->second);
             if (const auto wraps = wraps_.find(source.number); wraps != wraps_.end()) wraps_.insert_or_assign(slot.entry.number, wraps->second);
+            // S7 T14: and its decorations.
+            if (const auto decs = decorations_.find(source.number); decs != decorations_.end())
+                decorations_.insert_or_assign(slot.entry.number, decs->second);
             if (const auto thumb = thumbs_.find(source.number); thumb != thumbs_.end()) thumbs_.insert_or_assign(slot.entry.number, thumb->second);
             if (const auto turned = desired_.find(page); turned != desired_.end()) slot.rotation = turned->second;
             if (!labels_.empty()) {
@@ -3073,6 +3109,7 @@ core::Result<core::InsertedPages> MutationSinkImpl::replacePages(const std::vect
         if (const auto g = graphOfPage_.find(slot.number); g != graphOfPage_.end()) slot.graphOf = g->second;
         if (const auto b = boxes_.find(slot.number); b != boxes_.end()) slot.boxes = b->second;
         if (const auto w = wraps_.find(slot.number); w != wraps_.end()) slot.wraps = w->second;
+        if (const auto d = decorations_.find(slot.number); d != decorations_.end()) slot.decorations = d->second;
         if (const auto t = thumbs_.find(slot.number); t != thumbs_.end()) slot.thumb = t->second;
         if (auto current = table_.fetch(slot.number); current && current.value().object.isDictionary())
             slot.onDisk = withoutSpans(current.value().object);
@@ -3099,6 +3136,7 @@ core::Result<core::InsertedPages> MutationSinkImpl::replacePages(const std::vect
         graphOfPage_.erase(entry.number);
         boxes_.erase(entry.number);   // S7 T9: what it draws is the payload page's now
         wraps_.erase(entry.number);
+        decorations_.erase(entry.number);   // S7 T14: the payload page's contents carry none
         thumbs_.erase(entry.number);
         core::Page facts = pageFactsOf(payload, static_cast<int>(i));
         drawnAs_.insert_or_assign(entry.number, facts);
@@ -3152,6 +3190,8 @@ core::Status MutationSinkImpl::restoreReplacedPages(const std::vector<int>& page
         else boxes_.erase(slot.number);
         if (slot.wraps) wraps_.insert_or_assign(slot.number, *slot.wraps);
         else wraps_.erase(slot.number);
+        if (slot.decorations) decorations_.insert_or_assign(slot.number, *slot.decorations);
+        else decorations_.erase(slot.number);
         if (slot.thumb) thumbs_.insert_or_assign(slot.number, *slot.thumb);
         else thumbs_.erase(slot.number);
     }
@@ -3644,22 +3684,8 @@ core::Status MutationSinkImpl::wrapPageContents(const std::vector<int>& pages, c
                 return editsError("error.command.malformed", page);
         }
     }
-    for (std::size_t i = 0; i < pages.size(); ++i) {
-        const int page = pages[i];
-        const long long number = walk_.pages[static_cast<std::size_t>(page)].number;
-        auto found = wraps_.find(number);
-        if (found == wraps_.end()) {
-            // THE WRAPPERS THE PAGE ALREADY HAS come first -- read from its contents, innermost first.
-            std::vector<WrapLayer> layers;
-            if (std::optional<cos::CosObject> base = baseDictionary(page)) {
-                const PageOps::ContentLayers read = PageOps::contentLayers(table_, base->get("Contents"));
-                for (auto layer = read.layers.rbegin(); layer != read.layers.rend(); ++layer)
-                    layers.push_back(WrapLayer{layer->id, std::nullopt});
-            }
-            found = wraps_.emplace(number, std::move(layers)).first;
-        }
-        found->second.push_back(WrapLayer{key, wraps[i]});
-    }
+    for (std::size_t i = 0; i < pages.size(); ++i)
+        wrapsOf(pages[i]).push_back(WrapLayer{key, wraps[i], std::nullopt, std::nullopt});
     return core::Status{};
 }
 
@@ -3667,14 +3693,360 @@ core::Status MutationSinkImpl::unwrapPageContents(const std::vector<int>& pages,
 {
     if (!core::PageMap::isPageSet(pageCount(), pages)) return editsError("error.pdf.pageOutOfRange", static_cast<long long>(pages.size()));
     for (const int page : pages) {
-        const auto found = wraps_.find(walk_.pages[static_cast<std::size_t>(page)].number);
-        if (found == wraps_.end()
-            || std::none_of(found->second.begin(), found->second.end(), [&key](const WrapLayer& l) { return l.id == key; }))
+        // Through `wrapsOf` (S7 T14): a page a save left as the file lists it is held no more, and is read again here.
+        const std::vector<WrapLayer>& held = wrapsOf(page);
+        if (std::none_of(held.begin(), held.end(), [&key](const WrapLayer& l) { return l.id == key; }))
             return editsError("error.command.malformed", page);
     }
     for (const int page : pages) {
         std::vector<WrapLayer>& layers = wraps_.at(walk_.pages[static_cast<std::size_t>(page)].number);
         layers.erase(std::remove_if(layers.begin(), layers.end(), [&key](const WrapLayer& l) { return l.id == key; }), layers.end());
+    }
+    return core::Status{};
+}
+
+// ==========================================================================================
+// Decorations (Stage 7 T14, D7-7, D7-44) -- see the header
+// ==========================================================================================
+
+std::vector<MutationSinkImpl::WrapLayer>& MutationSinkImpl::wrapsOf(int index)
+{
+    const long long number = walk_.pages[static_cast<std::size_t>(index)].number;
+    auto found = wraps_.find(number);
+    if (found != wraps_.end()) return found->second;
+    // THE WRAPPERS THE PAGE ALREADY HAS -- read from its contents, innermost first, each with the streams it lists.
+    std::vector<WrapLayer> layers;
+    if (std::optional<cos::CosObject> base = baseDictionary(index)) {
+        const PageOps::ContentLayers read = PageOps::contentLayers(table_, base->get("Contents"));
+        for (auto layer = read.layers.rbegin(); layer != read.layers.rend(); ++layer)
+            layers.push_back(WrapLayer{layer->id, std::nullopt, std::nullopt, std::pair{layer->before, layer->after}});
+    }
+    return wraps_.emplace(number, std::move(layers)).first->second;
+}
+
+std::vector<MutationSinkImpl::DecorationLayer>& MutationSinkImpl::decorationsOf(int index)
+{
+    const long long number = walk_.pages[static_cast<std::size_t>(index)].number;
+    auto found = decorations_.find(number);
+    if (found != decorations_.end()) return found->second;
+    // THE DECORATIONS THE PAGE ALREADY HAS: behind ones first, each with the stream that paints it and its form.
+    std::vector<DecorationLayer> layers;
+    if (std::optional<cos::CosObject> base = baseDictionary(index)) {
+        const PageOps::ContentLayers read = PageOps::contentLayers(table_, base->get("Contents"));
+        const cos::CosObject resources = base->get("Resources");
+        const auto add = [&](const PageOps::ContentLayers::Decoration& d, bool behind) {
+            DecorationLayer layer{d.id, d.kind, behind, nullptr, d.stream, DecorationOps::formOf(table_, resources, d.id)};
+            layers.push_back(std::move(layer));
+        };
+        for (const PageOps::ContentLayers::Decoration& d : read.behind) add(d, true);
+        for (const PageOps::ContentLayers::Decoration& d : read.front) add(d, false);
+    }
+    return decorations_.emplace(number, std::move(layers)).first->second;
+}
+
+core::Status MutationSinkImpl::addPageDecorations(const std::vector<int>& pages, const std::vector<core::PageDecoration>& decorations,
+                                                  const QString& key)
+{
+    if (!core::PageMap::isPageSet(pageCount(), pages) || decorations.size() != pages.size())
+        return editsError("error.pdf.pageOutOfRange", static_cast<long long>(pages.size()));
+    if (key.isEmpty()) return editsError("error.command.malformed");
+    for (const int page : pages) {
+        const long long number = walk_.pages[static_cast<std::size_t>(page)].number;
+        const auto decs = decorations_.find(number);
+        const auto wraps = wraps_.find(number);
+        if ((decs != decorations_.end()
+             && std::any_of(decs->second.begin(), decs->second.end(), [&key](const DecorationLayer& l) { return l.id == key; }))
+            || (wraps != wraps_.end()
+                && std::any_of(wraps->second.begin(), wraps->second.end(), [&key](const WrapLayer& l) { return l.id == key; })))
+            return editsError("error.command.malformed", page);
+    }
+    for (std::size_t i = 0; i < pages.size(); ++i) {
+        const core::PageDecoration& decoration = decorations[i];
+        std::vector<DecorationLayer>& layers = decorationsOf(pages[i]);
+        DecorationLayer layer{key, decoration.kind, decoration.behind, std::make_shared<const core::PageDecoration>(decoration),
+                              std::nullopt, std::nullopt};
+        if (decoration.behind) {
+            // Above every decoration already behind, and still behind the content.
+            const auto firstFront = std::find_if(layers.begin(), layers.end(), [](const DecorationLayer& l) { return !l.behind; });
+            layers.insert(firstFront, std::move(layer));
+        } else {
+            layers.push_back(std::move(layer));
+        }
+        if (decoration.wrap) wrapsOf(pages[i]).push_back(WrapLayer{key, decoration.wrap, decoration.kind, std::nullopt});
+    }
+    return core::Status{};
+}
+
+core::Status MutationSinkImpl::removePageDecorations(const std::vector<int>& pages, const QString& key)
+{
+    if (!core::PageMap::isPageSet(pageCount(), pages)) return editsError("error.pdf.pageOutOfRange", static_cast<long long>(pages.size()));
+    for (const int page : pages) {
+        // Through `decorationsOf`: a page a save left as the file lists it is held no more, and is read again here.
+        const std::vector<DecorationLayer>& held = decorationsOf(page);
+        if (std::none_of(held.begin(), held.end(), [&key](const DecorationLayer& l) { return l.id == key; }))
+            return editsError("error.command.malformed", page);
+    }
+    for (const int page : pages) {
+        const long long number = walk_.pages[static_cast<std::size_t>(page)].number;
+        std::vector<DecorationLayer>& layers = decorations_.at(number);
+        layers.erase(std::remove_if(layers.begin(), layers.end(), [&key](const DecorationLayer& l) { return l.id == key; }), layers.end());
+        std::vector<WrapLayer>& w = wrapsOf(page);
+        w.erase(std::remove_if(w.begin(), w.end(), [&key](const WrapLayer& l) { return l.id == key; }), w.end());
+    }
+    return core::Status{};
+}
+
+core::Result<std::vector<int>> MutationSinkImpl::takeDecorations(core::DecorationKind kind, const QString& key)
+{
+    if (key.isEmpty() || decorationStash_.count(key) != 0) return editsError("error.command.malformed");
+    std::vector<int> pages;
+    std::vector<TakenDecorations> taken;
+    for (int index = 0; index < pageCount(); ++index) {
+        const long long number = walk_.pages[static_cast<std::size_t>(index)].number;
+        // Whether the page draws one of `kind` -- asked of its contents only where no command has touched it, so a page
+        // of a 900-page document that carries none costs one read of its `/Contents`.
+        bool has = false;
+        if (const auto held = decorations_.find(number); held != decorations_.end()) {
+            has = std::any_of(held->second.begin(), held->second.end(), [kind](const DecorationLayer& l) { return l.kind == kind; });
+        } else if (std::optional<cos::CosObject> base = baseDictionary(index)) {
+            const PageOps::ContentLayers read = PageOps::contentLayers(table_, base->get("Contents"));
+            const auto ofKind = [kind](const PageOps::ContentLayers::Decoration& d) { return d.kind == kind; };
+            has = std::any_of(read.behind.begin(), read.behind.end(), ofKind) || std::any_of(read.front.begin(), read.front.end(), ofKind);
+        }
+        if (!has) continue;
+        // WHAT THE PAGE DRAWS, AS IT STANDS -- read from its contents where the sink holds nothing (a save that left the page
+        // as the file lists it lets it go, `adopt`), so the undo puts these very layers back even after a LATER save has
+        // taken them out of the file. Found by `tst_decoration`'s undo-after-save case once `adopt` began letting pages go.
+        TakenDecorations was{number, decorationsOf(index), wrapsOf(index)};
+        std::vector<DecorationLayer>& layers = decorationsOf(index);
+        std::set<QString> ids;
+        for (const DecorationLayer& layer : layers) {
+            if (layer.kind == kind) ids.insert(layer.id);
+        }
+        layers.erase(std::remove_if(layers.begin(), layers.end(), [kind](const DecorationLayer& l) { return l.kind == kind; }), layers.end());
+        std::vector<WrapLayer>& wraps = wrapsOf(index);
+        wraps.erase(std::remove_if(wraps.begin(), wraps.end(), [&ids](const WrapLayer& l) { return ids.count(l.id) != 0; }), wraps.end());
+        pages.push_back(index);
+        taken.push_back(std::move(was));
+    }
+    if (!pages.empty()) decorationStash_.emplace(key, std::move(taken));
+    return pages;
+}
+
+core::Status MutationSinkImpl::restoreDecorations(const QString& key)
+{
+    const auto found = decorationStash_.find(key);
+    if (found == decorationStash_.end()) return editsError("error.command.malformed");
+    for (TakenDecorations& was : found->second) {
+        if (was.decorations) decorations_.insert_or_assign(was.page, std::move(*was.decorations));
+        else decorations_.erase(was.page);
+        if (was.wraps) wraps_.insert_or_assign(was.page, std::move(*was.wraps));
+        else wraps_.erase(was.page);
+    }
+    decorationStash_.erase(found);
+    return core::Status{};
+}
+
+std::vector<std::optional<MutationSinkImpl::DecorationIds>> MutationSinkImpl::drawnDecorations() const
+{
+    std::vector<std::optional<DecorationIds>> out;
+    out.reserve(walk_.pages.size());
+    for (const PageEntry& page : walk_.pages) {
+        const auto found = decorations_.find(page.number);
+        if (found == decorations_.end()) {
+            out.emplace_back();
+            continue;
+        }
+        DecorationIds ids;
+        for (const DecorationLayer& layer : found->second) (layer.behind ? ids.behind : ids.front).push_back(layer.id);
+        out.push_back(std::move(ids));
+    }
+    return out;
+}
+
+core::Status MutationSinkImpl::composeContentLayers(int index, cos::CosObject& page, cos::ObjectDelta& delta, AppearanceObjects& shared)
+{
+    const long long number = walk_.pages[static_cast<std::size_t>(index)].number;
+    const cos::CosObject contents = page.get("Contents");
+    const PageOps::ContentLayers read = PageOps::contentLayers(table_, contents);
+
+    // WHAT IT LISTS, and what it should: wrappers outermost first, decorations behind and in front in order.
+    std::vector<QString> haveWraps;
+    for (const PageOps::ContentLayers::Layer& layer : read.layers) haveWraps.push_back(layer.id);
+    std::vector<QString> haveBehind;
+    std::vector<QString> haveFront;
+    for (const auto& d : read.behind) haveBehind.push_back(d.id);
+    for (const auto& d : read.front) haveFront.push_back(d.id);
+
+    const auto wraps = wraps_.find(number);
+    const auto decorated = decorations_.find(number);
+    std::vector<const WrapLayer*> wantWraps;   // outermost first
+    if (wraps != wraps_.end()) {
+        for (auto layer = wraps->second.rbegin(); layer != wraps->second.rend(); ++layer) wantWraps.push_back(&*layer);
+    }
+    std::vector<const DecorationLayer*> wantBehind;
+    std::vector<const DecorationLayer*> wantFront;
+    if (decorated != decorations_.end()) {
+        for (const DecorationLayer& layer : decorated->second) (layer.behind ? wantBehind : wantFront).push_back(&layer);
+    }
+    const auto ids = [](const auto& layers) {
+        std::vector<QString> out;
+        for (const auto* layer : layers) out.push_back(layer->id);
+        return out;
+    };
+    const std::vector<QString> wrapIds = wraps != wraps_.end() ? ids(wantWraps) : haveWraps;
+    const std::vector<QString> behindIds = decorated != decorations_.end() ? ids(wantBehind) : haveBehind;
+    const std::vector<QString> frontIds = decorated != decorations_.end() ? ids(wantFront) : haveFront;
+    const bool decorationsDiffer = behindIds != haveBehind || frontIds != haveFront;
+    if (wrapIds == haveWraps && !decorationsDiffer) return core::Status{};   // the contents already list them
+
+    const bool decoratedNow = !read.behind.empty() || !read.front.empty();
+    const bool layeredNow = decoratedNow || !read.layers.empty();
+    const std::string book = pageBookName(index);
+
+    // THE FORMS, before `/Resources` is written over: each decoration's, as its page names it now, or new.
+    std::vector<std::pair<std::string, cos::CosObject>> forms;
+    std::map<QString, cos::CosObject> streams;   // each decoration's painting stream, by id
+    const auto place = [&](const PageOps::ContentLayers::Decoration* onDisk, const DecorationLayer* layer) -> bool {
+        if (onDisk) {
+            streams.emplace(layer ? layer->id : onDisk->id, onDisk->stream);
+            if (std::optional<cos::CosObject> form = DecorationOps::formOf(table_, page.get("Resources"), onDisk->id))
+                forms.emplace_back(DecorationOps::resourceName(onDisk->id), *form);
+            else if (layer && layer->form)
+                forms.emplace_back(DecorationOps::resourceName(layer->id), *layer->form);
+            return true;
+        }
+        if (layer->stream && layer->form) {   // taken out, saved, and put back: the very streams it had
+            streams.emplace(layer->id, *layer->stream);
+            forms.emplace_back(DecorationOps::resourceName(layer->id), *layer->form);
+            return true;
+        }
+        if (!layer->drawing) return false;   // on disk once, and no longer listed or remembered: nothing to list
+        const std::string name = "dec:" + layer->id.toStdString() + ":" + book;
+        const cos::CosObject formDictionary = DecorationOps::formDictionary(*layer->drawing, layer->id, shared);
+        const long long form = delta.add(name + ":form", formDictionary, DecorationOps::formContent(*layer->drawing));
+        const cos::CosObject marked = DecorationOps::markedDictionary(layer->id, layer->kind);
+        std::vector<cos::CosObject::Entry> entries(marked.entries().begin(), marked.entries().end());
+        const long long paint = delta.add(name + ":draw", cos::CosObject::makeStream(std::move(entries), cos::CosStreamData{}),
+                                          DecorationOps::drawContent(*layer->drawing, layer->id));
+        streams.emplace(layer->id, cos::CosObject::makeReference(paint, 0));
+        forms.emplace_back(DecorationOps::resourceName(layer->id), cos::CosObject::makeReference(form, 0));
+        return true;
+    };
+    std::map<QString, const PageOps::ContentLayers::Decoration*> decorationsOnDisk;
+    for (const auto& d : read.behind) decorationsOnDisk.emplace(d.id, &d);
+    for (const auto& d : read.front) decorationsOnDisk.emplace(d.id, &d);
+    std::vector<QString> behindListed;
+    std::vector<QString> frontListed;
+    if (decorated != decorations_.end()) {
+        for (const DecorationLayer& layer : decorated->second) {
+            const auto disk = decorationsOnDisk.find(layer.id);
+            if (place(disk != decorationsOnDisk.end() ? disk->second : nullptr, &layer)) (layer.behind ? behindListed : frontListed).push_back(layer.id);
+        }
+    } else {
+        for (const auto& d : read.behind) {
+            place(&d, nullptr);
+            behindListed.push_back(d.id);
+        }
+        for (const auto& d : read.front) {
+            place(&d, nullptr);
+            frontListed.push_back(d.id);
+        }
+    }
+
+    // THE WRAPPERS: as listed, remembered, or new.
+    std::map<QString, const PageOps::ContentLayers::Layer*> wrapsOnDisk;
+    for (const PageOps::ContentLayers::Layer& layer : read.layers) wrapsOnDisk.emplace(layer.id, &layer);
+    std::vector<cos::CosObject> before;
+    std::vector<cos::CosObject> after;
+    if (wraps != wraps_.end()) {
+        for (const WrapLayer* layer : wantWraps) {   // outermost first
+            cos::CosObject front;
+            cos::CosObject back;
+            if (const auto disk = wrapsOnDisk.find(layer->id); disk != wrapsOnDisk.end()) {
+                front = disk->second->before;
+                back = disk->second->after;
+            } else if (layer->listed) {
+                front = layer->listed->first;
+                back = layer->listed->second;
+            } else if (layer->wrap) {
+                const std::string name = "wrap:" + layer->id.toStdString() + ":" + book;
+                const cos::CosObject marked =
+                    layer->kind ? PageOps::wrapDictionary(layer->id, *layer->kind) : PageOps::wrapDictionary(layer->id);
+                std::vector<cos::CosObject::Entry> entries(marked.entries().begin(), marked.entries().end());
+                front = cos::CosObject::makeReference(
+                    delta.add(name + ":q", cos::CosObject::makeStream(entries, cos::CosStreamData{}), PageOps::wrapPrefix(*layer->wrap)), 0);
+                back = cos::CosObject::makeReference(
+                    delta.add(name + ":Q", cos::CosObject::makeStream(entries, cos::CosStreamData{}), PageOps::wrapSuffix()), 0);
+            } else {
+                continue;   // a wrapper on disk that the contents no longer hold: nothing to list
+            }
+            before.push_back(std::move(front));
+            after.insert(after.begin(), std::move(back));
+        }
+    } else {
+        for (const PageOps::ContentLayers::Layer& layer : read.layers) {
+            before.push_back(layer.before);
+            after.insert(after.begin(), layer.after);
+        }
+    }
+
+    std::vector<cos::CosObject> items;
+    for (const QString& id : behindListed) items.push_back(streams.at(id));
+    items.insert(items.end(), before.begin(), before.end());
+    items.insert(items.end(), read.content.begin(), read.content.end());
+    items.insert(items.end(), after.begin(), after.end());
+    for (const QString& id : frontListed) items.push_back(streams.at(id));
+
+    // `/Contents`: the record of a value a list cannot put back -- a reference to an ARRAY object -- kept while the page
+    // is layered, and written back with the last layer gone (`DecorationOps`).
+    std::optional<cos::CosObject> contentsRecord;
+    if (layeredNow) {
+        if (const cos::CosObject* record = page.find(DecorationOps::kContentsRecord)) contentsRecord = *record;
+    } else if (contents.isReference()) {
+        auto target = table_.fetch(contents.reference().number);
+        if (target && target.value().object.isArray()) contentsRecord = contents;
+    }
+    const bool layeredAfter = !behindListed.empty() || !frontListed.empty() || !before.empty();
+    if (!layeredAfter && contentsRecord) {
+        page = AnnotationOps::withEntry(page, "Contents", *contentsRecord);
+    } else if (items.size() == 1 && items.front().isReference()) {
+        // NO LAYER LEFT around a single stream: written as the one reference -- the form most files use.
+        page = AnnotationOps::withEntry(page, "Contents", items.front());
+    } else if (items.empty()) {
+        page = AnnotationOps::withoutEntry(page, "Contents");
+    } else {
+        page = AnnotationOps::withEntry(page, "Contents", cos::CosObject::makeArray(std::move(items)));
+    }
+    if (layeredAfter && contentsRecord) page = AnnotationOps::withEntry(page, DecorationOps::kContentsRecord, *contentsRecord);
+    else page = AnnotationOps::withoutEntry(page, DecorationOps::kContentsRecord);
+
+    // `/Resources`, through its record, only where the decorations changed.
+    if (decorationsDiffer || behindListed != haveBehind || frontListed != haveFront) {
+        std::optional<cos::CosObject> base;   // the page's own `/Resources` as it had it; none: it had none
+        const cos::CosObject* record = page.find(DecorationOps::kResourcesRecord);
+        if (decoratedNow && record) {
+            if (!(record->isName() && record->text() == DecorationOps::kAbsent)) base = *record;
+        } else if (const cos::CosObject* own = page.find("Resources")) {
+            base = *own;
+        }
+        if (forms.empty()) {
+            page = base ? AnnotationOps::withEntry(page, "Resources", *base) : AnnotationOps::withoutEntry(page, "Resources");
+            page = AnnotationOps::withoutEntry(page, DecorationOps::kResourcesRecord);
+        } else {
+            cos::CosObject effective = base ? *base : cos::CosObject();
+            if (!base) {
+                const std::map<std::string, cos::CosObject> inherited = inheritedThrough(table_, page.get("Parent"));
+                if (const auto found = inherited.find("Resources"); found != inherited.end()) effective = found->second;
+            }
+            if (effective.isReference()) {
+                auto fetched = table_.fetch(effective.reference().number);
+                effective = fetched ? withoutSpans(fetched.value().object) : cos::CosObject();
+            }
+            page = AnnotationOps::withEntry(page, "Resources", DecorationOps::decoratedResources(table_, effective, forms));
+            page = AnnotationOps::withEntry(page, DecorationOps::kResourcesRecord,
+                                            base ? *base : cos::CosObject::makeName(DecorationOps::kAbsent));
+        }
     }
     return core::Status{};
 }
@@ -3778,13 +4150,29 @@ std::vector<std::optional<core::PageBoxes>> MutationSinkImpl::drawnBoxes() const
 
 core::Status MutationSinkImpl::composePageEdits(cos::ObjectDelta& delta, std::map<long long, cos::CosObject>& pending)
 {
-    if (boxes_.empty() && wraps_.empty() && thumbs_.empty()) return core::Status{};
+    if (boxes_.empty() && wraps_.empty() && thumbs_.empty() && decorations_.empty()) return core::Status{};
+    // S7 T14: a decoration's fonts, written once a compose -- under names of their own, so they never meet the annotations'.
+    DeltaObjects deltaObjects(*this, delta);
+    class Prefixed final : public AppearanceObjects {
+    public:
+        explicit Prefixed(AppearanceObjects& inner) : inner_(inner) {}
+        cos::CosRef shared(const std::string& key, cos::CosObject object) override { return inner_.shared("dec:" + key, std::move(object)); }
+        cos::CosRef sharedStream(const std::string& key, cos::CosObject dictionary, std::string data) override
+        {
+            return inner_.sharedStream("dec:" + key, std::move(dictionary), std::move(data));
+        }
+        cos::CosRef reserved(const std::string& key) override { return inner_.reserved("dec:" + key); }
+
+    private:
+        AppearanceObjects& inner_;
+    } decorationObjects(deltaObjects);
     for (int index = 0; index < pageCount(); ++index) {
         const long long number = walk_.pages[static_cast<std::size_t>(index)].number;
         const auto boxes = boxes_.find(number);
         const auto wraps = wraps_.find(number);
         const auto thumb = thumbs_.find(number);
-        if (boxes == boxes_.end() && wraps == wraps_.end() && thumb == thumbs_.end()) continue;
+        const auto decorated = decorations_.find(number);
+        if (boxes == boxes_.end() && wraps == wraps_.end() && thumb == thumbs_.end() && decorated == decorations_.end()) continue;
 
         const long long written = objectOf(index);
         cos::CosObject base;
@@ -3800,45 +4188,8 @@ core::Status MutationSinkImpl::composePageEdits(cos::ObjectDelta& delta, std::ma
 
         if (boxes != boxes_.end()) page = PageOps::withBoxes(page, inheritedThrough(table_, page.get("Parent")), boxes->second);
 
-        if (wraps != wraps_.end()) {
-            const PageOps::ContentLayers read = PageOps::contentLayers(table_, page.get("Contents"));
-            std::vector<QString> have;   // outermost first, as read
-            for (const PageOps::ContentLayers::Layer& layer : read.layers) have.push_back(layer.id);
-            std::vector<QString> want;
-            for (auto layer = wraps->second.rbegin(); layer != wraps->second.rend(); ++layer) want.push_back(layer->id);
-            if (have != want) {
-                std::map<QString, const PageOps::ContentLayers::Layer*> onDisk;
-                for (const PageOps::ContentLayers::Layer& layer : read.layers) onDisk.emplace(layer.id, &layer);
-                std::vector<cos::CosObject> before;
-                std::vector<cos::CosObject> after;
-                for (auto layer = wraps->second.rbegin(); layer != wraps->second.rend(); ++layer) {   // outermost first
-                    cos::CosObject front;
-                    cos::CosObject back;
-                    if (const auto disk = onDisk.find(layer->id); disk != onDisk.end()) {
-                        front = disk->second->before;
-                        back = disk->second->after;
-                    } else if (layer->wrap) {
-                        const std::string name = "wrap:" + layer->id.toStdString() + ":" + pageBookName(index);
-                        const cos::CosObject marked = PageOps::wrapDictionary(layer->id);
-                        std::vector<cos::CosObject::Entry> entries(marked.entries().begin(), marked.entries().end());
-                        front = cos::CosObject::makeReference(
-                            delta.add(name + ":q", cos::CosObject::makeStream(entries, cos::CosStreamData{}), PageOps::wrapPrefix(*layer->wrap)), 0);
-                        back = cos::CosObject::makeReference(
-                            delta.add(name + ":Q", cos::CosObject::makeStream(entries, cos::CosStreamData{}), PageOps::wrapSuffix()), 0);
-                    } else {
-                        continue;   // a wrapper on disk that the contents no longer hold: nothing to list
-                    }
-                    before.push_back(std::move(front));
-                    after.insert(after.begin(), std::move(back));
-                }
-                std::vector<cos::CosObject> items = std::move(before);
-                items.insert(items.end(), read.content.begin(), read.content.end());
-                items.insert(items.end(), after.begin(), after.end());
-                // NO WRAPPER LEFT around a single stream: written as the one reference -- the form most files use.
-                if (items.size() == 1 && items.front().isReference()) page = AnnotationOps::withEntry(page, "Contents", items.front());
-                else if (items.empty()) page = AnnotationOps::withoutEntry(page, "Contents");
-                else page = AnnotationOps::withEntry(page, "Contents", cos::CosObject::makeArray(std::move(items)));
-            }
+        if (wraps != wraps_.end() || decorated != decorations_.end()) {
+            if (core::Status layered = composeContentLayers(index, page, delta, decorationObjects); !layered) return layered;
         }
 
         if (thumb != thumbs_.end() && !thumb->second.keep) {
@@ -3877,6 +4228,12 @@ void MutationSinkImpl::renumberPageEdits(const std::map<long long, long long>& n
     follow(boxes_);
     follow(wraps_);
     follow(thumbs_);
+    follow(decorations_);   // S7 T14
+    for (auto& [key, pages] : decorationStash_) {
+        for (TakenDecorations& taken : pages) {
+            if (const auto now = numbers.find(taken.page); now != numbers.end()) taken.page = now->second;
+        }
+    }
     for (auto& [key, entries] : boxStash_) {
         for (auto& [number, shown] : entries) {
             if (const auto now = numbers.find(number); now != numbers.end()) number = now->second;

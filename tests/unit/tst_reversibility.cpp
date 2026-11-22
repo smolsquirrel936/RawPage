@@ -32,6 +32,7 @@
 #include "core/cmd/commands/AnnotationCommands.h"
 #include "core/cmd/commands/AttachmentCommands.h"
 #include "core/cmd/commands/BookmarkCommands.h"
+#include "core/cmd/commands/DecorationCommands.h"
 #include "core/cmd/commands/DestinationCommands.h"
 #include "core/cmd/commands/PageCommands.h"
 #include "core/doc/Document.h"
@@ -126,6 +127,74 @@ const core::CopiedPages& payloadOf(const char* relative, int page)
 
 // Makes the commands to try on page `page` of `document`.
 using Generator = std::function<std::vector<std::unique_ptr<Command>>(const core::Document& document, int page)>;
+
+// Stage 7 T14: a header on ONE page -- its range that page -- in all six areas, every field.
+core::HeaderFooterSpec reversibilityHeader(int page)
+{
+    core::HeaderFooterSpec spec;
+    spec.areas = {QStringLiteral("<<file>>"), QStringLiteral("<<date>> <<time>>"), QStringLiteral("<<label>>"),
+                  QStringLiteral("Page <<page>> of <<count>>"), QStringLiteral("<<path>>"), QStringLiteral("RawPage")};
+    spec.size = 6;
+    spec.top = 2;
+    spec.bottom = 2;
+    spec.left = 2;
+    spec.right = 2;
+    spec.range = QString::number(page + 1);
+    return spec;
+}
+
+core::HeaderFooterSpec reversibilityBates(int page)
+{
+    core::HeaderFooterSpec spec = reversibilityHeader(page);
+    spec.areas = {};
+    spec.areas[5] = QStringLiteral("<<bates>>");
+    spec.bates = core::BatesFormat{QStringLiteral("R"), QString(), 6, 1};
+    return spec;
+}
+
+core::FieldValues reversibilityFields()
+{
+    return core::FieldValues{QDate(2026, 11, 23), QTime(12, 0), QStringLiteral("reversibility.pdf"), QStringLiteral("C:/r/reversibility.pdf")};
+}
+
+// A remove run behind applies -- one of its own kind, which it takes, and one of the other kind, which it must leave, so
+// the sink has something to write -- applied in order and reverted in reverse: see the generators.
+class AppliedThenRemoved final : public Command {
+public:
+    AppliedThenRemoved(std::unique_ptr<Command> taken, std::unique_ptr<Command> left, std::unique_ptr<Command> removed)
+        : removed_(std::move(removed))
+    {
+        applied_.push_back(std::move(taken));
+        applied_.push_back(std::move(left));
+    }
+    QLatin1String typeId() const override { return removed_->typeId(); }
+    core::CatalogText name() const override { return removed_->name(); }
+    core::Scope scope() const override { return removed_->scope(); }
+    core::Operation operation() const override { return removed_->operation(); }
+    bool apply(core::Document& document, core::MutationSink& sink) override
+    {
+        std::size_t done = 0;
+        for (; done < applied_.size(); ++done) {
+            if (!applied_[done]->apply(document, sink)) break;
+        }
+        if (done == applied_.size() && removed_->apply(document, sink)) return true;
+        while (done > 0) (void)applied_[--done]->revert(document, sink);
+        return false;
+    }
+    bool revert(core::Document& document, core::MutationSink& sink) override
+    {
+        if (!removed_->revert(document, sink)) return false;
+        for (auto it = applied_.rbegin(); it != applied_.rend(); ++it) {
+            if (!(*it)->revert(document, sink)) return false;
+        }
+        return true;
+    }
+    QJsonObject serialize() const override { return removed_->serialize(); }
+
+private:
+    std::vector<std::unique_ptr<Command>> applied_;
+    std::unique_ptr<Command> removed_;
+};
 using Generators = std::map<std::string, Generator>;
 
 // Stage 7 T11: whether the outline commands can run on `document` at all, and a bookmark RawPage made.
@@ -377,6 +446,49 @@ const Generators& registeredGenerators()
              if (!document.destinations().status() || page != 0 || document.destinations().isEmpty()) return out;
              out.push_back(std::make_unique<core::DeleteDestinationCommand>(
                  std::vector<QString>{document.destinations().all().front().name}));
+             return out;
+         }},
+        // Stage 7 T14: a header and a footer on the page -- added, and as an UPDATE (every RawPage header taken off first,
+        // none here) -- and a Bates number.
+        {"headerFooter.apply",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             if (!document.permissions().mayEditPage(page)) return out;
+             for (const bool replace : {false, true}) {
+                 core::HeaderFooterSpec spec = reversibilityHeader(page);
+                 spec.shrink = replace;   // with its wrapper scaling the content, once
+                 out.push_back(std::make_unique<core::ApplyHeaderFooterCommand>(spec, reversibilityFields(), replace));
+             }
+             return out;
+         }},
+        {"bates.apply",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             if (!document.permissions().mayEditPage(page)) return out;
+             out.push_back(std::make_unique<core::ApplyBatesCommand>(reversibilityBates(page), reversibilityFields()));
+             return out;
+         }},
+        // A REMOVE needs something to remove, and no corpus file carries a RawPage decoration: each is run behind an apply
+        // of its own kind on the page (`AppliedThenRemoved`). What that leaves out (convention 19): a remove whose revert
+        // were wrong only for a decoration on DISK -- `tst_decoration`'s undo-after-save case is that one.
+        {"headerFooter.remove",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             if (!document.permissions().mayEditPage(page)) return out;
+             out.push_back(std::make_unique<AppliedThenRemoved>(
+                 std::make_unique<core::ApplyHeaderFooterCommand>(reversibilityHeader(page), reversibilityFields()),
+                 std::make_unique<core::ApplyBatesCommand>(reversibilityBates(page), reversibilityFields()),
+                 std::make_unique<core::RemoveHeaderFooterCommand>()));
+             return out;
+         }},
+        {"bates.remove",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             if (!document.permissions().mayEditPage(page)) return out;
+             out.push_back(std::make_unique<AppliedThenRemoved>(
+                 std::make_unique<core::ApplyBatesCommand>(reversibilityBates(page), reversibilityFields()),
+                 std::make_unique<core::ApplyHeaderFooterCommand>(reversibilityHeader(page), reversibilityFields()),
+                 std::make_unique<core::RemoveBatesCommand>()));
              return out;
          }},
         // Stage 6 T3: a highlight on the page -- a set of one, and a set of two on one page.
@@ -1071,7 +1183,9 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
                                                                           "bookmark.create", "bookmark.edit", "bookmark.delete",
                                                                           "bookmark.reparent", "bookmark.setTarget",
                                                                           "bookmark.generate", "destination.create",
-                                                                          "destination.rename", "destination.delete"});
+                                                                          "destination.rename", "destination.delete",
+                                                                          "headerFooter.apply", "headerFooter.remove",
+                                                                          "bates.apply", "bates.remove"});
     }
 }
 
@@ -1079,7 +1193,7 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
 // A-43 -- reversibility over the corpus
 // ==========================================================================================
 
-TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand][revert:AddAnnotationCommand][revert:DeleteAnnotationCommand][revert:EditAnnotationCommand][revert:MoveAnnotationCommand][revert:SetAnnotationAppearanceCommand][revert:LockAnnotationCommand][revert:ReplyToAnnotationCommand][revert:SetAnnotationStatusCommand][revert:AddAttachmentCommand][revert:DeleteAttachmentCommand][revert:ImportAnnotationsCommand][revert:MovePagesCommand][revert:DeletePagesCommand][revert:DuplicatePagesCommand][revert:InsertPagesCommand][revert:ReplacePagesCommand][revert:CropPagesCommand][revert:ResizePagesCommand][revert:RenumberPagesCommand][revert:SetEmbeddedThumbnailsCommand][revert:CreateBookmarkCommand][revert:EditBookmarkCommand][revert:DeleteBookmarkCommand][revert:ReparentBookmarkCommand][revert:SetBookmarkTargetCommand][revert:GenerateBookmarksCommand][revert:CreateDestinationCommand][revert:RenameDestinationCommand][revert:DeleteDestinationCommand]")
+TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand][revert:AddAnnotationCommand][revert:DeleteAnnotationCommand][revert:EditAnnotationCommand][revert:MoveAnnotationCommand][revert:SetAnnotationAppearanceCommand][revert:LockAnnotationCommand][revert:ReplyToAnnotationCommand][revert:SetAnnotationStatusCommand][revert:AddAttachmentCommand][revert:DeleteAttachmentCommand][revert:ImportAnnotationsCommand][revert:MovePagesCommand][revert:DeletePagesCommand][revert:DuplicatePagesCommand][revert:InsertPagesCommand][revert:ReplacePagesCommand][revert:CropPagesCommand][revert:ResizePagesCommand][revert:RenumberPagesCommand][revert:SetEmbeddedThumbnailsCommand][revert:CreateBookmarkCommand][revert:EditBookmarkCommand][revert:DeleteBookmarkCommand][revert:ReparentBookmarkCommand][revert:SetBookmarkTargetCommand][revert:GenerateBookmarksCommand][revert:CreateDestinationCommand][revert:RenameDestinationCommand][revert:DeleteDestinationCommand][revert:ApplyHeaderFooterCommand][revert:RemoveHeaderFooterCommand][revert:ApplyBatesCommand][revert:RemoveBatesCommand]")
 {
     const std::vector<std::string> missing = missingGenerators(registeredGenerators());
     INFO("registered type ids with no generator: " << missing.size());

@@ -20,12 +20,14 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "core/doc/HeaderFooter.h"
 #include "core/settings/ProfileStore.h"
 #include "pdf/ops/ObjectGraphCopier.h"
 #include "pdf/ops/PageStamp.h"
 
 #include <QDir>
 #include <QFile>
+#include <QJsonObject>
 #include <QTemporaryDir>
 #include <QtGlobal>
 
@@ -33,6 +35,7 @@
 #include <cstdio>
 #include <optional>
 #include <string>
+#include <tuple>
 
 using rawpage::core::CustomStamp;
 using rawpage::core::ProfileStore;
@@ -122,6 +125,43 @@ std::string checkPage(const ProfileStore& store)
     if (!page) return "the page: " + keyOf(page.error());
     if (page.value() != want) return "the page's graph or size";
     if (store.previewBytes(found->id) != std::optional<QByteArray>(corpus("stamps/seal-rgba.png"))) return "the page's picture";
+    return {};
+}
+
+// Stage 7 T14 (guide A-97): two header/footer profiles, each a whole spec.
+rawpage::core::HeaderFooterSpec profileSpec(const QString& centre, double size)
+{
+    rawpage::core::HeaderFooterSpec spec;
+    spec.areas[1] = centre;
+    spec.areas[5] = QStringLiteral("Page <<page>> of <<count>>");
+    spec.size = size;
+    spec.colour = {0.5, 0, 0.25};
+    spec.underline = true;
+    spec.shrink = true;
+    spec.parity = rawpage::core::PageParity::Odd;
+    spec.range = QStringLiteral("2-9");
+    spec.bates = rawpage::core::BatesFormat{QStringLiteral("LEGAL-"), QStringLiteral("-A"), 8, 1000};
+    return spec;
+}
+
+void writeProfiles(ProfileStore& store)
+{
+    REQUIRE(store.saveProfile(rawpage::core::ProfileKind::HeaderFooter, QStringLiteral("Legal"),
+                              rawpage::core::specToJson(profileSpec(QStringLiteral("<<date>> CONFIDENTIAL"), 9))));
+    REQUIRE(store.saveProfile(rawpage::core::ProfileKind::HeaderFooter, QStringLiteral("draft"),
+                              rawpage::core::specToJson(profileSpec(QStringLiteral("Draft"), 14))));
+}
+
+std::string checkProfiles(const ProfileStore& store)
+{
+    if (store.profileNames(rawpage::core::ProfileKind::HeaderFooter) != QStringList{QStringLiteral("draft"), QStringLiteral("Legal")})
+        return "the header/footer profiles' names";
+    for (const auto& [name, centre, size] : {std::tuple{"Legal", "<<date>> CONFIDENTIAL", 9.0}, std::tuple{"draft", "Draft", 14.0}}) {
+        auto json = store.profile(rawpage::core::ProfileKind::HeaderFooter, QLatin1String(name));
+        if (!json) return std::string("the profile ") + name;
+        auto spec = rawpage::core::specFromJson(json.value());
+        if (!spec || !(spec.value() == profileSpec(QString::fromUtf8(centre), size))) return std::string("the spec of ") + name;
+    }
     return {};
 }
 
@@ -290,6 +330,48 @@ TEST_CASE("profile store: what is not an image is refused by name and nothing is
     CHECK(ProfileStore::imageFormatOf(QByteArray("%PDF-1.7")).isEmpty());
 }
 
+// ==========================================================================================
+// A-97 -- header/footer profiles: saved, loaded, replaced, deleted (Stage 7 T14, D7-22)
+// ==========================================================================================
+
+TEST_CASE("profile store: a header/footer profile is its whole spec under its name -- saved, replaced, deleted, and a damaged one named", "[profilestore][A-97]")
+{
+    QTemporaryDir scratch;
+    REQUIRE(scratch.isValid());
+    const QString root = QDir(scratch.path()).filePath(QStringLiteral("stamps"));
+    {
+        ProfileStore store(root);
+        store.load();
+        CHECK(store.profileNames(rawpage::core::ProfileKind::HeaderFooter).isEmpty());
+        writeProfiles(store);
+        CHECK(checkProfiles(store).empty());
+        // Saved again under the same name: REPLACED, not a second one.
+        REQUIRE(store.saveProfile(rawpage::core::ProfileKind::HeaderFooter, QStringLiteral("draft"),
+                                  rawpage::core::specToJson(profileSpec(QStringLiteral("Draft"), 14))));
+        CHECK(store.profileNames(rawpage::core::ProfileKind::HeaderFooter).size() == 2);
+        CHECK(QDir(QDir(root).filePath(QStringLiteral("profiles/headerFooter"))).entryList(QDir::Files).size() == 2);
+        CHECK_FALSE(store.saveProfile(rawpage::core::ProfileKind::HeaderFooter, QStringLiteral("   "), QJsonObject{}));
+        CHECK(store.profile(rawpage::core::ProfileKind::HeaderFooter, QStringLiteral("nothing")).error().messageKey
+              == QLatin1String("error.profiles.unknown"));
+    }
+    // A NEW store reads both; one deleted; a damaged file reported by name and the other kept.
+    ProfileStore again(root);
+    again.load();
+    CHECK(checkProfiles(again).empty());
+    REQUIRE(again.removeProfile(rawpage::core::ProfileKind::HeaderFooter, QStringLiteral("draft")));
+    CHECK(again.profileNames(rawpage::core::ProfileKind::HeaderFooter) == QStringList{QStringLiteral("Legal")});
+    {
+        QFile broken(QDir(root).filePath(QStringLiteral("profiles/headerFooter/0123456789abcdef0123456789abcdef.json")));
+        REQUIRE(broken.open(QIODevice::WriteOnly));
+        broken.write("{ not json");
+    }
+    ProfileStore third(root);
+    third.load();
+    CHECK(third.profileNames(rawpage::core::ProfileKind::HeaderFooter) == QStringList{QStringLiteral("Legal")});
+    CHECK(third.damaged() == QStringList{QStringLiteral("profiles/headerFooter/0123456789abcdef0123456789abcdef.json")});
+    CHECK(third.stamps().empty());   // the stamp library is not confused by the profiles beside it
+}
+
 // ---- The restart, as two processes (`RunProfileRestart.cmake`) --------------------------------------
 // HIDDEN: each needs `RAWPAGE_PROFILE_PROBE_ROOT` and is run by the script, the writer first.
 
@@ -302,6 +384,7 @@ TEST_CASE("profile store restart probe writes", "[.][restart]")
     REQUIRE(store.stamps().empty());
     writeLibrary(store);
     writePage(store);   // Stage 7 T13: and a page stamp with its picture (guide A-90)
+    writeProfiles(store);   // Stage 7 T14: and two header/footer profiles (guide A-97)
 }
 
 TEST_CASE("profile store restart probe reads", "[.][restart]")
@@ -312,8 +395,9 @@ TEST_CASE("profile store restart probe reads", "[.][restart]")
     store.load();
     std::string wrong = checkPage(store);
     if (wrong.empty()) wrong = checkLibrary(store);
+    if (wrong.empty()) wrong = checkProfiles(store);
     INFO("what did not survive the restart: " << wrong);
     CHECK(wrong.empty());
-    std::printf("profile store restart: a category, a favourite signature, a favourite built-in and a page stamp with "
-                "its picture read back by a second process\n");
+    std::printf("profile store restart: a category, a favourite signature, a favourite built-in, a page stamp with "
+                "its picture and two header/footer profiles read back by a second process\n");
 }

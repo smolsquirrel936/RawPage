@@ -53,6 +53,7 @@
 #include "ui/dialogs/CustomStampDialog.h"
 #include "ui/dialogs/DocumentPropertiesDialog.h"
 #include "ui/dialogs/ExchangeReportDialog.h"
+#include "ui/dialogs/HeaderFooterDialog.h"
 #include "ui/dialogs/BookmarkDialogs.h"
 #include "ui/dialogs/MergeDialog.h"
 #include "ui/dialogs/PageOpsDialogs.h"
@@ -307,6 +308,19 @@ public:
     core::Status removeThumbnails(DocumentWindow* document);
     // Whether a white-margin crop or a thumbnail embedding started here is still drawing its pages.
     bool isMeasuringPages() const;
+
+    // ---------------------------------------------------------------------------------------
+    // Stage 7 T14 (D7-7, D7-14, D7-44) -- `ui/shell/MainWindowDecorate.cpp`. A header and footer added or, with `replace`,
+    // updated -- every RawPage header and footer taken off first, in the same step -- and removed; Bates numbers across
+    // the open documents chosen, ONE command per document, each in its own journal, and the run's report.
+    core::Status applyHeaderFooter(DocumentWindow* document, const core::HeaderFooterSpec& spec, bool replace);
+    core::Status removeDecorations(DocumentWindow* document, core::DecorationKind kind);
+    std::vector<BatesReportLine> applyBates(const std::vector<DocumentWindow*>& order, const core::HeaderFooterSpec& spec);
+    // The fields a command made now is fixed with: the date and time, the document's file name and path.
+    core::FieldValues fieldValuesOf(const DocumentWindow& document) const;
+    // The last header and footer applied in this session, which *Update* starts from; and the last Bates run's report.
+    const std::optional<core::HeaderFooterSpec>& lastHeaderFooter() const noexcept { return lastHeaderFooter_; }
+    const QString& lastBatesReport() const noexcept { return lastBatesReport_; }
 
     // Save in place, through `SaveCoordinator`. A document that must be saved as a new file -- repaired,
     // changed on disk since it was opened, or refused by the file system (read-only, held by another
@@ -760,6 +774,7 @@ private:
     void registerMergeActions();     // S7 T10 -- `ui/shell/MainWindowMerge.cpp`
     void registerBookmarkActions();  // S7 T11 -- `ui/shell/MainWindowBookmarks.cpp`
     void registerLinkActions();      // S7 T12 -- `ui/shell/MainWindowLinks.cpp`
+    void registerDecorationActions();   // S7 T14 -- `ui/shell/MainWindowDecorate.cpp`
     void finishMerge(core::Result<core::MergedDocument> merged, const std::vector<QString>& paths);
     void updatePageBadges();         // S7 T8 -- the thumbnails' badges from the document in front's store
 
@@ -856,6 +871,8 @@ private:
     QPointer<CommentMigration> migration_;
     QPointer<DocumentWindow> migrationTarget_;
     std::optional<ExchangeReport> lastExchangeReport_;
+    std::optional<core::HeaderFooterSpec> lastHeaderFooter_;   // S7 T14: what *Update* starts from
+    QString lastBatesReport_;                                 // S7 T14: the last run's report, as shown
     // S6 T14: the one player, made on the first sound played, and what it was last given.
     SoundPlayer* player_ = nullptr;
     std::optional<core::SoundData> lastPlayed_;

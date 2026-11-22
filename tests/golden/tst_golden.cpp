@@ -44,6 +44,7 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "pdf/render/PdfiumInit.h"
+#include "tests/golden/DecorationCases.h"
 #include "tests/golden/GoldenSuite.h"
 
 #include <QCoreApplication>
@@ -279,7 +280,15 @@ TEST_CASE("only the declared machine-dependent baselines resolved a face off thi
         // S6 T8: an APPEARANCE baseline is declared by `tests/golden/AppearanceCases`, not the manifest, and none
         // is machine-dependent -- its only text is base-14 Helvetica, PDFium's own -- so it is held to the rule
         // below like any undeclared case.
-        if (!record.file.startsWith(QLatin1String("appearance/"))) {
+        // S7 T14: a DECORATION baseline is declared by `tests/golden/DecorationCases`, which says which draws this machine's
+        // faces -- only `cjk`, whose collections no reader carries; every other is held to the rule below.
+        if (record.file.startsWith(QLatin1String("decoration/"))) {
+            const auto& cases = golden::decorationCases();
+            const QString name = record.file.mid(static_cast<qsizetype>(sizeof("decoration/") - 1));
+            const auto item = std::find_if(cases.begin(), cases.end(), [&name](const golden::DecorationCase& c) { return c.name == name; });
+            REQUIRE(item != cases.end());
+            if (item->machineDependent) continue;
+        } else if (!record.file.startsWith(QLatin1String("appearance/"))) {
             const golden::Case* item = manifest().find(record.file);
             REQUIRE(item != nullptr);
             if (item->machineDependent) continue;

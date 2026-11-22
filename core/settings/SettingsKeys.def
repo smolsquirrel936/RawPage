@@ -323,6 +323,26 @@ RAWPAGE_SETTING(documents, mergeBookmarkPerFile, MergeBookmarks,
 RAWPAGE_SETTING(documents, renameCollidingFields, bool,
                 "documents/renameCollidingFields", true, Documents, true)
 
+// THE HEADER/FOOTER PROFILE THE DIALOG OPENS WITH -- Stage 7 T14 (`Stage7-Assembly-Plan.md` D7-22, D7-44, guide A-97): the
+// NAME of a header/footer profile in `core/settings/ProfileStore`. Empty by default: the dialog opens on the last spec
+// applied in this session, else on an empty one. Written by `ui/dialogs/HeaderFooterDialog` when the person applies with
+// a profile chosen; a name no profile carries any more is ignored, never an error. Changes no page already decorated.
+RAWPAGE_SETTING(documents, headerFooterProfile, QString,
+                "documents/headerFooterProfile", "", Documents, true)
+
+// THE BATES NUMBERING THE BATES DIALOG OFFERS FIRST -- Stage 7 T14 (D7-14, D7-22, guide A-92, A-93): the first number, how
+// many digits it is padded to, and the text before and after it (`core::BatesFormat`). The dialog's choice is the run's;
+// these change no page already numbered. The start's range is what an `int` holds; the digits are `core::BatesFormat`'s
+// own bounds; a prefix or suffix past `core::kMaxBatesAffix` characters is refused by the dialog, not here.
+RAWPAGE_SETTING_RANGED(documents, batesStart, int,
+                       "documents/batesStart", 1, Documents, true, 0, 2147483647)
+RAWPAGE_SETTING_RANGED(documents, batesDigits, int,
+                       "documents/batesDigits", 6, Documents, true, 1, 15)
+RAWPAGE_SETTING(documents, batesPrefix, QString,
+                "documents/batesPrefix", "", Documents, true)
+RAWPAGE_SETTING(documents, batesSuffix, QString,
+                "documents/batesSuffix", "", Documents, true)
+
 // =============================================================================================
 // The eleven Stage 4 `units/` rows -- S4 T8, D4-5 and D4-6. They fill the `UnitsAndGuides` group,
 // which has existed in `SettingsGroup` since Stage 1 with NO KEYS, and adding them is the whole of

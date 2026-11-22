@@ -1886,6 +1886,99 @@
             "width": 1588
         },
         {
+            "dpi": 144,
+            "file": "decoration/align-six",
+            "height": 432,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 576
+        },
+        {
+            "dpi": 144,
+            "file": "decoration/bates",
+            "height": 432,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 576
+        },
+        {
+            "dpi": 144,
+            "file": "decoration/cjk",
+            "height": 432,
+            "page": 0,
+            "substitutions": [
+                "HYSMyeongJo -> Malgun Gothic [substituted]",
+                "Helvetica -> (engine) [standard-declined]",
+                "KozMinPro -> Yu Mincho [substituted]",
+                "STSong -> SimSun [substituted]"
+            ],
+            "width": 576
+        },
+        {
+            "dpi": 144,
+            "file": "decoration/colour-underline",
+            "height": 432,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 576
+        },
+        {
+            "dpi": 144,
+            "file": "decoration/edges",
+            "height": 432,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 576
+        },
+        {
+            "dpi": 144,
+            "file": "decoration/rotated-270",
+            "height": 576,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 432
+        },
+        {
+            "dpi": 144,
+            "file": "decoration/rotated-90",
+            "height": 576,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 432
+        },
+        {
+            "dpi": 144,
+            "file": "decoration/shrink",
+            "height": 432,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 576
+        },
+        {
+            "dpi": 144,
+            "file": "decoration/size-large",
+            "height": 432,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 576
+        },
+        {
             "dpi": 96,
             "file": "encrypted/aes-128.pdf",
             "height": 1123,
@@ -5048,7 +5141,7 @@
             "width": 1588
         }
     ],
-    "capturedUtc": "2026-10-28T22:30:23Z",
+    "capturedUtc": "2026-11-22T16:36:44Z",
     "pdfiumVersion": "153.0.8009.0",
-    "reason": "Stage 7 T1: the assembly corpus (Stage7-Assembly-Plan.md 5.2), captured after Stage 7 guide I-01's fix; every page looked at in a scratch capture first"
+    "reason": "Stage 7 T14: first capture of the decoration baselines -- headers, footers and Bates numbers written through the sink (guide A-98); each looked at before it is kept"
 }

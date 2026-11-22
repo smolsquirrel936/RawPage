@@ -32,6 +32,10 @@ add_executable(rawpage_golden_tests
     # rawpage_render_tests too, so the three read one spec.
     AppearanceCases.cpp
     tst_appearancegolden.cpp
+    # Stage 7 T14 (D7-44, guide A-98): the decoration baselines -- headers, footers and Bates numbers written through the
+    # sink, compared with golden/decoration/. DecorationCases.cpp is compiled into golden-update too.
+    DecorationCases.cpp
+    tst_decorationgolden.cpp
 )
 
 target_include_directories(rawpage_golden_tests PRIVATE "${CMAKE_SOURCE_DIR}")

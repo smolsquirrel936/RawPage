@@ -77,6 +77,10 @@ public:
     core::Status restorePageBoxes(const std::vector<int>&, const QString&) override { return no(); }
     core::Status wrapPageContents(const std::vector<int>&, const std::vector<core::PageContentWrap>&, const QString&) override { return no(); }
     core::Status unwrapPageContents(const std::vector<int>&, const QString&) override { return no(); }
+    core::Status addPageDecorations(const std::vector<int>&, const std::vector<core::PageDecoration>&, const QString&) override { return no(); }
+    core::Status removePageDecorations(const std::vector<int>&, const QString&) override { return no(); }
+    core::Result<std::vector<int>> takeDecorations(core::DecorationKind, const QString&) override { return no().error(); }
+    core::Status restoreDecorations(const QString&) override { return no(); }
     core::Result<std::vector<QString>> setPageLabels(const std::vector<int>&, const std::vector<core::PageLabelSpec>&, const QString&) override
     {
         return no().error();

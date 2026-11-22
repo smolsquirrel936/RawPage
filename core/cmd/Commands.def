@@ -58,5 +58,9 @@ RAWPAGE_COMMAND(GenerateBookmarksCommand, "bookmark.generate", "core/cmd/command
 RAWPAGE_COMMAND(CreateDestinationCommand, "destination.create", "core/cmd/commands/DestinationCommands.h")
 RAWPAGE_COMMAND(RenameDestinationCommand, "destination.rename", "core/cmd/commands/DestinationCommands.h")
 RAWPAGE_COMMAND(DeleteDestinationCommand, "destination.delete", "core/cmd/commands/DestinationCommands.h")
+RAWPAGE_COMMAND(ApplyHeaderFooterCommand, "headerFooter.apply", "core/cmd/commands/DecorationCommands.h")
+RAWPAGE_COMMAND(RemoveHeaderFooterCommand, "headerFooter.remove", "core/cmd/commands/DecorationCommands.h")
+RAWPAGE_COMMAND(ApplyBatesCommand, "bates.apply", "core/cmd/commands/DecorationCommands.h")
+RAWPAGE_COMMAND(RemoveBatesCommand, "bates.remove", "core/cmd/commands/DecorationCommands.h")
 
 #undef RAWPAGE_COMMAND

@@ -3873,6 +3873,46 @@
         <source>error.link.openFailed</source>
         <translation>Nothing on this computer opened %1.</translation>
     </message>
+    <message>
+        <source>error.decorate.badSpec</source>
+        <translation>This header, footer or Bates setting is out of range: %1.</translation>
+    </message>
+    <message>
+        <source>error.decorate.empty</source>
+        <translation>Type something in at least one header or footer area.</translation>
+    </message>
+    <message>
+        <source>error.decorate.noPages</source>
+        <translation>No page matches the range and the odd or even choice.</translation>
+    </message>
+    <message>
+        <source>error.decorate.noRoom</source>
+        <translation>The header and footer leave no room for the page content.</translation>
+    </message>
+    <message>
+        <source>error.decorate.batesOverflow</source>
+        <translation>The Bates numbers for %1 need more digits than were chosen.</translation>
+    </message>
+    <message>
+        <source>error.decorate.noneFound</source>
+        <translation>This document has nothing of this kind that RawPage added.</translation>
+    </message>
+    <message>
+        <source>error.decorate.characterRefused</source>
+        <translation>%1 cannot be drawn on a page. RawPage draws header, footer and Bates text in Latin letters (Windows-1252) and in Chinese, Japanese and Korean characters only.</translation>
+    </message>
+    <message>
+        <source>error.decorate.noDocuments</source>
+        <translation>Choose at least one open document to number.</translation>
+    </message>
+    <message>
+        <source>error.profiles.unknown</source>
+        <translation>There is no profile named %1.</translation>
+    </message>
+    <message>
+        <source>error.profiles.full</source>
+        <translation>There are too many profiles of this kind.</translation>
+    </message>
 </context>
 <context>
     <name>ribbon</name>
@@ -4899,6 +4939,26 @@
         <source>prefs.log.discarded</source>
         <translation>%1 earlier records were discarded.</translation>
     </message>
+    <message>
+        <source>prefs.setting.documents.headerFooterProfile</source>
+        <translation>Header and footer profile the dialog opens with</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.batesStart</source>
+        <translation>First Bates number</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.batesDigits</source>
+        <translation>Bates number digits</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.batesPrefix</source>
+        <translation>Bates number prefix</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.batesSuffix</source>
+        <translation>Bates number suffix</translation>
+    </message>
 </context>
 <context>
     <name>command</name>
@@ -5093,6 +5153,26 @@
     <message>
         <source>command.destination.deleteMany</source>
         <translation>Delete %1 Destinations</translation>
+    </message>
+    <message>
+        <source>command.headerFooter.apply</source>
+        <translation>Add a header and footer to %1 page(s)</translation>
+    </message>
+    <message>
+        <source>command.headerFooter.update</source>
+        <translation>Update the header and footer on %1 page(s)</translation>
+    </message>
+    <message>
+        <source>command.headerFooter.remove</source>
+        <translation>Remove the header and footer from %1 page(s)</translation>
+    </message>
+    <message>
+        <source>command.bates.apply</source>
+        <translation>Add Bates numbers to %1 page(s)</translation>
+    </message>
+    <message>
+        <source>command.bates.remove</source>
+        <translation>Remove Bates numbers from %1 page(s)</translation>
     </message>
 </context>
 <context>
@@ -7318,6 +7398,233 @@
     <message>
         <source>links.tooltip.needsDestination</source>
         <translation>Select a named destination first.</translation>
+    </message>
+</context>
+<context>
+    <name>decorate</name>
+    <message>
+        <source>decorate.headerFooter.addTitle</source>
+        <translation>Add Header and Footer</translation>
+    </message>
+    <message>
+        <source>decorate.headerFooter.updateTitle</source>
+        <translation>Update Header and Footer</translation>
+    </message>
+    <message>
+        <source>decorate.header</source>
+        <translation>Header</translation>
+    </message>
+    <message>
+        <source>decorate.footer</source>
+        <translation>Footer</translation>
+    </message>
+    <message>
+        <source>decorate.left</source>
+        <translation>Left</translation>
+    </message>
+    <message>
+        <source>decorate.centre</source>
+        <translation>Centre</translation>
+    </message>
+    <message>
+        <source>decorate.right</source>
+        <translation>Right</translation>
+    </message>
+    <message>
+        <source>decorate.top</source>
+        <translation>Top</translation>
+    </message>
+    <message>
+        <source>decorate.bottom</source>
+        <translation>Bottom</translation>
+    </message>
+    <message>
+        <source>decorate.insertField</source>
+        <translation>Insert field</translation>
+    </message>
+    <message>
+        <source>decorate.insert</source>
+        <translation>Insert</translation>
+    </message>
+    <message>
+        <source>decorate.size</source>
+        <translation>Font size</translation>
+    </message>
+    <message>
+        <source>decorate.colour</source>
+        <translation>Colour…</translation>
+    </message>
+    <message>
+        <source>decorate.underline</source>
+        <translation>Underline</translation>
+    </message>
+    <message>
+        <source>decorate.margins</source>
+        <translation>Distance from the page edges, in points</translation>
+    </message>
+    <message>
+        <source>decorate.shrink</source>
+        <translation>Shrink the page content to make room</translation>
+    </message>
+    <message>
+        <source>decorate.pages</source>
+        <translation>Pages</translation>
+    </message>
+    <message>
+        <source>decorate.profile</source>
+        <translation>Profile</translation>
+    </message>
+    <message>
+        <source>decorate.profile.none</source>
+        <translation>(none)</translation>
+    </message>
+    <message>
+        <source>decorate.profile.name</source>
+        <translation>Save as</translation>
+    </message>
+    <message>
+        <source>decorate.profile.save</source>
+        <translation>Save Profile</translation>
+    </message>
+    <message>
+        <source>decorate.profile.delete</source>
+        <translation>Delete Profile</translation>
+    </message>
+    <message>
+        <source>decorate.preview</source>
+        <translation>Preview</translation>
+    </message>
+    <message>
+        <source>decorate.previewPage</source>
+        <translation>Preview page</translation>
+    </message>
+    <message>
+        <source>decorate.bates.title</source>
+        <translation>Bates Numbering</translation>
+    </message>
+    <message>
+        <source>decorate.bates.documents</source>
+        <translation>Open documents to number, in numbering order</translation>
+    </message>
+    <message>
+        <source>decorate.bates.up</source>
+        <translation>Move Up</translation>
+    </message>
+    <message>
+        <source>decorate.bates.down</source>
+        <translation>Move Down</translation>
+    </message>
+    <message>
+        <source>decorate.bates.prefix</source>
+        <translation>Prefix</translation>
+    </message>
+    <message>
+        <source>decorate.bates.suffix</source>
+        <translation>Suffix</translation>
+    </message>
+    <message>
+        <source>decorate.bates.digits</source>
+        <translation>Digits</translation>
+    </message>
+    <message>
+        <source>decorate.bates.start</source>
+        <translation>Start number</translation>
+    </message>
+    <message>
+        <source>decorate.bates.position</source>
+        <translation>Position</translation>
+    </message>
+    <message>
+        <source>decorate.bates.sample</source>
+        <translation>The first number: %1</translation>
+    </message>
+    <message>
+        <source>decorate.bates.pages</source>
+        <translation>%1 (%2 pages)</translation>
+    </message>
+    <message>
+        <source>decorate.bates.reportTitle</source>
+        <translation>Bates Numbering Report</translation>
+    </message>
+    <message>
+        <source>decorate.bates.reportLine</source>
+        <translation>%1: %2 to %3</translation>
+    </message>
+    <message>
+        <source>decorate.bates.reportRefused</source>
+        <translation>%1: not numbered. %2</translation>
+    </message>
+    <message>
+        <source>decorate.removed</source>
+        <translation>Removed from %1 page(s).</translation>
+    </message>
+    <message>
+        <source>decorate.field.page</source>
+        <translation>Page number</translation>
+    </message>
+    <message>
+        <source>decorate.field.count</source>
+        <translation>Page count</translation>
+    </message>
+    <message>
+        <source>decorate.field.label</source>
+        <translation>Page label</translation>
+    </message>
+    <message>
+        <source>decorate.field.date</source>
+        <translation>Date</translation>
+    </message>
+    <message>
+        <source>decorate.field.time</source>
+        <translation>Time</translation>
+    </message>
+    <message>
+        <source>decorate.field.file</source>
+        <translation>File name</translation>
+    </message>
+    <message>
+        <source>decorate.field.path</source>
+        <translation>File path</translation>
+    </message>
+    <message>
+        <source>decorate.field.bates</source>
+        <translation>Bates number</translation>
+    </message>
+    <message>
+        <source>decorate.parity.all</source>
+        <translation>Every page in the range</translation>
+    </message>
+    <message>
+        <source>decorate.parity.odd</source>
+        <translation>Odd pages only</translation>
+    </message>
+    <message>
+        <source>decorate.parity.even</source>
+        <translation>Even pages only</translation>
+    </message>
+    <message>
+        <source>decorate.position.headerLeft</source>
+        <translation>Top left</translation>
+    </message>
+    <message>
+        <source>decorate.position.headerCentre</source>
+        <translation>Top centre</translation>
+    </message>
+    <message>
+        <source>decorate.position.headerRight</source>
+        <translation>Top right</translation>
+    </message>
+    <message>
+        <source>decorate.position.footerLeft</source>
+        <translation>Bottom left</translation>
+    </message>
+    <message>
+        <source>decorate.position.footerCentre</source>
+        <translation>Bottom centre</translation>
+    </message>
+    <message>
+        <source>decorate.position.footerRight</source>
+        <translation>Bottom right</translation>
     </message>
 </context>
 </TS>

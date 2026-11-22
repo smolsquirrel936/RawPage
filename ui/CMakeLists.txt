@@ -35,6 +35,7 @@ add_library(rawpage_ui STATIC
     shell/MainWindowMerge.cpp       # Stage 7 T10 -- merge.documents (D7-16)
     shell/MainWindowBookmarks.cpp   # Stage 7 T11 -- the bookmarks' edits (D7-10, D7-11)
     shell/MainWindowLinks.cpp       # Stage 7 T12 -- links and named destinations (D7-12, D7-35)
+    shell/MainWindowDecorate.cpp    # Stage 7 T14 -- headers, footers and Bates numbers (D7-7, D7-14, D7-44)
     # S6 T14 (D6-18): the window's half of a sound comment -- the recorder and the WAV asked, a sound played.
     shell/MainWindowAudio.cpp
     shell/CommentMigration.h
@@ -332,6 +333,8 @@ add_library(rawpage_ui STATIC
     dialogs/BookmarkDialogs.cpp     #   a bookmark file's path
     dialogs/LinkPropertiesDialog.h  # Stage 7 T12 (D7-12): where a link goes and how it looks; a destination's name; the
     dialogs/LinkPropertiesDialog.cpp #   asks before a link opens something; the verify report
+    dialogs/HeaderFooterDialog.h    # Stage 7 T14 (D7-14, D7-22, D7-44): a header and footer with its preview and profiles,
+    dialogs/HeaderFooterDialog.cpp  #   and Bates numbering across the open documents in an order chosen
     # S5 T13 -- the two documents and the comparison's options; refused where nobody can answer.
     dialogs/CompareDialog.h
     dialogs/CompareDialog.cpp

@@ -33,6 +33,15 @@
 // convenience, never the stamp -- a page stamp with none, or with a damaged one, loads and places, and the palette
 // shows a page glyph. `remove` takes all three files.
 //
+// ===========================================================================================
+// NAMED PROFILES -- Stage 7 T14 (`Stage7-Assembly-Plan.md` D7-22)
+// ===========================================================================================
+// A header/footer configuration saved under a name the person gives it -- T15 adds the watermark's kind and T16 the
+// imposition's -- is a profile: `<root>/profiles/<kind>/<id>.json`, `{"name": ..., "spec": {...}}`, one file each so a
+// damaged one loses only itself, written whole. The SPEC is the kind's own JSON (`core::specToJson` for a header and a
+// footer): this store keeps and lists it by name and never reads inside it -- whether it is a spec the dialog can use
+// is the dialog's question, asked when it loads one. Saving under a name that exists replaces that profile.
+//
 // It writes files, which is `core/settings/`'s one added privilege (`tools/layer-lint/rules.json`) -- no
 // waiver. Pure QtCore: `tst_profilestore` in `rawpage_tests`.
 
@@ -43,6 +52,7 @@
 #include "core/doc/Annotation.h"
 
 #include <QByteArray>
+#include <QJsonObject>
 #include <QString>
 #include <QStringList>
 
@@ -52,6 +62,9 @@
 #include <vector>
 
 namespace rawpage::core {
+
+// Stage 7 T14: a kind of named profile -- see the header. T15 and T16 add theirs.
+enum class ProfileKind : std::uint8_t { HeaderFooter };
 
 struct CustomStamp {
     QString id;              // 32 lowercase hex digits: its two files' names
@@ -122,6 +135,17 @@ public:
     // `png` or `jpg` for bytes that start as one does; empty for anything else.
     static QString imageFormatOf(const QByteArray& bytes);
 
+    // ---- Named profiles (Stage 7 T14) -- see the header ----------------------------------------------------------
+    static constexpr int kMaxProfiles = 1000;   // per kind
+    // The names of `kind`'s profiles, sorted as a person reads them (case-insensitively).
+    QStringList profileNames(ProfileKind kind) const;
+    // The spec saved under `name`; `error.profiles.unknown` for a name no profile has.
+    Result<QJsonObject> profile(ProfileKind kind, const QString& name) const;
+    // `spec` saved under `name` -- replacing the profile of that name, else a new one. `error.stamps.badName` for an empty
+    // or over-long name, `error.profiles.full` past `kMaxProfiles`.
+    Status saveProfile(ProfileKind kind, const QString& name, const QJsonObject& spec);
+    Status removeProfile(ProfileKind kind, const QString& name);
+
 private:
     QString descriptionPath(const QString& id) const;
     QString imagePath(const CustomStamp& stamp) const;
@@ -131,7 +155,18 @@ private:
     Status writeDescription(const CustomStamp& stamp) const;
     Status writeFavourites() const;
 
+    struct Profile {
+        QString id;
+        QString name;
+        QJsonObject spec;
+    };
+    QString profileDirectory(ProfileKind kind) const;
+    void loadProfiles(ProfileKind kind);
+    std::vector<Profile>& profilesOf(ProfileKind kind);
+    const std::vector<Profile>& profilesOf(ProfileKind kind) const;
+
     QString root_;
+    std::vector<Profile> headerFooterProfiles_;   // T14
     std::vector<CustomStamp> stamps_;
     std::set<QString> builtInFavourites_;
     QStringList damaged_;

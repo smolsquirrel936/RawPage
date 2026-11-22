@@ -15,6 +15,7 @@
 #include "tests/composition/AnnotProduct.h"
 
 #include "core/cmd/ActionRegistry.h"
+#include "core/cmd/commands/DecorationCommands.h"
 #include "core/cmd/commands/PageCommands.h"
 #include "core/doc/PageMap.h"
 #include "core/doc/PageTree.h"
@@ -187,6 +188,27 @@ TEST_CASE("assembly_shown: every page command is shown as it is saved and each u
         }
         steps.emplace_back("thumbnails embedded", std::make_unique<core::SetEmbeddedThumbnailsCommand>(every, images));
     }
+    // Stage 7 T14 (guide A-91's shown half): a header and footer on the odd pages with the content shrunk to clear it,
+    // Bates numbers on every page, the header UPDATED in one step, and the Bates numbers taken off -- each drawn as saved.
+    {
+        const core::FieldValues values{QDate(2026, 11, 23), QTime(9, 0), QStringLiteral("refs-every-kind.pdf"), QString()};
+        core::HeaderFooterSpec header;
+        header.areas[1] = QStringLiteral("SHOWN <<page>>");
+        header.areas[4] = QStringLiteral("Page <<page>> of <<count>>");
+        header.size = 12;
+        header.shrink = true;
+        header.parity = core::PageParity::Odd;
+        steps.emplace_back("a header and footer, shrunk", std::make_unique<core::ApplyHeaderFooterCommand>(header, values));
+        core::HeaderFooterSpec bates;
+        bates.areas[5] = QStringLiteral("<<bates>>");
+        bates.bates = core::BatesFormat{QStringLiteral("SHOW-"), QString(), 5, 1};
+        steps.emplace_back("Bates numbers", std::make_unique<core::ApplyBatesCommand>(bates, values));
+        header.areas[1] = QStringLiteral("UPDATED");
+        header.parity = core::PageParity::Any;
+        header.shrink = false;
+        steps.emplace_back("the header updated", std::make_unique<core::ApplyHeaderFooterCommand>(header, values, true));
+        steps.emplace_back("the Bates numbers removed", std::make_unique<core::RemoveBatesCommand>());
+    }
 
     int compared = 0;
     int n = 0;
@@ -198,7 +220,7 @@ TEST_CASE("assembly_shown: every page command is shown as it is saved and each u
         product.settle();
         compared += compareEveryPage(product, saveCopy(product, ++n), name);
     }
-    CHECK(compared == 12 + 12 + 14 + 13 + 16 + 16 + 16 * 5);   // S7 T9: five more steps over the sixteen pages
+    CHECK(compared == 12 + 12 + 14 + 13 + 16 + 16 + 16 * 5 + 16 * 4);   // S7 T9: five more steps; S7 T14 four more
 
     // EACH UNDONE, after the saves: every page as the ORIGINAL file draws it.
     for (std::size_t i = 0; i < steps.size(); ++i) {

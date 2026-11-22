@@ -3873,6 +3873,46 @@
         <source>error.link.openFailed</source>
         <translation>這部電腦上沒有程式能開啟 %1。</translation>
     </message>
+    <message>
+        <source>error.decorate.badSpec</source>
+        <translation>此頁首、頁尾或貝茨編號設定超出範圍：%1。</translation>
+    </message>
+    <message>
+        <source>error.decorate.empty</source>
+        <translation>請在至少一個頁首或頁尾區域輸入內容。</translation>
+    </message>
+    <message>
+        <source>error.decorate.noPages</source>
+        <translation>沒有頁面符合所選範圍及奇偶頁設定。</translation>
+    </message>
+    <message>
+        <source>error.decorate.noRoom</source>
+        <translation>頁首與頁尾沒有留下頁面內容的空間。</translation>
+    </message>
+    <message>
+        <source>error.decorate.batesOverflow</source>
+        <translation>%1 的貝茨編號需要比所選更多的位數。</translation>
+    </message>
+    <message>
+        <source>error.decorate.noneFound</source>
+        <translation>此文件中沒有 RawPage 新增的此類內容。</translation>
+    </message>
+    <message>
+        <source>error.decorate.characterRefused</source>
+        <translation>頁面上無法繪製 %1。RawPage 只能以拉丁字母（Windows-1252）以及中文、日文和韓文字元繪製頁首、頁尾和貝茨編號的文字。</translation>
+    </message>
+    <message>
+        <source>error.decorate.noDocuments</source>
+        <translation>請至少選擇一份開啟的文件進行編號。</translation>
+    </message>
+    <message>
+        <source>error.profiles.unknown</source>
+        <translation>沒有名為 %1 的設定檔。</translation>
+    </message>
+    <message>
+        <source>error.profiles.full</source>
+        <translation>此類設定檔過多。</translation>
+    </message>
 </context>
 <context>
     <name>ribbon</name>
@@ -4899,6 +4939,26 @@
         <source>prefs.log.discarded</source>
         <translation>先前已捨棄 %1 筆記錄。</translation>
     </message>
+    <message>
+        <source>prefs.setting.documents.headerFooterProfile</source>
+        <translation>頁首與頁尾對話方塊預設開啟的設定檔</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.batesStart</source>
+        <translation>貝茨編號的起始號碼</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.batesDigits</source>
+        <translation>貝茨編號位數</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.batesPrefix</source>
+        <translation>貝茨編號前置字元</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.batesSuffix</source>
+        <translation>貝茨編號後置字元</translation>
+    </message>
 </context>
 <context>
     <name>command</name>
@@ -5093,6 +5153,26 @@
     <message>
         <source>command.destination.deleteMany</source>
         <translation>刪除 %1 個目的地</translation>
+    </message>
+    <message>
+        <source>command.headerFooter.apply</source>
+        <translation>在 %1 頁新增頁首與頁尾</translation>
+    </message>
+    <message>
+        <source>command.headerFooter.update</source>
+        <translation>更新 %1 頁的頁首與頁尾</translation>
+    </message>
+    <message>
+        <source>command.headerFooter.remove</source>
+        <translation>移除 %1 頁的頁首與頁尾</translation>
+    </message>
+    <message>
+        <source>command.bates.apply</source>
+        <translation>在 %1 頁新增貝茨編號</translation>
+    </message>
+    <message>
+        <source>command.bates.remove</source>
+        <translation>移除 %1 頁的貝茨編號</translation>
     </message>
 </context>
 <context>
@@ -7318,6 +7398,233 @@
     <message>
         <source>links.tooltip.needsDestination</source>
         <translation>請先選取具名目的地。</translation>
+    </message>
+</context>
+<context>
+    <name>decorate</name>
+    <message>
+        <source>decorate.headerFooter.addTitle</source>
+        <translation>新增頁首與頁尾</translation>
+    </message>
+    <message>
+        <source>decorate.headerFooter.updateTitle</source>
+        <translation>更新頁首與頁尾</translation>
+    </message>
+    <message>
+        <source>decorate.header</source>
+        <translation>頁首</translation>
+    </message>
+    <message>
+        <source>decorate.footer</source>
+        <translation>頁尾</translation>
+    </message>
+    <message>
+        <source>decorate.left</source>
+        <translation>左</translation>
+    </message>
+    <message>
+        <source>decorate.centre</source>
+        <translation>中</translation>
+    </message>
+    <message>
+        <source>decorate.right</source>
+        <translation>右</translation>
+    </message>
+    <message>
+        <source>decorate.top</source>
+        <translation>上</translation>
+    </message>
+    <message>
+        <source>decorate.bottom</source>
+        <translation>下</translation>
+    </message>
+    <message>
+        <source>decorate.insertField</source>
+        <translation>插入欄位</translation>
+    </message>
+    <message>
+        <source>decorate.insert</source>
+        <translation>插入</translation>
+    </message>
+    <message>
+        <source>decorate.size</source>
+        <translation>字型大小</translation>
+    </message>
+    <message>
+        <source>decorate.colour</source>
+        <translation>色彩…</translation>
+    </message>
+    <message>
+        <source>decorate.underline</source>
+        <translation>底線</translation>
+    </message>
+    <message>
+        <source>decorate.margins</source>
+        <translation>與頁面邊緣的距離（點）</translation>
+    </message>
+    <message>
+        <source>decorate.shrink</source>
+        <translation>縮小頁面內容以騰出空間</translation>
+    </message>
+    <message>
+        <source>decorate.pages</source>
+        <translation>頁面</translation>
+    </message>
+    <message>
+        <source>decorate.profile</source>
+        <translation>設定檔</translation>
+    </message>
+    <message>
+        <source>decorate.profile.none</source>
+        <translation>（無）</translation>
+    </message>
+    <message>
+        <source>decorate.profile.name</source>
+        <translation>另存為</translation>
+    </message>
+    <message>
+        <source>decorate.profile.save</source>
+        <translation>儲存設定檔</translation>
+    </message>
+    <message>
+        <source>decorate.profile.delete</source>
+        <translation>刪除設定檔</translation>
+    </message>
+    <message>
+        <source>decorate.preview</source>
+        <translation>預覽</translation>
+    </message>
+    <message>
+        <source>decorate.previewPage</source>
+        <translation>預覽頁面</translation>
+    </message>
+    <message>
+        <source>decorate.bates.title</source>
+        <translation>貝茨編號</translation>
+    </message>
+    <message>
+        <source>decorate.bates.documents</source>
+        <translation>要編號的開啟文件（依編號順序）</translation>
+    </message>
+    <message>
+        <source>decorate.bates.up</source>
+        <translation>上移</translation>
+    </message>
+    <message>
+        <source>decorate.bates.down</source>
+        <translation>下移</translation>
+    </message>
+    <message>
+        <source>decorate.bates.prefix</source>
+        <translation>前置字元</translation>
+    </message>
+    <message>
+        <source>decorate.bates.suffix</source>
+        <translation>後置字元</translation>
+    </message>
+    <message>
+        <source>decorate.bates.digits</source>
+        <translation>位數</translation>
+    </message>
+    <message>
+        <source>decorate.bates.start</source>
+        <translation>起始號碼</translation>
+    </message>
+    <message>
+        <source>decorate.bates.position</source>
+        <translation>位置</translation>
+    </message>
+    <message>
+        <source>decorate.bates.sample</source>
+        <translation>第一個號碼：%1</translation>
+    </message>
+    <message>
+        <source>decorate.bates.pages</source>
+        <translation>%1（%2 頁）</translation>
+    </message>
+    <message>
+        <source>decorate.bates.reportTitle</source>
+        <translation>貝茨編號報告</translation>
+    </message>
+    <message>
+        <source>decorate.bates.reportLine</source>
+        <translation>%1：%2 至 %3</translation>
+    </message>
+    <message>
+        <source>decorate.bates.reportRefused</source>
+        <translation>%1：未編號。%2</translation>
+    </message>
+    <message>
+        <source>decorate.removed</source>
+        <translation>已從 %1 頁移除。</translation>
+    </message>
+    <message>
+        <source>decorate.field.page</source>
+        <translation>頁碼</translation>
+    </message>
+    <message>
+        <source>decorate.field.count</source>
+        <translation>總頁數</translation>
+    </message>
+    <message>
+        <source>decorate.field.label</source>
+        <translation>頁面標籤</translation>
+    </message>
+    <message>
+        <source>decorate.field.date</source>
+        <translation>日期</translation>
+    </message>
+    <message>
+        <source>decorate.field.time</source>
+        <translation>時間</translation>
+    </message>
+    <message>
+        <source>decorate.field.file</source>
+        <translation>檔案名稱</translation>
+    </message>
+    <message>
+        <source>decorate.field.path</source>
+        <translation>檔案路徑</translation>
+    </message>
+    <message>
+        <source>decorate.field.bates</source>
+        <translation>貝茨編號</translation>
+    </message>
+    <message>
+        <source>decorate.parity.all</source>
+        <translation>範圍內的每一頁</translation>
+    </message>
+    <message>
+        <source>decorate.parity.odd</source>
+        <translation>僅奇數頁</translation>
+    </message>
+    <message>
+        <source>decorate.parity.even</source>
+        <translation>僅偶數頁</translation>
+    </message>
+    <message>
+        <source>decorate.position.headerLeft</source>
+        <translation>左上</translation>
+    </message>
+    <message>
+        <source>decorate.position.headerCentre</source>
+        <translation>中上</translation>
+    </message>
+    <message>
+        <source>decorate.position.headerRight</source>
+        <translation>右上</translation>
+    </message>
+    <message>
+        <source>decorate.position.footerLeft</source>
+        <translation>左下</translation>
+    </message>
+    <message>
+        <source>decorate.position.footerCentre</source>
+        <translation>中下</translation>
+    </message>
+    <message>
+        <source>decorate.position.footerRight</source>
+        <translation>右下</translation>
     </message>
 </context>
 </TS>

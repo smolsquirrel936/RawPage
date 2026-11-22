@@ -166,6 +166,17 @@
 //
 // NAMED DESTINATIONS -- Stage 7 T12 (D7-10, D7-35): see `setDestinations` and `composeDestinations`.
 //
+// DECORATIONS -- Stage 7 T14 (D7-7, D7-44). The same rule as T9's wrappers, over the same list: per page OBJECT, the
+// decorations it should draw (`decorations_`) and the wrappers round its content (`wraps_`) -- each an id, and for one
+// not yet written what it draws -- read from the page's `/Contents` by mark the first time a command asks
+// (`PageOps::contentLayers`). The compose compares the ids each page should carry with the ids its contents list, and
+// only where they differ writes `/Contents` again -- a layer on disk by the references it has, a new one as new streams
+// (`DecorationOps`) -- and `/Resources`, through the record `DecorationOps` describes, so the last decoration taken out
+// writes back exactly what the page had. `takeDecorations` takes every decoration of a kind with its wrapper, and keeps
+// what each page had under its key; an undo puts that back, before a save or after one -- a layer on disk is found
+// again by its mark, so nothing is rewritten that need not be. Built again at every compose, as T9's are (S7 T4 caches
+// annotations, not pages).
+//
 // WHAT IT DOES NOT DO. It refuses nothing on policy -- whether this document may be edited at all is
 // `core/doc/Permissions` (D3-7, T4) -- and it writes nothing: the update's bytes, the temporary file
 // and the replace are `IncrementalWriter`, `SaveCoordinator` and `platform::IDurableFiles`.
@@ -300,6 +311,21 @@ public:
     // For each page of the desired order: the boxes a box command gave it, nullopt for every other -- what the backend's
     // page tree must say the engine draws (D7-3's tree), and what verify reads back.
     std::vector<std::optional<core::PageBoxes>> drawnBoxes() const;
+
+    // --- Decorations (Stage 7 T14) -- see the header --------------------------------------------------------------
+    core::Status addPageDecorations(const std::vector<int>& pages, const std::vector<core::PageDecoration>& decorations,
+                                    const QString& key) override;
+    core::Status removePageDecorations(const std::vector<int>& pages, const QString& key) override;
+    core::Result<std::vector<int>> takeDecorations(core::DecorationKind kind, const QString& key) override;
+    core::Status restoreDecorations(const QString& key) override;
+    // For each page of the desired order: the ids of the decorations it will carry, behind then in front, in order --
+    // nullopt for a page no decoration command touched. What verify reads back (`PageOps::contentLayers`).
+    struct DecorationIds {
+        std::vector<QString> behind;
+        std::vector<QString> front;
+        bool operator==(const DecorationIds&) const = default;
+    };
+    std::vector<std::optional<DecorationIds>> drawnDecorations() const;
     // The labels every page will carry once the desired state is written, as `PageOps::readLabels` reads them back;
     // and whether a label command has run since the sink opened -- verify's question.
     const std::vector<PageLabelRange>& desiredLabels() const noexcept { return labels_; }
@@ -699,9 +725,25 @@ private:
     std::map<long long, QString> graphOfPage_;
     // --- Stage 7 T9's per-page values (see below), declared before the replace's slot that keeps them ---
     // A resize's wrapper: its command's key, and its matrix and clip for one not yet written (none: one on disk).
+    // S7 T14: a decoration's wrapper too, marked with its kind (none: a resize's).
     struct WrapLayer {
         QString id;
         std::optional<core::PageContentWrap> wrap;
+        std::optional<core::DecorationKind> kind;
+        // S7 T14: for one read from disk, its two references as listed -- so a layer a later command took out, and an
+        // undo after a save puts back, is listed again as those very streams.
+        std::optional<std::pair<cos::CosObject, cos::CosObject>> listed;
+    };
+    // S7 T14: one decoration on a page -- its key, its kind, which side of the content, and what it draws for one not
+    // yet written (null: one on disk, found by its mark).
+    struct DecorationLayer {
+        QString id;
+        core::DecorationKind kind = core::DecorationKind::HeaderFooter;
+        bool behind = false;
+        std::shared_ptr<const core::PageDecoration> drawing;
+        // For one read from disk: the stream that paints it and the form it paints, as listed (see `WrapLayer::listed`).
+        std::optional<cos::CosObject> stream;
+        std::optional<cos::CosObject> form;
     };
     // A page's `/Thumb`: an image a command set (`flate` its pixels, compressed once), or a value as written --
     // a reference, or none -- or, for a page no save has written, whatever the page it is drawn from has (`keep`).
@@ -731,6 +773,7 @@ private:
         std::optional<core::PageBoxes> boxes;
         std::optional<std::vector<WrapLayer>> wraps;
         std::optional<ThumbState> thumb;
+        std::optional<std::vector<DecorationLayer>> decorations;   // S7 T14
     };
     std::map<QString, std::vector<ReplacedSlot>> replacedStash_;
 
@@ -740,6 +783,20 @@ private:
     std::map<long long, core::PageBoxes> boxes_;          // what a box command made the page show
     std::map<QString, std::vector<std::pair<long long, core::PageBoxes>>> boxStash_;   // what each showed before
     std::map<long long, std::vector<WrapLayer>> wraps_;   // INNERMOST first; only pages a wrap touched
+    // S7 T14: the decorations each page draws -- behind ones first, each side in drawing order; only pages a decoration
+    // command touched -- and what each `takeDecorations` took, per page, so its restore puts it back.
+    std::map<long long, std::vector<DecorationLayer>> decorations_;
+    struct TakenDecorations {
+        long long page = 0;
+        std::optional<std::vector<DecorationLayer>> decorations;
+        std::optional<std::vector<WrapLayer>> wraps;
+    };
+    std::map<QString, std::vector<TakenDecorations>> decorationStash_;
+    // The layers page `index` draws now -- read from its contents the first time a command asks.
+    std::vector<WrapLayer>& wrapsOf(int index);
+    std::vector<DecorationLayer>& decorationsOf(int index);
+    // `pending` page `written`'s `/Contents` and `/Resources` rebuilt for the layers it should draw -- see the header.
+    core::Status composeContentLayers(int index, cos::CosObject& page, cos::ObjectDelta& delta, AppearanceObjects& shared);
     std::map<long long, ThumbState> thumbs_;
     std::map<QString, std::vector<std::pair<long long, ThumbState>>> thumbStash_;
     std::map<QString, std::vector<PageLabelRange>> labelStash_;   // the whole numbering each label command replaced

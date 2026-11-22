@@ -160,6 +160,12 @@ add_executable(rawpage_tests
                                   #   and bookmarks renamed and cleared with it, a page command's remap (S7 guide A-82)
     tst_links.cpp                 # Stage 7 T12 -- following, verifying and URL detection, pure; a link's fields through
                                   #   Stage 6's commands and the shipped sink (S7 guide A-84 ... A-88, headless halves)
+    tst_headerfooter.cpp          # Stage 7 T14 -- the header/footer engine, pure: every field per page against hand values,
+                                  #   the lines on the page as shown at each rotation, shrink, the spec's bounds, the Bates
+                                  #   allocator (S7 guide A-92, A-93, A-95, A-96 headless halves)
+    tst_decoration.cpp            # Stage 7 T14 -- headers, footers and Bates through the shipped sink, read back first-party:
+                                  #   apply, save, remove, save leaves every page as it was over the corpus; another
+                                  #   producer's untouched; undo after a save (S7 guide A-91, A-94, A-95's first-party half)
     tst_pagereconnect.cpp         # Stage 7 guide I-23 -- a page cut or copied and pasted back keeps its bookmarks, named
                                   #   destinations and links, through the shipped sink, saved and read back (D7-37)
     tst_splitplan.cpp             # Stage 7 T7  -- the six split rules and the page-range syntax, pure, against hand

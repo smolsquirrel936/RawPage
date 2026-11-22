@@ -26,6 +26,7 @@
 #include "core/doc/OutlineGenerator.h"
 #include "core/doc/TableOfContents.h"
 #include "core/doc/CopiedPages.h"
+#include "core/doc/HeaderFooter.h"
 #include "core/backend.h"
 #include "core/doc/Page.h"
 #include "core/doc/PageTree.h"
@@ -46,6 +47,7 @@
 #include <chrono>
 #include <functional>
 #include <map>
+#include <set>
 #include <memory>
 #include <mutex>
 #include <thread>
@@ -205,6 +207,57 @@ public:
         wrapped -= static_cast<int>(pages.size());
         return {};
     }
+    // Stage 7 T14: each key's pages and kind, as the real sink keeps them by mark -- so a remove finds what an apply added.
+    core::Status addPageDecorations(const std::vector<int>& pages, const std::vector<core::PageDecoration>& decorations,
+                                    const QString& key) override
+    {
+        ++calls;
+        if (decorations.size() != pages.size() || decorationPages.count(key) != 0)
+            return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.command.malformed"), QString()};
+        decorationPages.emplace(key, pages);
+        decorationKinds.emplace(key, decorations.empty() ? core::DecorationKind::HeaderFooter : decorations.front().kind);
+        lastDecorations = decorations;
+        return {};
+    }
+    core::Status removePageDecorations(const std::vector<int>&, const QString& key) override
+    {
+        ++calls;
+        if (decorationPages.erase(key) == 0)
+            return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.command.malformed"), QString()};
+        decorationKinds.erase(key);
+        return {};
+    }
+    core::Result<std::vector<int>> takeDecorations(core::DecorationKind kind, const QString& key) override
+    {
+        ++calls;
+        std::set<int> pages;
+        std::map<QString, std::vector<int>> taken;
+        for (auto it = decorationPages.begin(); it != decorationPages.end();) {
+            if (decorationKinds.at(it->first) != kind) {
+                ++it;
+                continue;
+            }
+            pages.insert(it->second.begin(), it->second.end());
+            taken.emplace(it->first, it->second);
+            decorationKinds.erase(it->first);
+            it = decorationPages.erase(it);
+        }
+        if (!taken.empty()) decorationStash.emplace(key, std::pair{kind, std::move(taken)});
+        return std::vector<int>(pages.begin(), pages.end());
+    }
+    core::Status restoreDecorations(const QString& key) override
+    {
+        ++calls;
+        const auto found = decorationStash.find(key);
+        if (found == decorationStash.end())
+            return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.command.malformed"), QString()};
+        for (const auto& [id, pages] : found->second.second) {
+            decorationPages.emplace(id, pages);
+            decorationKinds.emplace(id, found->second.first);
+        }
+        decorationStash.erase(found);
+        return {};
+    }
     core::Result<std::vector<QString>> setPageLabels(const std::vector<int>& pages, const std::vector<core::PageLabelSpec>& labels,
                                                      const QString& key) override
     {
@@ -269,6 +322,11 @@ public:
     std::map<int, core::PageBoxes> pageBoxes;
     std::map<QString, std::vector<std::pair<int, std::optional<core::PageBoxes>>>> boxStash;
     int wrapped = 0;
+    // Stage 7 T14.
+    std::map<QString, std::vector<int>> decorationPages;
+    std::map<QString, core::DecorationKind> decorationKinds;
+    std::map<QString, std::pair<core::DecorationKind, std::map<QString, std::vector<int>>>> decorationStash;
+    std::vector<core::PageDecoration> lastDecorations;
     std::vector<QString> shownLabels;
     std::map<QString, std::vector<QString>> labelStash;
     int labelPageCount = 0;   // the document's page count, for a label command's answer

@@ -7,7 +7,8 @@ more at Stage 6 T1 for its eleven annotated PDFs, and 99 more at Stage 7 T1 for 
 assembly PDFs (captured after Stage 7 guide I-01's fix; the twenty-second file is not a PDF) — each
 one filtered capture that regenerated none of the baselines before it — and compared on every `ctest` run by `tests/golden`
 (`render.golden.*`). **Beside them, since Stage 6 T8, APPEARANCE baselines** -- 31 at T8, 39 since T10's eight stamps, 40 since T11's file attachments, 42 since T12's two measurement cases -- under `golden/appearance/` -- see
-*Appearance baselines* below; they are not corpus pages and are not counted in the 468. This directory is **data, not code** — nothing links it, and
+*Appearance baselines* below -- and **since Stage 7 T14, nine DECORATION baselines** under `golden/decoration/` -- see
+*Decoration baselines* below; neither family is corpus pages and neither is counted in the 468. This directory is **data, not code** — nothing links it, and
 `Tech-Stack-Plan.md` §4.1 lists it beside `i18n/`, `res/` and `corpus/`.
 
 ## What a green golden run claims — and what it does not
@@ -131,6 +132,20 @@ rasterizer the way they did when each baseline was LOOKED AT and kept -- not tha
 whole, and one image was NOT kept: `polyline-endings` had no endings because its spec never set `/LE` (`UPDATES.md`,
 2026-10-08). PDFium's own generation is a second oracle for the kinds it can generate -- `tests/render/tst_appearance`,
 guide A-65 -- and reads the same spec's page builder.
+
+## Decoration baselines (Stage 7 T14, guide A-98)
+
+`golden/decoration/<name>.png`, one per case of **`tests/golden/DecorationCases`** -- the appearance suite's shape: a
+DECLARATIVE SPEC in code, a page 288 by 216 points with a grey band and black bars of content (so a shrink has something to
+shrink), sometimes turned, and one header/footer or Bates spec with fixed field values and a fixed key. Unlike an
+appearance case, the page is written THROUGH THE SHIPPED PATH -- opened by `pdf/ops/MutationSinkImpl`, laid out by
+`core::layoutHeaderFooter`, written by `RevisionWriter::compose` and verified as a save verifies -- so a baseline is what a
+save writes. Drawn at **144 dpi only**, compared at the thresholds below by `render.golden.decoration every case matches its
+baseline`, both directions held by `... every case has a baseline and every baseline is a case`. Captured by
+**`golden-update --decoration --reason "…"`** (`--filter` matches a case's name), recorded in `captured.json` as
+`decoration/<name>` and in `UPDATES.md`. **The same bound as the appearance baselines, and no more:** our decorations
+rasterize on THIS rasterizer the way they did when each was looked at and kept -- not that Acrobat draws them so (Stage 7
+guide M-07). The `cjk` case draws its Han, kana and Hangul in this machine's CJK faces, as every CJK baseline here does.
 
 ## Storage
 

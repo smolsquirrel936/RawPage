@@ -5,6 +5,7 @@
 #include "pdf/cos/FullWriter.h"
 #include "pdf/cos/IncrementalWriter.h"
 #include "pdf/cos/XrefRepair.h"
+#include "pdf/ops/DecorationOps.h"
 #include "pdf/ops/PageOps.h"
 
 #include <QFile>
@@ -289,6 +290,29 @@ core::Status verifyModel(cos::OpenedFile& opened, const MutationSinkImpl& sink)
         }
         if (sink.labelsChanged() && PageOps::readLabels(opened.table, sink.pageCount()) != sink.desiredLabels())
             return saveError(core::ErrorCode::Corrupted, "error.save.verifyFailed", QStringLiteral("labels"));
+    }
+    // Stage 7 T14: every page a decoration command touched lists exactly the decorations composed, by their marks, behind
+    // and in front in order -- and names each one's form in its resources.
+    {
+        const std::vector<std::optional<MutationSinkImpl::DecorationIds>> decorations = sink.drawnDecorations();
+        for (int index = 0; index < sink.pageCount(); ++index) {
+            const auto& want = decorations[static_cast<std::size_t>(index)];
+            if (!want) continue;
+            auto page = opened.table.fetch(walk.value().pages[static_cast<std::size_t>(index)].number);
+            if (!page || !page.value().object.isDictionary())
+                return saveError(core::ErrorCode::Corrupted, "error.save.verifyFailed", QStringLiteral("decorations:%1").arg(index + 1));
+            const PageOps::ContentLayers read = PageOps::contentLayers(opened.table, page.value().object.get("Contents"));
+            MutationSinkImpl::DecorationIds got;
+            for (const auto& d : read.behind) got.behind.push_back(d.id);
+            for (const auto& d : read.front) got.front.push_back(d.id);
+            bool named = true;
+            for (const auto* side : {&got.behind, &got.front}) {
+                for (const QString& id : *side)
+                    named = named && DecorationOps::formOf(opened.table, page.value().object.get("Resources"), id).has_value();
+            }
+            if (!(got == *want) || !named)
+                return saveError(core::ErrorCode::Corrupted, "error.save.verifyFailed", QStringLiteral("decorations:%1").arg(index + 1));
+        }
     }
 
     // Every page's /Annots reads back as the sink composed it (Stage 6 T3) -- a created annotation as a

@@ -3401,6 +3401,7 @@ void MainWindow::registerActions()
     registerMergeActions();
     registerBookmarkActions();   // S7 T11
     registerLinkActions();       // S7 T12
+    registerDecorationActions();   // S7 T14
 
     // --- Documents and windows (T12) --------------------------------------------------------
     // `file.open` raises a file dialog and hands what it collects to `openFiles`, which checks a

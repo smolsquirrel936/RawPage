@@ -32,6 +32,7 @@
 // mechanism whose only evidence is its own source comment is the shape Stage 1 kept finding.
 
 #include "tests/golden/AppearanceCases.h"
+#include "tests/golden/DecorationCases.h"
 #include "tests/golden/GoldenSuite.h"
 
 #include "pdf/render/PdfiumInit.h"
@@ -47,6 +48,7 @@
 #include <QTextStream>
 
 #include <algorithm>
+#include <functional>
 
 namespace {
 
@@ -71,6 +73,7 @@ struct Options {
     QString goldenRoot = QStringLiteral(RAWPAGE_GOLDEN_DIR);
     bool    survey = false;
     bool    appearance = false;   // S6 T8: the appearance cases, not the corpus
+    bool    decoration = false;   // S7 T14: the decoration cases, not the corpus
     bool    checkManifest = false;
     bool    explain = false;
     bool    help = false;
@@ -100,6 +103,7 @@ Options parse(const QStringList& arguments)
         else if (argument == QLatin1String("--golden"))       options.goldenRoot = takeValue("--golden");
         else if (argument == QLatin1String("--survey"))       options.survey = true;
         else if (argument == QLatin1String("--appearance"))   options.appearance = true;
+        else if (argument == QLatin1String("--decoration"))   options.decoration = true;
         else if (argument == QLatin1String("--check-manifest")) options.checkManifest = true;
         else if (argument == QLatin1String("--explain"))      options.explain = true;
         else if (argument == QLatin1String("--help") || argument == QLatin1String("-h"))
@@ -123,6 +127,8 @@ void printUsage()
           << "  --survey            measure corpus/ and print a manifest skeleton; writes nothing\n"
           << "  --appearance        the APPEARANCE baselines (tests/golden/AppearanceCases), not the corpus;\n"
           << "                      --filter matches a case's name. Still needs --reason.\n"
+          << "  --decoration        the DECORATION baselines (tests/golden/DecorationCases): headers, footers\n"
+          << "                      and Bates numbers written through the sink. --filter matches a name.\n"
           << "  --check-manifest    every corpus file is a case or an excluded-with-a-reason row\n"
           << "  --explain           the thresholds, the case census, and where the baselines live\n"
           << "  --corpus <dir>      override the corpus root\n"
@@ -430,7 +436,36 @@ int regenerate(const Options& options)
 // `tests/golden/AppearanceCases` -- written to `golden/appearance/<name>.png` at `kAppearanceDpi`, recorded in
 // `captured.json` as `appearance/<name>` and in `UPDATES.md` with the reason. LOOK at each before keeping it:
 // a baseline captured from a wrong builder is green for ever.
+// S7 T14 (D7-44, guide A-98): ONE capture for every spec-made family -- the appearance cases and the decoration cases --
+// each case its name, its note, its bytes and the baseline it is kept as, under `prefix` in `captured.json`.
+struct SpecCase {
+    QString name;
+    QString note;
+    std::function<std::string()> bytes;
+    QString relative;
+};
+
+int regenerateCases(const Options& options, const QString& prefix, int dpi, const std::vector<SpecCase>& cases);
+
 int regenerateAppearance(const Options& options)
+{
+    std::vector<SpecCase> cases;
+    for (const golden::AppearanceCase& item : golden::appearanceCases())
+        cases.push_back({item.name, item.note,
+                         [&item] { return golden::appearancePdf(item.annotations, item.rotate, true, item.overlay); },
+                         golden::appearanceBaselinePath(item)});
+    return regenerateCases(options, QStringLiteral("appearance/"), golden::kAppearanceDpi, cases);
+}
+
+int regenerateDecoration(const Options& options)
+{
+    std::vector<SpecCase> cases;
+    for (const golden::DecorationCase& item : golden::decorationCases())
+        cases.push_back({item.name, item.note, [&item] { return golden::decorationPdf(item); }, golden::decorationBaselinePath(item)});
+    return regenerateCases(options, QStringLiteral("decoration/"), golden::kDecorationDpi, cases);
+}
+
+int regenerateCases(const Options& options, const QString& prefix, int dpi, const std::vector<SpecCase>& cases)
 {
     golden::EngineSession session;
     if (!session.isReady()) {
@@ -452,12 +487,12 @@ int regenerateAppearance(const Options& options)
     log.reason = options.reason;
 
     int written = 0;
-    for (const golden::AppearanceCase& item : golden::appearanceCases()) {
+    for (const SpecCase& item : cases) {
         if (!options.filters.isEmpty()
             && std::none_of(options.filters.begin(), options.filters.end(),
                             [&item](const QString& filter) { return item.name.contains(filter, Qt::CaseInsensitive); }))
             continue;
-        const std::string bytes = golden::appearancePdf(item.annotations, item.rotate, true, item.overlay);
+        const std::string bytes = item.bytes();
         if (bytes.empty()) {
             err() << "golden-update: our builder refused case " << item.name << "; nothing was recorded\n";
             err().flush();
@@ -475,14 +510,14 @@ int regenerateAppearance(const Options& options)
         golden::Case probe;
         probe.file = name;
         probe.pages = {0};
-        probe.dpi = {golden::kAppearanceDpi};
-        const golden::RenderOutcome outcome = golden::renderPage(scratch.path(), probe, 0, golden::kAppearanceDpi);
+        probe.dpi = {dpi};
+        const golden::RenderOutcome outcome = golden::renderPage(scratch.path(), probe, 0, dpi);
         if (!outcome.ok) {
             err() << "golden-update: " << outcome.error << "\n";
             err().flush();
             return 1;
         }
-        const QString relative = golden::appearanceBaselinePath(item);
+        const QString relative = item.relative;
         QString error;
         if (!golden::writePng(QDir(options.goldenRoot).filePath(relative), outcome.image, &error)) {
             err() << "golden-update: " << error << "\n";
@@ -490,9 +525,9 @@ int regenerateAppearance(const Options& options)
             return 1;
         }
         golden::CaptureRecord record;
-        record.file = QStringLiteral("appearance/") + item.name;
+        record.file = prefix + item.name;
         record.page = 0;
-        record.dpi = golden::kAppearanceDpi;
+        record.dpi = dpi;
         record.width = outcome.image.width;
         record.height = outcome.image.height;
         record.substitutions = golden::describeSubstitutions(outcome.substitutions);
@@ -505,7 +540,7 @@ int regenerateAppearance(const Options& options)
         out().flush();
     }
     if (written == 0) {
-        err() << "golden-update: no appearance case matched\n";
+        err() << "golden-update: no " << prefix << " case matched\n";
         err().flush();
         return 1;
     }
@@ -521,12 +556,12 @@ int regenerateAppearance(const Options& options)
         return 1;
     }
     Options logged = options;
-    logged.filters = options.filters.isEmpty() ? QStringList{QStringLiteral("appearance/")} : options.filters;
+    logged.filters = options.filters.isEmpty() ? QStringList{prefix} : options.filters;
     if (!appendUpdateLog(logged, stamp, written)) {
         err().flush();
         return 1;
     }
-    out() << "\ngolden-update: " << written << " appearance baseline(s) written against PDFium " << pdf::render::version()
+    out() << "\ngolden-update: " << written << " " << prefix << " baseline(s) written against PDFium " << pdf::render::version()
           << " -- LOOK at each before it is kept\n";
     out().flush();
     return 0;
@@ -568,5 +603,6 @@ int main(int argc, char** argv)
         return 2;
     }
     if (options.appearance) return regenerateAppearance(options);
+    if (options.decoration) return regenerateDecoration(options);
     return regenerate(options);
 }

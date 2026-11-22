@@ -589,14 +589,49 @@ CosObject PageOps::wrapDictionary(const QString& id)
                                                           {"Id", CosObject::makeString(id.toStdString(), cos::StringForm::Hex)}})}});
 }
 
+CosObject PageOps::wrapDictionary(const QString& id, core::DecorationKind kind)
+{
+    return CosObject::makeDictionary(
+        {{"RawPageDecoration",
+          CosObject::makeDictionary({{"Kind", CosObject::makeName(core::decorationKindName(kind).data())},
+                                     {"Id", CosObject::makeString(id.toStdString(), cos::StringForm::Hex)},
+                                     {"Wrap", CosObject::makeBoolean(true)}})}});
+}
+
+namespace {
+
+QString latin1(const std::string& text)
+{
+    return QString::fromLatin1(text.data(), static_cast<qsizetype>(text.size()));
+}
+
+} // namespace
+
 QString PageOps::wrapId(const CosObject& stream)
 {
     const CosObject& mark = stream.get("RawPageDecoration");
     if (!mark.isDictionary()) return {};
     const CosObject& kind = mark.get("Kind");
     const CosObject& id = mark.get("Id");
-    if (!kind.isName() || kind.text() != "Resize" || !id.isString() || id.text().empty()) return {};
-    return QString::fromLatin1(id.text().data(), static_cast<qsizetype>(id.text().size()));
+    if (!kind.isName() || !id.isString() || id.text().empty()) return {};
+    const CosObject& wrap = mark.get("Wrap");
+    const bool wrapper = kind.text() == "Resize"
+                         || (wrap.booleanValue() && core::decorationKindByName(latin1(kind.text())));
+    if (!wrapper) return {};
+    return latin1(id.text());
+}
+
+std::optional<PageOps::DecorationMark> PageOps::decorationOf(const CosObject& stream)
+{
+    const CosObject& mark = stream.get("RawPageDecoration");
+    if (!mark.isDictionary()) return std::nullopt;
+    const CosObject& kind = mark.get("Kind");
+    const CosObject& id = mark.get("Id");
+    const CosObject& wrap = mark.get("Wrap");
+    if (!kind.isName() || !id.isString() || id.text().empty() || (wrap.booleanValue())) return std::nullopt;
+    const std::optional<core::DecorationKind> named = core::decorationKindByName(latin1(kind.text()));
+    if (!named) return std::nullopt;
+    return DecorationMark{latin1(id.text()), *named};
 }
 
 PageOps::ContentLayers PageOps::contentLayers(cos::XrefTable& table, const CosObject& contents)
@@ -618,16 +653,34 @@ PageOps::ContentLayers PageOps::contentLayers(cos::XrefTable& table, const CosOb
         auto fetched = table.fetch(item.reference().number);
         return fetched && fetched.value().object.isStream() ? wrapId(fetched.value().object) : QString();
     };
-    // From the outside in: a marked pair, the same id at both ends.
+    const auto decorationAt = [&table](const CosObject& item) -> std::optional<DecorationMark> {
+        if (!item.isReference()) return std::nullopt;
+        auto fetched = table.fetch(item.reference().number);
+        return fetched && fetched.value().object.isStream() ? decorationOf(fetched.value().object) : std::nullopt;
+    };
+    // From the outside in (T14): a decoration at the back, one at the front, else a marked pair, the same id at both ends.
     std::size_t front = 0;
     std::size_t back = items.size();
-    while (back - front >= 2) {
+    std::vector<ContentLayers::Decoration> inFront;   // collected back to front
+    while (back > front) {
+        if (std::optional<DecorationMark> mark = decorationAt(items[back - 1])) {
+            inFront.push_back(ContentLayers::Decoration{mark->id, mark->kind, items[back - 1]});
+            --back;
+            continue;
+        }
+        if (std::optional<DecorationMark> mark = decorationAt(items[front])) {
+            out.behind.push_back(ContentLayers::Decoration{mark->id, mark->kind, items[front]});
+            ++front;
+            continue;
+        }
+        if (back - front < 2) break;
         const QString id = idOf(items[front]);
         if (id.isEmpty() || idOf(items[back - 1]) != id) break;
         out.layers.push_back(ContentLayers::Layer{id, items[front], items[back - 1]});
         ++front;
         --back;
     }
+    out.front.assign(inFront.rbegin(), inFront.rend());
     out.content.assign(items.begin() + static_cast<std::ptrdiff_t>(front), items.begin() + static_cast<std::ptrdiff_t>(back));
     return out;
 }

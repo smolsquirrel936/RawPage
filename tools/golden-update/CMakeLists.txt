@@ -32,6 +32,7 @@ add_executable(golden-update
     "${CMAKE_SOURCE_DIR}/tests/golden/GoldenSuite.cpp"
     # Stage 6 T8 (D6-6): the appearance cases' spec, so `--appearance` captures exactly what the suite compares.
     "${CMAKE_SOURCE_DIR}/tests/golden/AppearanceCases.cpp"
+    "${CMAKE_SOURCE_DIR}/tests/golden/DecorationCases.cpp"   # S7 T14 (guide A-98)
 )
 
 target_include_directories(golden-update PRIVATE "${CMAKE_SOURCE_DIR}")

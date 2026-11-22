@@ -17,6 +17,7 @@
 #include "core/cmd/commands/AnnotationCommands.h"
 #include "core/cmd/commands/AttachmentCommands.h"
 #include "core/cmd/commands/BookmarkCommands.h"
+#include "core/cmd/commands/DecorationCommands.h"
 #include "core/cmd/commands/DestinationCommands.h"
 #include "pdf/ops/ObjectGraphCopier.h"
 #include "core/cmd/commands/PageCommands.h"
@@ -473,6 +474,46 @@ const std::map<std::string, std::function<std::vector<std::unique_ptr<Command>>(
                  std::vector<QString>{QStringLiteral("dest-alpha"), QStringLiteral("dest-beta")}));
              return out;
          }},
+        // Stage 7 T14 (D7-44): a header and footer -- every area, every field, odd pages, CJK, shrink -- added and as an
+        // UPDATE; a Bates number; and the two removals, which carry only their key.
+        {"headerFooter.apply",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             core::HeaderFooterSpec spec;
+             spec.areas = {QStringLiteral("<<file>>"), QStringLiteral("<<date:dd MMM yyyy>> <<time>>"), QStringLiteral("<<label>>"),
+                           QStringLiteral("Page <<page>> of <<count>>"), QStringLiteral("<<path>>"), QStringLiteral("第一章")};
+             spec.colour = {0.25, 0.5, 1.0};
+             spec.underline = true;
+             spec.shrink = true;
+             spec.parity = core::PageParity::Odd;
+             spec.range = QStringLiteral("1-9, 12");
+             spec.han = core::TypedFont::Traditional;
+             const core::FieldValues values{QDate(2026, 11, 23), QTime(23, 59, 59), QStringLiteral("a b.pdf"), QStringLiteral("C:\\x\\a b.pdf")};
+             out.push_back(std::make_unique<core::ApplyHeaderFooterCommand>(spec, values));
+             out.push_back(std::make_unique<core::ApplyHeaderFooterCommand>(spec, values, true, QString(32, QLatin1Char('c'))));
+             return out;
+         }},
+        {"headerFooter.remove",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             out.push_back(std::make_unique<core::RemoveHeaderFooterCommand>());
+             return out;
+         }},
+        {"bates.apply",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             core::HeaderFooterSpec spec;
+             spec.areas[5] = QStringLiteral("<<bates>>");
+             spec.bates = core::BatesFormat{QStringLiteral("ABC-"), QStringLiteral("-Z"), 15, core::kMaxBatesNumber - 10};
+             out.push_back(std::make_unique<core::ApplyBatesCommand>(spec, core::FieldValues{QDate(2000, 1, 1), QTime(0, 0), {}, {}}));
+             return out;
+         }},
+        {"bates.remove",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             out.push_back(std::make_unique<core::RemoveBatesCommand>(QString(32, QLatin1Char('e'))));
+             return out;
+         }},
         // Stage 6 T13 (D6-20): an import that only adds -- an exchange's names, an Acrobat-shaped one among them --
         // one that only replaces, and one that does both.
         {"annot.import",
@@ -520,7 +561,7 @@ bool catalogHas(const char* file, QLatin1String key)
 // A-42 -- the registry round-trips what it registered and refuses what it did not
 // ==========================================================================================
 
-TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][serialize][serialize:RotatePageCommand][serialize:AddAnnotationCommand][serialize:DeleteAnnotationCommand][serialize:EditAnnotationCommand][serialize:MoveAnnotationCommand][serialize:SetAnnotationAppearanceCommand][serialize:LockAnnotationCommand][serialize:ReplyToAnnotationCommand][serialize:SetAnnotationStatusCommand][serialize:AddAttachmentCommand][serialize:DeleteAttachmentCommand][serialize:ImportAnnotationsCommand][serialize:MovePagesCommand][serialize:DeletePagesCommand][serialize:DuplicatePagesCommand][serialize:InsertPagesCommand][serialize:ReplacePagesCommand][serialize:CropPagesCommand][serialize:ResizePagesCommand][serialize:RenumberPagesCommand][serialize:SetEmbeddedThumbnailsCommand][serialize:CreateBookmarkCommand][serialize:EditBookmarkCommand][serialize:DeleteBookmarkCommand][serialize:ReparentBookmarkCommand][serialize:SetBookmarkTargetCommand][serialize:GenerateBookmarksCommand][serialize:CreateDestinationCommand][serialize:RenameDestinationCommand][serialize:DeleteDestinationCommand]")
+TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][serialize][serialize:RotatePageCommand][serialize:AddAnnotationCommand][serialize:DeleteAnnotationCommand][serialize:EditAnnotationCommand][serialize:MoveAnnotationCommand][serialize:SetAnnotationAppearanceCommand][serialize:LockAnnotationCommand][serialize:ReplyToAnnotationCommand][serialize:SetAnnotationStatusCommand][serialize:AddAttachmentCommand][serialize:DeleteAttachmentCommand][serialize:ImportAnnotationsCommand][serialize:MovePagesCommand][serialize:DeletePagesCommand][serialize:DuplicatePagesCommand][serialize:InsertPagesCommand][serialize:ReplacePagesCommand][serialize:CropPagesCommand][serialize:ResizePagesCommand][serialize:RenumberPagesCommand][serialize:SetEmbeddedThumbnailsCommand][serialize:CreateBookmarkCommand][serialize:EditBookmarkCommand][serialize:DeleteBookmarkCommand][serialize:ReparentBookmarkCommand][serialize:SetBookmarkTargetCommand][serialize:GenerateBookmarksCommand][serialize:CreateDestinationCommand][serialize:RenameDestinationCommand][serialize:DeleteDestinationCommand][serialize:ApplyHeaderFooterCommand][serialize:RemoveHeaderFooterCommand][serialize:ApplyBatesCommand][serialize:RemoveBatesCommand]")
 {
     const auto typeIds = CommandRegistry::typeIds();
     REQUIRE_FALSE(typeIds.empty());
@@ -559,9 +600,10 @@ TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][s
     // Stage 7 T9: crop, resize, renumber and thumbnails, two each.
     // Stage 7 T11: the six bookmark commands -- two each, and a target of every kind a command can carry (9; 12 since
     // Stage 7 T12, the three form actions added). Stage 7 T12: annot.add's fourth sample, the links; the three destination
-    // commands, 1, 1 and 2. Stage 7 guide I-23: page.insert's two pastes back into their own document (+ 2).
+    // commands, 1, 1 and 2. Stage 7 guide I-23: page.insert's two pastes back into their own document (+ 2). Stage 7 T14:
+    // the header/footer apply 2 (added, updated), its remove 1, the Bates apply 1 and its remove 1.
     CHECK(roundTrips == 16 + 3 + 4 + 2 + 2 + 2 + 2 + 2 + 2 + 3 + 2 + 2 + 3 + 3 + 2 + 2 + 2 + 1 + 2 + 2 + 2 + 2 + 2 + 2 + 2 + 2 + 12 + 2
-                            + 1 + 1 + 2 + 2);
+                            + 1 + 1 + 2 + 2 + 2 + 1 + 1 + 1);
 }
 
 // Stage 6 T13 (D6-20): an import is a journal line carrying two sets -- what it adds must be what an add accepts,

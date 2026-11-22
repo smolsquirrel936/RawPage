@@ -111,6 +111,8 @@ struct PageBoxes;            // core/doc/Page.h            -- Stage 7 T9 (D7-15)
 struct PageContentWrap;      // core/doc/Page.h            -- Stage 7 T9 (D7-7, D7-32)
 struct PageLabelSpec;        // core/doc/Page.h            -- Stage 7 T9
 struct PageThumbnail;        // core/doc/Page.h            -- Stage 7 T9
+struct PageDecoration;       // core/doc/HeaderFooter.h    -- Stage 7 T14 (D7-7)
+enum class DecorationKind : std::uint8_t;   // core/doc/HeaderFooter.h -- Stage 7 T14
 struct OutlineItem;          // core/doc/Outline.h         -- Stage 7 T11 (D7-10)
 struct HeadingLine;          // core/doc/OutlineGenerator.h -- Stage 7 T11
 struct TableOfContents;      // core/doc/TableOfContents.h -- Stage 7 T11 (D7-11)
@@ -444,6 +446,24 @@ public:
     virtual Status setPageThumbnails(const std::vector<int>& pages, const std::vector<PageThumbnail>& thumbnails,
                                      const QString& key) = 0;
     virtual Status restorePageThumbnails(const std::vector<int>& pages, const QString& key) = 0;
+
+    // DECORATIONS -- Stage 7 T14 (`Stage7-Assembly-Plan.md` D7-7, D7-44): a header, a footer, a Bates number (and T15's
+    // watermark) drawn by streams of their OWN, marked with their kind and `key`, so they are found and taken out again by
+    // list, with no content stream parsed. Each pair all or nothing, each over a set.
+    //
+    // `addPageDecorations`: page `pages[i]` draws `decorations[i]` -- behind its content or in front, its content drawn
+    // through the decoration's wrapper -- above every decoration it already has. Refused, with nothing changed, for a set
+    // that is not one, sizes that differ, or a key a page already carries. `removePageDecorations` takes out exactly
+    // what that key added (its undo).
+    virtual Status addPageDecorations(const std::vector<int>& pages, const std::vector<PageDecoration>& decorations,
+                                      const QString& key) = 0;
+    virtual Status removePageDecorations(const std::vector<int>& pages, const QString& key) = 0;
+    // `takeDecorations`: EVERY decoration of `kind` on every page -- written by any earlier command, saved or not, and
+    // only RawPage's: a stream another producer wrote is never one (D7-7) -- taken out with its wrapper, and kept under
+    // `key`; answers the pages it was on, in order -- none, with nothing changed, when there was none.
+    // `restoreDecorations` with the same key puts them back where they were (its undo) -- before a save and after one.
+    virtual Result<std::vector<int>> takeDecorations(DecorationKind kind, const QString& key) = 0;
+    virtual Status restoreDecorations(const QString& key) = 0;
 
     // THE OUTLINE -- Stage 7 T11 (`Stage7-Assembly-Plan.md` D7-10, D7-34). The outline the document should have, WHOLE,
     // as the model holds it after the command -- every item by its id, its destinations named in page INDICES as the

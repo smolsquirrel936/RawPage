@@ -96,8 +96,10 @@ void ProfileStore::load()
     stamps_.clear();
     builtInFavourites_.clear();
     damaged_.clear();
+    headerFooterProfiles_.clear();
     const QDir dir(root_);
     if (!dir.exists()) return;
+    loadProfiles(ProfileKind::HeaderFooter);   // S7 T14
 
     if (dir.exists(kFavouritesFile)) {
         const std::optional<QByteArray> bytes = readCapped(dir.filePath(kFavouritesFile), kMaxDescriptionBytes);
@@ -353,6 +355,100 @@ Result<QByteArray> ProfileStore::imageBytes(const QString& id) const
     if (!bytes || imageFormatOf(*bytes) != stamp->format)
         return Error{ErrorCode::IoFailure, QLatin1String("error.stamps.damaged"), stamp->id + QStringLiteral(".") + stamp->format};
     return std::move(*bytes);
+}
+
+// ---- Named profiles (Stage 7 T14) -- see the header ----------------------------------------------------------------
+
+QString ProfileStore::profileDirectory(ProfileKind kind) const
+{
+    switch (kind) {
+    case ProfileKind::HeaderFooter: break;
+    }
+    return QDir(root_).filePath(QStringLiteral("profiles/headerFooter"));
+}
+
+std::vector<ProfileStore::Profile>& ProfileStore::profilesOf(ProfileKind) { return headerFooterProfiles_; }
+const std::vector<ProfileStore::Profile>& ProfileStore::profilesOf(ProfileKind) const { return headerFooterProfiles_; }
+
+void ProfileStore::loadProfiles(ProfileKind kind)
+{
+    std::vector<Profile>& into = profilesOf(kind);
+    into.clear();
+    const QDir dir(profileDirectory(kind));
+    if (!dir.exists()) return;
+    for (const QString& file : dir.entryList({QStringLiteral("*.json")}, QDir::Files, QDir::Name)) {
+        const QString id = QFileInfo(file).completeBaseName();
+        if (!isId(id)) continue;   // not ours
+        const QString shown = QStringLiteral("profiles/") + dir.dirName() + QLatin1Char('/') + file;
+        if (static_cast<int>(into.size()) >= kMaxProfiles) {
+            damaged_ << shown;
+            continue;
+        }
+        const std::optional<QByteArray> bytes = readCapped(dir.filePath(file), kMaxDescriptionBytes);
+        QJsonParseError parse{};
+        const QJsonDocument json = bytes ? QJsonDocument::fromJson(*bytes, &parse) : QJsonDocument();
+        const QJsonObject o = json.object();
+        const QString name = o.value(QStringLiteral("name")).toString();
+        if (!bytes || parse.error != QJsonParseError::NoError || !json.isObject() || !validName(name)
+            || !o.value(QStringLiteral("spec")).isObject()
+            || std::any_of(into.begin(), into.end(), [&name](const Profile& p) { return p.name == name.trimmed(); })) {
+            damaged_ << shown;
+            continue;
+        }
+        into.push_back(Profile{id, name.trimmed(), o.value(QStringLiteral("spec")).toObject()});
+    }
+}
+
+QStringList ProfileStore::profileNames(ProfileKind kind) const
+{
+    QStringList names;
+    for (const Profile& p : profilesOf(kind)) names << p.name;
+    std::sort(names.begin(), names.end(), [](const QString& a, const QString& b) {
+        const int folded = a.compare(b, Qt::CaseInsensitive);
+        return folded != 0 ? folded < 0 : a < b;
+    });
+    return names;
+}
+
+Result<QJsonObject> ProfileStore::profile(ProfileKind kind, const QString& name) const
+{
+    for (const Profile& p : profilesOf(kind)) {
+        if (p.name == name.trimmed()) return p.spec;
+    }
+    return storeError("error.profiles.unknown", name);
+}
+
+Status ProfileStore::saveProfile(ProfileKind kind, const QString& name, const QJsonObject& spec)
+{
+    if (!validName(name)) return storeError("error.stamps.badName", name);
+    std::vector<Profile>& profiles = profilesOf(kind);
+    auto found = std::find_if(profiles.begin(), profiles.end(), [&name](const Profile& p) { return p.name == name.trimmed(); });
+    if (found == profiles.end() && static_cast<int>(profiles.size()) >= kMaxProfiles) return storeError("error.profiles.full");
+    const QString directory = profileDirectory(kind);
+    if (!QDir().mkpath(directory)) return Error{ErrorCode::IoFailure, QLatin1String("error.stamps.writeFailed"), directory};
+    Profile profile{found != profiles.end() ? found->id : newAnnotationName(), name.trimmed(), spec};
+    QJsonObject o;
+    o.insert(QStringLiteral("version"), 1);
+    o.insert(QStringLiteral("name"), profile.name);
+    o.insert(QStringLiteral("spec"), profile.spec);
+    if (Status written = writeWhole(QDir(directory).filePath(profile.id + QStringLiteral(".json")),
+                                    QJsonDocument(o).toJson(QJsonDocument::Indented));
+        !written)
+        return written;
+    if (found != profiles.end()) *found = std::move(profile);
+    else profiles.push_back(std::move(profile));
+    return Status{};
+}
+
+Status ProfileStore::removeProfile(ProfileKind kind, const QString& name)
+{
+    std::vector<Profile>& profiles = profilesOf(kind);
+    const auto found = std::find_if(profiles.begin(), profiles.end(), [&name](const Profile& p) { return p.name == name.trimmed(); });
+    if (found == profiles.end()) return storeError("error.profiles.unknown", name);
+    if (!QFile::remove(QDir(profileDirectory(kind)).filePath(found->id + QStringLiteral(".json"))))
+        return Error{ErrorCode::IoFailure, QLatin1String("error.stamps.writeFailed"), name};
+    profiles.erase(found);
+    return Status{};
 }
 
 } // namespace rawpage::core

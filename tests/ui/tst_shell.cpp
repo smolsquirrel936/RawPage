@@ -220,7 +220,8 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 212);   // 214 until S7 D7-42 unregistered the two `Ctrl+E` toggles
+    CHECK(fixture.actions.registeredCount() == 217);   // 214 until S7 D7-42 unregistered the two `Ctrl+E` toggles;
+                                                       // +5 at S7 T14 (`headerFooter.add/update/remove`, `bates.add/remove`)
     CHECK(fixture.actions.isRegistered(core::ActionId::LinkVerify));             // S7 T12, minted
     CHECK(fixture.actions.isRegistered(core::ActionId::DestinationRename));      // S7 T12
     CHECK(fixture.actions.isRegistered(core::ActionId::MergeDocuments));         // S7 T10

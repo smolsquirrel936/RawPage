@@ -83,6 +83,8 @@ add_library(rawpage_core STATIC
     cmd/commands/BookmarkCommands.cpp
     cmd/commands/DestinationCommands.h
     cmd/commands/DestinationCommands.cpp
+    cmd/commands/DecorationCommands.h      # Stage 7 T14 (D7-7, D7-14, D7-44)
+    cmd/commands/DecorationCommands.cpp
 
     # Stage 3 T9 (D3-11): what the journal tells a durable recorder, and the recorder -- the recovery
     # directory, one flushed line per operation, discovery and replay by undo step.
@@ -169,6 +171,12 @@ add_library(rawpage_core STATIC
     doc/MergeBookmarks.h
     doc/MergeRunner.h
     doc/MergeRunner.cpp
+    # Stage 7 T14 (D7-7, D7-14, D7-44) -- a header, a footer or a Bates number: its fields expanded and its lines placed
+    # per page as shown, and one Bates number line shared by several documents.
+    doc/HeaderFooter.h
+    doc/HeaderFooter.cpp
+    doc/BatesAllocator.h
+    doc/BatesAllocator.cpp
 
     # Stage 3 T4 -- the rest of D3-8's list, and no more: a type with no Stage 3 caller is tested only
     # against its own idea of what a caller wants. Document is the model CommandJournal (T5) will be
