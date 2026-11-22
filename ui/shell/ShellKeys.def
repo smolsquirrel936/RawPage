@@ -430,6 +430,7 @@ RAWPAGE_SHELL_STRING(StatusAnnotationToolPolygon,    "shell.status.annotationToo
 RAWPAGE_SHELL_STRING(StatusAnnotationToolPencil,     "shell.status.annotationToolPencil")
 RAWPAGE_SHELL_STRING(StatusAnnotationToolEraser,     "shell.status.annotationToolEraser")
 RAWPAGE_SHELL_STRING(StatusAnnotationToolAttachFile, "shell.status.annotationToolAttachFile")   // S6 T11
+RAWPAGE_SHELL_STRING(StatusAnnotationToolStamp,      "shell.status.annotationToolStamp")        // S7 guide I-30
 // S6 T14: the redaction mark and the two sound tools, likewise -- `%1` the tool's name.
 RAWPAGE_SHELL_STRING(StatusAnnotationToolRedact,      "shell.status.annotationToolRedact")
 RAWPAGE_SHELL_STRING(StatusAnnotationToolRecordAudio, "shell.status.annotationToolRecordAudio")

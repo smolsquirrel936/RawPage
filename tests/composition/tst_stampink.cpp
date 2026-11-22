@@ -397,7 +397,7 @@ TEST_CASE("a stamp resized by a handle and turned from the bar keeps its ink ins
     REQUIRE_FALSE(unturned.isNull());
 
     // TURNED 30 degrees from the properties bar -- the turn is the bar's, one command.
-    if (!product.document()->propertiesBarShown()) product.document()->togglePropertiesBar();
+    REQUIRE(product.document()->propertiesBarShown());   // the stamp is selected, which shows it (S7 D7-42)
     ui::PropertiesBar* bar = product.document()->propertiesBar();
     REQUIRE(bar != nullptr);
     REQUIRE(bar->rotationBox()->isEnabled());
@@ -495,6 +495,41 @@ TEST_CASE("stamps.page_source: a stamp made from a PDF page through the window i
     const QImage picture = QImage::fromData(*library->previewBytes(id));
     CHECK(picture.height() == core::kThumbnailEdge);
     CHECK(std::abs(picture.width() - core::kThumbnailEdge * 595.276 / 841.89) <= 1.0);
+    // AND WHAT IS IN IT (Stage 7 guide I-31): until 2026-11-22 this case graded the picture's size alone, and the
+    // palette showed a picture of freed memory. The page drawn by a fresh engine at the picture's scale, registered to
+    // a pixel as A-89 grades the stamp. The control (convention 7) is a BLANK picture of the same size, which must
+    // fail it: page 4, P-0004 -- A-89's own control -- does not, at this scale (the identity some seven pixels tall,
+    // a 3 and a 4 inside a pixel's registration: 0.455 % above 16 and none above 96, measured 2026-11-22).
+    {
+        const auto pageAt = [&source, &picture](int index) {
+            pdf::DocumentBackendImpl fresh;
+            auto opened = fresh.open(source, nullptr);
+            REQUIRE(opened);
+            core::render::RenderRequest request;
+            request.document = opened.value();
+            request.pageIndex = index;
+            request.deviceScale = static_cast<double>(core::kThumbnailEdge) / 841.89;
+            request.revision = core::Revision::initial();
+            request.flags = core::render::RenderFlags::None;
+            request.tile = core::render::TileRect{0, 0, picture.width(), picture.height()};
+            auto drawn = fresh.rasterizer(opened.value())->raster(request);
+            REQUIRE(drawn);
+            QImage image = ui::ownedImage(drawn.value()).convertToFormat(QImage::Format_ARGB32);
+            CHECK(fresh.close(opened.value()));
+            return image;
+        };
+        const QImage shown = picture.convertToFormat(QImage::Format_ARGB32);
+        const Agreement same = registered(shown, pageAt(2));
+        QImage inkless(shown.size(), QImage::Format_ARGB32);
+        inkless.fill(Qt::white);
+        const Agreement control = registered(inkless, pageAt(2));
+        std::cout << "I-31: the palette's picture against page 3 at its scale, " << same.differing * 100.0 << " % above 16, "
+                  << same.gross * 100.0 << " % above 96, the worst " << same.worst << "; a blank picture (the control), "
+                  << control.differing * 100.0 << " % above 16, " << control.gross * 100.0 << " % above 96\n";
+        CHECK(same.differing <= 0.01);
+        CHECK(same.gross == 0.0);
+        CHECK(control.gross > 0.0);
+    }
 
     // A CLICK of the armed tool places it: ONE command, a page stamp at its natural size.
     view->revealPageRect(0, core::PdfRect{core::PdfPoint{100, 300}, core::PdfSize{400, 400}});

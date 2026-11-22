@@ -53,6 +53,14 @@ struct HeldRaster {
 // facts, and only the first is a delivery a caller should drop.
 HeldRaster holdRaster(const core::RasterImage& raster);
 
+// `raster` as a `QImage` that OWNS A COPY of its pixels -- for the one kind of caller that keeps a picture after the
+// raster is gone, rather than a tile the cache holds (a custom stamp's picture, Stage 7 T13). An invalid raster yields
+// a null image. **`convertToFormat` is NOT the way to get this**: converting to the format the image already has
+// copies nothing -- Qt hands back a shared image over the same borrowed bytes -- and a `Bgrx8888` raster IS
+// `Format_RGB32`, so `holdRaster(r).image.convertToFormat(QImage::Format_RGB32)` kept a picture over a buffer freed
+// when the raster went, and the Stamps palette showed what had reused it (Stage 7 guide I-31).
+QImage ownedImage(const core::RasterImage& raster);
+
 // The `QImage` format for one of the two pixel formats `core/backend.h` defines. Exposed because a
 // case that asserts an alpha channel survived the boundary should compare against this rather than
 // against a second reading of the same rule.

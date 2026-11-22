@@ -403,8 +403,9 @@ TEST_CASE("Delete removes the selection as one step and a locked annotation is n
     REQUIRE(a.window->statusBar() != nullptr);
     CHECK(a.window->statusBar()->message()->text().contains(QStringLiteral("locked")));
 
-    // THE LOCK COMES OFF BY COMMAND -- the properties bar's box -- and is one undo step.
-    a.document->togglePropertiesBar();
+    // THE LOCK COMES OFF BY COMMAND -- the properties bar's box -- and is one undo step. The selection shows the bar
+    // by itself (S7 D7-42).
+    REQUIRE(a.document->propertiesBarShown());
     ui::PropertiesBar* bar = a.document->propertiesBar();
     REQUIRE(bar->subject() == ui::PropertiesBar::Subject::Selection);
     REQUIRE(bar->lockedBox()->isChecked());
@@ -453,28 +454,50 @@ TEST_CASE("a burst of arrows is one move and arrows with nothing selected scroll
 }
 
 // ==========================================================================================
-// A-45 -- Ctrl+E opens one properties bar from either context
+// A-45 -- one properties bar, showing the tool's defaults then the selection
 // ==========================================================================================
+// Stage 7 D7-42 (the user's choice, 2026-11-22) REWROTE this case: until then `Ctrl+E` toggled the bar from either
+// context (D6-9). Now the bar SHOWS ITSELF while an annotation tool is armed or an annotation selected, HIDES when
+// neither holds, FLOATS over the top of the page area so the page never moves under a press, and `Ctrl+E` is bound
+// in neither context.
 
-TEST_CASE("Ctrl+E toggles one bar that shows the tool's defaults then the selection and changes it by one command",
-          "[annotoverlay][A-45][D6-9]")
+TEST_CASE("the properties bar shows itself for an armed tool and a selection and hides when there is neither",
+          "[annotoverlay][A-45][D6-9][D7-42]")
 {
     Annotated a;
     ui::PropertiesBar* bar = a.document->propertiesBar();
     REQUIRE(bar != nullptr);
     CHECK_FALSE(a.document->propertiesBarShown());
 
-    // From the Viewer, nothing armed and nothing selected.
+    // `Ctrl+E` is nothing in the Viewer now: the bar does not come.
     REQUIRE(ui::ShortcutBinder::declaredContext(a.view) == core::KeyContext::Viewer);
-    CHECK(a.key(Qt::Key_E, Qt::ControlModifier));
-    CHECK(a.document->propertiesBarShown());
-    CHECK(bar->subject() == ui::PropertiesBar::Subject::Nothing);
+    (void)a.key(Qt::Key_E, Qt::ControlModifier);
+    CHECK_FALSE(a.document->propertiesBarShown());
 
-    // A tool armed: Annotation tools, and the bar shows its defaults.
+    // WHERE THE PAGE IS before the bar comes -- the bar must not move it.
+    const QPoint pageOrigin = a.view->mapTo(a.window.get(), QPoint(0, 0));
+    const QSize pageSize = a.view->size();
+
+    // A tool armed: Annotation tools, and the bar shows itself, with the tool's defaults.
     CHECK(a.key(Qt::Key_H, Qt::ControlModifier | Qt::AltModifier));
     REQUIRE(a.view->tools().armedAnnotation() == ui::AnnotationToolKind::Highlight);
     CHECK(ui::ShortcutBinder::declaredContext(a.view) == core::KeyContext::AnnotationTools);
+    REQUIRE(a.document->propertiesBarShown());
     CHECK(bar->subject() == ui::PropertiesBar::Subject::ToolDefaults);
+    // FLOATING (D7-42): the page has not moved or shrunk, and the bar lies over its top edge, across its width.
+    CHECK(a.view->mapTo(a.window.get(), QPoint(0, 0)) == pageOrigin);
+    CHECK(a.view->size() == pageSize);
+    const QRect barRect(bar->mapTo(a.window.get(), QPoint(0, 0)), bar->size());
+    const QRect pageRect(pageOrigin, pageSize);
+    CHECK(barRect.top() == pageRect.top());
+    CHECK(barRect.left() <= pageRect.left());
+    CHECK(barRect.right() >= pageRect.right());
+    CHECK(barRect.height() > 0);
+    CHECK(barRect.height() < pageRect.height() / 2);
+    CHECK(bar->isVisible());
+    // `Ctrl+E` in Annotation tools is nothing either: the bar stays.
+    (void)a.key(Qt::Key_E, Qt::ControlModifier);
+    CHECK(a.document->propertiesBarShown());
     // Changing a tool's property is the session's and constructs nothing (since T8 a session CHANGE over the
     // settings family, `ui/viewer/ToolDefaults`).
     bar->opacityBox()->setValue(40);
@@ -486,6 +509,7 @@ TEST_CASE("Ctrl+E toggles one bar that shows the tool's defaults then the select
     // A selection: the bar shows it, and a colour is ONE `SetAnnotationAppearance`.
     a.click(a.onBorderOf(10));
     REQUIRE(a.overlay->hasSelection());
+    CHECK(a.document->propertiesBarShown());
     CHECK(bar->subject() == ui::PropertiesBar::Subject::Selection);
     bar->colourBox()->setCurrentIndex(6);   // blue
     CHECK(a.steps() == 1);
@@ -500,10 +524,34 @@ TEST_CASE("Ctrl+E toggles one bar that shows the tool's defaults then the select
     CHECK(a.at(10).contents == QStringLiteral("Mind the margin"));
     CHECK(a.journal().undoName()->key == QLatin1String("command.annot.edit"));
 
-    // `Ctrl+E` again, now in Annotation tools (`annot.properties`): the SAME bar goes.
-    a.view->setFocus();
-    REQUIRE(ui::ShortcutBinder::declaredContext(a.view) == core::KeyContext::AnnotationTools);
-    CHECK(a.key(Qt::Key_E, Qt::ControlModifier));
+    // The selection cleared with the tool still armed: the bar stays, back on the tool's defaults.
+    a.overlay->select({});
+    QCoreApplication::processEvents();
+    REQUIRE_FALSE(a.overlay->hasSelection());
+    CHECK(a.document->propertiesBarShown());
+    CHECK(bar->subject() == ui::PropertiesBar::Subject::ToolDefaults);
+
+    // And the tool put away with nothing selected: NOTHING TO SHOW, so the bar goes -- and the focus it held goes
+    // back to the page, not on to whatever follows in the tab chain.
+    // A control of the tool's defaults has the focus (its text field is not one of them); the page's `Esc` -- sent to
+    // the page, as a person's would be after a click there -- puts the tool away.
+    REQUIRE(bar->opacityBox()->isEnabled());
+    bar->opacityBox()->setFocus();
+    QCoreApplication::processEvents();
+    REQUIRE(bar->isAncestorOf(QApplication::focusWidget()));
+    CHECK(a.key(Qt::Key_Escape, Qt::NoModifier, a.view));
+    REQUIRE_FALSE(a.view->tools().armedAnnotation().has_value());
+    CHECK_FALSE(a.document->propertiesBarShown());
+    CHECK(QApplication::focusWidget() == a.view);
+    CHECK(a.view->mapTo(a.window.get(), QPoint(0, 0)) == pageOrigin);
+
+    // A selection with no tool armed shows it again.
+    a.click(a.onBorderOf(10));
+    REQUIRE(a.overlay->hasSelection());
+    CHECK(a.document->propertiesBarShown());
+    CHECK(bar->subject() == ui::PropertiesBar::Subject::Selection);
+    a.overlay->select({});
+    QCoreApplication::processEvents();
     CHECK_FALSE(a.document->propertiesBarShown());
 }
 
@@ -524,7 +572,7 @@ TEST_CASE("Esc puts an annotation tool away and every widget that owns Esc keeps
 
     // The properties bar's text field: its `Esc` puts its text back, and is its own.
     a.click(a.onBorderOf(10));
-    a.document->togglePropertiesBar();
+    REQUIRE(a.document->propertiesBarShown());   // the selection shows it (S7 D7-42)
     QLineEdit* field = a.document->propertiesBar()->textField();
     field->setFocus();
     field->setText(QStringLiteral("typed, then thought better of"));

@@ -636,7 +636,7 @@ TEST_CASE("the properties bar lists this session's readings newest first", "[mea
     Measuring m;
     m.fixture.settings.set(core::keys::units::snapToObjects, false);
     m.setScale(48.0, core::MeasureUnit::Feet);
-    REQUIRE(m.fixture.actions.dispatch(core::ActionId::ViewTogglePropertiesBar, core::KeyContext::Viewer));
+    // The bar is filled whether or not it shows (S7 D7-42: it shows itself, and the distance tool armed below shows it).
     QComboBox* history = m.document->propertiesBar()->historyBox();
     REQUIRE(history != nullptr);
     CHECK_FALSE(history->isEnabled());   // nothing measured yet

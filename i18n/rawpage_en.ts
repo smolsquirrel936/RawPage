@@ -2387,6 +2387,10 @@
         <translation>%1: click where the file should be pinned, then choose the file.</translation>
     </message>
     <message>
+        <source>shell.status.annotationToolStamp</source>
+        <translation>%1 is selected. Click where the stamp goes. Select a placed stamp to move, resize or turn it.</translation>
+    </message>
+    <message>
         <source>shell.tooltip.needsComments</source>
         <translation>Available when the document has comments</translation>
     </message>

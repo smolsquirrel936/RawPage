@@ -2387,6 +2387,10 @@
         <translation>%1：按一下要釘上檔案的位置，再選擇檔案。</translation>
     </message>
     <message>
+        <source>shell.status.annotationToolStamp</source>
+        <translation>已選取「%1」。在要放置圖章的位置按一下。選取已放置的圖章即可移動、調整大小或旋轉。</translation>
+    </message>
+    <message>
         <source>shell.tooltip.needsComments</source>
         <translation>文件含有註解時可用</translation>
     </message>

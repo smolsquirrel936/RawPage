@@ -274,9 +274,9 @@ TEST_CASE("the find bar the properties bar and the tool finder keep their own Ct
     REQUIRE(find != nullptr);
     find->open();
     fields.push_back(find->field());
-    if (!e.document()->propertiesBarShown()) e.document()->togglePropertiesBar();
     e.overlay()->select({AnnotationId::ofObject(21)});   // a note, whose words the bar's field edits
     QCoreApplication::processEvents();
+    REQUIRE(e.document()->propertiesBarShown());          // the selection shows it (S7 D7-42)
     fields.push_back(e.document()->propertiesBar()->textField());
     fields.push_back(e.window->toolFinder()->searchBox());
     const std::size_t before = e.position();

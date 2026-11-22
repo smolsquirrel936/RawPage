@@ -1293,8 +1293,9 @@ The contexts are: **Global**, **Viewer (Review mode)**, **Write mode**, **Annota
 **Forms — Fill**, **Find / Search**, and **Full Screen & Presentation**.
 
 <a id="what-the-twelve-deliberate-collisions-counts"></a>
+<a id="what-the-thirteen-deliberate-collisions-counts"></a>
 
-### What "the thirteen deliberate collisions" counts
+### What "the twelve deliberate collisions" counts
 
 The figure quoted throughout the document set means one specific thing: **chords that mean something
 different in Write mode than in the context they would otherwise resolve to.** It is the set that
@@ -1303,19 +1304,22 @@ chord disagree most.
 
 | Write mode overrides… | Count | Chords |
 |---|---|---|
-| **Viewer** | **9** | `Ctrl+B` `Ctrl+E` `Ctrl+L` `Ctrl+R` `Ctrl+U` `Ctrl+=` `Ctrl+Shift+=` `Ctrl+Shift+N` `Ctrl+Alt+M` |
+| **Viewer** | **8** | `Ctrl+B` `Ctrl+L` `Ctrl+R` `Ctrl+U` `Ctrl+=` `Ctrl+Shift+=` `Ctrl+Shift+N` `Ctrl+Alt+M` |
 | **Global** | **4** | `Ctrl+D` `Ctrl+K` `Ctrl+Shift+A` `Ctrl+Shift+L` |
 | **Common** | 0 | — |
-| | **13** | |
+| | **12** | |
 
-**Thirteen since 2026-10-04, twelve before.** `Ctrl+Alt+M` — a sticky note in the Viewer, a margin
+**Twelve since 2026-11-22; thirteen from 2026-10-04 until then, twelve before.** The Viewer's `Ctrl+E` -- show / hide
+the properties bar -- was WITHDRAWN on 2026-11-22 (`Stage7-Assembly-Plan.md` D7-42, the user's choice): the bar
+shows itself while an annotation is selected or an annotation tool is armed, so Write mode's `Ctrl+E` (Align centre)
+no longer overrides a Viewer chord. Figures that say *thirteen* are history from then. Before that, `Ctrl+Alt+M` — a sticky note in the Viewer, a margin
 comment in Write mode — became the thirteenth when the arming chords moved from Annotation tools to
 the Viewer (`Stage6-Annotations-Plan.md` Q1, the user's decision to accept the larger figure rather
 than leave the note's chord unreachable). Both meanings add a comment, each in its own mode, which is
 the kind of collision this count exists for. Figures in signed-off stage documents that say *twelve*
 are history; the live statement is here. The old anchor is kept above so links to it still land.
 
-Other, wider counts exist over these tables and are **not** what "thirteen" refers to — a census of
+Other, wider counts exist over these tables and are **not** what "twelve" refers to — a census of
 every context gives **6** chords where any context redefines a `Global` chord, **9** where a context
 overrides a `Common` one, and **53** chords appearing in more than one table at all (mostly the
 ordinary per-context meanings of `Enter`, `Delete` and the arrow keys). Stating the scope here so
@@ -1329,7 +1333,9 @@ Global rather than appearing in both, so it adds nothing, and the **6** does not
 after, and the other thirteen are in one. Re-parsed before and after the edit by a script that reads
 **52** both times, one fewer than the **53** stated above; that one-chord difference in method was
 not traced, so the **53** is left as stated rather than replaced by a figure whose method disagrees
-with the one that produced it.)*
+with the one that produced it.)* *(2026-11-22, D7-42: withdrawing `Ctrl+E` from Viewer and Annotation tools leaves it
+in Write mode alone, so the multi-table count is **52** -- a script parsing these tables read 53 before the edit and
+52 after; the **6** and the **9** do not move, `Ctrl+E` being neither a Global nor a Common chord.)*
 
 ### Global (active in every context)
 
@@ -1388,7 +1394,6 @@ with the one that produced it.)*
 | `Z` | Marquee zoom tool |
 | `S` | Snapshot (copy a dragged region as an image) |
 | `Ctrl+B` | New bookmark from the current view |
-| `Ctrl+E` | Show / hide the contextual properties bar *(Acrobat)* |
 | `Ctrl+L` | Reading mode (hide the ribbon and panes) |
 | `Ctrl+U` | Show / hide rulers |
 | `Ctrl+'` | Show / hide the grid |
@@ -1420,6 +1425,10 @@ the NVIDIA overlay held `Ctrl+Alt+M`, and other programs held other `Ctrl+Alt` c
 (`Stage6-Annotations-Testing-Guide.md` §8, **I-23**, 2026-10-20) -- any chord can be taken. The rows are
 kept. The answer is to change the other program's hotkey, or to remap the action on Preferences'
 Shortcuts page.
+
+**`Ctrl+E` is no longer a Viewer chord** (withdrawn 2026-11-22, `Stage7-Assembly-Plan.md` D7-42, the user's choice).
+It showed and hid the properties bar; the bar now shows itself while an annotation is selected or an annotation tool
+is armed and hides when neither holds, so the toggle and its `view.togglePropertiesBar` registration are gone.
 
 ### Write mode
 
@@ -1482,9 +1491,11 @@ a Viewer chord still acts with a tool armed, and the rows below win where they c
 | `Enter` | Finish an in-progress polygon or polyline; with none in progress and one link selected, follow the link *(Stage 7 T12, `Stage7-Assembly-Plan.md` D7-35(h): the same command, no new chord)* |
 | `Esc` | Cancel the in-progress annotation and return to the Selection tool |
 | `Delete` | Delete the selected annotation |
-| `Ctrl+E` | Open the annotation properties bar |
 | `Ctrl+Alt+Enter` | Make the current properties this tool's default |
 | `arrows` / `Ctrl+`arrows | Nudge / fine-nudge the selected annotation |
+
+**`Ctrl+E` is no longer an Annotation tools chord** either (D7-42, as above): `annot.properties`, which opened the
+same bar, is unregistered.
 
 ### Page Thumbnails pane
 

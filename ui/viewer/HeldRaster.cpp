@@ -26,4 +26,11 @@ HeldRaster holdRaster(const core::RasterImage& raster)
     return held;
 }
 
+QImage ownedImage(const core::RasterImage& raster)
+{
+    const HeldRaster held = holdRaster(raster);
+    // `copy()` ALLOCATES whatever the source's format -- unlike a conversion to the same format (the header).
+    return held.isNull() ? QImage() : held.image.copy();
+}
+
 } // namespace rawpage::ui

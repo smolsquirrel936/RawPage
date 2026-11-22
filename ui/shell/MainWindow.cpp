@@ -388,7 +388,8 @@ MainWindow::MainWindow(const app::Services& services, QWidget* parent)
         const std::optional<std::size_t> at = store->find(id);
         if (!at) return;
         revealComment(id, store->at(*at).page, store->at(*at).rect);
-        if (!document->propertiesBarShown()) document->togglePropertiesBar();
+        // S7 D7-42: revealing the comment SELECTS it, and a selection shows the bar by itself.
+        if (!document->propertiesBarShown()) return;
         if (PropertiesBar* bar = document->propertiesBar()) {
             if (QLineEdit* field = bar->textField(); field != nullptr && field->isEnabled()) {
                 field->setFocus(Qt::OtherFocusReason);
@@ -3920,6 +3921,9 @@ QLatin1String armedStatusKey(AnnotationToolKind kind)
     case AnnotationToolKind::Pencil: return catalog::key::StatusAnnotationToolPencil;
     case AnnotationToolKind::Eraser: return catalog::key::StatusAnnotationToolEraser;
     case AnnotationToolKind::AttachFile: return catalog::key::StatusAnnotationToolAttachFile;   // S6 T11
+    // Stage 7 guide I-30: the Stamp tool has placed stamps since S6 T10, and fell through to the message below -- the
+    // one for a tool that makes nothing yet -- until 2026-11-22.
+    case AnnotationToolKind::Stamp: return catalog::key::StatusAnnotationToolStamp;
     // S6 T14.
     case AnnotationToolKind::RedactMark: return catalog::key::StatusAnnotationToolRedact;
     case AnnotationToolKind::RecordAudio: return catalog::key::StatusAnnotationToolRecordAudio;
@@ -4066,22 +4070,11 @@ void MainWindow::registerAnnotationActions()
         services_.actions.register_(ActionId::AnnotDeleteSelected, std::move(remove));
     }
 
-    // `Ctrl+E`, TWICE in §8 -- `view.togglePropertiesBar` in the Viewer and `annot.properties` in Annotation
-    // tools -- and ONE bar (D6-9): each toggles it, and it shows what is in front of the person.
-    for (const ActionId id : {ActionId::ViewTogglePropertiesBar, ActionId::AnnotProperties}) {
-        if (services_.actions.isRegistered(id)) continue;
-        core::ActionRegistry::Registration bar;
-        bar.handler = [documentInFront](KeyContext) {
-            if (DocumentWindow* document = documentInFront()) document->togglePropertiesBar();
-        };
-        bar.checked = [documentInFront] {
-            const DocumentWindow* document = documentInFront();
-            return document != nullptr && document->propertiesBarShown();
-        };
-        bar.enable = hasView;
-        bar.unavailableKey = "shell.tooltip.needsDocument";
-        services_.actions.register_(id, std::move(bar));
-    }
+    // NOT REGISTERED SINCE STAGE 7 D7-42 (the user's choice, 2026-11-22): `view.togglePropertiesBar` and
+    // `annot.properties`, the two `Ctrl+E` rows §8 had (D6-9). The properties bar shows itself while an annotation is
+    // selected or an annotation tool is armed and hides otherwise (`DocumentWindow::refreshPropertiesBar`), so a
+    // toggle would only fight it; both rows stay declared in `ActionId.def`, so a remapped chord or a QAT entry naming
+    // either still reads, and both chords are gone from `KeyBindingDefaults.def`.
 
     // `Enter` in Annotation tools (S6 T8): the polygon, polyline or cloud in progress, finished. DISABLED with none
     // in progress -- and a disabled registration consumes the key (Stage 4's I-06), which is right here: in
@@ -4358,7 +4351,9 @@ bool MainWindow::drawStampPicture(const QString& id)
             if (rasterizer == nullptr) return;
             const core::Result<core::RasterImage> image = rasterizer->raster(request);
             if (!image) return;
-            QImage picture = holdRaster(image.value()).image.convertToFormat(QImage::Format_RGB32);   // a deep copy
+            // ITS OWN PIXELS: the raster's buffer is freed when this task ends, and the picture is written on the UI
+            // thread after it (Stage 7 guide I-31 -- a same-format `convertToFormat` here copied nothing).
+            QImage picture = ownedImage(image.value());
             const std::lock_guard<std::mutex> guard(drawn->mutex);
             drawn->picture = std::move(picture);
         },

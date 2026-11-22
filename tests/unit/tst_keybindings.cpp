@@ -247,10 +247,10 @@ TEST_CASE("the per-context row counts are reported and non-trivial", "[keybindin
 }
 
 // =======================================================================================
-// A-31 -- the Write-mode collisions: thirteen since 2026-10-04, twelve before
+// A-31 -- the Write-mode collisions: twelve since 2026-11-22, thirteen from 2026-10-04, twelve before
 // =======================================================================================
 
-TEST_CASE("the census reports exactly thirteen Write-mode collisions, split 9 + 4 + 0", "[keybindings]")
+TEST_CASE("the census reports exactly twelve Write-mode collisions, split 8 + 4 + 0", "[keybindings]")
 {
     // Stage 13's exit criteria depend on this figure, which is why it is asserted at the stage that
     // builds the store rather than discovered eleven stages later. The SPLIT is asserted too: a
@@ -259,23 +259,25 @@ TEST_CASE("the census reports exactly thirteen Write-mode collisions, split 9 + 
     // annotation-tool arming chords moved from Annotation tools to Viewer (`Stage6-Annotations-Plan.md`
     // Q1, D6-9), and `Ctrl+Alt+M` -- a sticky note there, a margin comment in Write mode -- became a
     // Write-over-Viewer collision. The user chose to count it rather than leave the chord unreachable.
+    // TWELVE since 2026-11-22 (`Stage7-Assembly-Plan.md` D7-42, the user's choice): the Viewer's `Ctrl+E`, the
+    // properties bar's toggle, was withdrawn -- the bar shows itself -- so Write mode's `Ctrl+E` overrides nothing.
     const KeyBindingStore store;
     const CollisionCensus census = store.census();
 
     CHECK(chordSet(census.writeModeOverViewer) ==
-          std::set<std::string>{"Ctrl+B", "Ctrl+E", "Ctrl+L", "Ctrl+R", "Ctrl+U", "Ctrl+=",
+          std::set<std::string>{"Ctrl+B", "Ctrl+L", "Ctrl+R", "Ctrl+U", "Ctrl+=",
                                 "Ctrl+Shift+=", "Ctrl+Shift+N", "Ctrl+Alt+M"});
     CHECK(chordSet(census.writeModeOverGlobal) ==
           std::set<std::string>{"Ctrl+D", "Ctrl+K", "Ctrl+Shift+A", "Ctrl+Shift+L"});
 
-    CHECK(census.writeModeOverViewer.size() == 9);
+    CHECK(census.writeModeOverViewer.size() == 8);
     CHECK(census.writeModeOverGlobal.size() == 4);
     CHECK(census.writeModeOverCommon.size() == 0);
-    CHECK(census.writeModeTotal() == 13);
+    CHECK(census.writeModeTotal() == 12);
 }
 
 // =======================================================================================
-// A-32 -- the two wider numbers that are NOT "thirteen"
+// A-32 -- the two wider numbers that are NOT "twelve"
 // =======================================================================================
 
 TEST_CASE("class 1 is exactly the six chords a context takes back from Global", "[keybindings]")
@@ -346,7 +348,7 @@ TEST_CASE("the class-1 chords each mean the right thing in each context", "[keyb
     CHECK(at("Ctrl+Shift+G", KeyContext::FindSearch) == ActionId::FindPrevious);
 }
 
-TEST_CASE("all thirteen Write-mode chords resolve to their word-processor meaning", "[keybindings]")
+TEST_CASE("the Write-mode collision chords and Ctrl+E resolve to their word-processor meaning", "[keybindings]")
 {
     const KeyBindingStore store;
     const auto inWrite = [&](const char* chord) {
@@ -354,7 +356,7 @@ TEST_CASE("all thirteen Write-mode chords resolve to their word-processor meanin
     };
 
     CHECK(inWrite("Ctrl+B") == ActionId::WriteBold);
-    CHECK(inWrite("Ctrl+E") == ActionId::WriteAlignCenter);
+    CHECK(inWrite("Ctrl+E") == ActionId::WriteAlignCenter);   // a Write chord still -- no longer a collision (D7-42)
     CHECK(inWrite("Ctrl+L") == ActionId::WriteAlignLeft);
     CHECK(inWrite("Ctrl+R") == ActionId::WriteAlignRight);
     CHECK(inWrite("Ctrl+U") == ActionId::WriteUnderline);
@@ -413,10 +415,11 @@ TEST_CASE("annotation tools resolve through the viewer and then the layers", "[k
     CHECK(store.lookup(*Chord::parse("Ctrl+Alt+H"), tools) == ActionId::AnnotHighlight);
     CHECK(store.lookup(*Chord::parse("Ctrl+Alt+M"), tools) == ActionId::AnnotStickyNote);
 
-    // Its own rows win where they collide with the Viewer's: `Ctrl+E` is the properties bar either way,
-    // through two ids (§8 binds both); `Delete` is the selected annotation, not Common's `edit.delete`.
-    CHECK(store.lookup(*Chord::parse("Ctrl+E"), tools) == ActionId::AnnotProperties);
-    CHECK(store.lookup(*Chord::parse("Ctrl+E"), KeyContext::Viewer) == ActionId::ViewTogglePropertiesBar);
+    // Its own rows win where they collide with the Viewer's: `Delete` is the selected annotation, not Common's
+    // `edit.delete`. `Ctrl+E` is bound in NEITHER since Stage 7 D7-42 (the user's choice, 2026-11-22): the properties
+    // bar it toggled, through two ids, shows itself.
+    CHECK_FALSE(store.lookup(*Chord::parse("Ctrl+E"), tools).has_value());
+    CHECK_FALSE(store.lookup(*Chord::parse("Ctrl+E"), KeyContext::Viewer).has_value());
     CHECK(store.lookup(*Chord::parse("Delete"), tools) == ActionId::AnnotDeleteSelected);
     CHECK(store.lookup(*Chord::parse("K"), tools) == ActionId::AnnotKeepToolSelected);
     CHECK_FALSE(store.lookup(*Chord::parse("K"), KeyContext::Viewer).has_value());

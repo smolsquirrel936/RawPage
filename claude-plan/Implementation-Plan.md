@@ -2270,9 +2270,10 @@ Key signatures: `FixedToReflowConverter::convert(const Document&) -> Result<Refl
 `TableModel::evaluate(CellRef) -> Value`; `ChangeTracker::accept(RevisionId)`.
 
 **Key bindings handled** — the **whole** [Write mode](./Features.md#write-mode) table
-(`KeyContext::WriteMode`), which is where the thirteen deliberate collisions become real and testable
-— **nine overriding Viewer and four overriding Global** (twelve and eight until 2026-10-04, when
-Stage 6's Q1 moved `Ctrl+Alt+M`'s sticky note to the Viewer — Write mode's margin comment), per
+(`KeyContext::WriteMode`), which is where the twelve deliberate collisions become real and testable
+— **eight overriding Viewer and four overriding Global** (thirteen and nine from 2026-10-04, when
+Stage 6's Q1 moved `Ctrl+Alt+M`'s sticky note to the Viewer — Write mode's margin comment — until
+2026-11-22, when `Stage7-Assembly-Plan.md` D7-42 withdrew the Viewer's `Ctrl+E`; twelve and eight before), per
 [`Features.md` §8](./Features.md#what-the-twelve-deliberate-collisions-counts): `Ctrl+B`, `Ctrl+I`, `Ctrl+U`, `Ctrl+D`, `Ctrl+E`, `Ctrl+K`, `Ctrl+L`,
 `Ctrl+R`, `Ctrl+J`, `Ctrl+=`, `Ctrl+Shift+A`, `Ctrl+Shift+L`, `Ctrl+Shift+N`, `Ctrl+Shift+>`/`<`,
 `Ctrl+Shift+=`, `Ctrl+Space`, `Ctrl+Alt+1`/`2`/`3`, `Ctrl+Shift+7`, `Tab`/`Shift+Tab`, `Ctrl+H`,
@@ -2326,7 +2327,7 @@ rather than re-inferring from glyphs, which is precisely what this case has to p
 reversibility for all 23 commands including coalesced typing.
 *Manual:* → queued **`Stage13-WriteMode-Testing-Guide.md`**. Emphasis: convert real-world documents
 of every kind — a tagged Word export, an untagged scan-derived file, a multi-column journal article,
-a spreadsheet-heavy report — and score each conversion by hand; the thirteen chord collisions verified
+a spreadsheet-heavy report — and score each conversion by hand; the twelve chord collisions (`Features.md` §8) verified
 by switching modes with the same key; IME input for CJK.
 
 **Exit criteria.** Convert to Writable produces an editable document with an honest fidelity report;
@@ -2334,8 +2335,8 @@ by switching modes with the same key; IME input for CJK.
 over the corpus (O2)**;
 text, paragraph, style, and page-layout editing all work; tables including formulas work; TOC
 generates and updates; change tracking records and accepts/rejects; Prevent Further Edits produces a
-fixed PDF that renders within the golden threshold of the composed layout; **every one of the thirteen
-documented chord collisions resolves correctly on mode switch**; all Write-mode edits undo.
+fixed PDF that renders within the golden threshold of the composed layout; **every one of the twelve
+documented chord collisions (`Features.md` §8) resolves correctly on mode switch**; all Write-mode edits undo.
 
 **Deferrals.** Convert to Writable Excel (Stage 16). Equations, SmartArt-style diagrams, and index
 generation. Merging revisions from two writable documents.

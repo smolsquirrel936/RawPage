@@ -338,11 +338,13 @@ public:
     // every change is a command run through the journal -- so a refusal comes back by key, and is said in
     // the status bar (`annotationRefused`). A companion window has none to change (no journal): inert.
     AnnotationOverlay* annotations() const noexcept { return annotations_; }
-    // The properties bar `Ctrl+E` toggles -- hidden until asked for, above the page with the find bar.
+    // The properties bar. Since Stage 7 D7-42 it SHOWS ITSELF -- while an annotation is selected, or an annotation
+    // tool is armed with nothing selected -- and hides when neither holds; `Ctrl+E` no longer toggles it. It FLOATS
+    // over the top of the page area, so showing it never moves the page under a press.
     PropertiesBar* propertiesBar() const noexcept { return propertiesBar_; }
     bool propertiesBarShown() const;
-    void togglePropertiesBar();
-    // Shows what is in front of the person: the selection, else the armed tool's defaults, else nothing.
+    // Shows what is in front of the person -- the selection, else the armed tool's defaults -- and shows or hides
+    // the bar to match.
     void refreshPropertiesBar();
     // S6 T12: a reading made in a pane, into the session's history and on to the shell.
     void recordMeasurement(const QString& reading);
@@ -457,8 +459,14 @@ signals:
     void linkAsked(int page, core::PdfRect box);
     void linkClicked(core::AnnotationId link);
 
+protected:
+    // S7 D7-42: the floating properties bar follows the page area's place and its own height.
+    bool eventFilter(QObject* watched, QEvent* event) override;
+
 private:
     void build(const Recovery* recovery);
+    // S7 D7-42: the properties bar laid over the top edge of the split, the split's width and its own height.
+    void placePropertiesBar();
     void afterMutation();
     // S7 T3 (D7-3): every page index this window holds, carried through a page command's map.
     void remapPages(const core::PageMap& map, bool wasSearching);
@@ -564,6 +572,7 @@ private:
     // S6 T5. Both children, deleted EXPLICITLY in the destructor before the journal whose store the overlay reads.
     AnnotationOverlay* annotations_ = nullptr;
     PropertiesBar* propertiesBar_ = nullptr;
+    bool placingPropertiesBar_ = false;   // S7 D7-42: a placement's own resize does not place again
 
     // S5 T11. The page surface -- the split and its rulers -- and the reflow that takes its place. The reflow
     // is a child, deleted EXPLICITLY in the destructor before the handle leaves the index: it holds text

@@ -170,7 +170,9 @@ TEST_CASE("the rest of the Viewer table is still NotImplemented and leaves the k
     CHECK(viewer.fixture.actions.isRegistered(core::ActionId::PageRotate));
     CHECK(ui::ShortcutBinder::consumes(viewer.press("Ctrl+R")));
 
-    // THE CENSUS, re-counted from the table: 53 dispatched Viewer rows registered and NONE not, since Stage 7 T11,
+    // THE CENSUS, re-counted from the table: 52 dispatched Viewer rows registered and NONE not, since Stage 7 D7-42
+    // (2026-11-22), which WITHDREW `Ctrl+E` (`view.togglePropertiesBar`) from the table and its registration together --
+    // the properties bar shows itself. 53 and none from Stage 7 T11,
     // which registered `Ctrl+B` (`bookmark.new`, D7-10) -- Stage 7 guide A-74. 52 and 1 from Stage 6 T9, which
     // registered `Ctrl+.` and `Ctrl+,` (`nav.nextComment`, `nav.prevComment`, D6-12). 50 and 3 from Stage 6 T5,
     // which registered the fourteen annotation-tool arming chords and `Ctrl+E` (`view.togglePropertiesBar`,
@@ -182,7 +184,7 @@ TEST_CASE("the rest of the Viewer table is still NotImplemented and leaves the k
     // `Ctrl+[` (the comparison, D5-18) at Stage 5 T13. The four left are `Ctrl+B`, `Ctrl+E`, `Ctrl+.` and
     // `Ctrl+,` -- the figure the guide's A-108 names. A change to either is a registration or a table edit,
     // and belongs in the same change as this.
-    CHECK(registered == 53);
+    CHECK(registered == 52);
     CHECK(unregistered == 0);
 }
 

@@ -44,6 +44,7 @@
 #include "ui/shell/MainWindow.h"
 #include "ui/shell/ToolFinder.h"
 #include "ui/viewer/AnnotationOverlay.h"
+#include "ui/viewer/HeldRaster.h"
 #include "ui/viewer/PageView.h"
 #include "ui/viewer/PropertiesBar.h"
 #include "ui/viewer/ToolController.h"
@@ -926,12 +927,12 @@ TEST_CASE("the properties bar's turn is one command for a stamp and disabled for
     REQUIRE(made);
     REQUIRE(s.overlay->addMade({made.value()}));
     const std::size_t placed = s.journalPosition();
-    if (!s.document->propertiesBarShown()) s.document->togglePropertiesBar();
     ui::PropertiesBar* bar = s.document->propertiesBar();
     REQUIRE(bar != nullptr);
 
     s.overlay->select({made.value().id});
     QCoreApplication::processEvents();
+    REQUIRE(s.document->propertiesBarShown());   // the selection shows it (S7 D7-42)
     REQUIRE(bar->rotationBox()->isEnabled());
     bar->rotationBox()->setValue(90);
     QCoreApplication::processEvents();
@@ -976,9 +977,9 @@ TEST_CASE("an image pasted on the page is one image stamp and text fields keep t
     REQUIRE(find != nullptr);
     find->open();
     fields.push_back(find->field());
-    if (!s.document->propertiesBarShown()) s.document->togglePropertiesBar();
     s.overlay->select({pasted[0].id});
     QCoreApplication::processEvents();
+    REQUIRE(s.document->propertiesBarShown());   // the selection shows it (S7 D7-42)
     fields.push_back(s.document->propertiesBar()->textField());
     fields.push_back(s.window->toolFinder()->searchBox());
     for (QLineEdit* field : fields) {
@@ -1096,4 +1097,50 @@ TEST_CASE("stamps.page_source: a page stamp is kept, listed, chosen and placed t
     REQUIRE(palette->choose(QStringLiteral("standard:Draft")));
     REQUIRE(palette->choose(key));
     CHECK(ui::currentStamp().page == *made.page);
+}
+
+// Stage 7 guide I-31: a page stamp's picture is drawn on the render thread and written on the UI thread AFTER the raster
+// is gone, so the image it keeps must own its pixels. A same-format `convertToFormat` -- what `drawStampPicture` did --
+// hands back an image over the raster's borrowed bytes, and the palette showed whatever reused them. Graded on BOTH
+// pixel formats: `Bgrx8888` is the one the picture is drawn in, and the one a conversion to `Format_RGB32` skipped.
+TEST_CASE("stamps an owned image keeps its own pixels after the raster is gone", "[stamps][A-89][S7-I-31]")
+{
+    for (const core::PixelFormat format : {core::PixelFormat::Bgrx8888, core::PixelFormat::Bgra8888}) {
+        QImage kept;
+        const void* borrowed = nullptr;
+        {
+            core::RasterImage raster;
+            raster.width = 3;
+            raster.height = 2;
+            raster.bytesPerLine = 16;   // padded, as a rasterizer may: the copy must still read the stride
+            raster.format = format;
+            raster.pixels = QByteArray(raster.bytesPerLine * raster.height, char(0));
+            for (int y = 0; y < raster.height; ++y)
+                for (int x = 0; x < raster.width; ++x) {
+                    auto* p = reinterpret_cast<unsigned char*>(raster.pixels.data()) + y * raster.bytesPerLine + x * 4;
+                    p[0] = static_cast<unsigned char>(10 * x + 1);   // B
+                    p[1] = static_cast<unsigned char>(20 * y + 2);   // G
+                    p[2] = 200;                                       // R
+                    p[3] = 255;
+                }
+            borrowed = raster.pixels.constData();
+            kept = ui::ownedImage(raster);
+            REQUIRE_FALSE(kept.isNull());
+            // ITS OWN BUFFER, not the raster's -- the property the stamp's picture depends on.
+            CHECK(static_cast<const void*>(kept.constBits()) != borrowed);
+            // The raster's bytes overwritten while it still exists: a borrowing image would show the change.
+            raster.pixels.fill(char(0x5A));
+            CHECK(raster.pixels.constData() == borrowed);   // written in place, not detached into a new buffer
+        }
+        CHECK(kept.size() == QSize(3, 2));
+        CHECK(kept.format() == ui::imageFormatFor(format));
+        for (int y = 0; y < 2; ++y)
+            for (int x = 0; x < 3; ++x) {
+                const QRgb pixel = kept.pixel(x, y);
+                CHECK(qRed(pixel) == 200);
+                CHECK(qGreen(pixel) == 20 * y + 2);
+                CHECK(qBlue(pixel) == 10 * x + 1);
+            }
+    }
+    CHECK(ui::ownedImage(core::RasterImage{}).isNull());   // nothing arrived: no picture
 }

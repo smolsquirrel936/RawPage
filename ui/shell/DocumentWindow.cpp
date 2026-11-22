@@ -26,8 +26,10 @@
 #include "ui/viewer/SplitViewContainer.h"
 
 #include <QAbstractButton>
+#include <QApplication>
 #include <QDir>
 #include <QFileInfo>
+#include <QEvent>
 #include <QGridLayout>
 #include <QPainter>
 #include <QPaintEvent>
@@ -325,11 +327,17 @@ void DocumentWindow::build(const Recovery* recovery)
     column->insertWidget(0, findBar_);
     findBar_->setCurrentPageProvider([this] { return view() != nullptr ? view()->controller().currentPage() : 0; });
 
-    // THE PROPERTIES BAR (S6 T5, D6-9), under the find bar and hidden until `Ctrl+E`. It collects; the overlay
-    // constructs the one command each change means.
-    propertiesBar_ = new PropertiesBar(this);
+    // THE PROPERTIES BAR (S6 T5, D6-9). It collects; the overlay constructs the one command each change means.
+    // Stage 7 D7-42 (the user's choice, 2026-11-22): it SHOWS ITSELF while an annotation is selected or an annotation
+    // tool is armed, and hides otherwise (`refreshPropertiesBar`) -- `Ctrl+E` no longer toggles it -- and it FLOATS
+    // over the top edge of the page area rather than taking a row of the column: a row would push the page down by
+    // its height the moment a press selected a stamp, in the middle of that press's drag. A child of the surface,
+    // laid over the split and raised above it; it paints its own ground, so the page does not show through.
+    propertiesBar_ = new PropertiesBar(surface);
+    propertiesBar_->setAutoFillBackground(true);
     propertiesBar_->hide();
-    column->insertWidget(1, propertiesBar_);
+    split_->installEventFilter(this);
+    propertiesBar_->installEventFilter(this);
     connect(propertiesBar_, &PropertiesBar::appearanceRequested, this,
             [this](const core::AnnotationAppearance& appearance) { (void)annotations_->setAppearance(appearance); });
     connect(propertiesBar_, &PropertiesBar::contentsRequested, this,
@@ -1120,7 +1128,9 @@ DocumentWindow::~DocumentWindow()
 
     // THE ANNOTATIONS AND THEIR BAR (S6 T5): before the journal whose store the overlay reads goes with this
     // object's members, and with every pane let go of it first.
+    if (split_ != nullptr) split_->removeEventFilter(this);   // S7 D7-42: the bar's placement, convention 10's shape
     if (propertiesBar_ != nullptr) {
+        propertiesBar_->removeEventFilter(this);
         disconnect(propertiesBar_, nullptr, this, nullptr);
         delete propertiesBar_;
         propertiesBar_ = nullptr;
@@ -1249,29 +1259,59 @@ bool DocumentWindow::propertiesBarShown() const
     return propertiesBar_ != nullptr && !propertiesBar_->isHidden();
 }
 
-void DocumentWindow::togglePropertiesBar()
-{
-    if (propertiesBar_ == nullptr) return;
-    propertiesBar_->setVisible(propertiesBar_->isHidden());
-    refreshPropertiesBar();
-    emit annotationStateChanged();
-}
-
 void DocumentWindow::refreshPropertiesBar()
 {
     if (propertiesBar_ == nullptr || annotations_ == nullptr) return;
     propertiesBar_->setMeasurementHistory(measurementHistory_);   // S6 T12
-    if (annotations_->hasSelection()) {
+    PageView* pane = view();
+    // THE FOCUS THE BAR HOLDS, read BEFORE its controls change: showing another subject -- or nothing -- disables
+    // controls, and Qt moves the focus off a disabled one to the next widget in the chain, a button of some other
+    // part of the window (measured 2026-11-22, D7-42's case).
+    const bool hadFocus = propertiesBar_->isAncestorOf(QApplication::focusWidget());
+    const std::optional<AnnotationToolKind> armed = pane != nullptr ? pane->tools().armedAnnotation() : std::nullopt;
+    bool wanted = true;
+    if (annotations_->hasSelection())
         propertiesBar_->showSelection(annotations_->selected());
-        return;
+    else if (armed)
+        propertiesBar_->showToolDefaults(catalog::translateAction(armingAction(*armed)), *armed, pane->toolDefaults(*armed));
+    else {
+        propertiesBar_->showNothing();
+        wanted = false;
     }
-    if (PageView* pane = view()) {
-        if (const std::optional<AnnotationToolKind> armed = pane->tools().armedAnnotation()) {
-            propertiesBar_->showToolDefaults(catalog::translateAction(armingAction(*armed)), *armed, pane->toolDefaults(*armed));
-            return;
-        }
+    // S7 D7-42: SHOWN WHILE THERE IS SOMETHING TO SHOW, and only then.
+    const bool changed = wanted == propertiesBar_->isHidden();
+    if (changed && wanted) {
+        propertiesBar_->show();
+        placePropertiesBar();
+    } else if (changed) {
+        propertiesBar_->hide();
     }
-    propertiesBar_->showNothing();
+    // The focus the bar held and lost goes back to the page, not to whatever Qt found next in the tab chain.
+    if (hadFocus && pane != nullptr && !propertiesBar_->isAncestorOf(QApplication::focusWidget()))
+        pane->setFocus(Qt::OtherFocusReason);
+    if (changed) emit annotationStateChanged();
+}
+
+void DocumentWindow::placePropertiesBar()
+{
+    if (propertiesBar_ == nullptr || split_ == nullptr || propertiesBar_->isHidden() || placingPropertiesBar_) return;
+    placingPropertiesBar_ = true;
+    const QRect area = split_->geometry();
+    // Its height follows its width -- the row's scroll bar comes when the row does not fit -- so the width first.
+    propertiesBar_->resize(area.width(), std::max(1, propertiesBar_->height()));
+    if (QLayout* layout = propertiesBar_->layout()) layout->activate();
+    propertiesBar_->setGeometry(area.left(), area.top(), area.width(), propertiesBar_->sizeHint().height());
+    propertiesBar_->raise();
+    placingPropertiesBar_ = false;
+}
+
+bool DocumentWindow::eventFilter(QObject* watched, QEvent* event)
+{
+    const QEvent::Type type = event->type();
+    if ((watched == split_ && (type == QEvent::Resize || type == QEvent::Move))
+        || (watched == propertiesBar_ && (type == QEvent::LayoutRequest || type == QEvent::Show)))
+        placePropertiesBar();
+    return QWidget::eventFilter(watched, event);
 }
 
 core::Result<core::SaveOutcome> DocumentWindow::save(const core::SaveOptions& options)

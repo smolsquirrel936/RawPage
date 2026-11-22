@@ -1,10 +1,11 @@
-// ui/viewer/PropertiesBar -- the annotation properties bar `Ctrl+E` opens. Stage 6 T5, decision D6-9
-// (`Stage6-Annotations-Plan.md` §3); T8 gave it the drawing kinds' properties and the tools' defaults their keys.
+// ui/viewer/PropertiesBar -- the annotation properties bar. Stage 6 T5, decision D6-9 (`Stage6-Annotations-Plan.md`
+// §3); T8 gave it the drawing kinds' properties and the tools' defaults their keys.
 //
-// ONE BAR, TWO SUBJECTS. §8 binds `Ctrl+E` twice -- `view.togglePropertiesBar` in the Viewer and
-// `annot.properties` in Annotation tools -- and both open this bar. What it shows is decided by what is
-// in front of the person: the SELECTION's properties when an annotation is selected, the ARMED TOOL's
-// current properties when a tool is armed and nothing is selected, and nothing to change otherwise.
+// ONE BAR, TWO SUBJECTS. What it shows is decided by what is in front of the person: the SELECTION's properties when
+// an annotation is selected, the ARMED TOOL's current properties when a tool is armed and nothing is selected. Until
+// Stage 7 D7-42 (2026-11-22) `Ctrl+E` toggled it from either context; since then `ui/shell/DocumentWindow` SHOWS it
+// while it has one of those two subjects and hides it otherwise, laid over the top of the page area rather than in
+// the document's column -- so nothing here decides whether it is seen.
 //
 // IT COLLECTS AND DOES NOT CHANGE. A change to the selection's colour, fill, opacity, width, line style, blend,
 // endings, cloud, text, font size or locks is a SIGNAL; `ui/shell/DocumentWindow` hands it to the overlay, which
@@ -22,7 +23,7 @@
 //
 // IT ASKS FOR NO WIDTH (guide I-31). Its row of some thirty controls is some 2,400 pixels at its narrowest, and
 // as a row of the document's column that was the document area's minimum: once `Enter` in the Comments pane or
-// `Ctrl+E` showed the bar, the sidebar beside it could not be dragged wider than its own minimum. The row is in a
+// `Ctrl+E` showed the bar (both before D7-42), the sidebar beside it could not be dragged wider than its own minimum. The row is in a
 // scroll area that claims no width -- a horizontal scroll bar under the row when it does not fit -- and a control
 // that takes the focus is scrolled into view, so `Enter`'s text field is never focused out of sight.
 

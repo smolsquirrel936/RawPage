@@ -424,7 +424,7 @@ TEST_CASE("Ctrl Alt Enter writes the armed tool's properties as its defaults and
     Drawing d;
     core::Settings& settings = d.fixture.settings;
     REQUIRE(d.key(Qt::Key_R, kCtrlAlt));
-    REQUIRE(d.key(Qt::Key_E, Qt::ControlModifier));   // the bar, showing the rectangle tool's properties
+    REQUIRE(d.document->propertiesBarShown());   // the bar, showing the rectangle tool's properties (S7 D7-42: by itself)
     ui::PropertiesBar* bar = d.document->findChild<ui::PropertiesBar*>();
     REQUIRE(bar != nullptr);
     REQUIRE(bar->subject() == ui::PropertiesBar::Subject::ToolDefaults);
@@ -499,7 +499,7 @@ TEST_CASE("the bar changes a line's endings and a text box's size by one command
     REQUIRE(d.made().size() == 1);
     const AnnotationId line = d.made().back().id;
     d.overlay->select({line});
-    REQUIRE(d.key(Qt::Key_E, Qt::ControlModifier));
+    REQUIRE(d.document->propertiesBarShown());   // the selection shows it (S7 D7-42)
     ui::PropertiesBar* bar = d.document->findChild<ui::PropertiesBar*>();
     REQUIRE(bar != nullptr);
     REQUIRE(bar->subject() == ui::PropertiesBar::Subject::Selection);

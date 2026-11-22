@@ -15,6 +15,7 @@
 
 #include "core/cmd/ActionRegistry.h"
 #include "tests/ui/ShellFixture.h"
+#include "ui/shell/Catalog.h"
 #include "ui/shell/MainWindow.h"
 #include "ui/shell/ShortcutBinder.h"
 #include "ui/shell/StatusBar.h"
@@ -267,4 +268,30 @@ TEST_CASE("the callout and the typewriter arm from their commands and say how th
         CHECK(ui::armingAction(kind) == id);
         CHECK(page.view->tools().cursor() == (kind == ui::AnnotationToolKind::Typewriter ? Qt::IBeamCursor : Qt::CrossCursor));
     }
+}
+
+// Stage 7 guide I-30: the Stamp tool has placed stamps since Stage 6 T10, and until 2026-11-22 the status bar told a
+// person who armed it that "making new ones with this tool comes in a later step" -- `armedStatusKey` had no case for
+// it, so it fell through to the message for a tool that makes nothing yet. Graded over EVERY tool that makes
+// something, so the next tool built without its own message is red here too, not only the stamp.
+TEST_CASE("every tool that makes annotations says how it is used and never that it comes later",
+          "[annottools][A-40][S7-I-30]")
+{
+    Page page;
+    int making = 0;
+    for (int i = 0; i < ui::kAnnotationToolKindCount; ++i) {
+        const auto kind = static_cast<ui::AnnotationToolKind>(i);
+        if (!ui::createsAnnotations(kind)) continue;
+        ++making;
+        const core::ActionId id = ui::armingAction(kind);
+        INFO(ui::annotationToolKindName(kind));
+        REQUIRE(page.fixture.actions.dispatch(id, core::KeyContext::Viewer));
+        REQUIRE(page.view->tools().armedAnnotation() == kind);
+        const QString shown = page.window->statusBar()->message()->text();
+        CHECK_FALSE(shown.isEmpty());
+        CHECK(shown != ui::catalog::translate(ui::catalog::key::StatusAnnotationToolArmed).arg(ui::catalog::translateAction(id)));
+        if (kind == ui::AnnotationToolKind::Stamp)
+            CHECK(shown == ui::catalog::translate(ui::catalog::key::StatusAnnotationToolStamp).arg(ui::catalog::translateAction(id)));
+    }
+    CHECK(making == ui::kAnnotationToolKindCount);   // every tool the commenting table arms now makes something
 }
