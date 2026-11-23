@@ -46,8 +46,17 @@
 #include <QByteArray>
 
 #include <array>
+#include <optional>
+#include <set>
+#include <string>
+
+namespace rawpage::pdf::cos {
+class XrefTable;
+}
 
 namespace rawpage::pdf::ops {
+
+struct PageEntry;
 
 class PageStamp {
 public:
@@ -58,11 +67,27 @@ public:
         int rotate = 0;      // the page's `/Rotate`, 0, 90, 180 or 270
     };
 
+    // What a page SHOWS: its CropBox within its MediaBox (US Letter where none is written), its `/Rotate`, and the size
+    // the two make. None for a box under 3 or past 14,400 units either way.
+    struct Shown {
+        core::PdfRect box;
+        int rotate = 0;
+        core::PdfSize size;   // `box` turned by `rotate`
+    };
+    static std::optional<Shown> shown(const PageEntry& entry);
+
     // A one-page payload as a stamp's page: its graph, and the size the page shows. Refused by key (see the header).
     static core::Result<core::StampPage> fromPayload(const QByteArray& graph);
 
     // `page` written as a form XObject through `objects` -- see the header.
     static core::Result<Form> form(const core::StampPage& page, AppearanceObjects& objects);
+
+    // STAGE 7 T16 (D7-46): page `entry` of a payload ALREADY READ -- `table`, holding many pages -- written as a form the
+    // same way, every object keyed `prefix + <its number>` and the form `prefix + "form:" + <the page's number>`, so the
+    // pages of one payload made forms one after another share what they share (a font is written once). `frame` -- the
+    // payload's pages, its node and its catalog -- is never copied. Refused by `form`'s keys.
+    static core::Result<Form> pageForm(cos::XrefTable& table, const PageEntry& entry, const std::set<long long>& frame,
+                                       const std::string& prefix, AppearanceObjects& objects);
 
     // The matrix that maps the page as SHOWN -- `box` turned clockwise by `rotate` -- onto `0 0 width height`: what the
     // stamp's appearance concatenates before it paints the form.

@@ -18,12 +18,17 @@
 // claims is the suite's usual and no more**: our decorations rasterize on THIS rasterizer the way they did when each
 // baseline was LOOKED AT and kept -- not that another reader draws them so (M-07, Acrobat), not that they are right.
 //
+// Stage 7 T16 adds the IMPOSITION cases (`imposition-<name>`): `assembly/odd-count-*.pdf` and `inherit-resources.pdf`
+// imposed on a 4 x 6 inch sheet -- booklets with every mark, a turned back, an exaggerated creep on the inner sheet,
+// n-up with gutters, frames, down and reversed, a colour bar, pages turned by `/Rotate` -- one side of each kept.
+//
 // Compiled into `rawpage_golden_tests` and `golden-update` alike, so the two read one spec.
 
 #ifndef RAWPAGE_TESTS_GOLDEN_DECORATIONCASES_H
 #define RAWPAGE_TESTS_GOLDEN_DECORATIONCASES_H
 
 #include "core/doc/HeaderFooter.h"
+#include "core/doc/Imposition.h"
 #include "core/doc/Watermark.h"
 
 #include <optional>
@@ -50,6 +55,11 @@ struct DecorationCase {
     bool machineDependent = false;
     // Stage 7 T15 (D7-45, guide A-99): a WATERMARK instead of `spec` -- laid out by `core::layoutWatermark`.
     std::optional<core::WatermarkSpec> watermark = std::nullopt;
+    // Stage 7 T16 (D7-46, guide A-104): an IMPOSITION instead -- the corpus file `source` imposed by it through the
+    // shipped path (`DocumentAssembler::Source::impose`), and its side `side` kept as the case's one page.
+    std::optional<core::ImpositionSpec> imposition = std::nullopt;
+    QString source = QString();
+    int side = 0;
 };
 
 const std::vector<DecorationCase>& decorationCases();

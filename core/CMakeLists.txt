@@ -178,6 +178,9 @@ add_library(rawpage_core STATIC
     # Stage 7 T15 (D7-45) -- a watermark: its source, its natural size, and every copy of it placed on the page as shown.
     doc/Watermark.h
     doc/Watermark.cpp
+    # Stage 7 T16 (D7-8, D7-46) -- imposition: which page goes where on which side of which sheet, n-up and booklet.
+    doc/Imposition.h
+    doc/Imposition.cpp
     doc/BatesAllocator.h
     doc/BatesAllocator.cpp
 

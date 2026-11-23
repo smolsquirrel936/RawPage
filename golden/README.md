@@ -7,7 +7,7 @@ more at Stage 6 T1 for its eleven annotated PDFs, and 99 more at Stage 7 T1 for 
 assembly PDFs (captured after Stage 7 guide I-01's fix; the twenty-second file is not a PDF) — each
 one filtered capture that regenerated none of the baselines before it — and compared on every `ctest` run by `tests/golden`
 (`render.golden.*`). **Beside them, since Stage 6 T8, APPEARANCE baselines** -- 31 at T8, 39 since T10's eight stamps, 40 since T11's file attachments, 42 since T12's two measurement cases -- under `golden/appearance/` -- see
-*Appearance baselines* below -- and **since Stage 7 T14, DECORATION baselines** under `golden/decoration/` (nine at T14, seventeen since T15's eight watermarks) -- see
+*Appearance baselines* below -- and **since Stage 7 T14, DECORATION baselines** under `golden/decoration/` (nine at T14, seventeen since T15's eight watermarks, twenty-five since T16's eight imposition sheets) -- see
 *Decoration baselines* below; neither family is corpus pages and neither is counted in the 468. This directory is **data, not code** — nothing links it, and
 `Tech-Stack-Plan.md` §4.1 lists it beside `i18n/`, `res/` and `corpus/`.
 
@@ -153,6 +153,15 @@ PDF page (written in the spec and copied as an insert copies it) as sources, at 
 with an offset, tiled, behind and in front, and on a page turned by `/Rotate` -- each laid out by `core::layoutWatermark`
 and written through the same sink. Captured by `golden-update --decoration --filter watermark- --reason "…"`. The same
 bound: not that Acrobat draws them so (Stage 7 guide M-09).
+
+**Since Stage 7 T16 (guide A-104), eight IMPOSITION cases**, named `imposition-<name>` and compared by
+`render.golden.imposition every case matches its baseline`: a corpus file (`assembly/odd-count-*.pdf`,
+`assembly/inherit-resources.pdf`) imposed on a 4 x 6 inch sheet through the shipped path
+(`DocumentAssembler::Source::impose`), ONE side of the result kept -- a booklet's front with every mark, its back
+half-turned for a long-edge flip, an inner sheet's exaggerated creep, 4-up with a gutter and an empty cell, 9-up down and
+reversed, pages turned by `/Rotate` 90 and 180, 16-up with registration marks and the colour bar, 6-up on a landscape
+sheet. Captured by `golden-update --decoration --filter imposition- --reason "…"`. The same bound: these sheets rasterize
+on THIS rasterizer as they did when each was looked at -- not that they are right on paper, which is Stage 7 guide M-04's.
 
 ## Storage
 

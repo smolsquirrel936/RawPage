@@ -398,7 +398,8 @@
             { "action": "watermark.remove", "size": "small" },
             { "action": "bates.add", "size": "small" },
             { "action": "bates.remove", "size": "small" },
-            { "action": "imposition.booklet", "size": "small" }
+            { "action": "imposition.booklet", "size": "small" },
+            { "action": "imposition.nUp", "size": "small" }
           ]
         },
         {

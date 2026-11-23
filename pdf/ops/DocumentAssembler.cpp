@@ -6,6 +6,7 @@
 #include "pdf/cos/FullWriter.h"
 #include "pdf/cos/IncrementalWriter.h"
 #include "pdf/cos/XrefTable.h"
+#include "pdf/ops/ImpositionOps.h"
 
 #include <QByteArrayView>
 #include <QCryptographicHash>
@@ -368,6 +369,14 @@ core::Result<core::CopiedPages> DocumentAssembler::Source::copy(const std::vecto
     out.pageCount = copied.value().pageCount;
     out.report = std::move(copied.value().report);
     return out;
+}
+
+core::Result<core::ImposedDocument> DocumentAssembler::Source::impose(const core::ImpositionSpec& spec, const core::ImpositionText& text)
+{
+    // S7 T16 (D7-46): every page of the snapshot, drawn onto sheets -- the seed as `make`'s, so two impositions of one
+    // document are two files with two identifiers.
+    const std::string seed = std::to_string(QDateTime::currentMSecsSinceEpoch()) + ':' + std::to_string(++made_) + ":impose";
+    return ImpositionOps::impose(opened_->table, walk_, spec, text, seed);
 }
 
 core::Result<std::vector<core::WrittenDocument>> DocumentAssembler::Source::write(const std::vector<core::AssemblyOutput>& outputs,

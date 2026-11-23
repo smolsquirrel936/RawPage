@@ -420,9 +420,10 @@ TEST_CASE("a Global command acts on the window that is active", "[tabs]")
     // D7-10, D7-11), and by 8 at Stage 7 T12 (links and named destinations, D7-12, D7-35), and the
     // point of asserting it here is unchanged: this case is about registration happening once per
     // REGISTRY rather than once per window, and a count is how "once" is stated.
-    CHECK(fixture.actions.registeredCount() == 220);   // 214 until S7 D7-42 unregistered the two `Ctrl+E` toggles;
+    CHECK(fixture.actions.registeredCount() == 222);   // 214 until S7 D7-42 unregistered the two `Ctrl+E` toggles;
                                                        // +5 at S7 T14 (`headerFooter.add/update/remove`, `bates.add/remove`);
-                                                       // +3 at S7 T15 (`watermark.add/update/remove`)
+                                                       // +3 at S7 T15 (`watermark.add/update/remove`);
+                                                       // +2 at S7 T16 (`imposition.booklet`, `imposition.nUp`)
 
     second.raiseToForeground();
     CHECK(ui::MainWindow::activeShell() == &second);

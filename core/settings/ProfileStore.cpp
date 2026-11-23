@@ -98,10 +98,12 @@ void ProfileStore::load()
     damaged_.clear();
     headerFooterProfiles_.clear();
     watermarkProfiles_.clear();
+    impositionProfiles_.clear();
     const QDir dir(root_);
     if (!dir.exists()) return;
     loadProfiles(ProfileKind::HeaderFooter);   // S7 T14
     loadProfiles(ProfileKind::Watermark);      // S7 T15
+    loadProfiles(ProfileKind::Imposition);     // S7 T16
 
     if (dir.exists(kFavouritesFile)) {
         const std::optional<QByteArray> bytes = readCapped(dir.filePath(kFavouritesFile), kMaxDescriptionBytes);
@@ -365,6 +367,7 @@ QString ProfileStore::profileDirectory(ProfileKind kind) const
 {
     switch (kind) {
     case ProfileKind::Watermark: return QDir(root_).filePath(QStringLiteral("profiles/watermark"));
+    case ProfileKind::Imposition: return QDir(root_).filePath(QStringLiteral("profiles/imposition"));
     case ProfileKind::HeaderFooter: break;
     }
     return QDir(root_).filePath(QStringLiteral("profiles/headerFooter"));
@@ -372,10 +375,12 @@ QString ProfileStore::profileDirectory(ProfileKind kind) const
 
 std::vector<ProfileStore::Profile>& ProfileStore::profilesOf(ProfileKind kind)
 {
+    if (kind == ProfileKind::Imposition) return impositionProfiles_;   // S7 T16
     return kind == ProfileKind::Watermark ? watermarkProfiles_ : headerFooterProfiles_;
 }
 const std::vector<ProfileStore::Profile>& ProfileStore::profilesOf(ProfileKind kind) const
 {
+    if (kind == ProfileKind::Imposition) return impositionProfiles_;
     return kind == ProfileKind::Watermark ? watermarkProfiles_ : headerFooterProfiles_;
 }
 

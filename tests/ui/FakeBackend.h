@@ -724,6 +724,8 @@ public:
     };
     std::vector<std::vector<int>> assembled;
     std::vector<std::vector<int>> copied;   // S7 T8: each `AssemblySource::copy`'s pages
+    std::vector<core::ImpositionSpec> imposed;          // S7 T16: each `AssemblySource::impose`'s spec
+    std::vector<core::ImpositionText> impositionTexts;  // ... and its words
     std::vector<AssemblyWrite> assemblyWrites;
     const char* assembleFails = nullptr;   // a catalog key, or null
     const char* writeFails = nullptr;
@@ -748,6 +750,23 @@ public:
             core::CopiedPages out;
             out.graph = QByteArray("%PDF-1.7 fake pages ") + QByteArray::number(static_cast<int>(pages.size())) + " of handle";
             out.pageCount = static_cast<int>(pages.size());
+            return out;
+        }
+        // S7 T16: an imposition RECORDED, its plan the real one over Letter pages -- what is drawn is `tst_impositionops`'.
+        core::Result<core::ImposedDocument> impose(const core::ImpositionSpec& spec, const core::ImpositionText& text) override
+        {
+            backend_.imposed.push_back(spec);
+            backend_.impositionTexts.push_back(text);
+            if (backend_.assembleFails) return core::Error{core::ErrorCode::Corrupted, QLatin1String(backend_.assembleFails), QString()};
+            auto plan = core::planImposition(spec, std::vector<core::PdfSize>(static_cast<std::size_t>(pages_), core::PdfSize{612, 792}));
+            if (!plan) return plan.error();
+            core::ImposedDocument out;
+            out.pageCount = static_cast<int>(plan.value().sides.size());
+            out.bytes = QByteArray("%PDF-1.7 fake imposition of ") + QByteArray::number(out.pageCount) + " side(s)";
+            out.sheets = plan.value().sheets;
+            out.sourcePages = pages_;
+            out.blanks = plan.value().pagesPadded - pages_;
+            out.plan = std::move(plan).value();
             return out;
         }
         core::Result<std::vector<core::WrittenDocument>> write(const std::vector<core::AssemblyOutput>& outputs, const QString& folder) override

@@ -22,6 +22,7 @@
 
 #include "core/doc/HeaderFooter.h"
 #include "core/doc/Stamps.h"
+#include "core/doc/Imposition.h"
 #include "core/doc/Watermark.h"
 #include "core/settings/ProfileStore.h"
 #include "pdf/ops/ObjectGraphCopier.h"
@@ -183,6 +184,19 @@ rawpage::core::WatermarkSpec watermarkPicture()
     return spec;
 }
 
+// Stage 7 T16 (D7-22, D7-46, guide A-97): an imposition profile -- a marked right-bound booklet on A3.
+rawpage::core::ImpositionSpec impositionBooklet()
+{
+    rawpage::core::ImpositionSpec spec;
+    spec.layout = rawpage::core::ImpositionLayout::Booklet;
+    spec.binding = rawpage::core::ImpositionBinding::Right;
+    spec.sheet = rawpage::core::PdfSize{842.0, 1191.0};
+    spec.creep = 0.35;
+    spec.duplex = rawpage::core::DuplexFlip::LongEdge;
+    spec.cropMarks = spec.sheetLabels = true;
+    return spec;
+}
+
 void writeProfiles(ProfileStore& store)
 {
     REQUIRE(store.saveProfile(rawpage::core::ProfileKind::HeaderFooter, QStringLiteral("Legal"),
@@ -193,6 +207,8 @@ void writeProfiles(ProfileStore& store)
                               rawpage::core::watermarkToJson(watermarkText(), true)));
     REQUIRE(store.saveProfile(rawpage::core::ProfileKind::Watermark, QStringLiteral("noise"),
                               rawpage::core::watermarkToJson(watermarkPicture(), true)));
+    REQUIRE(store.saveProfile(rawpage::core::ProfileKind::Imposition, QStringLiteral("Zine"),
+                              rawpage::core::impositionToJson(impositionBooklet())));
 }
 
 std::string checkProfiles(const ProfileStore& store)
@@ -213,6 +229,12 @@ std::string checkProfiles(const ProfileStore& store)
         auto spec = rawpage::core::watermarkFromJson(json.value(), true);
         if (!spec || !(spec.value() == want)) return std::string("the watermark spec of ") + name;
     }
+    // Stage 7 T16: the imposition kind, apart from the others.
+    if (store.profileNames(rawpage::core::ProfileKind::Imposition) != QStringList{QStringLiteral("Zine")}) return "the imposition profiles' names";
+    auto json = store.profile(rawpage::core::ProfileKind::Imposition, QStringLiteral("Zine"));
+    if (!json) return "the imposition profile";
+    auto imposition = rawpage::core::impositionFromJson(json.value());
+    if (!imposition || !(imposition.value() == impositionBooklet())) return "the imposition spec";
     return {};
 }
 
@@ -472,5 +494,6 @@ TEST_CASE("profile store restart probe reads", "[.][restart]")
     INFO("what did not survive the restart: " << wrong);
     CHECK(wrong.empty());
     std::printf("profile store restart: a category, a favourite signature, a favourite built-in, a page stamp with "
-                "its picture, two header/footer profiles and two watermark profiles read back by a second process\n");
+                "its picture, two header/footer profiles, two watermark profiles and an imposition profile read back by a second "
+                "process\n");
 }

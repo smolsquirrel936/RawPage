@@ -55,6 +55,8 @@
 #include "ui/dialogs/ExchangeReportDialog.h"
 #include "ui/dialogs/HeaderFooterDialog.h"
 #include "ui/dialogs/WatermarkDialog.h"
+#include "core/doc/Assembly.h"
+#include "core/doc/Imposition.h"
 #include "ui/dialogs/BookmarkDialogs.h"
 #include "ui/dialogs/MergeDialog.h"
 #include "ui/dialogs/PageOpsDialogs.h"
@@ -332,6 +334,14 @@ public:
     WatermarkDialog::PageReader watermarkPageReader();
     // The last watermark added in this session, which *Add* starts from.
     const std::optional<core::WatermarkSpec>& lastWatermark() const noexcept { return lastWatermark_; }
+
+    // Stage 7 T16 (D7-8, D7-46) -- `ui/shell/MainWindowImpose.cpp`. The document in front, as it stands, imposed by `spec`
+    // and opened as an untitled tab (Q1) -- no command, nothing journalled; the status bar says how many pages went on how
+    // many sheets, and how many annotations are not drawn. The words its sheet labels use, from the catalog.
+    core::Status imposeDocument(DocumentWindow* document, const core::ImpositionSpec& spec);
+    core::ImpositionText impositionTextFor(const DocumentWindow& document) const;
+    // The last imposition made in this session, which *Booklet* and *N-up* start from.
+    const std::optional<core::ImpositionSpec>& lastImposition() const noexcept { return lastImposition_; }
 
     // Save in place, through `SaveCoordinator`. A document that must be saved as a new file -- repaired,
     // changed on disk since it was opened, or refused by the file system (read-only, held by another
@@ -786,6 +796,7 @@ private:
     void registerBookmarkActions();  // S7 T11 -- `ui/shell/MainWindowBookmarks.cpp`
     void registerLinkActions();      // S7 T12 -- `ui/shell/MainWindowLinks.cpp`
     void registerDecorationActions();   // S7 T14 -- `ui/shell/MainWindowDecorate.cpp`
+    void registerImpositionActions();   // S7 T16 -- `ui/shell/MainWindowImpose.cpp`
     void finishMerge(core::Result<core::MergedDocument> merged, const std::vector<QString>& paths);
     void updatePageBadges();         // S7 T8 -- the thumbnails' badges from the document in front's store
 
@@ -885,6 +896,7 @@ private:
     std::optional<core::HeaderFooterSpec> lastHeaderFooter_;   // S7 T14: what *Update* starts from
     QString lastBatesReport_;                                 // S7 T14: the last run's report, as shown
     std::optional<core::WatermarkSpec> lastWatermark_;        // S7 T15: what *Add* starts from
+    std::optional<core::ImpositionSpec> lastImposition_;      // S7 T16: what *Booklet* and *N-up* start from
     // S6 T14: the one player, made on the first sound played, and what it was last given.
     SoundPlayer* player_ = nullptr;
     std::optional<core::SoundData> lastPlayed_;

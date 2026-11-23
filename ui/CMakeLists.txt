@@ -36,6 +36,7 @@ add_library(rawpage_ui STATIC
     shell/MainWindowBookmarks.cpp   # Stage 7 T11 -- the bookmarks' edits (D7-10, D7-11)
     shell/MainWindowLinks.cpp       # Stage 7 T12 -- links and named destinations (D7-12, D7-35)
     shell/MainWindowDecorate.cpp    # Stage 7 T14 -- headers, footers and Bates numbers (D7-7, D7-14, D7-44)
+    shell/MainWindowImpose.cpp      # Stage 7 T16 -- imposition.booklet and imposition.nUp (D7-8, D7-46)
     # S6 T14 (D6-18): the window's half of a sound comment -- the recorder and the WAV asked, a sound played.
     shell/MainWindowAudio.cpp
     shell/CommentMigration.h
@@ -337,6 +338,8 @@ add_library(rawpage_ui STATIC
     dialogs/HeaderFooterDialog.cpp  #   and Bates numbering across the open documents in an order chosen
     dialogs/WatermarkDialog.h       # Stage 7 T15 (D7-22, D7-45): a watermark -- text, image or page, placed, tiled, behind or
     dialogs/WatermarkDialog.cpp     #   in front, for print or screen -- with its preview and profiles, and the chooser
+    dialogs/ImpositionDialog.h      # Stage 7 T16 (D7-8, D7-22, D7-46): n-up or a booklet, the sheet, duplex, the marks, with
+    dialogs/ImpositionDialog.cpp    #   the plan previewed side by side, and profiles
     # S5 T13 -- the two documents and the comparison's options; refused where nobody can answer.
     dialogs/CompareDialog.h
     dialogs/CompareDialog.cpp

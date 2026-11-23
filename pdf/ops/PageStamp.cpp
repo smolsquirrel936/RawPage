@@ -73,15 +73,10 @@ core::Result<Read> readPayload(const QByteArray& graph)
     out.dictionary = fetched.value().object;
     // What the page shows, as `core::Page` resolves it: the MediaBox (US Letter where none is written, as PDFium
     // draws one) and the CropBox within it.
-    const std::optional<core::PdfRect> media = rectOf(entry.mediaBox);
-    core::Page shown(0, media.value_or(core::PdfRect{core::PdfPoint{0.0, 0.0}, core::PdfSize{612.0, 792.0}}));
-    shown.setCropBox(rectOf(entry.cropBox));
-    out.box = shown.cropBox();
-    out.rotate = ((entry.effectiveRotate() % 360) + 360) % 360;
-    if (out.rotate % 90 != 0) out.rotate = 0;   // `PageOps` normalizes it; a stray value draws upright, as PDFium draws it
-    if (!(out.box.size.width >= 3.0) || !(out.box.size.height >= 3.0) || out.box.size.width > 14400.0
-        || out.box.size.height > 14400.0)
-        return stampError("box");
+    const std::optional<PageStamp::Shown> shown = PageStamp::shown(entry);
+    if (!shown) return stampError("box");
+    out.box = shown->box;
+    out.rotate = shown->rotate;
     out.frame.insert(entry.number);
     if (auto shape = PageOps::shape(out.table)) {
         for (const PageTreeNode& node : shape.value().nodes) out.frame.insert(node.number);
@@ -234,34 +229,35 @@ core::Result<core::StampPage> PageStamp::fromPayload(const QByteArray& graph)
     return page;
 }
 
-core::Result<PageStamp::Form> PageStamp::form(const core::StampPage& page, AppearanceObjects& objects)
+namespace {
+
+// The form itself: `dictionary`'s content, its resources and group, every object they reach keyed `prefix + <number>` and
+// reserved before any is written; the form keyed `formKey`.
+core::Result<PageStamp::Form> writeForm(cos::XrefTable& table, const CosObject& dictionary, const core::PdfRect& box, int rotate,
+                                        const std::set<long long>& frame, const std::string& prefix, const std::string& formKey,
+                                        AppearanceObjects& objects)
 {
-    auto read = readPayload(page.graph);
-    if (!read) return read.error();
-    Read& r = read.value();
-    auto streams = contentStreams(r.table, r.dictionary.get("Contents"));
+    auto streams = contentStreams(table, dictionary.get("Contents"));
     if (!streams) return streams.error();
-    auto content = contentOf(r.table, streams.value());
+    auto content = contentOf(table, streams.value());
     if (!content) return content.error();
 
-    // Every object the form names, each reserved under its key before any is written.
-    const std::string prefix = "stamppage:" + core::stampPageKey(page).toStdString() + ":";
-    std::vector<CosObject> roots{r.dictionary.get("Resources"), r.dictionary.get("Group")};
+    std::vector<CosObject> roots{dictionary.get("Resources"), dictionary.get("Group")};
     if (content.value().filter) roots.push_back(*content.value().filter);
     if (content.value().parms) roots.push_back(*content.value().parms);
-    const std::vector<long long> numbers = reachable(r.table, roots, r.frame);
+    const std::vector<long long> numbers = reachable(table, roots, frame);
     std::map<long long, cos::CosRef> map;
     for (const long long number : numbers) map.emplace(number, objects.reserved(prefix + std::to_string(number)));
     for (const long long number : numbers) {
         const std::string key = prefix + std::to_string(number);
-        auto fetched = r.table.fetch(number);
+        auto fetched = table.fetch(number);
         if (!fetched) {
             objects.shared(key, CosObject::makeNull());
             continue;
         }
         const CosObject& value = fetched.value().object;
         if (value.isStream())
-            objects.sharedStream(key, mapped(map, value), std::string(value.rawStreamData(r.table.source())));
+            objects.sharedStream(key, mapped(map, value), std::string(value.rawStreamData(table.source())));
         else
             objects.shared(key, mapped(map, value));
     }
@@ -269,16 +265,58 @@ core::Result<PageStamp::Form> PageStamp::form(const core::StampPage& page, Appea
     std::vector<CosObject::Entry> entries{
         {"Type", CosObject::makeName("XObject")},
         {"Subtype", CosObject::makeName("Form")},
-        {"BBox", boxArray(r.box)},
+        {"BBox", boxArray(box)},
     };
-    const CosObject resources = r.dictionary.get("Resources");
+    const CosObject resources = dictionary.get("Resources");
     entries.push_back({"Resources", resources.isNull() ? CosObject::makeDictionary({}) : mapped(map, resources)});
-    if (const CosObject group = r.dictionary.get("Group"); !group.isNull()) entries.push_back({"Group", mapped(map, group)});
+    if (const CosObject group = dictionary.get("Group"); !group.isNull()) entries.push_back({"Group", mapped(map, group)});
     if (content.value().filter) entries.push_back({"Filter", mapped(map, *content.value().filter)});
     if (content.value().parms) entries.push_back({"DecodeParms", mapped(map, *content.value().parms)});
-    const cos::CosRef at = objects.sharedStream(prefix + "form", CosObject::makeStream(std::move(entries), cos::CosStreamData{}),
+    const cos::CosRef at = objects.sharedStream(formKey, CosObject::makeStream(std::move(entries), cos::CosStreamData{}),
                                                 std::move(content.value().data));
-    return Form{at, r.box, r.rotate};
+    return PageStamp::Form{at, box, rotate};
+}
+
+} // namespace
+
+std::optional<PageStamp::Shown> PageStamp::shown(const PageEntry& entry)
+{
+    // What the page shows, as `core::Page` resolves it: the MediaBox (US Letter where none is written, as PDFium draws
+    // one) and the CropBox within it.
+    const std::optional<core::PdfRect> media = rectOf(entry.mediaBox);
+    core::Page page(0, media.value_or(core::PdfRect{core::PdfPoint{0.0, 0.0}, core::PdfSize{612.0, 792.0}}));
+    page.setCropBox(rectOf(entry.cropBox));
+    Shown out;
+    out.box = page.cropBox();
+    out.rotate = ((entry.effectiveRotate() % 360) + 360) % 360;
+    if (out.rotate % 90 != 0) out.rotate = 0;   // `PageOps` normalizes it; a stray value draws upright, as PDFium draws it
+    if (!(out.box.size.width >= 3.0) || !(out.box.size.height >= 3.0) || out.box.size.width > 14400.0
+        || out.box.size.height > 14400.0)
+        return std::nullopt;
+    const bool turned = out.rotate == 90 || out.rotate == 270;
+    out.size = turned ? core::PdfSize{out.box.size.height, out.box.size.width} : out.box.size;
+    return out;
+}
+
+core::Result<PageStamp::Form> PageStamp::form(const core::StampPage& page, AppearanceObjects& objects)
+{
+    auto read = readPayload(page.graph);
+    if (!read) return read.error();
+    Read& r = read.value();
+    // Every object the form names, each reserved under its key before any is written.
+    const std::string prefix = "stamppage:" + core::stampPageKey(page).toStdString() + ":";
+    return writeForm(r.table, r.dictionary, r.box, r.rotate, r.frame, prefix, prefix + "form", objects);
+}
+
+core::Result<PageStamp::Form> PageStamp::pageForm(cos::XrefTable& table, const PageEntry& entry, const std::set<long long>& frame,
+                                                  const std::string& prefix, AppearanceObjects& objects)
+{
+    const std::optional<Shown> shown = PageStamp::shown(entry);
+    if (!shown) return stampError("box", entry.number);
+    auto fetched = table.fetch(entry.number);
+    if (!fetched || !fetched.value().object.isDictionary()) return stampError("page", entry.number);
+    return writeForm(table, fetched.value().object, shown->box, shown->rotate, frame, prefix,
+                     prefix + "form:" + std::to_string(entry.number), objects);
 }
 
 std::array<double, 6> PageStamp::showMatrix(const core::PdfRect& box, int rotate, double width, double height) noexcept

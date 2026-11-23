@@ -1940,6 +1940,86 @@
         },
         {
             "dpi": 144,
+            "file": "decoration/imposition-16up-bar",
+            "height": 864,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 576
+        },
+        {
+            "dpi": 144,
+            "file": "decoration/imposition-2up-turned-pages",
+            "height": 864,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 576
+        },
+        {
+            "dpi": 144,
+            "file": "decoration/imposition-4up-gutter",
+            "height": 864,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 576
+        },
+        {
+            "dpi": 144,
+            "file": "decoration/imposition-6up-landscape",
+            "height": 576,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 864
+        },
+        {
+            "dpi": 144,
+            "file": "decoration/imposition-9up-down-reversed",
+            "height": 864,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 576
+        },
+        {
+            "dpi": 144,
+            "file": "decoration/imposition-booklet-back-turned",
+            "height": 576,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 864
+        },
+        {
+            "dpi": 144,
+            "file": "decoration/imposition-booklet-creep",
+            "height": 576,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 864
+        },
+        {
+            "dpi": 144,
+            "file": "decoration/imposition-booklet-marks",
+            "height": 576,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 864
+        },
+        {
+            "dpi": 144,
             "file": "decoration/rotated-270",
             "height": 576,
             "page": 0,
@@ -5212,7 +5292,7 @@
             "width": 1588
         }
     ],
-    "capturedUtc": "2026-11-23T02:14:24Z",
+    "capturedUtc": "2026-11-23T07:04:10Z",
     "pdfiumVersion": "153.0.8009.0",
-    "reason": "Stage 7 T15: the first watermark baselines (guide A-99), each looked at before it is kept"
+    "reason": "Stage 7 T16 (D7-46, guide A-104): first capture of the eight imposition cases -- marks, colour bar, frames, labels, gutters, a turned back, creep, n-up down and reversed, pages turned by /Rotate; the label at the sheet's bottom edge, the crop ticks stopping short of it"
 }

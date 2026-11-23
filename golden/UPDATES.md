@@ -102,3 +102,28 @@
   left (red) edge at the bottom; `page` -- the frame, square and line turned 15 degrees at 60 %, the square darker over
   the black bar (one transparency group); `rotated-page` -- a page turned 90, TOP across the top as shown, upright.
   Additions only: no corpus, appearance or T14 decoration baseline regenerated.
+
+## 2026-11-23T07:01:19Z
+
+- **PDFium** 153.0.8009.0
+- **Images regenerated** 8 (filtered on `imposition-`)
+- **Reason** Stage 7 T16 (D7-46, guide A-104): first capture of the eight imposition cases -- marks, colour bar, frames, labels, gutters, a turned back, creep, n-up down and reversed, pages turned by /Rotate
+
+## 2026-11-23T07:04:10Z
+
+- **PDFium** 153.0.8009.0
+- **Images regenerated** 8 (filtered on `imposition-`)
+- **Reason** Stage 7 T16 (D7-46, guide A-104): first capture of the eight imposition cases -- marks, colour bar, frames, labels, gutters, a turned back, creep, n-up down and reversed, pages turned by /Rotate; the label at the sheet's bottom edge, the crop ticks stopping short of it
+- **The capture above (07:01:19Z) was looked at and NOT kept**: in `booklet-marks` a crop tick below the left page ran
+  through the first letter of the sheet label. The plan was changed (the label on a band at the sheet's bottom edge, the
+  ticks below the pages stopping short of it) and every case captured again here.
+- **Looked at, all eight, before they were kept:** `booklet-marks` -- a blank and C05-0001, the page against the fold,
+  crop marks at the blank's corners too, registration marks at the four mid-margins, the colour bar top right, the label
+  clear of every tick; `booklet-back-turned` -- C05-0002 upside down in the RIGHT cell and the label upside down at the
+  top right, the whole side half-turned; `booklet-creep` -- C17-0012 and C17-0009 each pushed 24 points toward the fold and
+  clipped at it; `4up-gutter` -- C07-0005 ... 0007 across with a 12-point gutter, the fourth cell empty, its marks those of
+  its row and column; `9up-down-reversed` -- C09-0001 at the top right, columns read top to bottom from the right;
+  `2up-turned-pages` -- H-0003 (`/Rotate` 90) reading downward and H-0004 (`/Rotate` 180) upside down, each as a reader
+  shows it, framed at its CropBox; `16up-bar` -- C17-0001 ... 0016 across, the registration marks and the colour bar;
+  `6up-landscape` -- C07-0001 ... 0006 in 3 x 2 and the label. Additions only: no corpus, appearance or earlier
+  decoration baseline regenerated.

@@ -4,10 +4,15 @@
 
 #include "core/doc/Page.h"
 #include "core/doc/Stamps.h"
+#include "core/doc/Assembly.h"
+#include "pdf/ops/DocumentAssembler.h"
 #include "pdf/ops/MutationSinkImpl.h"
 #include "pdf/ops/ObjectGraphCopier.h"
 #include "pdf/ops/PageStamp.h"
 #include "pdf/ops/RevisionWriter.h"
+
+#include <QDir>
+#include <QFile>
 
 #include <cstdio>
 
@@ -247,7 +252,103 @@ std::vector<DecorationCase> buildCases()
         spec.behind = false;
         watermark("rotated-page", "a page turned 90: TOP across the top of the page AS SHOWN, reading upright", 90, spec);
     }
+
+    // Stage 7 T16 (D7-46, guide A-104): impositions on a 4 x 6 inch sheet, one side each.
+    const auto imposition = [&cases](const char* name, const char* note, const char* source, int side, const core::ImpositionSpec& spec) {
+        DecorationCase item;
+        item.name = QStringLiteral("imposition-") + QLatin1String(name);
+        item.note = QLatin1String(note);
+        item.imposition = spec;
+        item.source = QLatin1String(source);
+        item.side = side;
+        cases.push_back(std::move(item));
+    };
+    core::ImpositionSpec small;
+    small.sheet = core::PdfSize{288.0, 432.0};
+    small.margin = 24.0;
+    {
+        core::ImpositionSpec spec = small;
+        spec.layout = core::ImpositionLayout::Booklet;
+        spec.duplex = core::DuplexFlip::ShortEdge;
+        spec.cropMarks = spec.registrationMarks = spec.colourBar = spec.sheetLabels = spec.frames = true;
+        imposition("booklet-marks", "5 pages as a booklet, sheet 1 front: a blank and C05-0001, every mark, frames and the label", "assembly/odd-count-5.pdf", 0,
+                   spec);
+    }
+    {
+        core::ImpositionSpec spec = small;
+        spec.layout = core::ImpositionLayout::Booklet;
+        spec.duplex = core::DuplexFlip::LongEdge;
+        spec.cropMarks = spec.sheetLabels = spec.frames = true;
+        imposition("booklet-back-turned", "sheet 1 back for a long-edge flip: C05-0002 and a blank, the whole side half-turned, label too",
+                   "assembly/odd-count-5.pdf", 1, spec);
+    }
+    {
+        core::ImpositionSpec spec = small;
+        spec.layout = core::ImpositionLayout::Booklet;
+        spec.creep = 6.0;
+        spec.cropMarks = spec.frames = true;
+        imposition("booklet-creep", "17 pages, the innermost sheet's front (C17-0012, C17-0009): 24 points of creep toward the fold, clipped there",
+                   "assembly/odd-count-17.pdf", 8, spec);
+    }
+    {
+        core::ImpositionSpec spec = small;
+        spec.perSheet = 4;
+        spec.gutter = 12.0;
+        spec.cropMarks = spec.frames = true;
+        imposition("4up-gutter", "7 pages 4-up across, the second side: C07-0005 ... 0007, a 12-point gutter, an empty cell", "assembly/odd-count-7.pdf", 1, spec);
+    }
+    {
+        core::ImpositionSpec spec = small;
+        spec.perSheet = 9;
+        spec.order = core::ImpositionOrder::Down;
+        spec.reversed = true;
+        spec.gutter = 3.0;
+        spec.sheetLabels = spec.frames = true;
+        imposition("9up-down-reversed", "9 pages 9-up, down and reversed: C09-0001 at the top right, columns right to left", "assembly/odd-count-9.pdf", 0,
+                   spec);
+    }
+    {
+        core::ImpositionSpec spec = small;
+        spec.perSheet = 2;
+        spec.frames = true;
+        imposition("2up-turned-pages", "inherit-resources' pages 3 and 4: /Rotate 90 and 180 and CropBoxes, each as a reader shows it",
+                   "assembly/inherit-resources.pdf", 1, spec);
+    }
+    {
+        core::ImpositionSpec spec = small;
+        spec.perSheet = 16;
+        spec.gutter = 2.0;
+        spec.registrationMarks = spec.colourBar = spec.frames = true;
+        imposition("16up-bar", "17 pages 16-up across, the first side: registration marks and the colour bar", "assembly/odd-count-17.pdf", 0, spec);
+    }
+    {
+        core::ImpositionSpec spec = small;
+        spec.perSheet = 6;
+        spec.orientation = core::SheetOrientation::Landscape;
+        spec.sheetLabels = true;
+        imposition("6up-landscape", "7 pages 6-up across on a landscape sheet: 3 x 2, no frames, the label", "assembly/odd-count-7.pdf", 0, spec);
+    }
     return cases;
+}
+
+// An imposition case: its source imposed through the shipped path, and its one side made a document of its own.
+std::string imposedPdf(const DecorationCase& item)
+{
+    QFile file(QDir(QStringLiteral(RAWPAGE_CORPUS_DIR)).filePath(item.source));
+    if (!file.open(QIODevice::ReadOnly)) return {};
+    const QByteArray bytes = file.readAll();
+    auto source = pdf::ops::DocumentAssembler::Source::open(std::string(bytes.constData(), static_cast<std::size_t>(bytes.size())));
+    if (!source) return {};
+    const core::ImpositionText text{{QStringLiteral("Sheet %1 of %2"), QStringLiteral("Sheet %1 of %2, front"), QStringLiteral("Sheet %1 of %2, back")},
+                                    core::TypedFont::Simplified};
+    auto imposed = source.value()->impose(*item.imposition, text);
+    if (!imposed) return {};
+    auto sheets = pdf::ops::DocumentAssembler::Source::open(
+        std::string(imposed.value().bytes.constData(), static_cast<std::size_t>(imposed.value().bytes.size())));
+    if (!sheets) return {};
+    auto one = sheets.value()->make({item.side});
+    if (!one) return {};
+    return one.value().bytes;
 }
 
 } // namespace
@@ -265,6 +366,7 @@ QString decorationBaselinePath(const DecorationCase& item)
 
 std::string decorationPdf(const DecorationCase& item)
 {
+    if (item.imposition) return imposedPdf(item);   // S7 T16
     // THE PAGE: a catalog, a tree, one page and its content -- a grey band and a black bar across it.
     std::vector<std::string> bodies(4);
     const std::string content = "0.75 g 20 60 248 40 re f 0 g 20 130 248 8 re f 20 20 8 176 re f";

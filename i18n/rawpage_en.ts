@@ -3929,6 +3929,34 @@
         <source>error.decorate.noneChosen</source>
         <translation>Choose at least one watermark.</translation>
     </message>
+    <message>
+        <source>error.imposition.badSpec</source>
+        <translation>This imposition setting is out of range: %1.</translation>
+    </message>
+    <message>
+        <source>error.imposition.marginTooSmall</source>
+        <translation>Marks need a margin of at least %1 points.</translation>
+    </message>
+    <message>
+        <source>error.imposition.sheetTooSmall</source>
+        <translation>The sheet is too small for this layout: each page would have %1 points.</translation>
+    </message>
+    <message>
+        <source>error.imposition.creepTooLarge</source>
+        <translation>The creep adds up to %1 points on the innermost sheet, more than half a page.</translation>
+    </message>
+    <message>
+        <source>error.imposition.noPages</source>
+        <translation>There are no pages to impose.</translation>
+    </message>
+    <message>
+        <source>error.imposition.tooManyPages</source>
+        <translation>Too many pages to impose: %1.</translation>
+    </message>
+    <message>
+        <source>error.imposition.pageUnsupported</source>
+        <translation>A page cannot be drawn on a sheet (page and reason: %1).</translation>
+    </message>
 </context>
 <context>
     <name>ribbon</name>
@@ -4962,6 +4990,10 @@
     <message>
         <source>prefs.setting.documents.watermarkProfile</source>
         <translation>Watermark profile the dialog opens with</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.impositionProfile</source>
+        <translation>Imposition profile the Booklet and N-up dialogs open with</translation>
     </message>
     <message>
         <source>prefs.setting.documents.batesStart</source>
@@ -7841,6 +7873,209 @@
     <message>
         <source>decorate.watermark.kind.page</source>
         <translation>Page from %1</translation>
+    </message>
+</context>
+<context>
+    <name>imposition</name>
+    <message>
+        <source>imposition.bookletTitle</source>
+        <translation>Booklet</translation>
+    </message>
+    <message>
+        <source>imposition.nUpTitle</source>
+        <translation>N-up</translation>
+    </message>
+    <message>
+        <source>imposition.layout</source>
+        <translation>Layout</translation>
+    </message>
+    <message>
+        <source>imposition.layout.nUp</source>
+        <translation>Several pages on each side (n-up)</translation>
+    </message>
+    <message>
+        <source>imposition.layout.booklet</source>
+        <translation>Booklet (folded and stapled)</translation>
+    </message>
+    <message>
+        <source>imposition.perSheet</source>
+        <translation>Pages per side</translation>
+    </message>
+    <message>
+        <source>imposition.order</source>
+        <translation>Page order</translation>
+    </message>
+    <message>
+        <source>imposition.order.across</source>
+        <translation>Across, then down</translation>
+    </message>
+    <message>
+        <source>imposition.order.down</source>
+        <translation>Down, then across</translation>
+    </message>
+    <message>
+        <source>imposition.reversed</source>
+        <translation>Right to left</translation>
+    </message>
+    <message>
+        <source>imposition.binding</source>
+        <translation>Binding</translation>
+    </message>
+    <message>
+        <source>imposition.binding.left</source>
+        <translation>Left</translation>
+    </message>
+    <message>
+        <source>imposition.binding.right</source>
+        <translation>Right</translation>
+    </message>
+    <message>
+        <source>imposition.creep</source>
+        <translation>Creep per sheet (pt)</translation>
+    </message>
+    <message>
+        <source>imposition.sheet</source>
+        <translation>Sheet</translation>
+    </message>
+    <message>
+        <source>imposition.paper</source>
+        <translation>Paper size</translation>
+    </message>
+    <message>
+        <source>imposition.paper.letter</source>
+        <translation>Letter (8.5 × 11 in)</translation>
+    </message>
+    <message>
+        <source>imposition.paper.legal</source>
+        <translation>Legal (8.5 × 14 in)</translation>
+    </message>
+    <message>
+        <source>imposition.paper.tabloid</source>
+        <translation>Tabloid (11 × 17 in)</translation>
+    </message>
+    <message>
+        <source>imposition.paper.a3</source>
+        <translation>A3</translation>
+    </message>
+    <message>
+        <source>imposition.paper.a4</source>
+        <translation>A4</translation>
+    </message>
+    <message>
+        <source>imposition.paper.a5</source>
+        <translation>A5</translation>
+    </message>
+    <message>
+        <source>imposition.paper.custom</source>
+        <translation>Custom</translation>
+    </message>
+    <message>
+        <source>imposition.width</source>
+        <translation>Width (pt)</translation>
+    </message>
+    <message>
+        <source>imposition.height</source>
+        <translation>Height (pt)</translation>
+    </message>
+    <message>
+        <source>imposition.orientation</source>
+        <translation>Orientation</translation>
+    </message>
+    <message>
+        <source>imposition.orientation.auto</source>
+        <translation>Whichever fits the pages larger</translation>
+    </message>
+    <message>
+        <source>imposition.orientation.portrait</source>
+        <translation>Portrait</translation>
+    </message>
+    <message>
+        <source>imposition.orientation.landscape</source>
+        <translation>Landscape</translation>
+    </message>
+    <message>
+        <source>imposition.margin</source>
+        <translation>Margin (pt)</translation>
+    </message>
+    <message>
+        <source>imposition.gutter</source>
+        <translation>Gutter (pt)</translation>
+    </message>
+    <message>
+        <source>imposition.duplex</source>
+        <translation>Printing</translation>
+    </message>
+    <message>
+        <source>imposition.duplex.oneSided</source>
+        <translation>One-sided</translation>
+    </message>
+    <message>
+        <source>imposition.duplex.longEdge</source>
+        <translation>Two-sided, flip on long edge</translation>
+    </message>
+    <message>
+        <source>imposition.duplex.shortEdge</source>
+        <translation>Two-sided, flip on short edge</translation>
+    </message>
+    <message>
+        <source>imposition.marks</source>
+        <translation>Marks</translation>
+    </message>
+    <message>
+        <source>imposition.marks.crop</source>
+        <translation>Crop marks</translation>
+    </message>
+    <message>
+        <source>imposition.marks.registration</source>
+        <translation>Registration marks</translation>
+    </message>
+    <message>
+        <source>imposition.marks.colourBar</source>
+        <translation>Colour bar</translation>
+    </message>
+    <message>
+        <source>imposition.marks.labels</source>
+        <translation>Sheet labels</translation>
+    </message>
+    <message>
+        <source>imposition.marks.frames</source>
+        <translation>Frame each page</translation>
+    </message>
+    <message>
+        <source>imposition.preview</source>
+        <translation>Preview</translation>
+    </message>
+    <message>
+        <source>imposition.previewSide</source>
+        <translation>Side</translation>
+    </message>
+    <message>
+        <source>imposition.summary</source>
+        <translation>%1 page(s) on %2 sheet(s): %3 side(s), %4 blank page(s)</translation>
+    </message>
+    <message>
+        <source>imposition.label.single</source>
+        <translation>Sheet %1 of %2</translation>
+    </message>
+    <message>
+        <source>imposition.label.front</source>
+        <translation>Sheet %1 of %2, front</translation>
+    </message>
+    <message>
+        <source>imposition.label.back</source>
+        <translation>Sheet %1 of %2, back</translation>
+    </message>
+    <message>
+        <source>imposition.done</source>
+        <translation>Imposed %1 page(s) on %2 sheet(s), %3 page(s) in the new document.</translation>
+    </message>
+    <message>
+        <source>imposition.annotationsNotDrawn</source>
+        <translation>%1 comment(s), link(s) or field(s) are not drawn on the sheets.</translation>
+    </message>
+    <message>
+        <source>imposition.suggestedName</source>
+        <translation>%1 (imposed)</translation>
     </message>
 </context>
 </TS>

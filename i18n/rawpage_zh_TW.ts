@@ -3929,6 +3929,34 @@
         <source>error.decorate.noneChosen</source>
         <translation>請至少選擇一個浮水印。</translation>
     </message>
+    <message>
+        <source>error.imposition.badSpec</source>
+        <translation>此排版設定超出範圍：%1。</translation>
+    </message>
+    <message>
+        <source>error.imposition.marginTooSmall</source>
+        <translation>標記需要至少 %1 點的邊界。</translation>
+    </message>
+    <message>
+        <source>error.imposition.sheetTooSmall</source>
+        <translation>紙張太小，無法容納此版面：每頁僅有 %1 點。</translation>
+    </message>
+    <message>
+        <source>error.imposition.creepTooLarge</source>
+        <translation>爬移量在最內層紙張累計達 %1 點，超過半頁。</translation>
+    </message>
+    <message>
+        <source>error.imposition.noPages</source>
+        <translation>沒有可排版的頁面。</translation>
+    </message>
+    <message>
+        <source>error.imposition.tooManyPages</source>
+        <translation>要排版的頁面過多：%1。</translation>
+    </message>
+    <message>
+        <source>error.imposition.pageUnsupported</source>
+        <translation>有頁面無法繪製於紙張上（頁面與原因：%1）。</translation>
+    </message>
 </context>
 <context>
     <name>ribbon</name>
@@ -4962,6 +4990,10 @@
     <message>
         <source>prefs.setting.documents.watermarkProfile</source>
         <translation>浮水印對話方塊預設開啟的設定檔</translation>
+    </message>
+    <message>
+        <source>prefs.setting.documents.impositionProfile</source>
+        <translation>小冊子與多頁合一對話方塊預設開啟的排版設定檔</translation>
     </message>
     <message>
         <source>prefs.setting.documents.batesStart</source>
@@ -7841,6 +7873,209 @@
     <message>
         <source>decorate.watermark.kind.page</source>
         <translation>來自 %1 的頁面</translation>
+    </message>
+</context>
+<context>
+    <name>imposition</name>
+    <message>
+        <source>imposition.bookletTitle</source>
+        <translation>小冊子</translation>
+    </message>
+    <message>
+        <source>imposition.nUpTitle</source>
+        <translation>多頁合一</translation>
+    </message>
+    <message>
+        <source>imposition.layout</source>
+        <translation>版面</translation>
+    </message>
+    <message>
+        <source>imposition.layout.nUp</source>
+        <translation>每面多頁（多頁合一）</translation>
+    </message>
+    <message>
+        <source>imposition.layout.booklet</source>
+        <translation>小冊子（摺疊後騎馬釘）</translation>
+    </message>
+    <message>
+        <source>imposition.perSheet</source>
+        <translation>每面頁數</translation>
+    </message>
+    <message>
+        <source>imposition.order</source>
+        <translation>頁面順序</translation>
+    </message>
+    <message>
+        <source>imposition.order.across</source>
+        <translation>先橫向再向下</translation>
+    </message>
+    <message>
+        <source>imposition.order.down</source>
+        <translation>先向下再橫向</translation>
+    </message>
+    <message>
+        <source>imposition.reversed</source>
+        <translation>由右至左</translation>
+    </message>
+    <message>
+        <source>imposition.binding</source>
+        <translation>裝訂邊</translation>
+    </message>
+    <message>
+        <source>imposition.binding.left</source>
+        <translation>左側</translation>
+    </message>
+    <message>
+        <source>imposition.binding.right</source>
+        <translation>右側</translation>
+    </message>
+    <message>
+        <source>imposition.creep</source>
+        <translation>每張爬移量（點）</translation>
+    </message>
+    <message>
+        <source>imposition.sheet</source>
+        <translation>紙張</translation>
+    </message>
+    <message>
+        <source>imposition.paper</source>
+        <translation>紙張大小</translation>
+    </message>
+    <message>
+        <source>imposition.paper.letter</source>
+        <translation>Letter（8.5 × 11 英吋）</translation>
+    </message>
+    <message>
+        <source>imposition.paper.legal</source>
+        <translation>Legal（8.5 × 14 英吋）</translation>
+    </message>
+    <message>
+        <source>imposition.paper.tabloid</source>
+        <translation>Tabloid（11 × 17 英吋）</translation>
+    </message>
+    <message>
+        <source>imposition.paper.a3</source>
+        <translation>A3</translation>
+    </message>
+    <message>
+        <source>imposition.paper.a4</source>
+        <translation>A4</translation>
+    </message>
+    <message>
+        <source>imposition.paper.a5</source>
+        <translation>A5</translation>
+    </message>
+    <message>
+        <source>imposition.paper.custom</source>
+        <translation>自訂</translation>
+    </message>
+    <message>
+        <source>imposition.width</source>
+        <translation>寬度（點）</translation>
+    </message>
+    <message>
+        <source>imposition.height</source>
+        <translation>高度（點）</translation>
+    </message>
+    <message>
+        <source>imposition.orientation</source>
+        <translation>方向</translation>
+    </message>
+    <message>
+        <source>imposition.orientation.auto</source>
+        <translation>自動（頁面較大者）</translation>
+    </message>
+    <message>
+        <source>imposition.orientation.portrait</source>
+        <translation>直向</translation>
+    </message>
+    <message>
+        <source>imposition.orientation.landscape</source>
+        <translation>橫向</translation>
+    </message>
+    <message>
+        <source>imposition.margin</source>
+        <translation>邊界（點）</translation>
+    </message>
+    <message>
+        <source>imposition.gutter</source>
+        <translation>間距（點）</translation>
+    </message>
+    <message>
+        <source>imposition.duplex</source>
+        <translation>列印方式</translation>
+    </message>
+    <message>
+        <source>imposition.duplex.oneSided</source>
+        <translation>單面</translation>
+    </message>
+    <message>
+        <source>imposition.duplex.longEdge</source>
+        <translation>雙面，長邊翻頁</translation>
+    </message>
+    <message>
+        <source>imposition.duplex.shortEdge</source>
+        <translation>雙面，短邊翻頁</translation>
+    </message>
+    <message>
+        <source>imposition.marks</source>
+        <translation>標記</translation>
+    </message>
+    <message>
+        <source>imposition.marks.crop</source>
+        <translation>裁切標記</translation>
+    </message>
+    <message>
+        <source>imposition.marks.registration</source>
+        <translation>對位標記</translation>
+    </message>
+    <message>
+        <source>imposition.marks.colourBar</source>
+        <translation>色彩導表</translation>
+    </message>
+    <message>
+        <source>imposition.marks.labels</source>
+        <translation>紙張標籤</translation>
+    </message>
+    <message>
+        <source>imposition.marks.frames</source>
+        <translation>為每頁加框</translation>
+    </message>
+    <message>
+        <source>imposition.preview</source>
+        <translation>預覽</translation>
+    </message>
+    <message>
+        <source>imposition.previewSide</source>
+        <translation>面</translation>
+    </message>
+    <message>
+        <source>imposition.summary</source>
+        <translation>%1 頁排於 %2 張紙：共 %3 面，%4 頁空白</translation>
+    </message>
+    <message>
+        <source>imposition.label.single</source>
+        <translation>第 %1 張，共 %2 張</translation>
+    </message>
+    <message>
+        <source>imposition.label.front</source>
+        <translation>第 %1 張，共 %2 張，正面</translation>
+    </message>
+    <message>
+        <source>imposition.label.back</source>
+        <translation>第 %1 張，共 %2 張，背面</translation>
+    </message>
+    <message>
+        <source>imposition.done</source>
+        <translation>已將 %1 頁排版於 %2 張紙，新文件共 %3 頁。</translation>
+    </message>
+    <message>
+        <source>imposition.annotationsNotDrawn</source>
+        <translation>%1 個註解、連結或欄位未繪製於紙張上。</translation>
+    </message>
+    <message>
+        <source>imposition.suggestedName</source>
+        <translation>%1（已排版）</translation>
     </message>
 </context>
 </TS>

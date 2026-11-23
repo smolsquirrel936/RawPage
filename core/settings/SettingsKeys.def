@@ -337,6 +337,13 @@ RAWPAGE_SETTING(documents, headerFooterProfile, QString,
 RAWPAGE_SETTING(documents, watermarkProfile, QString,
                 "documents/watermarkProfile", "", Documents, true)
 
+// THE IMPOSITION PROFILE THE DIALOG OPENS WITH -- Stage 7 T16 (`Stage7-Assembly-Plan.md` D7-22, D7-46, guide A-97, A-102):
+// the NAME of an imposition profile in `core/settings/ProfileStore`. Empty by default: *Booklet* and *N-up* open on the
+// last imposition made in this session, else on their own defaults. Written by `ui/shell/MainWindowImpose` when the
+// person imposes with a profile chosen; a name no profile carries any more is ignored, never an error.
+RAWPAGE_SETTING(documents, impositionProfile, QString,
+                "documents/impositionProfile", "", Documents, true)
+
 // THE BATES NUMBERING THE BATES DIALOG OFFERS FIRST -- Stage 7 T14 (D7-14, D7-22, guide A-92, A-93): the first number, how
 // many digits it is padded to, and the text before and after it (`core::BatesFormat`). The dialog's choice is the run's;
 // these change no page already numbered. The start's range is what an `int` holds; the digits are `core::BatesFormat`'s

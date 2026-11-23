@@ -64,7 +64,7 @@
 namespace rawpage::core {
 
 // Stage 7 T14: a kind of named profile -- see the header. T15 and T16 add theirs.
-enum class ProfileKind : std::uint8_t { HeaderFooter, Watermark };
+enum class ProfileKind : std::uint8_t { HeaderFooter, Watermark, Imposition };
 
 struct CustomStamp {
     QString id;              // 32 lowercase hex digits: its two files' names
@@ -171,6 +171,7 @@ private:
     QString root_;
     std::vector<Profile> headerFooterProfiles_;   // T14
     std::vector<Profile> watermarkProfiles_;      // T15
+    std::vector<Profile> impositionProfiles_;     // T16
     std::vector<CustomStamp> stamps_;
     std::set<QString> builtInFavourites_;
     QStringList damaged_;

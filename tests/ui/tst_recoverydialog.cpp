@@ -666,8 +666,9 @@ TEST_CASE("the Documents page's recovery folder redirects the next journal and t
                                           QStringLiteral("documents/mergeBookmarkPerFile"),
                                           QStringLiteral("documents/renameCollidingFields"),
                                           // Stage 7 T14 (D7-22): the header/footer profile and the four Bates keys.
-                                          // Stage 7 T15 (D7-22): the watermark profile, beside it.
+                                          // Stage 7 T15 (D7-22): the watermark profile, beside it; T16 the imposition profile.
                                           QStringLiteral("documents/headerFooterProfile"), QStringLiteral("documents/watermarkProfile"),
+                                          QStringLiteral("documents/impositionProfile"),
                                           QStringLiteral("documents/batesStart"),
                                           QStringLiteral("documents/batesDigits"), QStringLiteral("documents/batesPrefix"),
                                           QStringLiteral("documents/batesSuffix"),

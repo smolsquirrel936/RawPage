@@ -94,6 +94,8 @@ public:
         int pageCount() const override { return static_cast<int>(walk_.pages.size()); }
         core::Result<core::AssembledDocument> assemble(const std::vector<int>& pages) override;
         core::Result<core::CopiedPages> copy(const std::vector<int>& pages) override;   // S7 T8: the payload alone
+        core::Result<core::ImposedDocument> impose(const core::ImpositionSpec& spec,
+                                                   const core::ImpositionText& text) override;   // S7 T16 (D7-46)
         core::Result<std::vector<core::WrittenDocument>> write(const std::vector<core::AssemblyOutput>& outputs,
                                                                const QString& folder) override;
 

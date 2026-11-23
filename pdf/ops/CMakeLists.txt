@@ -45,6 +45,10 @@ add_library(rawpage_ops STATIC
     # built and verified by the assembler.
     DocumentMerger.h
     DocumentMerger.cpp
+    # S7 T16 (D7-8, D7-46): every page made one form, drawn onto sheets n-up or as a booklet as core/doc/Imposition plans
+    # them, with the marks -- built and verified by the assembler.
+    ImpositionOps.h
+    ImpositionOps.cpp
 
     # S7 T6 (D7-20's reading, D7-25): how many signatures a document carries -- what Save As that rewrites asks about.
     SignatureFields.h

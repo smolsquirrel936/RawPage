@@ -9,7 +9,9 @@
 // a payload) -> the payload re-read as a file of its own -> the payload INSERTED into a fixed one-page target and
 // one of its pages REPLACING the target's, each composed by `RevisionWriter` and VERIFIED as a save would, then
 // undone -> and (Stage 7 T7) the payload BUILT into a new document by `DocumentAssembler` and verified as an
-// extract's is -> and (T10) the input MERGED with itself by `DocumentMerger`, fields, outline and layers twice. T11 adds the outline reader and T17 the layer tree over the same bytes (D7-23).
+// extract's is -> and (T10) the input MERGED with itself by `DocumentMerger`, fields, outline and layers twice -> and
+// (T16) the payload IMPOSED as a marked booklet by `ImpositionOps`, its sheets built and verified. T11 adds the outline
+// reader and T17 the layer tree over the same bytes (D7-23).
 //
 // THE INVARIANTS, each one a defect the copier or the sink could plausibly have:
 //   * REFUSAL  -- a copy refused is refused BY KEY, one of the copier's own; anything else is a finding;
@@ -26,6 +28,9 @@
 //   * MERGE    -- the input merged with itself (T10, D7-16), its fields merged on purpose and a separator between, is
 //                 built and verified by the merger -- refused only when the input is one it skips -- with every page
 //                 of both and the one separator.
+//   * IMPOSE   -- the payload imposed as a booklet with every mark (T16, D7-46) is built and verified as an extract is,
+//                 one side for each two padded pages -- refused only by `error.imposition.pageUnsupported` (a page whose
+//                 box or content a form cannot carry) or the copy's budget.
 //
 // WHAT IS NOT A FINDING: an input the walk cannot read, or one the copier refuses by key.
 
@@ -37,6 +42,7 @@
 #include "pdf/cos/XrefTable.h"
 #include "pdf/ops/DocumentAssembler.h"
 #include "pdf/ops/DocumentMerger.h"
+#include "pdf/ops/ImpositionOps.h"
 #include "pdf/ops/MutationSinkImpl.h"
 #include "pdf/ops/ObjectGraphCopier.h"
 #include "pdf/ops/PageOps.h"
@@ -220,6 +226,26 @@ inline AssemblyVerdict assemblyFuzzOnce(const std::uint8_t* data, std::size_t si
             if (key != "error.merge.nothingMerged") return assemblyFail("merge refused: " + key + " " + merged.error().context.toStdString());
         } else if (merged.value().report.pageCount != 2 * static_cast<int>(pages.size()) + 1) {
             return assemblyFail("merge: " + std::to_string(merged.value().report.pageCount) + " pages");
+        }
+    }
+    // IMPOSE -- the payload as a marked booklet (T16, D7-46), built and verified inside `ImpositionOps::impose`.
+    {
+        core::ImpositionSpec spec;
+        spec.layout = core::ImpositionLayout::Booklet;
+        spec.duplex = core::DuplexFlip::LongEdge;
+        spec.creep = 0.5;
+        spec.cropMarks = spec.registrationMarks = spec.colourBar = spec.sheetLabels = spec.frames = true;
+        const core::ImpositionText text{{QStringLiteral("S %1/%2"), QStringLiteral("F %1/%2"), QStringLiteral("B %1/%2")},
+                                        core::TypedFont::Simplified};
+        auto imposed = pdf::ops::ImpositionOps::impose(table, copiedWalk.value(), spec, text, "fuzz");
+        if (!imposed) {
+            static const std::set<std::string> known{"error.imposition.pageUnsupported", "error.copy.tooLarge"};
+            const std::string key(imposed.error().messageKey.data(), static_cast<std::size_t>(imposed.error().messageKey.size()));
+            if (known.count(key) == 0) return assemblyFail("impose refused: " + key + " " + imposed.error().context.toStdString());
+        } else {
+            const int count = static_cast<int>(pages.size());
+            const int padded = count <= 4 ? 4 : (count + 3) / 4 * 4;
+            if (imposed.value().pageCount != padded / 2) return assemblyFail("impose: " + std::to_string(imposed.value().pageCount) + " sides");
         }
     }
     return verdict;

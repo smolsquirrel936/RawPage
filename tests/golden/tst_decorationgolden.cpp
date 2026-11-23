@@ -58,8 +58,16 @@ TEST_CASE("decoration every case has a baseline and every baseline is a case", "
 
 namespace {
 
-// Every case of one family -- headers, footers and Bates numbers, or (Stage 7 T15) watermarks -- compared.
-void compareFamily(bool watermarks)
+// Every case of one family -- headers, footers and Bates numbers, (Stage 7 T15) watermarks or (T16) impositions -- compared.
+enum class Family { HeaderFooter, Watermark, Imposition };
+
+Family familyOf(const golden::DecorationCase& item)
+{
+    if (item.imposition) return Family::Imposition;
+    return item.watermark ? Family::Watermark : Family::HeaderFooter;
+}
+
+void compareFamily(Family wanted)
 {
     REQUIRE(manifest().error.isEmpty());
     REQUIRE(captureLog().error.isEmpty());
@@ -72,7 +80,7 @@ void compareFamily(bool watermarks)
     int skipped = 0;
     int family = 0;
     for (const golden::DecorationCase& item : golden::decorationCases()) {
-        if (item.watermark.has_value() != watermarks) continue;
+        if (familyOf(item) != wanted) continue;
         ++family;
         INFO(item.name.toStdString() << " -- " << item.note.toStdString());
         const std::string bytes = golden::decorationPdf(item);
@@ -123,23 +131,31 @@ void compareFamily(bool watermarks)
     // Only a machine-dependent case may be skipped: every other one is compared, here and on any machine.
     int dependent = 0;
     for (const golden::DecorationCase& item : golden::decorationCases())
-        dependent += (item.machineDependent && item.watermark.has_value() == watermarks) ? 1 : 0;
+        dependent += (item.machineDependent && familyOf(item) == wanted) ? 1 : 0;
     CHECK(skipped <= dependent);
     CHECK(compared + skipped == family);
     CHECK(compared >= family - dependent);
-    CHECK(family >= (watermarks ? 8 : 9));
+    CHECK(family >= (wanted == Family::HeaderFooter ? 9 : 8));
 }
 
 } // namespace
 
 TEST_CASE("decoration every case matches its baseline", "[golden][decoration][A-98]")
 {
-    compareFamily(false);
+    compareFamily(Family::HeaderFooter);
 }
 
 // Stage 7 T15 (D7-45): text, image and page sources, opacity, rotation, absolute and relative scale, anchor and offset,
 // tiling, behind and in front, and a turned page -- each baseline LOOKED AT before it was kept (`golden/UPDATES.md`).
 TEST_CASE("watermark every case matches its baseline", "[golden][decoration][watermark][A-99]")
 {
-    compareFamily(true);
+    compareFamily(Family::Watermark);
+}
+
+// Stage 7 T16 (D7-46, guide A-104): crop and registration marks, the colour bar, frames, sheet labels and gutters on
+// imposed sheets -- a booklet's front, its turned back, the creep of an inner sheet, n-up across, down and reversed, pages
+// turned by `/Rotate` -- each baseline LOOKED AT before it was kept (`golden/UPDATES.md`).
+TEST_CASE("imposition every case matches its baseline", "[golden][decoration][imposition][A-104]")
+{
+    compareFamily(Family::Imposition);
 }
