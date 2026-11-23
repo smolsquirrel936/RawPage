@@ -2,10 +2,15 @@
 
 #include "pdf/ops/DecorationOps.h"
 
+#include "core/doc/Stamps.h"
 #include "pdf/cos/ContentStreamBuilder.h"
 #include "pdf/cos/XrefTable.h"
+#include "pdf/ops/PageStamp.h"
+
+#include <QJsonDocument>
 
 #include <algorithm>
+#include <array>
 #include <set>
 
 namespace rawpage::pdf::ops {
@@ -104,11 +109,12 @@ std::string DecorationOps::drawContent(const core::PageDecoration& decoration, c
     return "/Artifact " + properties + " BDC q /" + resourceName(id) + " Do Q EMC\n";
 }
 
-CosObject DecorationOps::markedDictionary(const QString& id, core::DecorationKind kind)
+CosObject DecorationOps::markedDictionary(const QString& id, core::DecorationKind kind, bool behind)
 {
-    return CosObject::makeDictionary(
-        {{"RawPageDecoration", CosObject::makeDictionary({{"Kind", CosObject::makeName(core::decorationKindName(kind).data())},
-                                                          {"Id", CosObject::makeString(id.toStdString(), cos::StringForm::Hex)}})}});
+    std::vector<CosObject::Entry> mark{{"Kind", CosObject::makeName(core::decorationKindName(kind).data())},
+                                       {"Id", CosObject::makeString(id.toStdString(), cos::StringForm::Hex)}};
+    if (behind) mark.push_back({"Behind", CosObject::makeBoolean(true)});
+    return CosObject::makeDictionary({{"RawPageDecoration", CosObject::makeDictionary(std::move(mark))}});
 }
 
 CosObject DecorationOps::decoratedResources(cos::XrefTable& table, const CosObject& effective,
@@ -141,6 +147,144 @@ CosObject DecorationOps::decoratedResources(cos::XrefTable& table, const CosObje
     CosObject out = CosObject::makeDictionary(std::move(entries));
     out.clearSpansRecursively();
     return out;
+}
+
+// ---- Watermarks (Stage 7 T15) -------------------------------------------------------------------------------------------
+
+namespace {
+
+std::array<double, 6> sourceMatrix(const core::WatermarkDrawing& drawing)
+{
+    // An image is drawn into the unit square: scaled to its natural box. A form is already in it.
+    if (drawing.source == core::WatermarkSource::Image) return {drawing.natural.width, 0.0, 0.0, drawing.natural.height, 0.0, 0.0};
+    return {1.0, 0.0, 0.0, 1.0, 0.0, 0.0};
+}
+
+std::string hexJson(const QJsonObject& json)
+{
+    return QJsonDocument(json).toJson(QJsonDocument::Compact).toStdString();
+}
+
+} // namespace
+
+core::Result<cos::CosRef> DecorationOps::watermarkSource(const core::WatermarkDrawing& drawing, const QString& id,
+                                                         AppearanceObjects& objects)
+{
+    const CosObject naturalBox = CosObject::makeArray({CosObject::makeInteger(0), CosObject::makeInteger(0),
+                                                       CosObject::makeReal(drawing.natural.width), CosObject::makeReal(drawing.natural.height)});
+    switch (drawing.source) {
+    case core::WatermarkSource::Image:
+        if (core::invalidStampImage(drawing.image))
+            return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.edit.stampImageUnsupported"), QStringLiteral("Watermark")};
+        return AppearanceStreamBuilder::imageObject(drawing.image, objects);
+    case core::WatermarkSource::Page: {
+        core::Result<PageStamp::Form> form = PageStamp::form(drawing.page, objects);
+        if (!form) return form.error();
+        const std::array<double, 6> m =
+            PageStamp::showMatrix(form.value().box, form.value().rotate, drawing.natural.width, drawing.natural.height);
+        ContentStreamBuilder content;
+        content.save().concat(m[0], m[1], m[2], m[3], m[4], m[5]).paintXObject("Pg").restore();
+        // A TRANSPARENCY GROUP, so the watermark's opacity is applied to the page as one picture (see the header).
+        CosObject dictionary = CosObject::makeStream(
+            {{"Type", CosObject::makeName("XObject")},
+             {"Subtype", CosObject::makeName("Form")},
+             {"BBox", naturalBox},
+             {"Group", CosObject::makeDictionary({{"S", CosObject::makeName("Transparency")}})},
+             {"Resources", CosObject::makeDictionary({{"XObject", CosObject::makeDictionary({{"Pg", CosObject::makeReference(
+                                                                                                        form.value().at.number,
+                                                                                                        form.value().at.generation)}})}})}},
+            cos::CosStreamData{});
+        return objects.sharedStream("wmpage:" + core::stampPageKey(drawing.page).toStdString(), std::move(dictionary), content.bytes());
+    }
+    case core::WatermarkSource::Text: break;
+    }
+    // TEXT: the lines in the natural box, in D6-7's faces -- one form for every page this watermark is on.
+    core::PageDecoration lines;
+    lines.lines = drawing.lines;
+    std::set<core::TypedFont> faces;
+    for (const core::DecorationLine& line : drawing.lines) {
+        for (const core::TypedRun& run : line.runs) faces.insert(run.font);
+    }
+    std::vector<CosObject::Entry> fonts;
+    for (const core::TypedFont face : faces) {
+        const cos::CosRef at = AppearanceStreamBuilder::fontObject(face, objects);
+        fonts.push_back({core::typedFontSpec(face).resource, CosObject::makeReference(at.number, at.generation)});
+    }
+    CosObject dictionary = CosObject::makeStream({{"Type", CosObject::makeName("XObject")},
+                                                  {"Subtype", CosObject::makeName("Form")},
+                                                  {"BBox", naturalBox},
+                                                  {"Resources", CosObject::makeDictionary({{"Font", CosObject::makeDictionary(std::move(fonts))}})}},
+                                                 cos::CosStreamData{});
+    return objects.sharedStream("wmtext:" + id.toStdString(), std::move(dictionary), formContent(lines));
+}
+
+std::string DecorationOps::watermarkContent(const core::WatermarkDrawing& drawing)
+{
+    ContentStreamBuilder content;
+    content.graphicsState(kStateResource);
+    const std::array<double, 6> s = sourceMatrix(drawing);
+    for (const std::array<double, 6>& m : drawing.tiles) {
+        content.save().concat(m[0], m[1], m[2], m[3], m[4], m[5]);
+        if (s != std::array<double, 6>{1.0, 0.0, 0.0, 1.0, 0.0, 0.0}) content.concat(s[0], s[1], s[2], s[3], s[4], s[5]);
+        content.paintXObject(kSourceResource).restore();
+    }
+    return content.bytes();
+}
+
+CosObject DecorationOps::watermarkFormDictionary(const core::PageDecoration& decoration, const QString& id, const CosObject& source,
+                                                 const std::optional<CosObject>& group)
+{
+    const double opacity = decoration.watermark ? decoration.watermark->opacity : 1.0;
+    const CosObject state = CosObject::makeDictionary(
+        {{"Type", CosObject::makeName("ExtGState")}, {"ca", CosObject::makeReal(opacity)}, {"CA", CosObject::makeReal(opacity)}});
+    std::vector<CosObject::Entry> entries{
+        {"Type", CosObject::makeName("XObject")},
+        {"Subtype", CosObject::makeName("Form")},
+        {"BBox", boxArray(decoration.box)},
+        {"Resources", CosObject::makeDictionary({{"ExtGState", CosObject::makeDictionary({{kStateResource, state}})},
+                                                 {"XObject", CosObject::makeDictionary({{kSourceResource, source}})}})},
+    };
+    if (group) entries.push_back({"OC", *group});
+    std::vector<CosObject::Entry> mark{{"Kind", CosObject::makeName(core::decorationKindName(core::DecorationKind::Watermark).data())},
+                                       {"Id", CosObject::makeString(id.toStdString(), cos::StringForm::Hex)}};
+    if (decoration.watermark) mark.push_back({"Spec", CosObject::makeString(hexJson(decoration.watermark->spec), cos::StringForm::Hex)});
+    entries.push_back({"RawPageDecoration", CosObject::makeDictionary(std::move(mark))});
+    return CosObject::makeStream(std::move(entries), cos::CosStreamData{});
+}
+
+CosObject DecorationOps::groupDictionary(const QString& id, core::WatermarkUsage usage)
+{
+    const bool print = usage != core::WatermarkUsage::ScreenOnly;
+    const bool view = usage != core::WatermarkUsage::PrintOnly;
+    return CosObject::makeDictionary(
+        {{"Type", CosObject::makeName("OCG")},
+         {"Name", CosObject::makeString("Watermark")},
+         {"Usage", CosObject::makeDictionary(
+                       {{"Print", CosObject::makeDictionary({{"PrintState", CosObject::makeName(print ? "ON" : "OFF")}})},
+                        {"View", CosObject::makeDictionary({{"ViewState", CosObject::makeName(view ? "ON" : "OFF")}})}})},
+         {"RawPageDecoration", CosObject::makeDictionary({{"Kind", CosObject::makeName(core::decorationKindName(core::DecorationKind::Watermark).data())},
+                                                          {"Id", CosObject::makeString(id.toStdString(), cos::StringForm::Hex)}})}});
+}
+
+std::optional<QJsonObject> DecorationOps::recordedSpec(const CosObject& form)
+{
+    const CosObject* mark = form.find("RawPageDecoration");
+    if (mark == nullptr || !mark->isDictionary()) return std::nullopt;
+    const CosObject* spec = mark->find("Spec");
+    if (spec == nullptr || !spec->isString()) return std::nullopt;
+    QJsonParseError error{};
+    const QJsonDocument json = QJsonDocument::fromJson(QByteArray::fromStdString(spec->text()), &error);
+    if (error.error != QJsonParseError::NoError || !json.isObject()) return std::nullopt;
+    return json.object();
+}
+
+std::optional<QString> DecorationOps::markedId(const CosObject& dictionary)
+{
+    const CosObject* mark = dictionary.find("RawPageDecoration");
+    if (mark == nullptr || !mark->isDictionary()) return std::nullopt;
+    const CosObject* id = mark->find("Id");
+    if (id == nullptr || !id->isString()) return std::nullopt;
+    return QString::fromStdString(id->text());
 }
 
 std::optional<CosObject> DecorationOps::formOf(cos::XrefTable& table, const CosObject& resources, const QString& id)

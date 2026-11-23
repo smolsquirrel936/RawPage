@@ -45,7 +45,7 @@ TEST_CASE("the two Stage 3 keys are declared in the Documents group and only Sta
                                                 "documents/saveMode", "documents/defaultPageSize",
                                                 "documents/cropRemoveWhiteMargins",
                                                 "documents/mergeBookmarkPerFile", "documents/renameCollidingFields",
-                                                "documents/headerFooterProfile", "documents/batesStart",
+                                                "documents/headerFooterProfile", "documents/watermarkProfile", "documents/batesStart",
                                                 "documents/batesDigits", "documents/batesPrefix", "documents/batesSuffix",
                                                 "documents/compareSensitivity", "documents/compareIgnoreHeaderFooter",
                                                 "documents/compareIgnorePageNumbers", "documents/compareIgnoreWhitespace"});

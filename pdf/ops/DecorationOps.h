@@ -27,6 +27,17 @@
 // guide's §3.8 measures: apply, save, remove, save, and the page, its `/Contents` and its `/Resources` equal the
 // original's, byte for byte in value.
 //
+// A WATERMARK -- Stage 7 T15 (D7-45) -- is the same three streams, its form painting a SOURCE once per tile:
+//   `/RawPageGS gs  q <tile> cm <source> cm /RawPageSrc Do Q  q ... Q`
+// the opacity an ExtGState (`/ca` and `/CA`), each tile a matrix from the source's natural box into the page
+// (`core::layoutWatermark`), and the source an XObject written once a save however many pages draw it: the text as a
+// form of its own, an image as an image stamp's is (`AppearanceStreamBuilder::imageObject`), a page as a page stamp's
+// is (`PageStamp::form`) inside a TRANSPARENCY GROUP -- so the opacity applies to the page as one picture, whatever
+// opacity its own content sets. The form's mark records the watermark's spec without its source's bytes (`/Spec`, the
+// JSON as a hex string), which is what a list of watermarks shows and an update starts from. One for printing or for
+// the screen only carries `/OC`: an optional-content group of its own, `/Usage` `/Print` and `/View` saying which, marked
+// with the watermark's id -- listed in `/OCProperties` while a page draws it, and taken out with the last (the sink).
+//
 // A DECORATION RAWPAGE DID NOT WRITE IS NEVER ONE. Acrobat's header is `/Artifact` content inside the page's own
 // stream, or a form named `/HeaderFooter` in its `/PieceInfo`; neither carries our mark, so neither is listed, taken
 // or rewritten (guide A-94).
@@ -41,6 +52,7 @@
 #include "pdf/cos/XrefTable.h"
 #include "pdf/ops/AppearanceStreamBuilder.h"
 
+#include <QJsonObject>
 #include <QString>
 
 #include <map>
@@ -69,7 +81,8 @@ public:
 
     // The stream that paints the form, and its dictionary.
     static std::string drawContent(const core::PageDecoration& decoration, const QString& id);
-    static cos::CosObject markedDictionary(const QString& id, core::DecorationKind kind);
+    // S7 T15: `behind` marks the painting stream of one drawn behind the content `/Behind true` (see `PageOps::DecorationMark`).
+    static cos::CosObject markedDictionary(const QString& id, core::DecorationKind kind, bool behind = false);
 
     // THE PAGE'S RESOURCES WHILE DECORATED (see the header): `effective` -- what the page draws with, its own or
     // inherited, resolved -- with every `RawPageDec` form dropped from its `/XObject` and `forms` added, in order. The
@@ -78,6 +91,26 @@ public:
                                              const std::vector<std::pair<std::string, cos::CosObject>>& forms);
     // The form a page's `/Resources` names `RawPageDec<id>` -- a reference -- or none.
     static std::optional<cos::CosObject> formOf(cos::XrefTable& table, const cos::CosObject& resources, const QString& id);
+
+    // ---- Watermarks -- Stage 7 T15 (D7-45); see "A WATERMARK" in the header -----------------------------------------
+    static constexpr const char* kSourceResource = "RawPageSrc";
+    static constexpr const char* kStateResource = "RawPageGS";
+
+    // The XObject a watermark paints, written through `objects`: text as a form of its own (keyed by `id`), an image
+    // by its SHA-256, a page as `PageStamp` writes it inside a transparency group (keyed by its graph's SHA-256).
+    static core::Result<cos::CosRef> watermarkSource(const core::WatermarkDrawing& drawing, const QString& id,
+                                                     AppearanceObjects& objects);
+    // The form's content: the opacity set, then every tile -- `q <tile> cm <source> cm /RawPageSrc Do Q`.
+    static std::string watermarkContent(const core::WatermarkDrawing& drawing);
+    // The form's dictionary: `/BBox` what the page shows, the opacity and the source in its resources, `/OC` the
+    // group for a print- or screen-only one, and the mark -- `/Spec` the drawing's record.
+    static cos::CosObject watermarkFormDictionary(const core::PageDecoration& decoration, const QString& id,
+                                                  const cos::CosObject& source, const std::optional<cos::CosObject>& group);
+    // The optional-content group of a print- or screen-only watermark: `/Usage` saying which, marked with its id.
+    static cos::CosObject groupDictionary(const QString& id, core::WatermarkUsage usage);
+    // Read back from a form's or a group's dictionary (resolved): what its mark records -- the spec, and the id.
+    static std::optional<QJsonObject> recordedSpec(const cos::CosObject& form);
+    static std::optional<QString> markedId(const cos::CosObject& dictionary);
 };
 
 } // namespace rawpage::pdf::ops

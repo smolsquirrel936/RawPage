@@ -35,10 +35,12 @@
 #include "ui/shell/StatusBar.h"
 #include "ui/viewer/PageView.h"
 #include "ui/viewer/ViewportController.h"
+#include "ui/viewer/tools/StampTool.h"
 
 #include <QClipboard>
 #include <QCryptographicHash>
 #include <QGuiApplication>
+#include <QImage>
 #include <QMimeData>
 #include <QPointer>
 #include <QStringList>
@@ -257,7 +259,8 @@ int MainWindow::clipboardPageCount()
 {
     const QClipboard* clipboard = QGuiApplication::clipboard();
     const QMimeData* held = clipboard != nullptr ? clipboard->mimeData() : nullptr;
-    if (held == nullptr || !held->hasFormat(QLatin1String(core::kPagesMimeType))) return 0;
+    if (held == nullptr) return 0;
+    if (!held->hasFormat(QLatin1String(core::kPagesMimeType))) return held->hasImage() ? 1 : 0;   // S7 T15: an image, one page
     const core::Result<core::CopiedPages> pages = core::decodeCopiedPages(held->data(QLatin1String(core::kPagesMimeType)));
     return pages ? pages.value().pageCount : 0;
 }
@@ -271,6 +274,19 @@ core::Status MainWindow::pastePages(DocumentWindow* document, int at)
     };
     const QClipboard* clipboard = QGuiApplication::clipboard();
     const QMimeData* held = clipboard != nullptr ? clipboard->mimeData() : nullptr;
+    // AN IMAGE ON THE CLIPBOARD, and no RawPage pages (Stage 7 T15, Q5(d), D7-31(j)): one page of the image's own size,
+    // the image drawn over it -- decoded here, in `ui/` (convention 3), and made a page by the backend, the payload an
+    // insert carries like any other.
+    if (document != nullptr && held != nullptr && !held->hasFormat(QLatin1String(core::kPagesMimeType)) && held->hasImage()) {
+        core::Result<core::StampImage> image = stampImageOf(qvariant_cast<QImage>(held->imageData()));
+        if (!image) return refuse(image.error());
+        core::Result<core::CopiedPages> page = services_.backend.imagePage(image.value());
+        if (!page) return refuse(page.error());
+        RAWPAGE_LOG_INFO(LogSubsystem::Ui) << "pages: an image pasted as a page --" << image.value().width << "x" << image.value().height
+                                           << "pixels";
+        return runPageCommand(document, std::make_unique<core::InsertPagesCommand>(std::clamp(at, 0, document->pageCount()),
+                                                                                   std::move(page).value()));
+    }
     if (document == nullptr || held == nullptr || !held->hasFormat(QLatin1String(core::kPagesMimeType)))
         return refuse(core::Error{core::ErrorCode::Unavailable, QLatin1String("error.clipboard.noPages"), QString()});
     // SOMEONE ELSE'S BYTES, maybe another process's: bounded and checked before a command exists (`decodeCopiedPages`).
@@ -723,7 +739,7 @@ void MainWindow::registerPageActions()
                 [editable] {
                     const QClipboard* clipboard = QGuiApplication::clipboard();
                     const QMimeData* held = clipboard != nullptr ? clipboard->mimeData() : nullptr;
-                    return editable() && held != nullptr && held->hasFormat(QLatin1String(core::kPagesMimeType));
+                    return editable() && held != nullptr && (held->hasFormat(QLatin1String(core::kPagesMimeType)) || held->hasImage());
                 },
                 "pages.tooltip.needsClipboardPages");
 

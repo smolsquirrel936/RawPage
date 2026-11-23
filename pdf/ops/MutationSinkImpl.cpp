@@ -531,6 +531,7 @@ core::Result<cos::ObjectDelta> MutationSinkImpl::delta()
 {
     // S7 T4: one round of the book -- every name this compose asks for keeps its number (see the header).
     ++round_;
+    composedGroups_.clear();   // S7 T15
     book().beginRound();
     cos::ObjectDelta delta(table_, book());
     delta.reserveChanges(lastWritten_ + 16);
@@ -570,6 +571,8 @@ core::Result<cos::ObjectDelta> MutationSinkImpl::delta()
     // S7 T9: boxes, a resize's wrapper and the thumbnail -- last of what a page dictionary carries, onto whatever the
     // steps above made of it.
     if (core::Status edits = composePageEdits(delta, pageDictionaries); !edits) return edits.error();
+    // S7 T15 (D7-45): the watermark groups the pages now draw, listed -- after the forms that name them are written.
+    if (core::Status groups = composeWatermarkGroups(pageDictionaries); !groups) return groups.error();
     if (core::Status labels = composeLabels(pageDictionaries); !labels) return labels.error();
     if (core::Status repairs = composeRepairs(pageDictionaries); !repairs) return repairs.error();
     // S7 T12: a link target a save could not write, its page now back -- onto the dictionary as the repair left it.
@@ -1903,6 +1906,7 @@ core::Status MutationSinkImpl::adopt(std::string_view bytes)
 
     bytes_ = bytes;
     table_ = std::move(table).value();
+    diskWatermarks_.clear();   // S7 T15: read from the file the new table is
     // S7 T6 (D7-29): what a rewrite dropped stays readable through the new table, and no written object of the old
     // revision is reused, so the references read from them go.
     if (!retired_.empty()) table_.setRetired(retired_.front()->table.get());
@@ -3735,7 +3739,7 @@ std::vector<MutationSinkImpl::DecorationLayer>& MutationSinkImpl::decorationsOf(
         const PageOps::ContentLayers read = PageOps::contentLayers(table_, base->get("Contents"));
         const cos::CosObject resources = base->get("Resources");
         const auto add = [&](const PageOps::ContentLayers::Decoration& d, bool behind) {
-            DecorationLayer layer{d.id, d.kind, behind, nullptr, d.stream, DecorationOps::formOf(table_, resources, d.id)};
+            DecorationLayer layer{d.id, d.kind, behind, nullptr, d.stream, DecorationOps::formOf(table_, resources, d.id), std::nullopt};
             layers.push_back(std::move(layer));
         };
         for (const PageOps::ContentLayers::Decoration& d : read.behind) add(d, true);
@@ -3760,11 +3764,33 @@ core::Status MutationSinkImpl::addPageDecorations(const std::vector<int>& pages,
                 && std::any_of(wraps->second.begin(), wraps->second.end(), [&key](const WrapLayer& l) { return l.id == key; })))
             return editsError("error.command.malformed", page);
     }
+    // S7 T15 (D7-45): A WATERMARK KEEPING ANOTHER'S PICTURE draws it as that one does -- its bytes where it carries them,
+    // else the object it paints on disk, by reference -- found before anything changes, so a refusal changes nothing.
+    std::map<QString, KeptSource> kept;
+    for (const core::PageDecoration& decoration : decorations) {
+        if (!decoration.watermark || decoration.watermark->keepSourceOf.isEmpty()) continue;
+        const QString& of = decoration.watermark->keepSourceOf;
+        if (kept.count(of) != 0) continue;
+        std::optional<KeptSource> found = sourceOf(of);
+        const bool sameKind = found && (!found->drawing || (found->drawing->watermark && found->drawing->watermark->source == decoration.watermark->source));
+        if (!found || !sameKind) return editsError("error.decorate.sourceGone", static_cast<long long>(pages.size()));
+        kept.emplace(of, std::move(*found));
+    }
     for (std::size_t i = 0; i < pages.size(); ++i) {
-        const core::PageDecoration& decoration = decorations[i];
+        core::PageDecoration decoration = decorations[i];
+        std::optional<cos::CosObject> source;
+        if (decoration.watermark && !decoration.watermark->keepSourceOf.isEmpty()) {
+            const KeptSource& from = kept.at(decoration.watermark->keepSourceOf);
+            if (from.drawing) {
+                decoration.watermark->image = from.drawing->watermark->image;
+                decoration.watermark->page = from.drawing->watermark->page;
+            } else {
+                source = from.object;
+            }
+        }
         std::vector<DecorationLayer>& layers = decorationsOf(pages[i]);
         DecorationLayer layer{key, decoration.kind, decoration.behind, std::make_shared<const core::PageDecoration>(decoration),
-                              std::nullopt, std::nullopt};
+                              std::nullopt, std::nullopt, source};
         if (decoration.behind) {
             // Above every decoration already behind, and still behind the content.
             const auto firstFront = std::find_if(layers.begin(), layers.end(), [](const DecorationLayer& l) { return !l.behind; });
@@ -3796,9 +3822,13 @@ core::Status MutationSinkImpl::removePageDecorations(const std::vector<int>& pag
     return core::Status{};
 }
 
-core::Result<std::vector<int>> MutationSinkImpl::takeDecorations(core::DecorationKind kind, const QString& key)
+core::Result<std::vector<int>> MutationSinkImpl::takeDecorations(core::DecorationKind kind, const QString& key,
+                                                                  const std::vector<QString>& only)
 {
     if (key.isEmpty() || decorationStash_.count(key) != 0) return editsError("error.command.malformed");
+    // S7 T15: of `kind`, and -- when ids are named -- one of them.
+    const std::set<QString> named(only.begin(), only.end());
+    const auto chosen = [&](core::DecorationKind k, const QString& id) { return k == kind && (named.empty() || named.count(id) != 0); };
     std::vector<int> pages;
     std::vector<TakenDecorations> taken;
     for (int index = 0; index < pageCount(); ++index) {
@@ -3807,10 +3837,10 @@ core::Result<std::vector<int>> MutationSinkImpl::takeDecorations(core::Decoratio
         // of a 900-page document that carries none costs one read of its `/Contents`.
         bool has = false;
         if (const auto held = decorations_.find(number); held != decorations_.end()) {
-            has = std::any_of(held->second.begin(), held->second.end(), [kind](const DecorationLayer& l) { return l.kind == kind; });
+            has = std::any_of(held->second.begin(), held->second.end(), [&](const DecorationLayer& l) { return chosen(l.kind, l.id); });
         } else if (std::optional<cos::CosObject> base = baseDictionary(index)) {
             const PageOps::ContentLayers read = PageOps::contentLayers(table_, base->get("Contents"));
-            const auto ofKind = [kind](const PageOps::ContentLayers::Decoration& d) { return d.kind == kind; };
+            const auto ofKind = [&](const PageOps::ContentLayers::Decoration& d) { return chosen(d.kind, d.id); };
             has = std::any_of(read.behind.begin(), read.behind.end(), ofKind) || std::any_of(read.front.begin(), read.front.end(), ofKind);
         }
         if (!has) continue;
@@ -3821,9 +3851,9 @@ core::Result<std::vector<int>> MutationSinkImpl::takeDecorations(core::Decoratio
         std::vector<DecorationLayer>& layers = decorationsOf(index);
         std::set<QString> ids;
         for (const DecorationLayer& layer : layers) {
-            if (layer.kind == kind) ids.insert(layer.id);
+            if (chosen(layer.kind, layer.id)) ids.insert(layer.id);
         }
-        layers.erase(std::remove_if(layers.begin(), layers.end(), [kind](const DecorationLayer& l) { return l.kind == kind; }), layers.end());
+        layers.erase(std::remove_if(layers.begin(), layers.end(), [&](const DecorationLayer& l) { return chosen(l.kind, l.id); }), layers.end());
         std::vector<WrapLayer>& wraps = wrapsOf(index);
         wraps.erase(std::remove_if(wraps.begin(), wraps.end(), [&ids](const WrapLayer& l) { return ids.count(l.id) != 0; }), wraps.end());
         pages.push_back(index);
@@ -3862,6 +3892,278 @@ std::vector<std::optional<MutationSinkImpl::DecorationIds>> MutationSinkImpl::dr
         out.push_back(std::move(ids));
     }
     return out;
+}
+
+// ---- Watermarks (Stage 7 T15, D7-45) -- see `core/backend.h` ----------------------------------------------------------
+
+namespace {
+
+// `value` resolved through `table` when it is a reference; its spans cleared.
+cos::CosObject resolvedThrough(cos::XrefTable& table, const cos::CosObject& value)
+{
+    if (!value.isReference()) return value;
+    auto fetched = table.fetch(value.reference().number);
+    if (!fetched) return cos::CosObject::makeNull();
+    cos::CosObject out = fetched.value().object;
+    out.clearSpansRecursively();
+    return out;
+}
+
+// What a watermark's form on disk paints: its `/RawPageSrc`, as written (a reference).
+std::optional<cos::CosObject> paintedSource(cos::XrefTable& table, const cos::CosObject& form)
+{
+    const cos::CosObject dictionary = resolvedThrough(table, form);
+    if (!dictionary.isStream() && !dictionary.isDictionary()) return std::nullopt;
+    const cos::CosObject resources = resolvedThrough(table, dictionary.get("Resources"));
+    const cos::CosObject xobjects = resolvedThrough(table, resources.get("XObject"));
+    const cos::CosObject* source = xobjects.find(DecorationOps::kSourceResource);
+    if (source == nullptr || !source->isReference()) return std::nullopt;
+    return *source;
+}
+
+} // namespace
+
+std::vector<MutationSinkImpl::ListedDecoration> MutationSinkImpl::decorationsListed(int index, core::DecorationKind kind)
+{
+    std::vector<ListedDecoration> out;
+    const auto fromForm = [&](const QString& id, const std::optional<cos::CosObject>& form) {
+        ListedDecoration listed{id, std::nullopt, std::nullopt};
+        if (form) {
+            const cos::CosObject dictionary = resolvedThrough(table_, *form);
+            listed.spec = DecorationOps::recordedSpec(dictionary);
+            if (const cos::CosObject* group = dictionary.find("OC"); group != nullptr && group->isReference()) listed.group = *group;
+        }
+        return listed;
+    };
+    const long long number = walk_.pages[static_cast<std::size_t>(index)].number;
+    if (const auto held = decorations_.find(number); held != decorations_.end()) {
+        for (const DecorationLayer& layer : held->second) {
+            if (layer.kind != kind) continue;
+            if (layer.drawing) {
+                ListedDecoration listed{layer.id, std::nullopt, std::nullopt};
+                if (layer.drawing->watermark) {
+                    listed.spec = layer.drawing->watermark->spec;
+                    if (const auto made = composedGroups_.find(layer.id); made != composedGroups_.end())
+                        listed.group = cos::CosObject::makeReference(made->second.number, made->second.generation);
+                }
+                out.push_back(std::move(listed));
+            } else {
+                out.push_back(fromForm(layer.id, layer.form));
+            }
+        }
+        return out;
+    }
+    const std::optional<cos::CosObject> base = baseDictionary(index);
+    if (!base) return out;
+    const PageOps::ContentLayers read = PageOps::contentLayers(table_, base->get("Contents"));
+    for (const auto* side : {&read.behind, &read.front}) {
+        for (const PageOps::ContentLayers::Decoration& d : *side) {
+            if (d.kind == kind) out.push_back(fromForm(d.id, DecorationOps::formOf(table_, base->get("Resources"), d.id)));
+        }
+    }
+    return out;
+}
+
+const std::vector<MutationSinkImpl::ListedDecoration>& MutationSinkImpl::watermarksListed(int index)
+{
+    const long long number = walk_.pages[static_cast<std::size_t>(index)].number;
+    // Held, new, or put back by an undo: what it draws is the sink's, not the file's -- read again.
+    if (number < 0 || decorations_.count(number) != 0 || restored_.count(number) != 0) {
+        listedScratch_ = decorationsListed(index, core::DecorationKind::Watermark);
+        return listedScratch_;
+    }
+    auto found = diskWatermarks_.find(number);
+    if (found == diskWatermarks_.end())
+        found = diskWatermarks_.emplace(number, decorationsListed(index, core::DecorationKind::Watermark)).first;
+    return found->second;
+}
+
+std::vector<core::DecorationEntry> MutationSinkImpl::listDecorations(core::DecorationKind kind)
+{
+    std::vector<core::DecorationEntry> out;
+    std::map<QString, std::size_t> at;
+    for (int index = 0; index < pageCount(); ++index) {
+        for (ListedDecoration& listed : decorationsListed(index, kind)) {
+            auto found = at.find(listed.id);
+            if (found == at.end()) {
+                found = at.emplace(listed.id, out.size()).first;
+                out.push_back(core::DecorationEntry{listed.id, kind, {}, listed.spec.value_or(QJsonObject())});
+            }
+            out[found->second].pages.push_back(index);
+        }
+    }
+    return out;
+}
+
+std::optional<MutationSinkImpl::KeptSource> MutationSinkImpl::sourceOf(const QString& id)
+{
+    const auto fromLayer = [this](const DecorationLayer& layer) -> std::optional<KeptSource> {
+        if (layer.kind != core::DecorationKind::Watermark) return std::nullopt;
+        if (layer.drawing && layer.drawing->watermark) {
+            const core::WatermarkDrawing& w = *layer.drawing->watermark;
+            if (!w.image.isEmpty() || !w.page.isEmpty()) return KeptSource{layer.drawing, std::nullopt};
+            if (layer.source) return KeptSource{nullptr, layer.source};
+            return std::nullopt;
+        }
+        if (layer.form) {
+            if (std::optional<cos::CosObject> painted = paintedSource(table_, *layer.form)) return KeptSource{nullptr, painted};
+        }
+        return std::nullopt;
+    };
+    const auto search = [&](const std::vector<DecorationLayer>& layers) -> std::optional<KeptSource> {
+        for (const DecorationLayer& layer : layers) {
+            if (layer.id != id) continue;
+            if (std::optional<KeptSource> found = fromLayer(layer)) return found;
+        }
+        return std::nullopt;
+    };
+    for (const auto& [number, layers] : decorations_) {
+        if (std::optional<KeptSource> found = search(layers)) return found;
+    }
+    for (const auto& [key, pages] : decorationStash_) {
+        for (const TakenDecorations& taken : pages) {
+            if (!taken.decorations) continue;
+            if (std::optional<KeptSource> found = search(*taken.decorations)) return found;
+        }
+    }
+    // On a page no command has touched: read from its contents.
+    for (int index = 0; index < pageCount(); ++index) {
+        if (decorations_.count(walk_.pages[static_cast<std::size_t>(index)].number) != 0) continue;
+        const std::optional<cos::CosObject> base = baseDictionary(index);
+        if (!base) continue;
+        const PageOps::ContentLayers read = PageOps::contentLayers(table_, base->get("Contents"));
+        for (const auto* side : {&read.behind, &read.front}) {
+            for (const PageOps::ContentLayers::Decoration& d : *side) {
+                if (d.id != id || d.kind != core::DecorationKind::Watermark) continue;
+                if (std::optional<cos::CosObject> form = DecorationOps::formOf(table_, base->get("Resources"), d.id)) {
+                    if (std::optional<cos::CosObject> painted = paintedSource(table_, *form)) return KeptSource{nullptr, painted};
+                }
+            }
+        }
+    }
+    return std::nullopt;
+}
+
+core::Status MutationSinkImpl::composeWatermarkGroups(std::map<long long, cos::CosObject>& pending)
+{
+    const cos::CosObject& root = table_.trailer().get("Root");
+    if (!root.isReference()) return core::Status{};
+    const long long catalogNumber = root.reference().number;
+    cos::CosObject catalog;
+    if (const auto composed = pending.find(catalogNumber); composed != pending.end()) {
+        catalog = composed->second;
+    } else {
+        auto current = table_.fetch(catalogNumber);
+        if (!current || !current.value().object.isDictionary()) return core::Status{};
+        catalog = withoutSpans(current.value().object);
+    }
+    const cos::CosObject* held = catalog.find("OCProperties");
+    std::optional<long long> holder;
+    cos::CosObject properties = cos::CosObject::makeDictionary({});
+    if (held != nullptr && held->isReference()) {
+        holder = held->reference().number;
+        if (auto it = pending.find(*holder); it != pending.end()) properties = it->second;
+        else if (auto fetched = table_.fetch(*holder); fetched && fetched.value().object.isDictionary()) properties = withoutSpans(fetched.value().object);
+    } else if (held != nullptr && held->isDictionary()) {
+        properties = *held;
+    }
+    const cos::CosObject listedGroups = resolvedThrough(table_, properties.get("OCGs"));
+    // OURS LISTED NOW: each group the list names that carries a watermark's mark.
+    std::set<long long> ours;
+    for (const cos::CosObject& item : listedGroups.items()) {
+        if (!item.isReference()) continue;
+        if (DecorationOps::markedId(resolvedThrough(table_, item))) ours.insert(item.reference().number);
+    }
+    // Nothing of ours listed and no watermark held that may name a group -- a new one with one, or one on disk a command
+    // put back (a removal undone after a save) -- so no page can draw a group of ours: nothing to read.
+    bool anyHeld = false;
+    for (const auto& [number, layers] : decorations_) {
+        anyHeld = anyHeld || std::any_of(layers.begin(), layers.end(), [](const DecorationLayer& l) {
+                      if (l.kind != core::DecorationKind::Watermark) return false;
+                      if (l.drawing && l.drawing->watermark) return l.drawing->watermark->usage != core::WatermarkUsage::Always;
+                      return true;
+                  });
+    }
+    if (ours.empty() && !anyHeld) return core::Status{};
+
+    // EVERY GROUP A PAGE DRAWS NOW, in the order the pages first name them.
+    std::vector<cos::CosObject> live;
+    std::set<long long> liveNumbers;
+    for (int index = 0; index < pageCount(); ++index) {
+        for (const ListedDecoration& listed : watermarksListed(index)) {
+            if (listed.group && listed.group->isReference() && liveNumbers.insert(listed.group->reference().number).second)
+                live.push_back(*listed.group);
+        }
+    }
+    std::set<long long> gone;
+    for (const long long number : ours) {
+        if (liveNumbers.count(number) == 0) gone.insert(number);
+    }
+    const std::set<long long> listed = groupsIn(listedGroups);
+    std::vector<cos::CosObject> added;
+    for (const cos::CosObject& group : live) {
+        if (listed.count(group.reference().number) == 0) added.push_back(group);
+    }
+    if (gone.empty() && added.empty()) return core::Status{};
+
+    // OUT: ours no page draws, from `/OCGs` and `/D /AS` -- the only lists ours are ever put in. IN: each new one, its two
+    // usage applications appended. Nothing else of the document's is touched (§3.8: removal gives back what was there).
+    std::vector<cos::CosObject> groups;
+    for (const cos::CosObject& item : listedGroups.items()) {
+        if (!(item.isReference() && gone.count(item.reference().number) != 0)) groups.push_back(item);
+    }
+    for (const cos::CosObject& group : added) groups.push_back(group);
+    const bool hadDefaults = properties.find("D") != nullptr;
+    cos::CosObject defaults = resolvedThrough(table_, properties.get("D"));
+    if (!defaults.isDictionary()) defaults = cos::CosObject::makeDictionary({});
+    const bool hadUsage = defaults.find("AS") != nullptr;
+    std::vector<cos::CosObject> usage;
+    const cos::CosObject applications = resolvedThrough(table_, defaults.get("AS"));
+    for (const cos::CosObject& entry : applications.items()) {
+        cos::CosObject application = resolvedThrough(table_, entry);
+        if (!application.isDictionary()) {
+            usage.push_back(entry);
+            continue;
+        }
+        const cos::CosObject members = resolvedThrough(table_, application.get("OCGs"));
+        std::vector<cos::CosObject> kept;
+        bool removed = false;
+        for (const cos::CosObject& item : members.items()) {
+            if (item.isReference() && gone.count(item.reference().number) != 0) removed = true;
+            else kept.push_back(item);
+        }
+        if (!removed) usage.push_back(entry);
+        else if (!kept.empty()) usage.push_back(AnnotationOps::withEntry(application, "OCGs", cos::CosObject::makeArray(std::move(kept))));
+    }
+    for (const cos::CosObject& group : added) {
+        for (const char* event : {"View", "Print"}) {
+            usage.push_back(cos::CosObject::makeDictionary({{"Event", cos::CosObject::makeName(event)},
+                                                            {"OCGs", cos::CosObject::makeArray({group})},
+                                                            {"Category", cos::CosObject::makeArray({cos::CosObject::makeName(event)})}}));
+        }
+    }
+    if (groups.empty() && held == nullptr) return core::Status{};
+    if (groups.empty() && listed.size() == ours.size()) {
+        // ONLY OURS WERE LISTED, and none is drawn: the `/OCProperties` this sink made is taken away whole.
+        pending.insert_or_assign(catalogNumber, AnnotationOps::withoutEntry(catalog, "OCProperties"));
+        return core::Status{};
+    }
+    cos::CosObject newDefaults = defaults;
+    if (!usage.empty()) newDefaults = AnnotationOps::withEntry(newDefaults, "AS", cos::CosObject::makeArray(std::move(usage)));
+    else if (hadUsage) newDefaults = AnnotationOps::withoutEntry(newDefaults, "AS");
+    if (held == nullptr) {
+        // MADE HERE: ours hidden from a reader's layers panel by an empty `/Order`.
+        newDefaults = AnnotationOps::withEntry(newDefaults, "Order", cos::CosObject::makeArray({}));
+    }
+    cos::CosObject out = AnnotationOps::withEntry(properties, "OCGs", cos::CosObject::makeArray(std::move(groups)));
+    if (const cos::CosObject& d = properties.get("D"); d.isReference()) {
+        pending.insert_or_assign(d.reference().number, std::move(newDefaults));
+    } else if (hadDefaults || !newDefaults.entries().empty()) {
+        out = AnnotationOps::withEntry(out, "D", std::move(newDefaults));
+    }
+    if (holder) pending.insert_or_assign(*holder, std::move(out));
+    else pending.insert_or_assign(catalogNumber, AnnotationOps::withEntry(catalog, "OCProperties", std::move(out)));
+    return core::Status{};
 }
 
 core::Status MutationSinkImpl::composeContentLayers(int index, cos::CosObject& page, cos::ObjectDelta& delta, AppearanceObjects& shared)
@@ -3907,6 +4209,7 @@ core::Status MutationSinkImpl::composeContentLayers(int index, cos::CosObject& p
     // THE FORMS, before `/Resources` is written over: each decoration's, as its page names it now, or new.
     std::vector<std::pair<std::string, cos::CosObject>> forms;
     std::map<QString, cos::CosObject> streams;   // each decoration's painting stream, by id
+    std::optional<core::Error> failure;          // S7 T15: a watermark's source this compose cannot write
     const auto place = [&](const PageOps::ContentLayers::Decoration* onDisk, const DecorationLayer* layer) -> bool {
         if (onDisk) {
             streams.emplace(layer ? layer->id : onDisk->id, onDisk->stream);
@@ -3923,9 +4226,36 @@ core::Status MutationSinkImpl::composeContentLayers(int index, cos::CosObject& p
         }
         if (!layer->drawing) return false;   // on disk once, and no longer listed or remembered: nothing to list
         const std::string name = "dec:" + layer->id.toStdString() + ":" + book;
-        const cos::CosObject formDictionary = DecorationOps::formDictionary(*layer->drawing, layer->id, shared);
-        const long long form = delta.add(name + ":form", formDictionary, DecorationOps::formContent(*layer->drawing));
-        const cos::CosObject marked = DecorationOps::markedDictionary(layer->id, layer->kind);
+        long long form = 0;
+        if (const std::optional<core::WatermarkDrawing>& w = layer->drawing->watermark) {
+            // S7 T15 (D7-45): the source written once a compose (or kept, by reference), the group once a compose.
+            cos::CosObject source;
+            if (layer->source) {
+                source = *layer->source;
+            } else {
+                core::Result<cos::CosRef> written = DecorationOps::watermarkSource(*w, layer->id, shared);
+                if (!written) {
+                    failure = written.error();
+                    return false;
+                }
+                source = cos::CosObject::makeReference(written.value().number, written.value().generation);
+            }
+            std::optional<cos::CosObject> group;
+            if (w->usage != core::WatermarkUsage::Always) {
+                auto made = composedGroups_.find(layer->id);
+                if (made == composedGroups_.end()) {
+                    const long long written = delta.add("wmocg:" + layer->id.toStdString(), DecorationOps::groupDictionary(layer->id, w->usage));
+                    made = composedGroups_.emplace(layer->id, cos::CosRef{written, 0}).first;
+                }
+                group = cos::CosObject::makeReference(made->second.number, made->second.generation);
+            }
+            form = delta.add(name + ":form", DecorationOps::watermarkFormDictionary(*layer->drawing, layer->id, source, group),
+                             DecorationOps::watermarkContent(*w));
+        } else {
+            const cos::CosObject formDictionary = DecorationOps::formDictionary(*layer->drawing, layer->id, shared);
+            form = delta.add(name + ":form", formDictionary, DecorationOps::formContent(*layer->drawing));
+        }
+        const cos::CosObject marked = DecorationOps::markedDictionary(layer->id, layer->kind, layer->behind);
         std::vector<cos::CosObject::Entry> entries(marked.entries().begin(), marked.entries().end());
         const long long paint = delta.add(name + ":draw", cos::CosObject::makeStream(std::move(entries), cos::CosStreamData{}),
                                           DecorationOps::drawContent(*layer->drawing, layer->id));
@@ -3953,6 +4283,7 @@ core::Status MutationSinkImpl::composeContentLayers(int index, cos::CosObject& p
             frontListed.push_back(d.id);
         }
     }
+    if (failure) return *failure;
 
     // THE WRAPPERS: as listed, remembered, or new.
     std::map<QString, const PageOps::ContentLayers::Layer*> wrapsOnDisk;
@@ -4010,8 +4341,9 @@ core::Status MutationSinkImpl::composeContentLayers(int index, cos::CosObject& p
     const bool layeredAfter = !behindListed.empty() || !frontListed.empty() || !before.empty();
     if (!layeredAfter && contentsRecord) {
         page = AnnotationOps::withEntry(page, "Contents", *contentsRecord);
-    } else if (items.size() == 1 && items.front().isReference()) {
-        // NO LAYER LEFT around a single stream: written as the one reference -- the form most files use.
+    } else if (items.size() == 1 && items.front().isReference() && !layeredAfter) {
+        // NO LAYER LEFT around a single stream: written as the one reference -- the form most files use. (S7 T15: a lone
+        // decoration BEHIND a page with no content of its own is still a list, or nothing could find it by its mark.)
         page = AnnotationOps::withEntry(page, "Contents", items.front());
     } else if (items.empty()) {
         page = AnnotationOps::withoutEntry(page, "Contents");

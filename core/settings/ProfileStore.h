@@ -64,7 +64,7 @@
 namespace rawpage::core {
 
 // Stage 7 T14: a kind of named profile -- see the header. T15 and T16 add theirs.
-enum class ProfileKind : std::uint8_t { HeaderFooter };
+enum class ProfileKind : std::uint8_t { HeaderFooter, Watermark };
 
 struct CustomStamp {
     QString id;              // 32 lowercase hex digits: its two files' names
@@ -137,6 +137,8 @@ public:
 
     // ---- Named profiles (Stage 7 T14) -- see the header ----------------------------------------------------------
     static constexpr int kMaxProfiles = 1000;   // per kind
+    // S7 T15: the largest watermark profile read back -- a 64 MiB picture as base64, and the spec round it.
+    static constexpr qint64 kMaxWatermarkProfileBytes = 96LL * 1024 * 1024;
     // The names of `kind`'s profiles, sorted as a person reads them (case-insensitively).
     QStringList profileNames(ProfileKind kind) const;
     // The spec saved under `name`; `error.profiles.unknown` for a name no profile has.
@@ -161,12 +163,14 @@ private:
         QJsonObject spec;
     };
     QString profileDirectory(ProfileKind kind) const;
+    static qint64 profileCap(ProfileKind kind);
     void loadProfiles(ProfileKind kind);
     std::vector<Profile>& profilesOf(ProfileKind kind);
     const std::vector<Profile>& profilesOf(ProfileKind kind) const;
 
     QString root_;
     std::vector<Profile> headerFooterProfiles_;   // T14
+    std::vector<Profile> watermarkProfiles_;      // T15
     std::vector<CustomStamp> stamps_;
     std::set<QString> builtInFavourites_;
     QStringList damaged_;

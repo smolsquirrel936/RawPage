@@ -316,8 +316,12 @@ public:
     core::Status addPageDecorations(const std::vector<int>& pages, const std::vector<core::PageDecoration>& decorations,
                                     const QString& key) override;
     core::Status removePageDecorations(const std::vector<int>& pages, const QString& key) override;
-    core::Result<std::vector<int>> takeDecorations(core::DecorationKind kind, const QString& key) override;
+    core::Result<std::vector<int>> takeDecorations(core::DecorationKind kind, const QString& key,
+                                                   const std::vector<QString>& only) override;
     core::Status restoreDecorations(const QString& key) override;
+    // Stage 7 T15: the decorations of `kind` every page draws now -- `IDocumentBackend::decorations`. Reads; changes
+    // nothing the compose writes.
+    std::vector<core::DecorationEntry> listDecorations(core::DecorationKind kind);
     // For each page of the desired order: the ids of the decorations it will carry, behind then in front, in order --
     // nullopt for a page no decoration command touched. What verify reads back (`PageOps::contentLayers`).
     struct DecorationIds {
@@ -744,6 +748,8 @@ private:
         // For one read from disk: the stream that paints it and the form it paints, as listed (see `WrapLayer::listed`).
         std::optional<cos::CosObject> stream;
         std::optional<cos::CosObject> form;
+        // S7 T15: a watermark keeping another's picture that is ON DISK -- the object that picture is, by reference.
+        std::optional<cos::CosObject> source;
     };
     // A page's `/Thumb`: an image a command set (`flate` its pixels, compressed once), or a value as written --
     // a reference, or none -- or, for a page no save has written, whatever the page it is drawn from has (`keep`).
@@ -795,6 +801,32 @@ private:
     // The layers page `index` draws now -- read from its contents the first time a command asks.
     std::vector<WrapLayer>& wrapsOf(int index);
     std::vector<DecorationLayer>& decorationsOf(int index);
+    // S7 T15 (D7-45): what a page's decorations of `kind` are -- by id, in order, each with its record -- as held, or
+    // read from its contents where nothing is held. Reads only.
+    struct ListedDecoration {
+        QString id;
+        std::optional<QJsonObject> spec;
+        std::optional<cos::CosObject> group;   // a watermark's optional-content group, by reference
+    };
+    std::vector<ListedDecoration> decorationsListed(int index, core::DecorationKind kind);
+    // The same for a page's watermarks, a page no command holds and drawn as the file lists it read ONCE a revision
+    // (`diskWatermarks_`, cleared by `adopt`) -- measured at T15 on pages-900.pdf with a print-only watermark saved on
+    // every page: a later command's run and compose 11.84 ms when every compose read every page, against 0.85 ms with an
+    // always-shown one, which needs no group.
+    const std::vector<ListedDecoration>& watermarksListed(int index);
+    std::map<long long, std::vector<ListedDecoration>> diskWatermarks_;
+    std::vector<ListedDecoration> listedScratch_;
+    // S7 T15: the picture watermark `id` draws -- its drawing, for one not yet written, or the object it paints on
+    // disk -- wherever it is held: on a page, in a take's stash, or on disk.
+    struct KeptSource {
+        std::shared_ptr<const core::PageDecoration> drawing;
+        std::optional<cos::CosObject> object;
+    };
+    std::optional<KeptSource> sourceOf(const QString& id);
+    // S7 T15: each watermark group this compose wrote, by the watermark's id -- so every page's form names one object.
+    std::map<QString, cos::CosRef> composedGroups_;
+    // S7 T15: `/OCProperties` listing every print- or screen-only watermark group a page draws, and none other of ours.
+    core::Status composeWatermarkGroups(std::map<long long, cos::CosObject>& pending);
     // `pending` page `written`'s `/Contents` and `/Resources` rebuilt for the layers it should draw -- see the header.
     core::Status composeContentLayers(int index, cos::CosObject& page, cos::ObjectDelta& delta, AppearanceObjects& shared);
     std::map<long long, ThumbState> thumbs_;

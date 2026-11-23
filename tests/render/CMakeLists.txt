@@ -98,6 +98,9 @@ add_executable(rawpage_render_tests
     tst_decorationengine.cpp      # Stage 7 T14 -- guide A-91's raster half, A-92, A-93, A-95's raster half, A-96 (D7-7,
                                   #   D7-14): every field extracted by a fresh PDFium from the page it is drawn on, at every
                                   #   rotation; Bates across three open documents; shrink graded on the ink with its control
+    tst_watermarkengine.cpp       # Stage 7 T15 -- guide A-99 ... A-101's raster halves (D7-45): print-only and screen-only under
+                                  #   PDFium's print flag and without it; behind hidden by opaque content and in front not;
+                                  #   opacity on the raster; a page as the source; an image page; 0 px after apply-remove
     tst_pageedits.cpp             # Stage 7 T9 -- guide A-58, A-60 ... A-63's engine halves (D7-15, D7-32): boxes, labels
                                   #   and thumbnails as a fresh PDFium reads them; a white-margin crop and a resize
                                   #   graded on the INK at 144 dpi

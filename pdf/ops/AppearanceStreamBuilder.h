@@ -201,6 +201,9 @@ public:
     // `text` (in `font`'s faces only) as the codes `font`'s encoding gives it: WinAnsi bytes, or UCS-2,
     // big-endian. Empty for a character the font has no code for.
     static std::string encodeText(core::TypedFont font, QStringView text);
+    // Stage 7 T15: `image` as an image XObject (and its `/SMask`) through `objects`, keyed by its SHA-256 so it is
+    // written once however often it is drawn -- an image stamp's picture, and a watermark's (`DecorationOps`).
+    static cos::CosRef imageObject(const core::StampImage& image, AppearanceObjects& objects);
 };
 
 } // namespace rawpage::pdf::ops

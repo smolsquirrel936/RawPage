@@ -3913,6 +3913,22 @@
         <source>error.profiles.full</source>
         <translation>There are too many profiles of this kind.</translation>
     </message>
+    <message>
+        <source>error.decorate.tooManyTiles</source>
+        <translation>The watermark would be drawn %1 times on one page. Make it larger or the gap wider.</translation>
+    </message>
+    <message>
+        <source>error.decorate.sourceGone</source>
+        <translation>The watermark whose picture this one keeps is no longer in the document.</translation>
+    </message>
+    <message>
+        <source>error.decorate.profileKeepsPicture</source>
+        <translation>A profile cannot keep a picture taken from this document. Choose the picture's file to save it.</translation>
+    </message>
+    <message>
+        <source>error.decorate.noneChosen</source>
+        <translation>Choose at least one watermark.</translation>
+    </message>
 </context>
 <context>
     <name>ribbon</name>
@@ -4944,6 +4960,10 @@
         <translation>Header and footer profile the dialog opens with</translation>
     </message>
     <message>
+        <source>prefs.setting.documents.watermarkProfile</source>
+        <translation>Watermark profile the dialog opens with</translation>
+    </message>
+    <message>
         <source>prefs.setting.documents.batesStart</source>
         <translation>First Bates number</translation>
     </message>
@@ -5173,6 +5193,18 @@
     <message>
         <source>command.bates.remove</source>
         <translation>Remove Bates numbers from %1 page(s)</translation>
+    </message>
+    <message>
+        <source>command.watermark.apply</source>
+        <translation>Add a watermark to %1 page(s)</translation>
+    </message>
+    <message>
+        <source>command.watermark.update</source>
+        <translation>Update a watermark on %1 page(s)</translation>
+    </message>
+    <message>
+        <source>command.watermark.remove</source>
+        <translation>Remove watermarks from %1 page(s)</translation>
     </message>
 </context>
 <context>
@@ -7625,6 +7657,190 @@
     <message>
         <source>decorate.position.footerRight</source>
         <translation>Bottom right</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.addTitle</source>
+        <translation>Add Watermark</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.updateTitle</source>
+        <translation>Update Watermark</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.source</source>
+        <translation>Source</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.text</source>
+        <translation>Text</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.image</source>
+        <translation>Image file</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.page</source>
+        <translation>Page of a PDF file</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.choose</source>
+        <translation>Choose…</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.pageNumber</source>
+        <translation>Page:</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.noFile</source>
+        <translation>No file chosen</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.kept</source>
+        <translation>The watermark's current picture (%1)</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.placement</source>
+        <translation>Appearance and position</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.opacity</source>
+        <translation>Opacity:</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.rotation</source>
+        <translation>Rotation:</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.scale</source>
+        <translation>Scale:</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.anchor</source>
+        <translation>Position:</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.offset</source>
+        <translation>Offset (points), across and up:</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.tile</source>
+        <translation>Tile across the page, gap (points):</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.side</source>
+        <translation>Place:</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.show</source>
+        <translation>Show:</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.imageFilter</source>
+        <translation>Images (*.png *.jpg *.jpeg *.bmp *.gif *.tif *.tiff)</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.pdfFilter</source>
+        <translation>PDF files (*.pdf)</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.defaultText</source>
+        <translation>DRAFT</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.chooserTitle</source>
+        <translation>Choose Watermarks</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.chooseUpdate</source>
+        <translation>Choose the watermark to update:</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.chooseRemove</source>
+        <translation>Choose the watermarks to remove:</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.all</source>
+        <translation>Select All</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.entry</source>
+        <translation>%1 — pages %2</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.scaleMode.relative</source>
+        <translation>% of the page</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.scaleMode.absolute</source>
+        <translation>% of its own size</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.anchor.topLeft</source>
+        <translation>Top left</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.anchor.top</source>
+        <translation>Top</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.anchor.topRight</source>
+        <translation>Top right</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.anchor.left</source>
+        <translation>Left</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.anchor.centre</source>
+        <translation>Centre</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.anchor.right</source>
+        <translation>Right</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.anchor.bottomLeft</source>
+        <translation>Bottom left</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.anchor.bottom</source>
+        <translation>Bottom</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.anchor.bottomRight</source>
+        <translation>Bottom right</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.side.behind</source>
+        <translation>Behind the page content</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.side.front</source>
+        <translation>In front of the page content</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.usage.always</source>
+        <translation>On screen and when printed</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.usage.print</source>
+        <translation>Only when printed</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.usage.screen</source>
+        <translation>Only on screen</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.kind.text</source>
+        <translation>Text “%1”</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.kind.image</source>
+        <translation>Image %1</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.kind.page</source>
+        <translation>Page from %1</translation>
     </message>
 </context>
 </TS>

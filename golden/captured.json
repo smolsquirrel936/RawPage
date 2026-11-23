@@ -1979,6 +1979,77 @@
             "width": 576
         },
         {
+            "dpi": 144,
+            "file": "decoration/watermark-anchor-bottom-right",
+            "height": 432,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 576
+        },
+        {
+            "dpi": 144,
+            "file": "decoration/watermark-anchor-offset",
+            "height": 432,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 576
+        },
+        {
+            "dpi": 144,
+            "file": "decoration/watermark-diagonal-behind",
+            "height": 432,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 576
+        },
+        {
+            "dpi": 144,
+            "file": "decoration/watermark-front-red",
+            "height": 432,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 576
+        },
+        {
+            "dpi": 144,
+            "file": "decoration/watermark-image-tiled",
+            "height": 432,
+            "page": 0,
+            "width": 576
+        },
+        {
+            "dpi": 144,
+            "file": "decoration/watermark-image-turned",
+            "height": 432,
+            "page": 0,
+            "width": 576
+        },
+        {
+            "dpi": 144,
+            "file": "decoration/watermark-page",
+            "height": 432,
+            "page": 0,
+            "width": 576
+        },
+        {
+            "dpi": 144,
+            "file": "decoration/watermark-rotated-page",
+            "height": 576,
+            "page": 0,
+            "substitutions": [
+                "Helvetica -> (engine) [standard-declined]"
+            ],
+            "width": 432
+        },
+        {
             "dpi": 96,
             "file": "encrypted/aes-128.pdf",
             "height": 1123,
@@ -5141,7 +5212,7 @@
             "width": 1588
         }
     ],
-    "capturedUtc": "2026-11-22T16:36:44Z",
+    "capturedUtc": "2026-11-23T02:14:24Z",
     "pdfiumVersion": "153.0.8009.0",
-    "reason": "Stage 7 T14: first capture of the decoration baselines -- headers, footers and Bates numbers written through the sink (guide A-98); each looked at before it is kept"
+    "reason": "Stage 7 T15: the first watermark baselines (guide A-99), each looked at before it is kept"
 }

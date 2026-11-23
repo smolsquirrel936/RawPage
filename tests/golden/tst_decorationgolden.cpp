@@ -56,7 +56,10 @@ TEST_CASE("decoration every case has a baseline and every baseline is a case", "
     }
 }
 
-TEST_CASE("decoration every case matches its baseline", "[golden][decoration][A-98]")
+namespace {
+
+// Every case of one family -- headers, footers and Bates numbers, or (Stage 7 T15) watermarks -- compared.
+void compareFamily(bool watermarks)
 {
     REQUIRE(manifest().error.isEmpty());
     REQUIRE(captureLog().error.isEmpty());
@@ -67,7 +70,10 @@ TEST_CASE("decoration every case matches its baseline", "[golden][decoration][A-
 
     int compared = 0;
     int skipped = 0;
+    int family = 0;
     for (const golden::DecorationCase& item : golden::decorationCases()) {
+        if (item.watermark.has_value() != watermarks) continue;
+        ++family;
         INFO(item.name.toStdString() << " -- " << item.note.toStdString());
         const std::string bytes = golden::decorationPdf(item);
         REQUIRE_FALSE(bytes.empty());   // a case the sink refused would be a page without its decoration
@@ -116,8 +122,24 @@ TEST_CASE("decoration every case matches its baseline", "[golden][decoration][A-
     }
     // Only a machine-dependent case may be skipped: every other one is compared, here and on any machine.
     int dependent = 0;
-    for (const golden::DecorationCase& item : golden::decorationCases()) dependent += item.machineDependent ? 1 : 0;
+    for (const golden::DecorationCase& item : golden::decorationCases())
+        dependent += (item.machineDependent && item.watermark.has_value() == watermarks) ? 1 : 0;
     CHECK(skipped <= dependent);
-    CHECK(compared + skipped == static_cast<int>(golden::decorationCases().size()));
-    CHECK(compared >= static_cast<int>(golden::decorationCases().size()) - dependent);
+    CHECK(compared + skipped == family);
+    CHECK(compared >= family - dependent);
+    CHECK(family >= (watermarks ? 8 : 9));
+}
+
+} // namespace
+
+TEST_CASE("decoration every case matches its baseline", "[golden][decoration][A-98]")
+{
+    compareFamily(false);
+}
+
+// Stage 7 T15 (D7-45): text, image and page sources, opacity, rotation, absolute and relative scale, anchor and offset,
+// tiling, behind and in front, and a turned page -- each baseline LOOKED AT before it was kept (`golden/UPDATES.md`).
+TEST_CASE("watermark every case matches its baseline", "[golden][decoration][watermark][A-99]")
+{
+    compareFamily(true);
 }

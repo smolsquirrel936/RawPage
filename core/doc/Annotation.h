@@ -46,6 +46,7 @@
 
 #include <QByteArray>
 #include <QJsonObject>
+#include <QJsonValue>
 #include <QLatin1String>
 #include <QString>
 
@@ -157,6 +158,14 @@ struct StampPage {
     bool isEmpty() const noexcept { return graph.isEmpty(); }
     bool operator==(const StampPage&) const = default;
 };
+
+// Stage 7 T15: an image's and a page's JSON as a stamp's journal line holds them -- the bytes as base64 -- for a
+// watermark's line and profile too. Read leniently: nullopt for what is not that shape; the parser holding one refuses
+// a hostile one (`core::invalidStampImage`, `core::invalidStampPage`).
+QJsonObject stampImageJson(const StampImage& image);
+std::optional<StampImage> stampImageFromJsonValue(const QJsonValue& value);
+QJsonObject stampPageJson(const StampPage& page);
+std::optional<StampPage> stampPageFromJsonValue(const QJsonValue& value);
 
 // ONE EMBEDDED FILE AS THE MODEL HOLDS IT (Stage 6 T11, D6-17) -- what a file specification with an `/EF` says
 // about the file it carries: its name, description, type, size, dates and checksum. Declared HERE rather than in

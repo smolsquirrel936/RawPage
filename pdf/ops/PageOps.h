@@ -226,6 +226,7 @@ public:
     struct DecorationMark {
         QString id;
         core::DecorationKind kind;
+        bool behind = false;   // S7 T15: marked `/Behind true` -- what position alone cannot say on a page with no content
     };
     static std::optional<DecorationMark> decorationOf(const cos::CosObject& stream);
     // A page's `/Contents` as layers: the wrappers RawPage wrote around it, OUTERMOST first -- each the matching pair

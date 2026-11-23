@@ -69,6 +69,9 @@ add_executable(rawpage_ui_tests
     # S7 T14 -- the header/footer dialog, its preview and profiles, the Bates dialog and the five actions T14 registers
     # (S7 guide A-92, A-93, A-96, A-97's surface halves).
     tst_decorationdialogs.cpp
+    # S7 T15 -- the watermark dialog, its preview, pictures and profiles, the chooser, the three actions T15 registers, and
+    # an image on the clipboard pasted as a page (S7 guide A-97, A-99, A-100's surface halves).
+    tst_watermarkdialogs.cpp
     # S7 T12 -- the Link tool through the window (S7 guide A-83's tool half), the link dialog's answer (A-86's surface
     # half), and the Destinations pane's create, rename and delete (A-82's surface half).
     tst_linktool.cpp

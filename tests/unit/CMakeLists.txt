@@ -166,6 +166,11 @@ add_executable(rawpage_tests
     tst_decoration.cpp            # Stage 7 T14 -- headers, footers and Bates through the shipped sink, read back first-party:
                                   #   apply, save, remove, save leaves every page as it was over the corpus; another
                                   #   producer's untouched; undo after a save (S7 guide A-91, A-94, A-95's first-party half)
+    tst_watermark.cpp             # Stage 7 T15 -- the watermark engine, pure: natural sizes, anchors, rotation, scale, tiling
+                                  #   and the page as shown, against hand values; the spec's bounds and JSON (S7 guide A-99)
+    tst_watermarksink.cpp         # Stage 7 T15 -- watermarks through the shipped sink: apply, save, remove the one chosen,
+                                  #   remove all leaves pages and catalog as they were over the corpus; updates keeping a
+                                  #   picture by reference; print/screen-only groups; an image as a page (A-100, A-101)
     tst_pagereconnect.cpp         # Stage 7 guide I-23 -- a page cut or copied and pasted back keeps its bookmarks, named
                                   #   destinations and links, through the shipped sink, saved and read back (D7-37)
     tst_splitplan.cpp             # Stage 7 T7  -- the six split rules and the page-range syntax, pure, against hand

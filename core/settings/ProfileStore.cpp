@@ -97,9 +97,11 @@ void ProfileStore::load()
     builtInFavourites_.clear();
     damaged_.clear();
     headerFooterProfiles_.clear();
+    watermarkProfiles_.clear();
     const QDir dir(root_);
     if (!dir.exists()) return;
     loadProfiles(ProfileKind::HeaderFooter);   // S7 T14
+    loadProfiles(ProfileKind::Watermark);      // S7 T15
 
     if (dir.exists(kFavouritesFile)) {
         const std::optional<QByteArray> bytes = readCapped(dir.filePath(kFavouritesFile), kMaxDescriptionBytes);
@@ -362,13 +364,26 @@ Result<QByteArray> ProfileStore::imageBytes(const QString& id) const
 QString ProfileStore::profileDirectory(ProfileKind kind) const
 {
     switch (kind) {
+    case ProfileKind::Watermark: return QDir(root_).filePath(QStringLiteral("profiles/watermark"));
     case ProfileKind::HeaderFooter: break;
     }
     return QDir(root_).filePath(QStringLiteral("profiles/headerFooter"));
 }
 
-std::vector<ProfileStore::Profile>& ProfileStore::profilesOf(ProfileKind) { return headerFooterProfiles_; }
-const std::vector<ProfileStore::Profile>& ProfileStore::profilesOf(ProfileKind) const { return headerFooterProfiles_; }
+std::vector<ProfileStore::Profile>& ProfileStore::profilesOf(ProfileKind kind)
+{
+    return kind == ProfileKind::Watermark ? watermarkProfiles_ : headerFooterProfiles_;
+}
+const std::vector<ProfileStore::Profile>& ProfileStore::profilesOf(ProfileKind kind) const
+{
+    return kind == ProfileKind::Watermark ? watermarkProfiles_ : headerFooterProfiles_;
+}
+
+qint64 ProfileStore::profileCap(ProfileKind kind)
+{
+    // S7 T15: a watermark profile carries its picture (an image's bytes, a page's graph) as base64 in its spec.
+    return kind == ProfileKind::Watermark ? kMaxWatermarkProfileBytes : kMaxDescriptionBytes;
+}
 
 void ProfileStore::loadProfiles(ProfileKind kind)
 {
@@ -384,7 +399,7 @@ void ProfileStore::loadProfiles(ProfileKind kind)
             damaged_ << shown;
             continue;
         }
-        const std::optional<QByteArray> bytes = readCapped(dir.filePath(file), kMaxDescriptionBytes);
+        const std::optional<QByteArray> bytes = readCapped(dir.filePath(file), profileCap(kind));
         QJsonParseError parse{};
         const QJsonDocument json = bytes ? QJsonDocument::fromJson(*bytes, &parse) : QJsonDocument();
         const QJsonObject o = json.object();

@@ -31,6 +31,7 @@
 #include "core/doc/PageTransitions.h"
 #include "core/doc/Outline.h"
 #include "core/doc/CopiedPages.h"
+#include "core/doc/HeaderFooter.h"
 #include "core/backend.h"
 
 #include <algorithm>
@@ -136,6 +137,14 @@ public:
     core::Result<core::StampPage> stampPage(const QString&, int) override
     {
         return core::notImplementedError(core::BackendInterface::DocumentBackend, "stampPage");
+    }
+    core::Result<core::CopiedPages> imagePage(const core::StampImage&) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "imagePage");
+    }
+    core::Result<std::vector<core::DecorationEntry>> decorations(core::DocumentHandle, core::DecorationKind) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "decorations");
     }
     core::Result<int> filePageCount(const QString&) override
     {

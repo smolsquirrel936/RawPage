@@ -72,6 +72,9 @@ enum class RenderFlags : std::uint32_t {
     // transparency is genuinely different pixels from the same page rendered onto white.
     TransparentBackground = 1u << 7,
     NoNativeText = 1u << 5,  // never use the OS text renderer -- required for reproducible goldens
+    // Render as for PRINTING (Stage 7 T15, D7-45): optional content is judged by its `/Print` usage, not its `/View`
+    // one -- a print-only watermark drawn, a screen-only one not. Stage 8's print path; at Stage 7 its cases only.
+    Printing = 1u << 8,
 };
 
 constexpr RenderFlags operator|(RenderFlags a, RenderFlags b) noexcept

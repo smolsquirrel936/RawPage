@@ -7,7 +7,7 @@ more at Stage 6 T1 for its eleven annotated PDFs, and 99 more at Stage 7 T1 for 
 assembly PDFs (captured after Stage 7 guide I-01's fix; the twenty-second file is not a PDF) — each
 one filtered capture that regenerated none of the baselines before it — and compared on every `ctest` run by `tests/golden`
 (`render.golden.*`). **Beside them, since Stage 6 T8, APPEARANCE baselines** -- 31 at T8, 39 since T10's eight stamps, 40 since T11's file attachments, 42 since T12's two measurement cases -- under `golden/appearance/` -- see
-*Appearance baselines* below -- and **since Stage 7 T14, nine DECORATION baselines** under `golden/decoration/` -- see
+*Appearance baselines* below -- and **since Stage 7 T14, DECORATION baselines** under `golden/decoration/` (nine at T14, seventeen since T15's eight watermarks) -- see
 *Decoration baselines* below; neither family is corpus pages and neither is counted in the 468. This directory is **data, not code** — nothing links it, and
 `Tech-Stack-Plan.md` §4.1 lists it beside `i18n/`, `res/` and `corpus/`.
 
@@ -146,6 +146,13 @@ baseline`, both directions held by `... every case has a baseline and every base
 `decoration/<name>` and in `UPDATES.md`. **The same bound as the appearance baselines, and no more:** our decorations
 rasterize on THIS rasterizer the way they did when each was looked at and kept -- not that Acrobat draws them so (Stage 7
 guide M-07). The `cjk` case draws its Han, kana and Hangul in this machine's CJK faces, as every CJK baseline here does.
+
+**Since Stage 7 T15 (guide A-99), eight WATERMARK cases** beside them, named `watermark-<name>` and compared by their own
+case, `render.golden.watermark every case matches its baseline`: text, an image (a generated gradient with alpha) and a
+PDF page (written in the spec and copied as an insert copies it) as sources, at an opacity, turned, at both scales, anchored
+with an offset, tiled, behind and in front, and on a page turned by `/Rotate` -- each laid out by `core::layoutWatermark`
+and written through the same sink. Captured by `golden-update --decoration --filter watermark- --reason "…"`. The same
+bound: not that Acrobat draws them so (Stage 7 guide M-09).
 
 ## Storage
 

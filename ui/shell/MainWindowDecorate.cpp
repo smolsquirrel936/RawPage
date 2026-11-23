@@ -1,6 +1,7 @@
 // ui/shell/MainWindowDecorate -- headers, footers and Bates numbers: *Add*, *Update* and *Remove* a header and footer,
 // *Add* and *Remove* Bates numbering across the open documents, and the run's report. Stage 7 T14
-// (`Stage7-Assembly-Plan.md` §6, D7-7, D7-14, D7-44). A translation unit of `MainWindow` for `MainWindowBookmarks.cpp`'s
+// (`Stage7-Assembly-Plan.md` §6, D7-7, D7-14, D7-44). Stage 7 T15 (D7-45): *Add*, *Update* and *Remove* a watermark --
+// the last two on the watermarks CHOSEN from the ones the document lists (`IDocumentBackend::decorations`). A translation unit of `MainWindow` for `MainWindowBookmarks.cpp`'s
 // reason: one feature's registrations and handlers in one place.
 //
 // EVERY EDIT IS A COMMAND HANDED TO A JOURNAL (CLAUDE.md: `ui/`'s whole mutation vocabulary) -- through `runPageCommand`,
@@ -27,6 +28,7 @@
 #include "core/settings/ProfileStore.h"
 #include "core/settings/Settings.h"
 #include "ui/dialogs/HeaderFooterDialog.h"
+#include "ui/dialogs/WatermarkDialog.h"
 #include "ui/shell/Catalog.h"
 #include "ui/shell/DocumentWindow.h"
 #include "ui/shell/StatusBar.h"
@@ -77,6 +79,38 @@ core::Status MainWindow::removeDecorations(DocumentWindow* document, core::Decor
     const core::Status status = runPageCommand(document, std::move(command));
     if (status && status_) status_->setMessage(catalog::translateText(raw->name()));
     return status;
+}
+
+core::Status MainWindow::applyWatermark(DocumentWindow* document, const core::WatermarkSpec& spec, const std::vector<QString>& replace)
+{
+    if (document == nullptr) return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.command.noSink"), QString()};
+    const core::Status status = runPageCommand(document, std::make_unique<core::ApplyWatermarkCommand>(spec, replace));
+    // *Add* starts from the last one added -- with its picture's bytes, never a picture kept from a document.
+    if (status && spec.keepSourceOf.isEmpty()) lastWatermark_ = spec;
+    return status;
+}
+
+core::Status MainWindow::removeWatermarks(DocumentWindow* document, const std::vector<QString>& ids)
+{
+    if (document == nullptr) return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.command.noSink"), QString()};
+    auto command = std::make_unique<core::RemoveWatermarkCommand>(ids);
+    const core::Command* raw = command.get();
+    const core::Status status = runPageCommand(document, std::move(command));
+    if (status && status_) status_->setMessage(catalog::translateText(raw->name()));
+    return status;
+}
+
+// The reader a watermark's page source is read through: this window's backend, asked while the dialog is open (a handler
+// names the window it is given, never the one that registered it -- convention 14).
+WatermarkDialog::PageReader MainWindow::watermarkPageReader()
+{
+    return [this](const QString& path, int page) { return services_.backend.stampPage(path, page); };
+}
+
+std::vector<core::DecorationEntry> MainWindow::watermarksOf(const DocumentWindow& document) const
+{
+    core::Result<std::vector<core::DecorationEntry>> listed = services_.backend.decorations(document.handle(), core::DecorationKind::Watermark);
+    return listed ? std::move(listed).value() : std::vector<core::DecorationEntry>{};
 }
 
 std::vector<BatesReportLine> MainWindow::applyBates(const std::vector<DocumentWindow*>& order, const core::HeaderFooterSpec& spec)
@@ -177,6 +211,69 @@ void MainWindow::registerDecorationActions()
                     (void)window.removeDecorations(document, core::DecorationKind::Bates);
                 }),
                 editable, "shell.tooltip.needsDocument");
+
+    // --- watermark.add / watermark.update / watermark.remove (Stage 7 T15, D7-45) -----------------------------------------
+    // *Add* starts from the last watermark added in this session, else the profile the settings name, else the default;
+    // *Update* and *Remove* act on the watermarks CHOSEN from those the document lists (M-09) -- one listed is chosen
+    // with no question; none is a refusal by key on the status bar.
+    const auto noneListed = [](MainWindow& window) {
+        const core::Error none{core::ErrorCode::NotFound, QLatin1String("error.decorate.noneFound"),
+                               QString(core::decorationKindName(core::DecorationKind::Watermark))};
+        if (window.status_) window.status_->setMessage(catalog::translateError(QString(none.messageKey), none.context));
+    };
+    registerOne(ActionId::WatermarkAdd,
+                withDocument([](MainWindow& window, DocumentWindow* document) {
+                    core::WatermarkSpec initial;
+                    initial.text = catalog::translate(catalog::key::DecorateWatermarkDefaultText);
+                    const QString profile = window.services_.settings.get(core::keys::documents::watermarkProfile);
+                    if (window.lastWatermark_) {
+                        initial = *window.lastWatermark_;
+                    } else if (window.services_.stamps != nullptr && !profile.isEmpty()) {
+                        if (auto json = window.services_.stamps->profile(core::ProfileKind::Watermark, profile)) {
+                            if (auto spec = core::watermarkFromJson(json.value(), true)) initial = std::move(spec).value();
+                        }
+                    }
+                    if (const PageView* view = document->view()) initial.han = view->hanPreference();
+                    const core::PageTree& pages = document->journal()->document().pages();
+                    const std::optional<WatermarkDialog::Choice> choice = WatermarkDialog::ask(
+                        &window, WatermarkDialog::Mode::Add, pages, initial, window.services_.stamps, profile, window.watermarkPageReader());
+                    if (!choice) return;
+                    if (!choice->profile.isEmpty()) window.services_.settings.set(core::keys::documents::watermarkProfile, choice->profile);
+                    (void)window.applyWatermark(document, choice->spec, {});
+                }),
+                [editable] { return editable() && WatermarkDialog::canAsk(); }, "shell.tooltip.needsDocument");
+    registerOne(ActionId::WatermarkUpdate,
+                withDocument([noneListed](MainWindow& window, DocumentWindow* document) {
+                    const std::vector<core::DecorationEntry> listed = window.watermarksOf(*document);
+                    if (listed.empty()) return noneListed(window);
+                    std::optional<std::vector<QString>> chosen = std::vector<QString>{listed.front().id};
+                    if (listed.size() > 1) chosen = WatermarkChooser::ask(&window, WatermarkChooser::Purpose::Update, listed);
+                    if (!chosen || chosen->size() != 1) return;
+                    const auto entry = std::find_if(listed.begin(), listed.end(), [&](const core::DecorationEntry& e) { return e.id == chosen->front(); });
+                    if (entry == listed.end()) return;
+                    // WHERE THE FIELDS START: what the chosen one recorded -- its picture KEPT, named by its id.
+                    core::Result<core::WatermarkSpec> recorded = core::watermarkFromJson(entry->spec, false);
+                    core::WatermarkSpec initial = recorded ? std::move(recorded).value() : core::WatermarkSpec{};
+                    if (initial.source != core::WatermarkSource::Text && initial.keepSourceOf.isEmpty()) initial.keepSourceOf = entry->id;
+                    if (const PageView* view = document->view()) initial.han = view->hanPreference();
+                    const core::PageTree& pages = document->journal()->document().pages();
+                    const std::optional<WatermarkDialog::Choice> choice = WatermarkDialog::ask(
+                        &window, WatermarkDialog::Mode::Update, pages, initial, window.services_.stamps, QString(), window.watermarkPageReader());
+                    if (!choice) return;
+                    (void)window.applyWatermark(document, choice->spec, {entry->id});
+                }),
+                [editable] { return editable() && WatermarkDialog::canAsk(); }, "shell.tooltip.needsDocument");
+    registerOne(ActionId::WatermarkRemove,
+                withDocument([noneListed](MainWindow& window, DocumentWindow* document) {
+                    const std::vector<core::DecorationEntry> listed = window.watermarksOf(*document);
+                    if (listed.empty()) return noneListed(window);
+                    std::optional<std::vector<QString>> chosen = std::vector<QString>{listed.front().id};
+                    if (listed.size() > 1) chosen = WatermarkChooser::ask(&window, WatermarkChooser::Purpose::Remove, listed);
+                    if (!chosen || chosen->empty()) return;
+                    // Every one chosen: said as every one, so the journal line does not name what it need not.
+                    (void)window.removeWatermarks(document, chosen->size() == listed.size() ? std::vector<QString>{} : *chosen);
+                }),
+                [editable] { return editable() && WatermarkChooser::canAsk(); }, "shell.tooltip.needsDocument");
 
     // --- bates.add -- the open documents chosen and ordered, the format, and the report -------------------------------
     registerOne(ActionId::BatesAdd,

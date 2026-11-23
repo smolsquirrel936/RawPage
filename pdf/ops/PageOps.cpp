@@ -631,7 +631,7 @@ std::optional<PageOps::DecorationMark> PageOps::decorationOf(const CosObject& st
     if (!kind.isName() || !id.isString() || id.text().empty() || (wrap.booleanValue())) return std::nullopt;
     const std::optional<core::DecorationKind> named = core::decorationKindByName(latin1(kind.text()));
     if (!named) return std::nullopt;
-    return DecorationMark{latin1(id.text()), *named};
+    return DecorationMark{latin1(id.text()), *named, mark.get("Behind").booleanValue()};
 }
 
 PageOps::ContentLayers PageOps::contentLayers(cos::XrefTable& table, const CosObject& contents)
@@ -663,7 +663,7 @@ PageOps::ContentLayers PageOps::contentLayers(cos::XrefTable& table, const CosOb
     std::size_t back = items.size();
     std::vector<ContentLayers::Decoration> inFront;   // collected back to front
     while (back > front) {
-        if (std::optional<DecorationMark> mark = decorationAt(items[back - 1])) {
+        if (std::optional<DecorationMark> mark = decorationAt(items[back - 1]); mark && !mark->behind) {
             inFront.push_back(ContentLayers::Decoration{mark->id, mark->kind, items[back - 1]});
             --back;
             continue;

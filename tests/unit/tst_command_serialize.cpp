@@ -19,6 +19,7 @@
 #include "core/cmd/commands/BookmarkCommands.h"
 #include "core/cmd/commands/DecorationCommands.h"
 #include "core/cmd/commands/DestinationCommands.h"
+#include "core/doc/Stamps.h"
 #include "pdf/ops/ObjectGraphCopier.h"
 #include "core/cmd/commands/PageCommands.h"
 
@@ -514,6 +515,47 @@ const std::map<std::string, std::function<std::vector<std::unique_ptr<Command>>(
              out.push_back(std::make_unique<core::RemoveBatesCommand>(QString(32, QLatin1Char('e'))));
              return out;
          }},
+        // Stage 7 T15 (D7-45): a text watermark, print-only, on even pages; an image one tiled in front as an UPDATE of
+        // two; a page one keeping another's picture; and the removal of one chosen and of every one.
+        {"watermark.apply",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             core::WatermarkSpec text;
+             text.text = QStringLiteral("DRAFT \u7b2c\u4e00\u7ae0\nline two");
+             text.han = core::TypedFont::Korean;
+             text.usage = core::WatermarkUsage::PrintOnly;
+             text.parity = core::PageParity::Even;
+             text.range = QStringLiteral("2-");
+             out.push_back(std::make_unique<core::ApplyWatermarkCommand>(text));
+             core::WatermarkSpec image;
+             image.source = core::WatermarkSource::Image;
+             auto pixels = core::stampImageFromPixels(3, 2, QByteArray(18, '\x7f'), QByteArray(6, '\x10'));
+             REQUIRE(pixels);
+             image.image = pixels.value();
+             image.tile = true;
+             image.behind = false;
+             image.anchor = core::WatermarkAnchor::BottomRight;
+             image.offsetX = -12.5;
+             image.scaleMode = core::WatermarkScale::Absolute;
+             image.scale = 4;
+             image.sourceName = QStringLiteral("a b.png");
+             out.push_back(std::make_unique<core::ApplyWatermarkCommand>(
+                 image, std::vector<QString>{QString(32, QLatin1Char('1')), QString(32, QLatin1Char('2'))}, QString(32, QLatin1Char('3'))));
+             core::WatermarkSpec kept;
+             kept.source = core::WatermarkSource::Page;
+             kept.keepSourceOf = QString(32, QLatin1Char('4'));
+             kept.sourceSize = core::PdfSize{612, 792};
+             kept.usage = core::WatermarkUsage::ScreenOnly;
+             out.push_back(std::make_unique<core::ApplyWatermarkCommand>(kept, std::vector<QString>{QString(32, QLatin1Char('4'))}));
+             return out;
+         }},
+        {"watermark.remove",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             out.push_back(std::make_unique<core::RemoveWatermarkCommand>(std::vector<QString>{QString(32, QLatin1Char('5'))}));
+             out.push_back(std::make_unique<core::RemoveWatermarkCommand>());
+             return out;
+         }},
         // Stage 6 T13 (D6-20): an import that only adds -- an exchange's names, an Acrobat-shaped one among them --
         // one that only replaces, and one that does both.
         {"annot.import",
@@ -561,7 +603,7 @@ bool catalogHas(const char* file, QLatin1String key)
 // A-42 -- the registry round-trips what it registered and refuses what it did not
 // ==========================================================================================
 
-TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][serialize][serialize:RotatePageCommand][serialize:AddAnnotationCommand][serialize:DeleteAnnotationCommand][serialize:EditAnnotationCommand][serialize:MoveAnnotationCommand][serialize:SetAnnotationAppearanceCommand][serialize:LockAnnotationCommand][serialize:ReplyToAnnotationCommand][serialize:SetAnnotationStatusCommand][serialize:AddAttachmentCommand][serialize:DeleteAttachmentCommand][serialize:ImportAnnotationsCommand][serialize:MovePagesCommand][serialize:DeletePagesCommand][serialize:DuplicatePagesCommand][serialize:InsertPagesCommand][serialize:ReplacePagesCommand][serialize:CropPagesCommand][serialize:ResizePagesCommand][serialize:RenumberPagesCommand][serialize:SetEmbeddedThumbnailsCommand][serialize:CreateBookmarkCommand][serialize:EditBookmarkCommand][serialize:DeleteBookmarkCommand][serialize:ReparentBookmarkCommand][serialize:SetBookmarkTargetCommand][serialize:GenerateBookmarksCommand][serialize:CreateDestinationCommand][serialize:RenameDestinationCommand][serialize:DeleteDestinationCommand][serialize:ApplyHeaderFooterCommand][serialize:RemoveHeaderFooterCommand][serialize:ApplyBatesCommand][serialize:RemoveBatesCommand]")
+TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][serialize][serialize:RotatePageCommand][serialize:AddAnnotationCommand][serialize:DeleteAnnotationCommand][serialize:EditAnnotationCommand][serialize:MoveAnnotationCommand][serialize:SetAnnotationAppearanceCommand][serialize:LockAnnotationCommand][serialize:ReplyToAnnotationCommand][serialize:SetAnnotationStatusCommand][serialize:AddAttachmentCommand][serialize:DeleteAttachmentCommand][serialize:ImportAnnotationsCommand][serialize:MovePagesCommand][serialize:DeletePagesCommand][serialize:DuplicatePagesCommand][serialize:InsertPagesCommand][serialize:ReplacePagesCommand][serialize:CropPagesCommand][serialize:ResizePagesCommand][serialize:RenumberPagesCommand][serialize:SetEmbeddedThumbnailsCommand][serialize:CreateBookmarkCommand][serialize:EditBookmarkCommand][serialize:DeleteBookmarkCommand][serialize:ReparentBookmarkCommand][serialize:SetBookmarkTargetCommand][serialize:GenerateBookmarksCommand][serialize:CreateDestinationCommand][serialize:RenameDestinationCommand][serialize:DeleteDestinationCommand][serialize:ApplyHeaderFooterCommand][serialize:RemoveHeaderFooterCommand][serialize:ApplyBatesCommand][serialize:RemoveBatesCommand][serialize:ApplyWatermarkCommand][serialize:RemoveWatermarkCommand]")
 {
     const auto typeIds = CommandRegistry::typeIds();
     REQUIRE_FALSE(typeIds.empty());
@@ -601,9 +643,10 @@ TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][s
     // Stage 7 T11: the six bookmark commands -- two each, and a target of every kind a command can carry (9; 12 since
     // Stage 7 T12, the three form actions added). Stage 7 T12: annot.add's fourth sample, the links; the three destination
     // commands, 1, 1 and 2. Stage 7 guide I-23: page.insert's two pastes back into their own document (+ 2). Stage 7 T14:
-    // the header/footer apply 2 (added, updated), its remove 1, the Bates apply 1 and its remove 1.
+    // the header/footer apply 2 (added, updated), its remove 1, the Bates apply 1 and its remove 1. Stage 7 T15: the
+    // watermark apply 3 (text, an image update, a kept page) and its remove 2 (one chosen, every one).
     CHECK(roundTrips == 16 + 3 + 4 + 2 + 2 + 2 + 2 + 2 + 2 + 3 + 2 + 2 + 3 + 3 + 2 + 2 + 2 + 1 + 2 + 2 + 2 + 2 + 2 + 2 + 2 + 2 + 12 + 2
-                            + 1 + 1 + 2 + 2 + 2 + 1 + 1 + 1);
+                            + 1 + 1 + 2 + 2 + 2 + 1 + 1 + 1 + 3 + 2);
 }
 
 // Stage 6 T13 (D6-20): an import is a journal line carrying two sets -- what it adds must be what an add accepts,

@@ -264,6 +264,18 @@ public:
     {
         return pdf::ops::ObjectGraphCopier::blankPages(size, count);
     }
+    // Stage 7 T15: the shipped backend's image page, and its sink's list.
+    core::Result<core::CopiedPages> imagePage(const core::StampImage& image) override
+    {
+        return pdf::ops::ObjectGraphCopier::imagePage(image);
+    }
+    core::Result<std::vector<core::DecorationEntry>> decorations(core::DocumentHandle handle, core::DecorationKind kind) override
+    {
+        auto* entry = find(handle);
+        if (entry == nullptr) return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.backend.unknownDocument")};
+        if (!entry->sink) return std::vector<core::DecorationEntry>{};
+        return entry->sink->listDecorations(kind);
+    }
     // Stage 7 T13: the shipped backend's path -- the copy, then the stamp's reading of it.
     core::Result<core::StampPage> stampPage(const QString& path, int page) override
     {

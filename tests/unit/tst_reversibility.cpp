@@ -152,6 +152,32 @@ core::HeaderFooterSpec reversibilityBates(int page)
     return spec;
 }
 
+// Stage 7 T15: watermarks on ONE page -- a print-only text one behind, and a tiled image one in front.
+core::WatermarkSpec reversibilityText(int page)
+{
+    core::WatermarkSpec spec;
+    spec.text = QStringLiteral("REVERSIBLE");
+    spec.size = 24;
+    spec.usage = core::WatermarkUsage::PrintOnly;
+    spec.range = QString::number(page + 1);
+    return spec;
+}
+
+core::WatermarkSpec reversibilityImage(int page)
+{
+    core::WatermarkSpec spec;
+    spec.source = core::WatermarkSource::Image;
+    auto pixels = core::stampImageFromPixels(4, 4, QByteArray(48, '\x60'), QByteArray(16, '\x80'));
+    if (pixels) spec.image = pixels.value();
+    spec.behind = false;
+    spec.tile = true;
+    spec.scaleMode = core::WatermarkScale::Absolute;
+    spec.scale = 10;
+    spec.tileGap = 40;
+    spec.range = QString::number(page + 1);
+    return spec;
+}
+
 core::FieldValues reversibilityFields()
 {
     return core::FieldValues{QDate(2026, 11, 23), QTime(12, 0), QStringLiteral("reversibility.pdf"), QStringLiteral("C:/r/reversibility.pdf")};
@@ -479,6 +505,31 @@ const Generators& registeredGenerators()
                  std::make_unique<core::ApplyHeaderFooterCommand>(reversibilityHeader(page), reversibilityFields()),
                  std::make_unique<core::ApplyBatesCommand>(reversibilityBates(page), reversibilityFields()),
                  std::make_unique<core::RemoveHeaderFooterCommand>()));
+             return out;
+         }},
+        // Stage 7 T15 (D7-45): on the page, a print-only text watermark behind it and a tiled image one in front; and a
+        // removal of ONE chosen beside another, which it must leave, and of every one beside a header.
+        {"watermark.apply",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             if (!document.permissions().mayEditPage(page)) return out;
+             out.push_back(std::make_unique<core::ApplyWatermarkCommand>(reversibilityText(page)));
+             out.push_back(std::make_unique<core::ApplyWatermarkCommand>(reversibilityImage(page)));
+             return out;
+         }},
+        {"watermark.remove",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             if (!document.permissions().mayEditPage(page)) return out;
+             const QString chosen(32, QLatin1Char('9'));
+             out.push_back(std::make_unique<AppliedThenRemoved>(
+                 std::make_unique<core::ApplyWatermarkCommand>(reversibilityText(page), std::vector<QString>{}, chosen),
+                 std::make_unique<core::ApplyWatermarkCommand>(reversibilityImage(page)),
+                 std::make_unique<core::RemoveWatermarkCommand>(std::vector<QString>{chosen})));
+             out.push_back(std::make_unique<AppliedThenRemoved>(
+                 std::make_unique<core::ApplyWatermarkCommand>(reversibilityImage(page)),
+                 std::make_unique<core::ApplyHeaderFooterCommand>(reversibilityHeader(page), reversibilityFields()),
+                 std::make_unique<core::RemoveWatermarkCommand>()));
              return out;
          }},
         {"bates.remove",
@@ -1185,7 +1236,8 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
                                                                           "bookmark.generate", "destination.create",
                                                                           "destination.rename", "destination.delete",
                                                                           "headerFooter.apply", "headerFooter.remove",
-                                                                          "bates.apply", "bates.remove"});
+                                                                          "bates.apply", "bates.remove", "watermark.apply",
+                                                                          "watermark.remove"});
     }
 }
 
@@ -1193,7 +1245,7 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
 // A-43 -- reversibility over the corpus
 // ==========================================================================================
 
-TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand][revert:AddAnnotationCommand][revert:DeleteAnnotationCommand][revert:EditAnnotationCommand][revert:MoveAnnotationCommand][revert:SetAnnotationAppearanceCommand][revert:LockAnnotationCommand][revert:ReplyToAnnotationCommand][revert:SetAnnotationStatusCommand][revert:AddAttachmentCommand][revert:DeleteAttachmentCommand][revert:ImportAnnotationsCommand][revert:MovePagesCommand][revert:DeletePagesCommand][revert:DuplicatePagesCommand][revert:InsertPagesCommand][revert:ReplacePagesCommand][revert:CropPagesCommand][revert:ResizePagesCommand][revert:RenumberPagesCommand][revert:SetEmbeddedThumbnailsCommand][revert:CreateBookmarkCommand][revert:EditBookmarkCommand][revert:DeleteBookmarkCommand][revert:ReparentBookmarkCommand][revert:SetBookmarkTargetCommand][revert:GenerateBookmarksCommand][revert:CreateDestinationCommand][revert:RenameDestinationCommand][revert:DeleteDestinationCommand][revert:ApplyHeaderFooterCommand][revert:RemoveHeaderFooterCommand][revert:ApplyBatesCommand][revert:RemoveBatesCommand]")
+TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand][revert:AddAnnotationCommand][revert:DeleteAnnotationCommand][revert:EditAnnotationCommand][revert:MoveAnnotationCommand][revert:SetAnnotationAppearanceCommand][revert:LockAnnotationCommand][revert:ReplyToAnnotationCommand][revert:SetAnnotationStatusCommand][revert:AddAttachmentCommand][revert:DeleteAttachmentCommand][revert:ImportAnnotationsCommand][revert:MovePagesCommand][revert:DeletePagesCommand][revert:DuplicatePagesCommand][revert:InsertPagesCommand][revert:ReplacePagesCommand][revert:CropPagesCommand][revert:ResizePagesCommand][revert:RenumberPagesCommand][revert:SetEmbeddedThumbnailsCommand][revert:CreateBookmarkCommand][revert:EditBookmarkCommand][revert:DeleteBookmarkCommand][revert:ReparentBookmarkCommand][revert:SetBookmarkTargetCommand][revert:GenerateBookmarksCommand][revert:CreateDestinationCommand][revert:RenameDestinationCommand][revert:DeleteDestinationCommand][revert:ApplyHeaderFooterCommand][revert:RemoveHeaderFooterCommand][revert:ApplyBatesCommand][revert:RemoveBatesCommand][revert:ApplyWatermarkCommand][revert:RemoveWatermarkCommand]")
 {
     const std::vector<std::string> missing = missingGenerators(registeredGenerators());
     INFO("registered type ids with no generator: " << missing.size());

@@ -21,6 +21,8 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "core/doc/HeaderFooter.h"
+#include "core/doc/Stamps.h"
+#include "core/doc/Watermark.h"
 #include "core/settings/ProfileStore.h"
 #include "pdf/ops/ObjectGraphCopier.h"
 #include "pdf/ops/PageStamp.h"
@@ -144,12 +146,53 @@ rawpage::core::HeaderFooterSpec profileSpec(const QString& centre, double size)
     return spec;
 }
 
+// Stage 7 T15 (guide A-97): two watermark profiles -- text, and a picture whose bytes are past the 64 KiB a header/footer
+// profile may be, so the watermark kind's own bound is the one read.
+rawpage::core::WatermarkSpec watermarkText()
+{
+    rawpage::core::WatermarkSpec spec;
+    spec.text = QStringLiteral("CONFIDENTIAL\nDO NOT COPY");
+    spec.size = 54;
+    spec.colour = {0.7, 0.1, 0.1};
+    spec.opacity = 0.35;
+    spec.rotation = -45;
+    spec.usage = rawpage::core::WatermarkUsage::PrintOnly;
+    spec.parity = rawpage::core::PageParity::Even;
+    return spec;
+}
+
+rawpage::core::WatermarkSpec watermarkPicture()
+{
+    QByteArray rgb;
+    for (int i = 0; i < 160 * 160; ++i) {
+        const quint32 v = static_cast<quint32>(i) * 2654435761u;   // noise: deflate cannot make it small
+        rgb.append(static_cast<char>(v >> 24));
+        rgb.append(static_cast<char>(v >> 16));
+        rgb.append(static_cast<char>(v >> 8));
+    }
+    auto image = rawpage::core::stampImageFromPixels(160, 160, rgb, QByteArray());
+    REQUIRE(image);
+    REQUIRE(image.value().data.size() > 64 * 1024);
+    rawpage::core::WatermarkSpec spec;
+    spec.source = rawpage::core::WatermarkSource::Image;
+    spec.image = image.value();
+    spec.sourceName = QStringLiteral("noise.png");
+    spec.tile = true;
+    spec.behind = false;
+    spec.anchor = rawpage::core::WatermarkAnchor::TopLeft;
+    return spec;
+}
+
 void writeProfiles(ProfileStore& store)
 {
     REQUIRE(store.saveProfile(rawpage::core::ProfileKind::HeaderFooter, QStringLiteral("Legal"),
                               rawpage::core::specToJson(profileSpec(QStringLiteral("<<date>> CONFIDENTIAL"), 9))));
     REQUIRE(store.saveProfile(rawpage::core::ProfileKind::HeaderFooter, QStringLiteral("draft"),
                               rawpage::core::specToJson(profileSpec(QStringLiteral("Draft"), 14))));
+    REQUIRE(store.saveProfile(rawpage::core::ProfileKind::Watermark, QStringLiteral("Confidential"),
+                              rawpage::core::watermarkToJson(watermarkText(), true)));
+    REQUIRE(store.saveProfile(rawpage::core::ProfileKind::Watermark, QStringLiteral("noise"),
+                              rawpage::core::watermarkToJson(watermarkPicture(), true)));
 }
 
 std::string checkProfiles(const ProfileStore& store)
@@ -161,6 +204,14 @@ std::string checkProfiles(const ProfileStore& store)
         if (!json) return std::string("the profile ") + name;
         auto spec = rawpage::core::specFromJson(json.value());
         if (!spec || !(spec.value() == profileSpec(QString::fromUtf8(centre), size))) return std::string("the spec of ") + name;
+    }
+    if (store.profileNames(rawpage::core::ProfileKind::Watermark) != QStringList{QStringLiteral("Confidential"), QStringLiteral("noise")})
+        return "the watermark profiles' names";
+    for (const auto& [name, want] : {std::pair{"Confidential", watermarkText()}, std::pair{"noise", watermarkPicture()}}) {
+        auto json = store.profile(rawpage::core::ProfileKind::Watermark, QLatin1String(name));
+        if (!json) return std::string("the watermark profile ") + name;
+        auto spec = rawpage::core::watermarkFromJson(json.value(), true);
+        if (!spec || !(spec.value() == want)) return std::string("the watermark spec of ") + name;
     }
     return {};
 }
@@ -372,6 +423,28 @@ TEST_CASE("profile store: a header/footer profile is its whole spec under its na
     CHECK(third.stamps().empty());   // the stamp library is not confused by the profiles beside it
 }
 
+TEST_CASE("profile store: a watermark profile is its whole spec with its picture, beside the header/footer ones and apart from them", "[profilestore][A-97]")
+{
+    QTemporaryDir scratch;
+    REQUIRE(scratch.isValid());
+    const QString root = QDir(scratch.path()).filePath(QStringLiteral("stamps"));
+    {
+        ProfileStore store(root);
+        store.load();
+        writeProfiles(store);
+        CHECK(checkProfiles(store).empty());
+        CHECK(QDir(QDir(root).filePath(QStringLiteral("profiles/watermark"))).entryList(QDir::Files).size() == 2);
+        // Removing a watermark profile leaves the header/footer one of a similar name alone, and the reverse.
+        REQUIRE(store.removeProfile(rawpage::core::ProfileKind::Watermark, QStringLiteral("noise")));
+        CHECK(store.profileNames(rawpage::core::ProfileKind::HeaderFooter).size() == 2);
+        CHECK_FALSE(store.removeProfile(rawpage::core::ProfileKind::Watermark, QStringLiteral("Legal")));
+    }
+    ProfileStore again(root);
+    again.load();
+    CHECK(again.profileNames(rawpage::core::ProfileKind::Watermark) == QStringList{QStringLiteral("Confidential")});
+    CHECK(again.damaged().isEmpty());
+}
+
 // ---- The restart, as two processes (`RunProfileRestart.cmake`) --------------------------------------
 // HIDDEN: each needs `RAWPAGE_PROFILE_PROBE_ROOT` and is run by the script, the writer first.
 
@@ -399,5 +472,5 @@ TEST_CASE("profile store restart probe reads", "[.][restart]")
     INFO("what did not survive the restart: " << wrong);
     CHECK(wrong.empty());
     std::printf("profile store restart: a category, a favourite signature, a favourite built-in, a page stamp with "
-                "its picture and two header/footer profiles read back by a second process\n");
+                "its picture, two header/footer profiles and two watermark profiles read back by a second process\n");
 }

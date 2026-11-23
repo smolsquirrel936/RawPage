@@ -88,3 +88,17 @@
   the bottom right of the page AS SHOWN, upright; `shrink` -- the content scaled between the bands, clear of both lines;
   `cjk` -- Han, kana, Hangul and Latin in one line; `bates` -- `GOLD-000042-A` at the bottom right. Additions only: no
   corpus or appearance baseline regenerated.
+
+## 2026-11-23T02:14:24Z
+
+- **PDFium** 153.0.8009.0
+- **Images regenerated** 8 (filtered on `watermark-`)
+- **Reason** Stage 7 T15: the first watermark baselines (guide A-99), each looked at before it is kept
+- **Looked at, all eight, before they were kept:** `diagonal-behind` -- grey DRAFT turned 30 degrees, hidden wherever the
+  black bars and the grey band are drawn over it; `front-red` -- red COPY turned -20 degrees, half opaque, over the bars;
+  `anchor-offset` and `anchor-bottom-right` -- 18 pt TL and BR 12 points in from the top-left and bottom-right corners;
+  `image-tiled` -- the gradient tiled 10 points apart from the centre, red to blue across, its alpha fading downward, over
+  the bars at 70 %; `image-turned` -- twice its size, turned 90 degrees counter-clockwise at the bottom-right corner, its
+  left (red) edge at the bottom; `page` -- the frame, square and line turned 15 degrees at 60 %, the square darker over
+  the black bar (one transparency group); `rotated-page` -- a page turned 90, TOP across the top as shown, upright.
+  Additions only: no corpus, appearance or T14 decoration baseline regenerated.

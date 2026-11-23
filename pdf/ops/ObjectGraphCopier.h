@@ -146,6 +146,11 @@ public:
     // The pages `copyFile` would find in `bytes` -- refused as it refuses (S7 T8: `IDocumentBackend::filePageCount`).
     static core::Result<int> countFile(std::string_view bytes);
     static core::Result<core::CopiedPages> blankPages(core::PdfSize size, int count);
+    // STAGE 7 T15 (Q5(d), D7-31(j), D7-45): AN IMAGE AS A PAGE -- one page the image's size at 96 pixels to the inch,
+    // scaled down to fit ISO 32000-1 Annex C's 14,400 units (and never below 3), the image drawn over all of it through
+    // the image XObject an image stamp's picture is (`AppearanceStreamBuilder::imageObject`). Refused by
+    // `error.edit.stampImageUnsupported` for an image `core::invalidStampImage` refuses.
+    static core::Result<core::CopiedPages> imagePage(const core::StampImage& image);
 
     // STAGE 7 T11 (D7-11): a CONTENTS PAGE -- or as many as its entries need -- as the payload one `InsertPagesCommand`
     // carries: the heading and each entry drawn in D6-7's faces (a title none can show refused by its character,

@@ -3913,6 +3913,22 @@
         <source>error.profiles.full</source>
         <translation>此類設定檔過多。</translation>
     </message>
+    <message>
+        <source>error.decorate.tooManyTiles</source>
+        <translation>浮水印在一頁上將被繪製 %1 次。請放大浮水印或加大間距。</translation>
+    </message>
+    <message>
+        <source>error.decorate.sourceGone</source>
+        <translation>此浮水印沿用其圖片的浮水印已不在文件中。</translation>
+    </message>
+    <message>
+        <source>error.decorate.profileKeepsPicture</source>
+        <translation>設定檔無法保留取自此文件的圖片。請選擇圖片檔案後再儲存。</translation>
+    </message>
+    <message>
+        <source>error.decorate.noneChosen</source>
+        <translation>請至少選擇一個浮水印。</translation>
+    </message>
 </context>
 <context>
     <name>ribbon</name>
@@ -4944,6 +4960,10 @@
         <translation>頁首與頁尾對話方塊預設開啟的設定檔</translation>
     </message>
     <message>
+        <source>prefs.setting.documents.watermarkProfile</source>
+        <translation>浮水印對話方塊預設開啟的設定檔</translation>
+    </message>
+    <message>
         <source>prefs.setting.documents.batesStart</source>
         <translation>貝茨編號的起始號碼</translation>
     </message>
@@ -5173,6 +5193,18 @@
     <message>
         <source>command.bates.remove</source>
         <translation>移除 %1 頁的貝茨編號</translation>
+    </message>
+    <message>
+        <source>command.watermark.apply</source>
+        <translation>在 %1 頁加入浮水印</translation>
+    </message>
+    <message>
+        <source>command.watermark.update</source>
+        <translation>更新 %1 頁的浮水印</translation>
+    </message>
+    <message>
+        <source>command.watermark.remove</source>
+        <translation>移除 %1 頁的浮水印</translation>
     </message>
 </context>
 <context>
@@ -7625,6 +7657,190 @@
     <message>
         <source>decorate.position.footerRight</source>
         <translation>右下</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.addTitle</source>
+        <translation>新增浮水印</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.updateTitle</source>
+        <translation>更新浮水印</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.source</source>
+        <translation>來源</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.text</source>
+        <translation>文字</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.image</source>
+        <translation>影像檔</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.page</source>
+        <translation>PDF 檔案的頁面</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.choose</source>
+        <translation>選擇…</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.pageNumber</source>
+        <translation>頁面：</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.noFile</source>
+        <translation>尚未選擇檔案</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.kept</source>
+        <translation>浮水印目前的圖片（%1）</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.placement</source>
+        <translation>外觀與位置</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.opacity</source>
+        <translation>不透明度：</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.rotation</source>
+        <translation>旋轉：</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.scale</source>
+        <translation>縮放：</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.anchor</source>
+        <translation>位置：</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.offset</source>
+        <translation>位移（點），水平與向上：</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.tile</source>
+        <translation>在頁面上並排，間距（點）：</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.side</source>
+        <translation>放置：</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.show</source>
+        <translation>顯示：</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.imageFilter</source>
+        <translation>影像 (*.png *.jpg *.jpeg *.bmp *.gif *.tif *.tiff)</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.pdfFilter</source>
+        <translation>PDF 檔案 (*.pdf)</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.defaultText</source>
+        <translation>DRAFT</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.chooserTitle</source>
+        <translation>選擇浮水印</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.chooseUpdate</source>
+        <translation>選擇要更新的浮水印：</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.chooseRemove</source>
+        <translation>選擇要移除的浮水印：</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.all</source>
+        <translation>全選</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.entry</source>
+        <translation>%1 — 第 %2 頁</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.scaleMode.relative</source>
+        <translation>% 的頁面大小</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.scaleMode.absolute</source>
+        <translation>% 的原始大小</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.anchor.topLeft</source>
+        <translation>左上</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.anchor.top</source>
+        <translation>上方</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.anchor.topRight</source>
+        <translation>右上</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.anchor.left</source>
+        <translation>左側</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.anchor.centre</source>
+        <translation>中央</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.anchor.right</source>
+        <translation>右側</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.anchor.bottomLeft</source>
+        <translation>左下</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.anchor.bottom</source>
+        <translation>下方</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.anchor.bottomRight</source>
+        <translation>右下</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.side.behind</source>
+        <translation>頁面內容後方</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.side.front</source>
+        <translation>頁面內容前方</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.usage.always</source>
+        <translation>螢幕與列印時都顯示</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.usage.print</source>
+        <translation>僅在列印時</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.usage.screen</source>
+        <translation>僅在螢幕上</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.kind.text</source>
+        <translation>文字「%1」</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.kind.image</source>
+        <translation>影像 %1</translation>
+    </message>
+    <message>
+        <source>decorate.watermark.kind.page</source>
+        <translation>來自 %1 的頁面</translation>
     </message>
 </context>
 </TS>

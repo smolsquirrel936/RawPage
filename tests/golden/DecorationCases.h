@@ -9,6 +9,10 @@
 // `pdf/ops/MutationSinkImpl`, the spec laid out by `core::layoutHeaderFooter`, handed to `addPageDecorations` and
 // written by `RevisionWriter::compose`, then verified as a save verifies. So the baseline is what a save writes.
 //
+// Stage 7 T15 adds the WATERMARK cases (`watermark-<name>`): text, an image and a PDF page as sources, at an opacity,
+// turned, scaled, anchored with an offset, tiled, behind and in front, on a page turned by `/Rotate` -- the image a
+// generated gradient with alpha, the page one written here and copied as an insert copies it (`ObjectGraphCopier`).
+//
 // The baselines are `golden/decoration/<name>.png` at `kDecorationDpi`, captured by `golden-update --decoration
 // --reason "…"` and compared by `render.golden.decoration *` with the corpus suite's thresholds. **What a green run
 // claims is the suite's usual and no more**: our decorations rasterize on THIS rasterizer the way they did when each
@@ -20,6 +24,9 @@
 #define RAWPAGE_TESTS_GOLDEN_DECORATIONCASES_H
 
 #include "core/doc/HeaderFooter.h"
+#include "core/doc/Watermark.h"
+
+#include <optional>
 
 #include <QString>
 
@@ -41,6 +48,8 @@ struct DecorationCase {
     // Draws text in a face resolved from THIS machine -- a CJK collection, which no reader carries -- so its baseline is
     // a claim about this machine's fonts, as the manifest's `machineDependent` cases are (`tst_golden`).
     bool machineDependent = false;
+    // Stage 7 T15 (D7-45, guide A-99): a WATERMARK instead of `spec` -- laid out by `core::layoutWatermark`.
+    std::optional<core::WatermarkSpec> watermark = std::nullopt;
 };
 
 const std::vector<DecorationCase>& decorationCases();

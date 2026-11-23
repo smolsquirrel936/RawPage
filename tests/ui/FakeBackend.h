@@ -216,8 +216,21 @@ public:
             return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.command.malformed"), QString()};
         decorationPages.emplace(key, pages);
         decorationKinds.emplace(key, decorations.empty() ? core::DecorationKind::HeaderFooter : decorations.front().kind);
+        if (!decorations.empty() && decorations.front().watermark) decorationSpecs.insert_or_assign(key, decorations.front().watermark->spec);
         lastDecorations = decorations;
         return {};
+    }
+    // S7 T15: what `IDocumentBackend::decorations` lists -- each key of the kind, its pages and the spec it recorded.
+    std::map<QString, QJsonObject> decorationSpecs;
+    std::vector<core::DecorationEntry> listDecorations(core::DecorationKind kind) const
+    {
+        std::vector<core::DecorationEntry> out;
+        for (const auto& [id, pages] : decorationPages) {
+            if (decorationKinds.at(id) != kind) continue;
+            const auto spec = decorationSpecs.find(id);
+            out.push_back(core::DecorationEntry{id, kind, pages, spec != decorationSpecs.end() ? spec->second : QJsonObject()});
+        }
+        return out;
     }
     core::Status removePageDecorations(const std::vector<int>&, const QString& key) override
     {
@@ -227,13 +240,14 @@ public:
         decorationKinds.erase(key);
         return {};
     }
-    core::Result<std::vector<int>> takeDecorations(core::DecorationKind kind, const QString& key) override
+    core::Result<std::vector<int>> takeDecorations(core::DecorationKind kind, const QString& key, const std::vector<QString>& only) override
     {
         ++calls;
         std::set<int> pages;
         std::map<QString, std::vector<int>> taken;
         for (auto it = decorationPages.begin(); it != decorationPages.end();) {
-            if (decorationKinds.at(it->first) != kind) {
+            if (decorationKinds.at(it->first) != kind
+                || (!only.empty() && std::find(only.begin(), only.end(), it->first) == only.end())) {
                 ++it;
                 continue;
             }
@@ -670,6 +684,23 @@ public:
         out.graph = QByteArray("%PDF-1.7 fake pages ") + QByteArray::number(count) + " blank";
         out.pageCount = count;
         return out;
+    }
+    // S7 T15: an image as a page -- the fake payload, each image's size recorded (the clipboard's paste).
+    std::vector<std::pair<int, int>> imagePages;
+    core::Result<core::CopiedPages> imagePage(const core::StampImage& image) override
+    {
+        imagePages.emplace_back(image.width, image.height);
+        core::CopiedPages out;
+        out.graph = QByteArray("%PDF-1.7 fake pages 1 image");
+        out.pageCount = 1;
+        return out;
+    }
+    // S7 T15: what the fake sink holds of `kind`.
+    core::Result<std::vector<core::DecorationEntry>> decorations(core::DocumentHandle handle, core::DecorationKind kind) override
+    {
+        const FakeSink* sink = sinkFor(handle);
+        if (sink == nullptr) return std::vector<core::DecorationEntry>{};
+        return sink->listDecorations(kind);
     }
     // S7 T13: a page as a stamp -- the fake payload, `stampSize` points, each page asked for recorded; a path that does
     // not exist refused as `copyPages` refuses it.

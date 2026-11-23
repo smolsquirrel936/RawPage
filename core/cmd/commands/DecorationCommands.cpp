@@ -8,6 +8,7 @@
 #include "core/doc/Document.h"
 #include "core/doc/PageTree.h"
 
+#include <QJsonArray>
 #include <QJsonValue>
 
 #include <algorithm>
@@ -140,7 +141,7 @@ bool DecorationApply::apply(Document& document, MutationSink& sink, std::optiona
     }
     std::vector<int> taken;
     if (replace_) {
-        Result<std::vector<int>> took = sink.takeDecorations(kind_, key_);
+        Result<std::vector<int>> took = sink.takeDecorations(kind_, key_, {});
         if (!took) {
             refusal = took.error();
             return false;
@@ -248,8 +249,8 @@ Result<std::unique_ptr<Command>> ApplyBatesCommand::deserialize(const QJsonObjec
 
 // ---- DecorationRemove -------------------------------------------------------------------------------------------------
 
-DecorationRemove::DecorationRemove(DecorationKind kind, QString key)
-    : kind_(kind), key_(key.isEmpty() ? newCommandKey() : std::move(key))
+DecorationRemove::DecorationRemove(DecorationKind kind, QString key, std::vector<QString> only)
+    : kind_(kind), key_(key.isEmpty() ? newCommandKey() : std::move(key)), only_(std::move(only))
 {
 }
 
@@ -261,7 +262,7 @@ Status DecorationRemove::permitted(const Document& document) const
 bool DecorationRemove::apply(MutationSink& sink, std::optional<Error>& refusal)
 {
     refusal.reset();
-    Result<std::vector<int>> took = sink.takeDecorations(kind_, key_);
+    Result<std::vector<int>> took = sink.takeDecorations(kind_, key_, only_);
     if (!took) {
         refusal = took.error();
         return false;
@@ -340,6 +341,186 @@ Result<std::unique_ptr<Command>> RemoveBatesCommand::deserialize(const QJsonObje
     auto key = keyFrom(json, kTypeId);
     if (!key) return key.error();
     return std::unique_ptr<Command>(new RemoveBatesCommand(std::move(key).value()));
+}
+
+// ---- Watermarks (Stage 7 T15) ----------------------------------------------------------------------------------------
+
+namespace {
+
+bool isKeyText(const QString& key)
+{
+    if (key.size() != 32) return false;
+    return std::all_of(key.begin(), key.end(), [](QChar c) {
+        return (c >= QLatin1Char('0') && c <= QLatin1Char('9')) || (c >= QLatin1Char('a') && c <= QLatin1Char('f'));
+    });
+}
+
+QJsonArray idsToJson(const std::vector<QString>& ids)
+{
+    QJsonArray out;
+    for (const QString& id : ids) out.append(id);
+    return out;
+}
+
+// A list of ids, each a key -- at most a document's worth, none twice.
+Result<std::vector<QString>> idsFrom(const QJsonObject& json, const char* field, QLatin1String type)
+{
+    const QJsonValue value = json.value(QLatin1String(field));
+    if (!value.isArray() || value.toArray().size() > 10000) return badDecorationCommand(type, field);
+    std::vector<QString> out;
+    std::set<QString> seen;
+    for (const QJsonValue& item : value.toArray()) {
+        if (!item.isString() || !isKeyText(item.toString()) || !seen.insert(item.toString()).second)
+            return badDecorationCommand(type, field);
+        out.push_back(item.toString());
+    }
+    return out;
+}
+
+} // namespace
+
+ApplyWatermarkCommand::ApplyWatermarkCommand(WatermarkSpec spec, std::vector<QString> replace, QString key)
+    : spec_(std::move(spec)), replace_(std::move(replace)), key_(key.isEmpty() ? newCommandKey() : std::move(key))
+{
+}
+
+Status ApplyWatermarkCommand::permitted(const Document& document) const
+{
+    if (Status status = document.permissions().may(Operation::EditPages); !status) return status;
+    Result<std::vector<int>> pages = watermarkPages(spec_, document.pages());
+    if (!pages) return Status{};   // apply refuses it by key, with nothing changed
+    for (const int page : pages.value()) {
+        if (Status status = document.permissions().mayEditPage(page); !status) return status;
+    }
+    return Status{};
+}
+
+CatalogText ApplyWatermarkCommand::name() const
+{
+    return countName(replace_.empty() ? "command.watermark.apply" : "command.watermark.update", pages_.size());
+}
+
+Scope ApplyWatermarkCommand::scope() const
+{
+    std::set<int> all(pages_.begin(), pages_.end());
+    all.insert(taken_.begin(), taken_.end());
+    return Scope::pages(std::vector<int>(all.begin(), all.end()));
+}
+
+bool ApplyWatermarkCommand::apply(Document& document, MutationSink& sink)
+{
+    refusal_.reset();
+    if (Status valid = validate(spec_); !valid) {
+        refusal_ = valid.error();
+        return false;
+    }
+    Result<std::vector<int>> pages = watermarkPages(spec_, document.pages());
+    if (!pages) {
+        refusal_ = pages.error();
+        return false;
+    }
+    const std::vector<int>& at = pages.value();
+    // EVERY PAGE LAID OUT before the sink hears of it: too many tiles on one page refuses the whole command.
+    std::vector<PageDecoration> decorations;
+    decorations.reserve(at.size());
+    for (const int index : at) {
+        const Page* page = document.pages().at(index);
+        if (!page) return false;
+        Result<PageDecoration> laid = layoutWatermark(spec_, *page);
+        if (!laid) {
+            refusal_ = laid.error();
+            return false;
+        }
+        decorations.push_back(std::move(laid).value());
+    }
+    std::vector<int> taken;
+    if (!replace_.empty()) {
+        Result<std::vector<int>> took = sink.takeDecorations(DecorationKind::Watermark, key_, replace_);
+        if (!took) {
+            refusal_ = took.error();
+            return false;
+        }
+        if (took.value().empty()) {   // an update of a watermark the document no longer has
+            refusal_ = Error{ErrorCode::NotFound, QLatin1String("error.decorate.noneFound"), QString(decorationKindName(DecorationKind::Watermark))};
+            return false;
+        }
+        taken = std::move(took).value();
+    }
+    if (Status added = sink.addPageDecorations(at, decorations, key_); !added) {
+        if (!taken.empty()) (void)sink.restoreDecorations(key_);   // the first half taken back: a refusal changes nothing
+        refusal_ = added.error();
+        return false;
+    }
+    pages_ = at;
+    taken_ = std::move(taken);
+    return true;
+}
+
+bool ApplyWatermarkCommand::revert(Document&, MutationSink& sink)
+{
+    if (pages_.empty()) return false;
+    if (!sink.removePageDecorations(pages_, key_)) return false;
+    if (!taken_.empty() && !sink.restoreDecorations(key_)) return false;
+    return true;
+}
+
+QJsonObject ApplyWatermarkCommand::serialize() const
+{
+    return QJsonObject{{QStringLiteral("type"), QLatin1String(kTypeId)},
+                       {QStringLiteral("key"), key_},
+                       {QStringLiteral("replace"), idsToJson(replace_)},
+                       {QStringLiteral("spec"), watermarkToJson(spec_, true)}};
+}
+
+Result<std::unique_ptr<Command>> ApplyWatermarkCommand::deserialize(const QJsonObject& json)
+{
+    if (!typeIs(json, kTypeId)) return badDecorationCommand(kTypeId, "type");
+    auto key = keyFrom(json, kTypeId);
+    if (!key) return key.error();
+    auto replace = idsFrom(json, "replace", kTypeId);
+    if (!replace) return replace.error();
+    const QJsonValue spec = json.value(QStringLiteral("spec"));
+    if (!spec.isObject()) return badDecorationCommand(kTypeId, "spec");
+    auto decoded = watermarkFromJson(spec.toObject(), true);
+    if (!decoded) return badDecorationCommand(kTypeId, "spec");
+    return std::unique_ptr<Command>(new ApplyWatermarkCommand(std::move(decoded).value(), std::move(replace).value(), std::move(key).value()));
+}
+
+RemoveWatermarkCommand::RemoveWatermarkCommand(std::vector<QString> ids, QString key)
+    : state_(DecorationKind::Watermark, std::move(key), std::move(ids))
+{
+}
+
+CatalogText RemoveWatermarkCommand::name() const
+{
+    return countName("command.watermark.remove", state_.pages().size());
+}
+
+bool RemoveWatermarkCommand::apply(Document&, MutationSink& sink)
+{
+    return state_.apply(sink, refusal_);
+}
+
+bool RemoveWatermarkCommand::revert(Document&, MutationSink& sink)
+{
+    return state_.revert(sink);
+}
+
+QJsonObject RemoveWatermarkCommand::serialize() const
+{
+    return QJsonObject{{QStringLiteral("type"), QLatin1String(kTypeId)},
+                       {QStringLiteral("key"), state_.key()},
+                       {QStringLiteral("ids"), idsToJson(state_.only())}};
+}
+
+Result<std::unique_ptr<Command>> RemoveWatermarkCommand::deserialize(const QJsonObject& json)
+{
+    if (!typeIs(json, kTypeId)) return badDecorationCommand(kTypeId, "type");
+    auto key = keyFrom(json, kTypeId);
+    if (!key) return key.error();
+    auto ids = idsFrom(json, "ids", kTypeId);
+    if (!ids) return ids.error();
+    return std::unique_ptr<Command>(new RemoveWatermarkCommand(std::move(ids).value(), std::move(key).value()));
 }
 
 } // namespace rawpage::core

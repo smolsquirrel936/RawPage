@@ -810,6 +810,29 @@ core::Result<core::CopiedPages> DocumentBackendImpl::blankPages(core::PdfSize si
     return ops::ObjectGraphCopier::blankPages(size, count);
 }
 
+// Stage 7 T15 (Q5(d), D7-45): an image on one page of its own, as an insert carries it.
+core::Result<core::CopiedPages> DocumentBackendImpl::imagePage(const core::StampImage& image)
+{
+    return ops::ObjectGraphCopier::imagePage(image);
+}
+
+// Stage 7 T15 (D7-45): what the document's sink lists -- `attachmentData`'s arrangement: the lock only to find the entry,
+// the verify in flight awaited before the sink is read.
+core::Result<std::vector<core::DecorationEntry>> DocumentBackendImpl::decorations(core::DocumentHandle document, core::DecorationKind kind)
+{
+    Open* entry = nullptr;
+    {
+        const std::lock_guard<std::mutex> guard(mutex_);
+        entry = find(document);
+    }
+    if (entry == nullptr)
+        return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.backend.unknownDocument"),
+                           QString::number(static_cast<qulonglong>(document.id))};
+    if (!entry->sink) return std::vector<core::DecorationEntry>{};
+    awaitVerify(*entry);
+    return entry->sink->listDecorations(kind);
+}
+
 // Stage 7 T13 (D7-36): the page copied as an insert copies it, then read as the stamp will draw it.
 core::Result<core::StampPage> DocumentBackendImpl::stampPage(const QString& path, int page)
 {

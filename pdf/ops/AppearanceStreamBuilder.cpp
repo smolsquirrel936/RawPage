@@ -1082,6 +1082,19 @@ core::Result<Appearance> imageStamp(const core::Annotation& a, AppearanceObjects
     const QLatin1String name = core::annotationSubtypeName(a.subtype);
     const core::StampImage& image = a.image;
     if (core::invalidStampImage(image)) return appearanceError("error.edit.stampImageUnsupported", name);
+    const cos::CosRef picture = AppearanceStreamBuilder::imageObject(image, objects);
+
+    cos::ContentStreamBuilder content;
+    content.save().graphicsState("GS0").concat(natural.width, 0.0, 0.0, natural.height, 0.0, 0.0).paintXObject("Im0").restore();
+    return Appearance{stampForm(natural, core::stampRotation(a), opacityState(opacityOf(a), blendOf(a).value_or(QString())), {},
+                                {{"Im0", CosObject::makeReference(picture.number, picture.generation)}}),
+                      content.bytes()};
+}
+
+} // namespace
+
+cos::CosRef AppearanceStreamBuilder::imageObject(const core::StampImage& image, AppearanceObjects& objects)
+{
     const std::string key = core::stampImageKey(image).toStdString();
     const char* space = image.components == 1 ? "DeviceGray" : "DeviceRGB";
     std::vector<CosObject::Entry> entries{
@@ -1105,15 +1118,10 @@ core::Result<Appearance> imageStamp(const core::Annotation& a, AppearanceObjects
         }, cos::CosStreamData{}), image.alpha.toStdString());
         entries.push_back({"SMask", CosObject::makeReference(mask.number, mask.generation)});
     }
-    const cos::CosRef picture =
-        objects.sharedStream("image:" + key, CosObject::makeStream(std::move(entries), cos::CosStreamData{}), image.data.toStdString());
-
-    cos::ContentStreamBuilder content;
-    content.save().graphicsState("GS0").concat(natural.width, 0.0, 0.0, natural.height, 0.0, 0.0).paintXObject("Im0").restore();
-    return Appearance{stampForm(natural, core::stampRotation(a), opacityState(opacityOf(a), blendOf(a).value_or(QString())), {},
-                                {{"Im0", CosObject::makeReference(picture.number, picture.generation)}}),
-                      content.bytes()};
+    return objects.sharedStream("image:" + key, CosObject::makeStream(std::move(entries), cos::CosStreamData{}), image.data.toStdString());
 }
+
+namespace {
 
 // Stage 7 T13 (D7-36): a page stamp -- the page's form, written once per save by key, painted as the page shows. Its
 // `/BBox` is the page AS SHOWN, in the page's own points, not the natural box: the scale onto the rectangle is then the

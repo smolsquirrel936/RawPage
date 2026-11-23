@@ -114,6 +114,9 @@ core::Result<core::RasterImage> PdfiumRasterizer::raster(const core::render::Ren
         flags |= FPDF_RENDER_NO_SMOOTHPATH;
     if (core::render::hasFlag(request.flags, core::render::RenderFlags::NoNativeText))
         flags |= FPDF_NO_NATIVETEXT;
+    // S7 T15 (D7-45): PDFium judges optional content by its `/Print` usage under this flag, its `/View` one without.
+    if (core::render::hasFlag(request.flags, core::render::RenderFlags::Printing))
+        flags |= FPDF_PRINTING;
 
     {
         // EVERYTHING inside the lock -- LoadPage, bitmap creation, the render, and the destroy.

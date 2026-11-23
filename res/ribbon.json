@@ -394,6 +394,8 @@
             { "action": "headerFooter.update", "size": "small" },
             { "action": "headerFooter.remove", "size": "small" },
             { "action": "watermark.add", "size": "small" },
+            { "action": "watermark.update", "size": "small" },
+            { "action": "watermark.remove", "size": "small" },
             { "action": "bates.add", "size": "small" },
             { "action": "bates.remove", "size": "small" },
             { "action": "imposition.booklet", "size": "small" }

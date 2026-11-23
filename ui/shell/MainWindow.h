@@ -54,6 +54,7 @@
 #include "ui/dialogs/DocumentPropertiesDialog.h"
 #include "ui/dialogs/ExchangeReportDialog.h"
 #include "ui/dialogs/HeaderFooterDialog.h"
+#include "ui/dialogs/WatermarkDialog.h"
 #include "ui/dialogs/BookmarkDialogs.h"
 #include "ui/dialogs/MergeDialog.h"
 #include "ui/dialogs/PageOpsDialogs.h"
@@ -321,6 +322,16 @@ public:
     // The last header and footer applied in this session, which *Update* starts from; and the last Bates run's report.
     const std::optional<core::HeaderFooterSpec>& lastHeaderFooter() const noexcept { return lastHeaderFooter_; }
     const QString& lastBatesReport() const noexcept { return lastBatesReport_; }
+
+    // Stage 7 T15 (D7-45) -- `ui/shell/MainWindowDecorate.cpp`. A watermark added, or -- with `replace` naming the ones
+    // chosen -- an update of them in one step; watermarks removed, the ones chosen or (none named) every one; and the
+    // watermarks the document lists now, which *Update* and *Remove* choose from.
+    core::Status applyWatermark(DocumentWindow* document, const core::WatermarkSpec& spec, const std::vector<QString>& replace);
+    core::Status removeWatermarks(DocumentWindow* document, const std::vector<QString>& ids);
+    std::vector<core::DecorationEntry> watermarksOf(const DocumentWindow& document) const;
+    WatermarkDialog::PageReader watermarkPageReader();
+    // The last watermark added in this session, which *Add* starts from.
+    const std::optional<core::WatermarkSpec>& lastWatermark() const noexcept { return lastWatermark_; }
 
     // Save in place, through `SaveCoordinator`. A document that must be saved as a new file -- repaired,
     // changed on disk since it was opened, or refused by the file system (read-only, held by another
@@ -873,6 +884,7 @@ private:
     std::optional<ExchangeReport> lastExchangeReport_;
     std::optional<core::HeaderFooterSpec> lastHeaderFooter_;   // S7 T14: what *Update* starts from
     QString lastBatesReport_;                                 // S7 T14: the last run's report, as shown
+    std::optional<core::WatermarkSpec> lastWatermark_;        // S7 T15: what *Add* starts from
     // S6 T14: the one player, made on the first sound played, and what it was last given.
     SoundPlayer* player_ = nullptr;
     std::optional<core::SoundData> lastPlayed_;

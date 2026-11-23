@@ -335,6 +335,8 @@ add_library(rawpage_ui STATIC
     dialogs/LinkPropertiesDialog.cpp #   asks before a link opens something; the verify report
     dialogs/HeaderFooterDialog.h    # Stage 7 T14 (D7-14, D7-22, D7-44): a header and footer with its preview and profiles,
     dialogs/HeaderFooterDialog.cpp  #   and Bates numbering across the open documents in an order chosen
+    dialogs/WatermarkDialog.h       # Stage 7 T15 (D7-22, D7-45): a watermark -- text, image or page, placed, tiled, behind or
+    dialogs/WatermarkDialog.cpp     #   in front, for print or screen -- with its preview and profiles, and the chooser
     # S5 T13 -- the two documents and the comparison's options; refused where nobody can answer.
     dialogs/CompareDialog.h
     dialogs/CompareDialog.cpp

@@ -152,17 +152,35 @@ bool usesBates(const HeaderFooterSpec& spec)
 
 Result<std::vector<int>> headerFooterPages(const HeaderFooterSpec& spec, const PageTree& pages)
 {
+    return decoratedPages(spec.range, spec.parity, pages);
+}
+
+Result<std::vector<int>> decoratedPages(const QString& range, PageParity parity, const PageTree& pages)
+{
     std::vector<int> all;
-    if (spec.range.trimmed().isEmpty()) {
+    if (range.trimmed().isEmpty()) {
         for (int page = 0; page < pages.count(); ++page) all.push_back(page);
     } else {
-        Result<std::vector<int>> parsed = parsePageRanges(spec.range, pages.count());
+        Result<std::vector<int>> parsed = parsePageRanges(range, pages.count());
         if (!parsed) return parsed.error();
         all = std::move(parsed).value();
     }
-    std::vector<int> kept = filterPages(all, spec.parity, PageOrientation::Any, pages);
+    std::vector<int> kept = filterPages(all, parity, PageOrientation::Any, pages);
     if (kept.empty()) return Error{ErrorCode::InvalidArgument, QLatin1String("error.decorate.noPages")};
     return kept;
+}
+
+QLatin1String pageParityName(PageParity parity) noexcept
+{
+    return parityName(parity);
+}
+
+std::optional<PageParity> pageParityByName(QStringView name) noexcept
+{
+    for (const PageParity parity : {PageParity::Any, PageParity::Odd, PageParity::Even}) {
+        if (name == parityName(parity)) return parity;
+    }
+    return std::nullopt;
 }
 
 QJsonObject specToJson(const HeaderFooterSpec& spec)

@@ -175,6 +175,9 @@ add_library(rawpage_core STATIC
     # per page as shown, and one Bates number line shared by several documents.
     doc/HeaderFooter.h
     doc/HeaderFooter.cpp
+    # Stage 7 T15 (D7-45) -- a watermark: its source, its natural size, and every copy of it placed on the page as shown.
+    doc/Watermark.h
+    doc/Watermark.cpp
     doc/BatesAllocator.h
     doc/BatesAllocator.cpp
 

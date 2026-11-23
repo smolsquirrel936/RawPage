@@ -2,7 +2,9 @@
 
 #include "pdf/ops/ObjectGraphCopier.h"
 
+#include "core/doc/Stamps.h"
 #include "core/doc/TableOfContents.h"
+#include "core/doc/Watermark.h"
 #include "core/doc/TypedText.h"
 #include "pdf/cos/IncrementalWriter.h"
 #include "pdf/cos/XrefRepair.h"
@@ -978,6 +980,72 @@ core::Result<core::CopiedPages> ObjectGraphCopier::blankPages(core::PdfSize size
     auto copied = blank(size.width, size.height, count);
     if (!copied) return copied.error();
     return carried(std::move(copied).value());
+}
+
+core::Result<core::CopiedPages> ObjectGraphCopier::imagePage(const core::StampImage& image)
+{
+    if (core::invalidStampImage(image))
+        return copyError(core::ErrorCode::InvalidArgument, "error.edit.stampImageUnsupported", -1);
+    // 96 pixels to the inch, as a screen shows the image; scaled down whole to fit Annex C, never below its least.
+    double width = image.width * core::kWatermarkPixelPoints;
+    double height = image.height * core::kWatermarkPixelPoints;
+    const double fit = std::min(1.0, 14400.0 / std::max(width, height));
+    width = std::max(3.0, width * fit);
+    height = std::max(3.0, height * fit);
+
+    std::map<long long, Made> made;
+    addFrame(made, 1);
+    constexpr long long kPage = kNode + 1;
+    constexpr long long kContent = kNode + 2;
+    // The image and its mask, numbered after the content -- written through the stamp's own builder.
+    class Collect final : public AppearanceObjects {
+    public:
+        explicit Collect(std::map<long long, Made>& into) : into_(into) {}
+        cos::CosRef shared(const std::string& key, CosObject object) override { return put(key, std::move(object), std::nullopt); }
+        cos::CosRef sharedStream(const std::string& key, CosObject dictionary, std::string data) override
+        {
+            return put(key, std::move(dictionary), std::move(data));
+        }
+        cos::CosRef reserved(const std::string& key) override
+        {
+            const auto found = keys_.find(key);
+            if (found != keys_.end()) return cos::CosRef{found->second, 0};
+            const long long number = next_++;
+            keys_.emplace(key, number);
+            return cos::CosRef{number, 0};
+        }
+
+    private:
+        cos::CosRef put(const std::string& key, CosObject object, std::optional<std::string> data)
+        {
+            const cos::CosRef at = reserved(key);
+            if (into_.count(at.number) == 0) into_[at.number] = Made{std::move(object), std::move(data)};
+            return at;
+        }
+        std::map<long long, Made>& into_;
+        std::map<std::string, long long> keys_;
+        long long next_ = kContent + 1;
+    } objects(made);
+    const cos::CosRef picture = AppearanceStreamBuilder::imageObject(image, objects);
+    char content[160];
+    std::snprintf(content, sizeof content, "q %.4f 0 0 %.4f 0 0 cm /Im0 Do Q\n", width, height);
+    made[kPage] = Made{
+        CosObject::makeDictionary({{"Type", CosObject::makeName("Page")},
+                                   {"MediaBox", CosObject::makeArray({CosObject::makeInteger(0), CosObject::makeInteger(0),
+                                                                      CosObject::makeReal(width), CosObject::makeReal(height)})},
+                                   {"Resources", CosObject::makeDictionary({{"XObject", CosObject::makeDictionary({{"Im0",
+                                                    CosObject::makeReference(picture.number, picture.generation)}})}})},
+                                   {"Contents", CosObject::makeReference(kContent, 0)},
+                                   {"Rotate", CosObject::makeInteger(0)},
+                                   {"Parent", CosObject::makeReference(kNode, 0)}}),
+        std::nullopt};
+    made[kContent] = Made{CosObject::makeStream(std::vector<CosObject::Entry>{}, cos::CosStreamData{}), std::string(content)};
+    auto payload = writePayload(made, 1, Options{}.maxBytes);
+    if (!payload) return payload.error();
+    Copied out;
+    out.pdf = std::move(payload).value();
+    out.pageCount = 1;
+    return carried(std::move(out));
 }
 
 

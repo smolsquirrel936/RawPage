@@ -1,5 +1,5 @@
 // core/cmd/commands/DecorationCommands -- headers, footers and Bates numbers, put on and taken off. Stage 7 T14,
-// decisions D7-7, D7-14 and D7-44 (`Stage7-Assembly-Plan.md` §3). T15 adds the watermark's pair.
+// decisions D7-7, D7-14 and D7-44 (`Stage7-Assembly-Plan.md` §3). T15 adds the watermark's pair (D7-45), at the end.
 //
 // FOUR COMMANDS, EACH ONE UNDO STEP however many pages it decorates (D7-1). Each says what it means in the MODEL's
 // terms -- the spec, the field values fixed when it was made, the pages it reaches as the document counts them now --
@@ -23,6 +23,7 @@
 
 #include "core/cmd/Command.h"
 #include "core/doc/HeaderFooter.h"
+#include "core/doc/Watermark.h"
 
 #include <QJsonObject>
 
@@ -118,11 +119,12 @@ private:
     std::optional<Error> refusal_;
 };
 
-// Takes every RawPage decoration of one kind off every page -- see the header.
+// Takes every RawPage decoration of one kind off every page -- see the header. Stage 7 T15: or only those named by id.
 class DecorationRemove {
 public:
-    DecorationRemove(DecorationKind kind, QString key);
+    DecorationRemove(DecorationKind kind, QString key, std::vector<QString> only = {});
     const QString& key() const noexcept { return key_; }
+    const std::vector<QString>& only() const noexcept { return only_; }
     const std::vector<int>& pages() const noexcept { return pages_; }
     Status permitted(const Document& document) const;
     Scope scope() const { return Scope::pages(pages_); }
@@ -132,7 +134,8 @@ public:
 private:
     DecorationKind kind_;
     QString key_;
-    std::vector<int> pages_;   // from apply
+    std::vector<QString> only_;   // empty: every one of the kind
+    std::vector<int> pages_;      // from apply
 };
 
 class RemoveHeaderFooterCommand final : public Command {
@@ -173,6 +176,74 @@ public:
     bool apply(Document& document, MutationSink& sink) override;
     bool revert(Document& document, MutationSink& sink) override;
     // {"type": "bates.remove", "key": "<hex>"}
+    QJsonObject serialize() const override;
+    static Result<std::unique_ptr<Command>> deserialize(const QJsonObject& json);
+
+private:
+    DecorationRemove state_;
+    std::optional<Error> refusal_;
+};
+
+// ---- Watermarks -- Stage 7 T15 (D7-7, D7-9, D7-45) -----------------------------------------------------------------
+//
+// ONE WATERMARK A COMMAND, and a document may carry several, each its own key. *Update* and *Remove* act on the ones
+// CHOSEN (`Features.md` §5.8, guide M-09): an update is `ApplyWatermarkCommand` with `replace` naming them -- each taken
+// off first under this command's key and the new one added, one undo step -- and with `keepSourceOf` in its spec it
+// draws the picture of one of them, by reference, rather than carrying it again. The source's bytes, when it carries
+// them, travel in the journal line, as an image stamp's do (D7-24: a replay draws the same picture).
+
+class ApplyWatermarkCommand final : public Command {
+public:
+    static constexpr QLatin1String kTypeId{"watermark.apply"};
+
+    // `spec` on the pages it names; with `replace`, the watermarks of those ids taken off first (*update*) -- refused by
+    // `error.decorate.noneFound` when none of them is there. An empty `key` makes a new one.
+    explicit ApplyWatermarkCommand(WatermarkSpec spec, std::vector<QString> replace = {}, QString key = {});
+
+    const WatermarkSpec& spec() const noexcept { return spec_; }
+    const std::vector<QString>& replaced() const noexcept { return replace_; }
+    const QString& key() const noexcept { return key_; }
+    const std::vector<int>& pages() const noexcept { return pages_; }
+    Operation operation() const override { return Operation::EditPages; }
+    Status permitted(const Document& document) const override;
+
+    QLatin1String typeId() const override { return kTypeId; }
+    CatalogText name() const override;   // command.watermark.apply / .update: %1 page count
+    Scope scope() const override;
+    std::optional<Error> refusal() const override { return refusal_; }
+
+    bool apply(Document& document, MutationSink& sink) override;
+    bool revert(Document& document, MutationSink& sink) override;
+
+    // {"type": "watermark.apply", "key": "<hex>", "replace": ["<hex>", ...], "spec": {... with the source's bytes}}
+    QJsonObject serialize() const override;
+    static Result<std::unique_ptr<Command>> deserialize(const QJsonObject& json);
+
+private:
+    WatermarkSpec spec_;
+    std::vector<QString> replace_;
+    QString key_;
+    std::vector<int> pages_;   // from apply
+    std::vector<int> taken_;   // with `replace`: the pages the old ones were on
+    std::optional<Error> refusal_;
+};
+
+class RemoveWatermarkCommand final : public Command {
+public:
+    static constexpr QLatin1String kTypeId{"watermark.remove"};
+    // The watermarks of those ids -- none named: every RawPage watermark.
+    explicit RemoveWatermarkCommand(std::vector<QString> ids = {}, QString key = {});
+
+    const DecorationRemove& state() const noexcept { return state_; }
+    Operation operation() const override { return Operation::EditPages; }
+    Status permitted(const Document& document) const override { return state_.permitted(document); }
+    QLatin1String typeId() const override { return kTypeId; }
+    CatalogText name() const override;   // command.watermark.remove: %1 page count
+    Scope scope() const override { return state_.scope(); }
+    std::optional<Error> refusal() const override { return refusal_; }
+    bool apply(Document& document, MutationSink& sink) override;
+    bool revert(Document& document, MutationSink& sink) override;
+    // {"type": "watermark.remove", "key": "<hex>", "ids": ["<hex>", ...]}
     QJsonObject serialize() const override;
     static Result<std::unique_ptr<Command>> deserialize(const QJsonObject& json);
 

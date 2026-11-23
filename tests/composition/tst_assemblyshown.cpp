@@ -18,6 +18,7 @@
 #include "core/cmd/commands/DecorationCommands.h"
 #include "core/cmd/commands/PageCommands.h"
 #include "core/doc/PageMap.h"
+#include "core/doc/Stamps.h"
 #include "core/doc/PageTree.h"
 #include "pdf/DocumentBackendImpl.h"
 #include "ui/panes/BookmarksPane.h"
@@ -209,6 +210,37 @@ TEST_CASE("assembly_shown: every page command is shown as it is saved and each u
         steps.emplace_back("the header updated", std::make_unique<core::ApplyHeaderFooterCommand>(header, values, true));
         steps.emplace_back("the Bates numbers removed", std::make_unique<core::RemoveBatesCommand>());
     }
+    // Stage 7 T15 (guide A-100's shown half, D7-45): a screen-only text watermark behind -- its optional-content group in
+    // the update the live engine draws -- a tiled picture in front, that picture UPDATED keeping its bytes, and every
+    // watermark taken off -- each drawn as saved.
+    {
+        core::WatermarkSpec text;
+        text.text = QStringLiteral("SHOWN");
+        text.usage = core::WatermarkUsage::ScreenOnly;
+        steps.emplace_back("a screen-only watermark behind", std::make_unique<core::ApplyWatermarkCommand>(text));
+        QByteArray rgb;
+        for (int i = 0; i < 12 * 12; ++i) rgb.append(static_cast<char>(i * 7)).append(static_cast<char>(90)).append(static_cast<char>(255 - i));
+        auto pixels = core::stampImageFromPixels(12, 12, rgb, QByteArray(144, '\xa0'));
+        REQUIRE(pixels);
+        core::WatermarkSpec picture;
+        picture.source = core::WatermarkSource::Image;
+        picture.image = pixels.value();
+        picture.behind = false;
+        picture.tile = true;
+        picture.tileGap = 24;
+        picture.scaleMode = core::WatermarkScale::Absolute;
+        picture.scale = 4;
+        const QString key(32, QLatin1Char('7'));
+        steps.emplace_back("a tiled picture in front", std::make_unique<core::ApplyWatermarkCommand>(picture, std::vector<QString>{}, key));
+        core::WatermarkSpec kept = picture;
+        kept.image = {};
+        kept.keepSourceOf = key;
+        kept.sourceSize = core::PdfSize{9, 9};
+        kept.rotation = 30;
+        kept.opacity = 0.8;
+        steps.emplace_back("the picture updated, kept", std::make_unique<core::ApplyWatermarkCommand>(kept, std::vector<QString>{key}));
+        steps.emplace_back("every watermark removed", std::make_unique<core::RemoveWatermarkCommand>());
+    }
 
     int compared = 0;
     int n = 0;
@@ -220,7 +252,8 @@ TEST_CASE("assembly_shown: every page command is shown as it is saved and each u
         product.settle();
         compared += compareEveryPage(product, saveCopy(product, ++n), name);
     }
-    CHECK(compared == 12 + 12 + 14 + 13 + 16 + 16 + 16 * 5 + 16 * 4);   // S7 T9: five more steps; S7 T14 four more
+    // S7 T9: five more steps; S7 T14 four more; S7 T15 four more
+    CHECK(compared == 12 + 12 + 14 + 13 + 16 + 16 + 16 * 5 + 16 * 4 + 16 * 4);
 
     // EACH UNDONE, after the saves: every page as the ORIGINAL file draws it.
     for (std::size_t i = 0; i < steps.size(); ++i) {

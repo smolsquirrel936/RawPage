@@ -130,6 +130,8 @@ public:
     core::Result<int> filePageCount(const QString& path) override;
     core::Result<core::CopiedPages> blankPages(core::PdfSize size, int count) override;
     core::Result<core::StampPage> stampPage(const QString& path, int page) override;
+    core::Result<core::CopiedPages> imagePage(const core::StampImage& image) override;                                  // S7 T15
+    core::Result<std::vector<core::DecorationEntry>> decorations(core::DocumentHandle document, core::DecorationKind kind) override;
     // Stage 7 T7 (D7-5, D7-30): the document as it stands, composed as a save would compose it, through
     // `pdf/ops/DocumentAssembler` -- see core/backend.h.
     core::Result<std::unique_ptr<core::AssemblySource>> assemblySource(core::DocumentHandle document) override;

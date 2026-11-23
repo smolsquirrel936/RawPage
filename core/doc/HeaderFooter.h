@@ -47,6 +47,7 @@
 
 #include "core/Geometry.h"
 #include "core/Result.h"
+#include "core/doc/Annotation.h"
 #include "core/doc/Page.h"
 #include "core/doc/PageRanges.h"
 #include "core/doc/TypedText.h"
@@ -86,6 +87,33 @@ struct DecorationLine {
     friend bool operator==(const DecorationLine& a, const DecorationLine& b);
 };
 
+// ---- A watermark's picture (Stage 7 T15, `core/doc/Watermark`) -------------------------------------------------------
+
+// What a watermark paints: its own text, an image, or a PDF page.
+enum class WatermarkSource : std::uint8_t { Text, Image, Page };
+// When it shows (D7-9, D7-45): always; only when the page is PRINTED; only on SCREEN. Either of the last two puts the
+// watermark in an optional-content group of its own, whose `/Usage` says so.
+enum class WatermarkUsage : std::uint8_t { Always, PrintOnly, ScreenOnly };
+
+// A watermark as the sink draws it on one page: its SOURCE -- text laid out in its natural box, an image, a page, or
+// the source of an earlier watermark (`keepSourceOf`, an update that keeps the picture) -- painted once per TILE, each
+// tile a matrix from the source's natural box (`natural`, origin at its bottom-left) into the page's own space, at
+// `opacity`, for `usage`. `spec` is what the mark records: the watermark's spec without its source's bytes, read back
+// to list it and to start an update from it.
+struct WatermarkDrawing {
+    WatermarkSource source = WatermarkSource::Text;
+    std::vector<DecorationLine> lines;              // Text: each line in the natural box
+    StampImage image;                               // Image
+    StampPage page;                                 // Page
+    QString keepSourceOf;                           // Image or Page: that watermark's source, as it is drawn now
+    PdfSize natural;                                // the source's box, in points
+    std::vector<std::array<double, 6>> tiles;       // the natural box -> the page's own space, one per copy
+    double opacity = 1.0;
+    WatermarkUsage usage = WatermarkUsage::Always;
+    QJsonObject spec;
+    friend bool operator==(const WatermarkDrawing&, const WatermarkDrawing&) = default;
+};
+
 struct PageDecoration {
     DecorationKind kind = DecorationKind::HeaderFooter;
     PdfRect box;                                    // the form's /BBox: what the page shows, in its own space
@@ -96,7 +124,20 @@ struct PageDecoration {
     QString subtype;
     // In front: the page's content drawn through this -- identity and clipped to `box`, or scaled to clear the bands.
     std::optional<PageContentWrap> wrap;
+    // Stage 7 T15: a watermark draws this, not `lines`.
+    std::optional<WatermarkDrawing> watermark;
     friend bool operator==(const PageDecoration&, const PageDecoration&) = default;
+};
+
+// Stage 7 T15: one decoration RawPage wrote, as the document lists it now (`IDocumentBackend::decorations`) -- its id,
+// the pages it is on as the model counts them, and what its mark records: a watermark's spec without its source's
+// bytes (`core::watermarkFromJson`), empty for the other kinds.
+struct DecorationEntry {
+    QString id;
+    DecorationKind kind = DecorationKind::Watermark;
+    std::vector<int> pages;
+    QJsonObject spec;
+    friend bool operator==(const DecorationEntry&, const DecorationEntry&) = default;
 };
 
 // ---- What the person asks for ------------------------------------------------------------------------------------
@@ -149,6 +190,10 @@ bool usesBates(const HeaderFooterSpec& spec);
 // The pages `spec` decorates in a document of `pages`: its range, then its parity -- odd and even counted as the
 // person counts pages, from 1. `error.decorate.noPages` when that leaves none.
 Result<std::vector<int>> headerFooterPages(const HeaderFooterSpec& spec, const PageTree& pages);
+// The same for any decoration -- a range (empty: every page) and a parity (Stage 7 T15's watermark too).
+Result<std::vector<int>> decoratedPages(const QString& range, PageParity parity, const PageTree& pages);
+QLatin1String pageParityName(PageParity parity) noexcept;
+std::optional<PageParity> pageParityByName(QStringView name) noexcept;
 
 // The spec as a profile and a journal line hold it, and back -- every field, bounds checked by `validate` after.
 QJsonObject specToJson(const HeaderFooterSpec& spec);

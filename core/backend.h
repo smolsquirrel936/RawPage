@@ -112,6 +112,8 @@ struct PageContentWrap;      // core/doc/Page.h            -- Stage 7 T9 (D7-7, 
 struct PageLabelSpec;        // core/doc/Page.h            -- Stage 7 T9
 struct PageThumbnail;        // core/doc/Page.h            -- Stage 7 T9
 struct PageDecoration;       // core/doc/HeaderFooter.h    -- Stage 7 T14 (D7-7)
+struct DecorationEntry;      // core/doc/HeaderFooter.h    -- Stage 7 T15 (D7-45)
+struct StampImage;           // core/doc/Annotation.h      -- Stage 6 T10; an image page at Stage 7 T15
 enum class DecorationKind : std::uint8_t;   // core/doc/HeaderFooter.h -- Stage 7 T14
 struct OutlineItem;          // core/doc/Outline.h         -- Stage 7 T11 (D7-10)
 struct HeadingLine;          // core/doc/OutlineGenerator.h -- Stage 7 T11
@@ -460,9 +462,16 @@ public:
     virtual Status removePageDecorations(const std::vector<int>& pages, const QString& key) = 0;
     // `takeDecorations`: EVERY decoration of `kind` on every page -- written by any earlier command, saved or not, and
     // only RawPage's: a stream another producer wrote is never one (D7-7) -- taken out with its wrapper, and kept under
-    // `key`; answers the pages it was on, in order -- none, with nothing changed, when there was none.
+    // `key`; answers the pages it was on, in order -- none, with nothing changed, when there was none. Stage 7 T15:
+    // with `only` not empty, only the decorations of those ids (a watermark chosen from several).
     // `restoreDecorations` with the same key puts them back where they were (its undo) -- before a save and after one.
-    virtual Result<std::vector<int>> takeDecorations(DecorationKind kind, const QString& key) = 0;
+    //
+    // A WATERMARK (T15, D7-45) whose `WatermarkDrawing::keepSourceOf` names another draws THAT one's picture -- the
+    // bytes it carries, or the object it draws on disk, by reference -- found where it is held: on a page, or taken out
+    // by an earlier `takeDecorations` (an update takes the old one first). Refused by `error.decorate.sourceGone`,
+    // nothing changed, when no watermark of that id can be found. A watermark for printing or for the screen only is
+    // put in an optional-content group of its own, listed in the document's `/OCProperties` while any page draws it.
+    virtual Result<std::vector<int>> takeDecorations(DecorationKind kind, const QString& key, const std::vector<QString>& only) = 0;
     virtual Status restoreDecorations(const QString& key) = 0;
 
     // THE OUTLINE -- Stage 7 T11 (`Stage7-Assembly-Plan.md` D7-10, D7-34). The outline the document should have, WHOLE,
@@ -763,6 +772,15 @@ public:
     // filter it names one this writer reads -- with the size it shows. Refused by `copyPages`' keys, and by
     // `error.edit.stampPageUnsupported` naming what the page holds that a stamp cannot draw. Changes nothing.
     virtual Result<StampPage> stampPage(const QString& path, int page) = 0;
+    // AN IMAGE AS A PAGE -- Stage 7 T15 (Q5(d), D7-31(j), D7-45): one page the image's size at 96 pixels to the inch
+    // (scaled down to fit ISO 32000-1 Annex C's 14,400 units, never below 3), the image drawn over all of it -- as the
+    // same payload `blankPages` makes, for an `InsertPagesCommand`. Refused by `error.edit.stampImageUnsupported` for an
+    // image `core::invalidStampImage` refuses.
+    virtual Result<CopiedPages> imagePage(const StampImage& image) = 0;
+    // THE DECORATIONS OF `kind` RAWPAGE WROTE, as `document` stands now -- saved or not -- in the order a page lists
+    // them, each with the pages it is on and what its mark records (Stage 7 T15: the watermarks an *Update* or a
+    // *Remove* chooses from). Empty when there are none or the document has no sink.
+    virtual Result<std::vector<DecorationEntry>> decorations(DocumentHandle document, DecorationKind kind) = 0;
 
     // NEW DOCUMENTS FROM THIS ONE -- Stage 7 T7 (`Stage7-Assembly-Plan.md` D7-5, D7-30). A SNAPSHOT of `document` as
     // it stands now: the newest revision on disk followed by its unsaved update, composed as a save would compose

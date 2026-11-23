@@ -102,6 +102,12 @@ std::optional<StampPage> stampPageFromJson(const QJsonValue& value)
 
 } // namespace
 
+// Stage 7 T15: the same shapes, for a watermark's journal line and profile.
+QJsonObject stampImageJson(const StampImage& image) { return imageToJson(image); }
+std::optional<StampImage> stampImageFromJsonValue(const QJsonValue& value) { return imageFromJson(value); }
+QJsonObject stampPageJson(const StampPage& page) { return stampPageToJson(page); }
+std::optional<StampPage> stampPageFromJsonValue(const QJsonValue& value) { return stampPageFromJson(value); }
+
 // ---- Stage 6 T11: an embedded file ------------------------------------------------------------------
 
 QJsonObject EmbeddedFile::toJson() const
