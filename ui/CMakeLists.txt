@@ -37,6 +37,7 @@ add_library(rawpage_ui STATIC
     shell/MainWindowLinks.cpp       # Stage 7 T12 -- links and named destinations (D7-12, D7-35)
     shell/MainWindowDecorate.cpp    # Stage 7 T14 -- headers, footers and Bates numbers (D7-7, D7-14, D7-44)
     shell/MainWindowImpose.cpp      # Stage 7 T16 -- imposition.booklet and imposition.nUp (D7-8, D7-46)
+    shell/MainWindowLayers.cpp      # Stage 7 T17 -- the Layers pane's commands and its eye (D7-9)
     # S6 T14 (D6-18): the window's half of a sound comment -- the recorder and the WAV asked, a sound played.
     shell/MainWindowAudio.cpp
     shell/CommentMigration.h
@@ -279,6 +280,8 @@ add_library(rawpage_ui STATIC
     panes/AttachmentsPane.cpp
     panes/DestinationsPane.h
     panes/DestinationsPane.cpp
+    panes/LayersPane.h              # Stage 7 T17 (D7-9): the tree, each layer's eye and lock, its menu
+    panes/LayersPane.cpp
     # S5 T9 (D5-13) -- Advanced Search, a dock of its own like the log pane: core/text/FolderSearch does the
     # work off the UI thread and core/text/SearchResults owns the list's rules. Holds the stage's one planned
     # filesystem-write waiver, the CSV export.
@@ -340,6 +343,8 @@ add_library(rawpage_ui STATIC
     dialogs/WatermarkDialog.cpp     #   in front, for print or screen -- with its preview and profiles, and the chooser
     dialogs/ImpositionDialog.h      # Stage 7 T16 (D7-8, D7-22, D7-46): n-up or a booklet, the sheet, duplex, the marks, with
     dialogs/ImpositionDialog.cpp    #   the plan previewed side by side, and profiles
+    dialogs/LayerDialogs.h          # Stage 7 T17 (D7-9): a new layer's name, the layer to merge into, a layer's properties
+    dialogs/LayerDialogs.cpp
     # S5 T13 -- the two documents and the comparison's options; refused where nobody can answer.
     dialogs/CompareDialog.h
     dialogs/CompareDialog.cpp

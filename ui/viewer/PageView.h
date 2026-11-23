@@ -443,6 +443,8 @@ public:
     // because a test drives it after `show()` and `activate()`, which is convention 12's rule
     // about a widget test having to drive layout itself.
     void refresh();
+    // S7 T17 (D7-9): the layers the screen hides changed -- what is held stays until its replacement lands.
+    void layerViewChanged();
 
     // ---- The rest of `ToolHost` (S4 T7) -------------------------------------------------------
     // `controller()` above is the first member of this interface and has been on this class since

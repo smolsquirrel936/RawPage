@@ -18,6 +18,7 @@
 #include "core/doc/Attachments.h"
 #include "core/doc/Destinations.h"
 #include "core/doc/Fdf.h"
+#include "core/doc/LayerTree.h"
 #include "core/doc/Metadata.h"
 #include "core/doc/PageTransitions.h"
 #include "core/doc/XfdfCodec.h"
@@ -333,6 +334,18 @@ public:
     }
     core::Destinations destinationsSet;
     int destinationCommands = 0;
+    // Stage 7 T17: the layers as last handed, and how many times; `refuseLayers` refuses as a sink would.
+    core::Status setLayers(const core::LayerTree& layers) override
+    {
+        ++calls;
+        ++layerCommands;
+        if (refuseLayers) return core::Error{core::ErrorCode::Corrupted, QLatin1String("error.layer.notWritten"), QString()};
+        layersSet = layers;
+        return {};
+    }
+    core::LayerTree layersSet;
+    int layerCommands = 0;
+    bool refuseLayers = false;
     std::map<int, core::PageBoxes> pageBoxes;
     std::map<QString, std::vector<std::pair<int, std::optional<core::PageBoxes>>>> boxStash;
     int wrapped = 0;
@@ -528,6 +541,16 @@ public:
         ++destinationReads;
         return &destinations_;
     }
+    // S7 T17: the layers a case fills (`layers_`), and every view a window asked to be drawn, by handle.
+    const core::LayerTree* layers(core::DocumentHandle) const override { return &layers_; }
+    core::Status showLayers(core::DocumentHandle document, const std::vector<core::LayerId>& hidden) override
+    {
+        if (failLayerViews) return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.layer.viewNotShown"), QString()};
+        layerViews.emplace_back(document, hidden);
+        return {};
+    }
+    std::vector<std::pair<core::DocumentHandle, std::vector<core::LayerId>>> layerViews;
+    bool failLayerViews = false;
     // S5 T9: a file NAME may carry its own Info (`metadataByName`) -- the folder search's filter cases need
     // documents that differ; every other file answers `metadata_`, as before.
     const core::Metadata* metadata(core::DocumentHandle handle) const override
@@ -994,6 +1017,7 @@ public:
 
     core::Outline outline_;
     core::Destinations destinations_;
+    core::LayerTree layers_;   // S7 T17: assessed and empty unless a case fills it
     core::Metadata metadata_;
     core::PageTransitions transitions_;
 

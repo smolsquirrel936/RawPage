@@ -103,6 +103,11 @@ public:
     // next `requestTiles` asks again at the new indices, where the cache has moved what it held.
     void remapPages(const core::PageMap& map);
 
+    // THE LAYERS THE SCREEN HIDES CHANGED (Stage 7 T17, D7-9) -- after `RenderScheduler::setLayerView`. Every tile
+    // held becomes stale, kept on screen until the same tile under the new view arrives, as at a new revision; the
+    // next `requestTiles` asks under the new key.
+    void layerViewChanged();
+
     core::DocumentHandle document() const noexcept { return document_; }
 
     // Asks for everything `viewport` needs and cancels everything it no longer does. `viewport` is

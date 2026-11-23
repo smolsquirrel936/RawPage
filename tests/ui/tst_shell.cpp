@@ -215,15 +215,18 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     // **Thirteen more at Stage 7 T11** (D7-10, D7-11, `MainWindowBookmarks.cpp`): the eight editing rows of §8's
     // Bookmarks table, `bookmark.generate`, and the minted `.properties`, `.import`, `.export` and `.tableOfContents`.
     // **Eight more at Stage 7 T12** (D7-12, D7-35, `MainWindowLinks.cpp`): `link.create`, `.edit`, `.delete`,
-    // `.autoDetect` and the minted `.verify`, and `destination.create`, `.rename` and `.delete`. 397 ids are declared.
+    // `.autoDetect` and the minted `.verify`, and `destination.create`, `.rename` and `.delete`. **Nine more at Stage 7
+    // T17** (D7-9, `MainWindowLayers.cpp`): `pane.layers`, `layer.show`, `.hide`, `.lock`, `.merge`, `.properties` and the
+    // minted `.create`, `.delete` and `.rename` -- `layer.flatten` stays unregistered (Q2). 400 ids are declared.
     //
     // The count is asserted as well as the names on purpose: a name-only check stays green when a
     // forty-ninth registration is added by accident, and "the window registers exactly what it can
     // service" is a claim about the whole set rather than about four members of it.
-    CHECK(fixture.actions.registeredCount() == 222);   // 214 until S7 D7-42 unregistered the two `Ctrl+E` toggles;
+    CHECK(fixture.actions.registeredCount() == 231);   // 214 until S7 D7-42 unregistered the two `Ctrl+E` toggles;
                                                        // +5 at S7 T14 (`headerFooter.add/update/remove`, `bates.add/remove`);
                                                        // +3 at S7 T15 (`watermark.add/update/remove`);
-                                                       // +2 at S7 T16 (`imposition.booklet`, `imposition.nUp`)
+                                                       // +2 at S7 T16 (`imposition.booklet`, `imposition.nUp`);
+                                                       // +9 at S7 T17 (`pane.layers` and eight `layer.*`)
     CHECK(fixture.actions.isRegistered(core::ActionId::ImpositionBooklet));      // S7 T16
     CHECK(fixture.actions.isRegistered(core::ActionId::ImpositionNUp));          // S7 T16
     CHECK(fixture.actions.isRegistered(core::ActionId::WatermarkRemove));        // S7 T15
@@ -391,7 +394,8 @@ TEST_CASE("the window registers exactly the actions it can service", "[shell]")
     CHECK(fixture.actions.isRegistered(core::ActionId::PaneComments));            // S6 T9
     CHECK(fixture.actions.isRegistered(core::ActionId::PaneAttachments));         // S6 T11
     CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PaneSignatures));    // S11
-    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::PaneLayers));        // S7
+    CHECK(fixture.actions.isRegistered(core::ActionId::PaneLayers));              // S7 T17 (D7-9)
+    CHECK_FALSE(fixture.actions.isRegistered(core::ActionId::LayerFlatten));      // Stage 10's (Q2)
 
     // S4 T6's SEVEN: the two navigation panes and the five §8 Bookmarks rows that navigate.
     CHECK(fixture.actions.isRegistered(core::ActionId::PaneBookmarks));

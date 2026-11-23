@@ -25,6 +25,7 @@
 #include "core/doc/AnnotationStore.h"
 #include "core/doc/Attachments.h"
 #include "core/doc/DocumentId.h"
+#include "core/doc/LayerTree.h"
 #include "core/doc/Outline.h"
 #include "core/doc/PageTree.h"
 #include "core/doc/Permissions.h"
@@ -81,6 +82,12 @@ public:
     const Destinations& destinations() const noexcept { return destinations_; }
     Destinations& destinations() noexcept { return destinations_; }
 
+    // THE LAYERS -- Stage 7 T17 (D7-9). Copied from the backend's first-party reading at hydration -- the only one there
+    // is, PDFium naming no optional content -- and from then on changed ONLY by a layer command. Showing and hiding a
+    // layer is not a change to it (`LayerView`). A backend that supplies none leaves it refused, which refuses every change.
+    const LayerTree& layers() const noexcept { return layers_; }
+    LayerTree& layers() noexcept { return layers_; }
+
     const RepairReport& repairReport() const noexcept { return repair_; }
     const Permissions& permissions() const noexcept { return permissions_; }
     // Stage 7 T2: a page command carries the per-page refusals with the pages it moves (D7-21).
@@ -94,7 +101,7 @@ public:
 
     // A SHA-256 over the MODEL -- every page's index, boxes, rotation and label, in order, and since
     // Stage 6 T3 every page's annotation LISTING, entry by entry, with each annotation's every
-    // modelled field, and since Stage 6 T11 every document-level attachment, every field, and since Stage 7 T11 the outline, every item and field -- and nothing else: not the revision, which only goes up, and not the handle or identity, which no
+    // modelled field, and since Stage 6 T11 every document-level attachment, every field, and since Stage 7 T11 the outline, every item and field, and since T12 the named destinations and T17 the layers -- and nothing else: not the revision, which only goes up, and not the handle or identity, which no
     // command changes. Stage 3 T5. Two properties are measured with it: apply-then-revert restores it
     // exactly (guide case A-43), and a refused or failed command leaves it unchanged (A-40). Stage 6
     // and later extend it as the model grows; a model part a command can change and this hash cannot
@@ -109,6 +116,7 @@ private:
     Attachments attachments_;
     Outline outline_ = Outline::refused(Error{ErrorCode::Unavailable, QLatin1String("error.edit.notAssessed"), QString()});
     Destinations destinations_ = Destinations::refused(Error{ErrorCode::Unavailable, QLatin1String("error.edit.notAssessed"), QString()});
+    LayerTree layers_ = LayerTree::refused(Error{ErrorCode::Unavailable, QLatin1String("error.edit.notAssessed"), QString()});
     RepairReport repair_;
     Permissions permissions_;
     Revision revision_ = Revision::invalid();

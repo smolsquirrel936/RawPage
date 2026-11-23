@@ -166,6 +166,13 @@
 //
 // NAMED DESTINATIONS -- Stage 7 T12 (D7-10, D7-35): see `setDestinations` and `composeDestinations`.
 //
+// LAYERS -- Stage 7 T17 (D7-9): the tree a layer command hands over, WHOLE (`setLayers`), compared at the compose with
+// the tree the disk holds as the model last knew it -- read at open, the desired one at a save (`layerBaseline_`) -- and
+// written only where they differ (`composeLayerEdits`, `LayerOps::compose`): a changed group's dictionary, a created one
+// new (numbered by name, `layer:<key>`, and keeping after a save the number the save gave it), `/OCProperties` with the
+// model's lists and every group it does not know kept, and for each merge every object naming the merged group
+// repointed -- found by one walk of the file per revision (`LayerOps::referencing`), and no content stream touched.
+//
 // DECORATIONS -- Stage 7 T14 (D7-7, D7-44). The same rule as T9's wrappers, over the same list: per page OBJECT, the
 // decorations it should draw (`decorations_`) and the wrappers round its content (`wraps_`) -- each an id, and for one
 // not yet written what it draws -- read from the page's `/Contents` by mark the first time a command asks
@@ -189,6 +196,7 @@
 #include "core/doc/Annotation.h"
 #include "core/doc/Attachments.h"
 #include "core/doc/CopiedPages.h"
+#include "core/doc/LayerTree.h"
 #include "core/doc/Outline.h"
 #include "pdf/cos/IncrementalWriter.h"
 #include "pdf/cos/XrefTable.h"
@@ -343,6 +351,18 @@ public:
     // THE CHECK `RevisionWriter::verify` AND `adopt()` SHARE: `written`'s tables hold the desired entries -- each name in
     // its table, none other.
     core::Status reconcileDestinations(cos::XrefTable& written) const;
+
+    // --- The layers (Stage 7 T17) -- see `setLayers` in `core/backend.h` and the header ----------------------------
+    core::Status setLayers(const core::LayerTree& layers) override;
+    bool hasLayerChanges() const noexcept { return layers_.has_value(); }
+    // THE NUMBER A GROUP IS WRITTEN AT NOW: the file's own, or a created one's -- the last compose's, else the one a save
+    // put it at; nullopt for a created group no compose has written. What the view section names a hidden group by.
+    std::optional<long long> layerNumber(const core::LayerId& id) const;
+    // Every created group's number, as `layerNumber` answers it -- what a view drawn later names one by.
+    std::map<QString, long long> createdLayerNumbers() const;
+    // THE CHECK `RevisionWriter::verify` AND `adopt()` SHARE: every group of the desired tree is listed in `written` under
+    // its name, and none it removed is.
+    core::Status reconcileLayers(cos::XrefTable& written) const;
 
     // --- The outline (Stage 7 T11) -- see the header ----------------------------------------------------------
     core::Status setOutline(const core::Outline& outline) override;
@@ -935,6 +955,17 @@ private:
     // EVERY ENTRY THE DISK HAS HELD, as written -- kept across a save, so an entry a save left out (deleted, renamed) and
     // an undo puts back is written as the very pair it was, as an attachment is (D6-38) and an annotation is (D6-5).
     std::vector<HeldDestination> rememberedDestinations_;
+
+    // --- The layers (Stage 7 T17) -- see the header ---------------------------------------------------------------------
+    core::Status composeLayerEdits(cos::ObjectDelta& delta, std::map<long long, cos::CosObject>& pending);
+    const core::LayerTree& layerBaseline();
+    // Every group number the desired tree no longer holds and the baseline did: deleted, or merged into another.
+    std::set<long long> removedLayers();
+    std::optional<core::LayerTree> layers_;            // desired, once a layer command ran
+    std::optional<core::LayerTree> layerBaseline_;     // the disk's as the model knows it; read lazily, set by adopt
+    std::map<QString, long long> layersComposed_;      // a created group -> the number the last compose gave it
+    std::map<QString, long long> layersOnDisk_;        // a created group -> where a save put it
+    std::optional<std::set<long long>> layerReferences_;   // objects naming a group, this revision (a merge's walk)
 };
 
 } // namespace rawpage::pdf::ops

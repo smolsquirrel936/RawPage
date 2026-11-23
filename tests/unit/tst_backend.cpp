@@ -25,6 +25,7 @@
 
 #include <catch2/catch_test_macros.hpp>
 
+#include "core/doc/LayerTree.h"
 #include "core/doc/Destinations.h"
 #include "core/doc/Fdf.h"
 #include "core/doc/Metadata.h"
@@ -88,6 +89,11 @@ public:
     const core::Destinations* destinations(core::DocumentHandle) const override
     {
         return &destinations_;
+    }
+    const core::LayerTree* layers(core::DocumentHandle) const override { return &layers_; }   // S7 T17
+    core::Status showLayers(core::DocumentHandle, const std::vector<core::LayerId>&) override
+    {
+        return core::notImplementedError(core::BackendInterface::DocumentBackend, "showLayers");
     }
     const core::Metadata* metadata(core::DocumentHandle) const override { return &metadata_; }
 
@@ -208,6 +214,7 @@ public:
 
     core::Outline outline_;
     core::Destinations destinations_;
+    core::LayerTree layers_;
     core::Metadata metadata_;
     core::PageTransitions transitions_;
 

@@ -78,6 +78,7 @@
 #include "app/Services.h"
 #include "core/backend.h"
 #include "core/cmd/RecoveryJournal.h"
+#include "core/doc/LayerTree.h"
 #include "core/doc/PageReconnect.h"
 #include "core/doc/Revision.h"
 #include "core/doc/SaveCoordinator.h"
@@ -86,6 +87,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <vector>
 
 #include <QByteArray>
@@ -249,6 +251,17 @@ public:
     core::CommandJournal* journal() const noexcept { return journal_.get(); }
     core::RecoveryJournal* recovery() const noexcept { return recovery_.get(); }
 
+    // THE LAYERS THIS TAB'S SCREEN HIDES -- Stage 7 T17, decision D7-9. VIEW STATE, never an edit: it begins as the
+    // document opens them (`core::LayerView::atOpen`), changes only when a person shows or hides one, is kept across
+    // commands, and dirties nothing. The tree it is read against: the model's where the tab has a journal, else the
+    // backend's reading.
+    const core::LayerTree* layerTree() const;
+    std::set<core::LayerId> hiddenLayers() const;
+    // One layer shown or hidden (`core::LayerView::setShown`: a radio group's others hidden, a locked one refused): the
+    // scheduler keyed by the new view FIRST, the engine handed it, every pane of the split and the thumbnails asked
+    // again (`layerViewChanged`). Refused, nothing changed, by the rule's key or the backend's.
+    core::Status setLayerShown(const core::LayerId& id, bool shown);
+
     // Whether this build may change the document: a sink, and permissions that allow editing pages.
     bool isEditable() const;
     bool isDirty() const;
@@ -409,6 +422,8 @@ signals:
     // re-points the status bar's `viewChanged` connection at it, because the chrome reports on the
     // view a person is in and a connection to a retired pane would report on nothing.
     void activeViewChanged(PageView* view);
+    // S7 T17: the layers the screen hides changed -- the thumbnails and the Layers pane follow.
+    void layerViewChanged();
 
     // A pane of this tab was scrolled by the person rather than by a mirror (S4 T11). Forwarded
     // from `SplitViewContainer::scrolled`; `ui/shell/WindowArranger` is the only consumer, and it
@@ -551,6 +566,7 @@ private:
     // S4 T9. The page surface: one view, or up to four over the same document. Never null after
     // `build()`, and `view()` is its active pane.
     SplitViewContainer* split_ = nullptr;
+    std::optional<std::set<core::LayerId>> hiddenLayers_;   // S7 T17: none until a person shows or hides a layer
 
     // S5 T5. A child, but deleted EXPLICITLY in the destructor -- after every pane has let go of it and
     // before the handle closes, because it holds text tickets on this document's handle.

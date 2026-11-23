@@ -93,6 +93,7 @@ public:
     core::Status restorePageThumbnails(const std::vector<int>&, const QString&) override { return no(); }
     core::Status setOutline(const core::Outline&) override { return no(); }
     core::Status setDestinations(const core::Destinations&) override { return no(); }
+    core::Status setLayers(const core::LayerTree&) override { return no(); }   // S7 T17
 
 private:
     static core::Status no() { return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.test.unexpected"), QString()}; }

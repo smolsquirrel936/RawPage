@@ -119,6 +119,8 @@ struct OutlineItem;          // core/doc/Outline.h         -- Stage 7 T11 (D7-10
 struct HeadingLine;          // core/doc/OutlineGenerator.h -- Stage 7 T11
 struct TableOfContents;      // core/doc/TableOfContents.h -- Stage 7 T11 (D7-11)
 enum class OutlineFormat : std::uint8_t;   // core/doc/OutlineExchange.h -- Stage 7 T11
+class LayerTree;             // core/doc/LayerTree.h       -- Stage 7 T17 (D7-9)
+struct LayerId;              // core/doc/LayerTree.h       -- Stage 7 T17
 
 namespace render {
 struct RenderRequest;        // core/render/RenderRequest.h -- Stage 2 T10
@@ -492,6 +494,15 @@ public:
     // from the disk's. The revert hands the table before. Refused, with nothing changed, for a table past
     // `core::Destinations::validate`'s bounds, or an entry it cannot write -- a new one with no page.
     virtual Status setDestinations(const Destinations& destinations) = 0;
+
+    // THE LAYERS -- Stage 7 T17 (`Stage7-Assembly-Plan.md` D7-9). The tree the document should have, WHOLE, as the model
+    // holds it after the command -- every group by its id, the default configuration's order, radio groups, locks, states
+    // and usage, and every merge made. Which objects that means is the sink's: a tree equal to the disk's is not written;
+    // a group whose name or usage changed is its dictionary again, its unknown keys kept; a list of `/D` is written only
+    // where it changed; a created group is a new object; a merged group's every `/Properties` entry, `/OC` and membership
+    // naming it is repointed at the group it went into -- no content stream touched. The revert hands the tree before.
+    // Refused, with nothing changed, for a tree past `core::LayerTree::validate`'s bounds.
+    virtual Status setLayers(const LayerTree& layers) = 0;
 };
 
 // =======================================================================================
@@ -675,6 +686,11 @@ public:
     virtual const Outline* outline(DocumentHandle document) const = 0;
     virtual const Destinations* destinations(DocumentHandle document) const = 0;
     virtual const Metadata* metadata(DocumentHandle document) const = 0;
+
+    // THE LAYERS -- Stage 7 T17 (D7-9), read ONCE, at open, first-party: no PDFium API names optional content, so there
+    // is no second reading to hold this one to. Empty is the ordinary answer. A tree read only up to a bound, or not
+    // read at all (an encrypted file), is READ-ONLY AND SAYS WHY (`status()`).
+    virtual const LayerTree* layers(DocumentHandle document) const = 0;
 
     // THE DOCUMENT'S PRESENTATION INSTRUCTIONS -- per-page `/Trans` and `/Dur`, and the catalog's
     // `/PageMode` -- added at Stage 4 T10 (D4-12), and read once at open like the three above.
@@ -927,6 +943,16 @@ public:
     // called once it returns with an empty function, or once the document is closed.
     virtual Status settleEdits(DocumentHandle document) = 0;
     virtual void setEditsSettled(DocumentHandle document, std::function<void()> settled) = 0;
+
+    // WHICH LAYERS THE SCREEN HIDES -- Stage 7 T17, decision D7-9. VIEW STATE, NOT AN EDIT: from now on the engine of
+    // `document` -- this handle alone; a companion window has its own -- draws whatever `showEdits` hands it followed by
+    // a VIEW-ONLY update, the default configuration's `/OFF` the groups named here and every other one on, `/AS`'s
+    // screen applications taken out so a print-only group shown is drawn. **Save never writes it and the sink never
+    // sees it**: no byte of the document changes and nothing is dirtied. Kept per handle across later shows; the empty
+    // list hides nothing. A group the document no longer lists is skipped. Refused, with every engine drawing what it
+    // drew, for an unknown handle, a document with no layers, or a view the engine cannot be handed
+    // (`error.layer.viewNotShown` with the reason). The caller keys its tiles by `LayerView::key` of the same set.
+    virtual Status showLayers(DocumentHandle document, const std::vector<LayerId>& hidden) = 0;
 
     // The six, for a document this backend opened. Null when unimplemented; never a silent stub.
     virtual IPageRasterizer* rasterizer(DocumentHandle document) = 0;

@@ -174,6 +174,9 @@ add_executable(rawpage_tests
     tst_imposition.cpp            # Stage 7 T16 -- the imposition order and geometry, pure: every booklet at 1 ... 17 pages
                                   #   and every n-up against hand tables and a fold, duplex turns, creep, marks, the spec's
                                   #   bounds and JSON (S7 guide A-102)
+    tst_layers.cpp                # Stage 7 T17 -- the layers read first-party against their label, bounded; the model's
+                                  #   editing half and the view's rule; the four commands through the shipped sink, saved and
+                                  #   read back, reversible over the corpus; a view no edit (S7 guide A-105 ... A-107)
     tst_impositionops.cpp         # Stage 7 T16 -- impositions through pdf/ops, read back first-party: one revision, one form
                                   #   per page and what they share once, the marks' resources, annotations counted, the
                                   #   corpus swept and kept for qpdf (S7 guide A-104's first-party half, A-47 re-run)

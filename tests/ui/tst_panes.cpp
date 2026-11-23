@@ -576,9 +576,9 @@ TEST_CASE("the sidebar's pane list holds exactly the panes that exist", "[panes]
     // THREE, AND THE FIRST IS THUMBNAILS. This case was written at T5 against a list of ONE and
     // is corrected here rather than left beside T6's own version of it (convention 8: correct a
     // stale claim in place). Stage 6 T9 made it FOUR with the Comments pane (D6-12), and T11 FIVE with the
-    // Attachments pane (D6-17). The other five panes in `Features.md` §1.1 are still not listed, which is the half
-    // that does not move until their models exist.
-    REQUIRE(sidebar->panes().size() == 5);
+    // Attachments pane (D6-17), and Stage 7 T17 SIX with the Layers pane (D7-9). The other four panes in `Features.md`
+    // §1.1 are still not listed, which is the half that does not move until their models exist.
+    REQUIRE(sidebar->panes().size() == 6);
     CHECK(sidebar->panes().front().id == ActionId::PaneThumbnails);
     CHECK(sidebar->currentPane() == ActionId::PaneThumbnails);
 
@@ -587,16 +587,17 @@ TEST_CASE("the sidebar's pane list holds exactly the panes that exist", "[panes]
     // generated surface reads the TABLE.
     auto* chooser = sidebar->findChild<QComboBox*>(QStringLiteral("sidebarPaneChooser"));
     REQUIRE(chooser != nullptr);
-    CHECK(chooser->count() == 5);
+    CHECK(chooser->count() == 6);
 
     // The Stage 1 placeholder is still there and is not what is on screen.
     CHECK(sidebar->paneWidget(ActionId::PaneThumbnails) == thumbs.pane);
     CHECK(sidebar->paneWidget(ActionId::PaneComments) != nullptr);   // S6 T9
     CHECK(sidebar->paneWidget(ActionId::PaneAttachments) != nullptr);   // S6 T11
+    CHECK(sidebar->paneWidget(ActionId::PaneLayers) != nullptr);        // S7 T17
     CHECK(sidebar->paneWidget(ActionId::PaneSignatures) == nullptr);    // Stage 11's
 }
 
-TEST_CASE("the five unbuilt pane chords are NotImplemented and leave the key alone", "[panes]")
+TEST_CASE("the four unbuilt pane chords are NotImplemented and leave the key alone", "[panes]")
 {
     Pane thumbs(12);
 
@@ -604,11 +605,11 @@ TEST_CASE("the five unbuilt pane chords are NotImplemented and leave the key alo
     // surface is indistinguishable from a broken one. These six are declared in §8 with their
     // chords, have no model to show, and must therefore do nothing AND not eat the key. SEVEN until Stage 6 T9,
     // which built the Comments pane and registered `pane.comments` (`Ctrl+Shift+C`); SIX until T11, which built the
-    // Attachments pane and registered `pane.attachments` (`Ctrl+Shift+A`).
+    // Attachments pane and registered `pane.attachments` (`Ctrl+Shift+A`); FIVE until Stage 7 T17, which built the Layers
+    // pane and registered `pane.layers` (`Ctrl+Shift+L`, `tests/ui/tst_layerspane.cpp`).
     struct Row { Qt::Key key; ActionId id; };
     const Row rows[] = {
-        {Qt::Key_I, ActionId::PaneFields},
-        {Qt::Key_L, ActionId::PaneLayers},      {Qt::Key_E, ActionId::PaneTags},
+        {Qt::Key_I, ActionId::PaneFields},      {Qt::Key_E, ActionId::PaneTags},
         {Qt::Key_G, ActionId::PaneSignatures},  {Qt::Key_O, ActionId::PaneDocumentMap},
     };
 
@@ -619,7 +620,7 @@ TEST_CASE("the five unbuilt pane chords are NotImplemented and leave the key alo
 
         // AND THE LIST DID NOT GROW. A chord that opened an empty dock is the failure this case
         // exists to catch, and it would show here rather than in the outcome above.
-        CHECK(thumbs.window->sidebar()->panes().size() == 5);
+        CHECK(thumbs.window->sidebar()->panes().size() == 6);
     }
 
     // `pane.bookmarks` and `pane.destinations` ARE registered as of T6, and are named here so the
@@ -628,6 +629,7 @@ TEST_CASE("the five unbuilt pane chords are NotImplemented and leave the key alo
     CHECK(thumbs.fixture.actions.isRegistered(ActionId::PaneBookmarks));
     CHECK(thumbs.fixture.actions.isRegistered(ActionId::PaneComments));   // S6 T9
     CHECK(thumbs.fixture.actions.isRegistered(ActionId::PaneAttachments));   // S6 T11
+    CHECK(thumbs.fixture.actions.isRegistered(ActionId::PaneLayers));        // S7 T17
     CHECK(thumbs.fixture.actions.isRegistered(ActionId::PaneDestinations));
 }
 
@@ -1189,20 +1191,23 @@ TEST_CASE("showing a pane on an already-open document re-reads no model", "[pane
     CHECK(panes.bookmarks->nodeCount() == 5);
 }
 
-TEST_CASE("the sidebar now lists exactly five panes, and still no more", "[panes]")
+TEST_CASE("the sidebar now lists exactly six panes, and still no more", "[panes]")
 {
     // A-37 re-read at T6, where the case as written -- "exactly Thumbnails, Bookmarks and
     // Destinations" -- finally has all three to check.
     Panes panes;
     ui::SidebarDock* sidebar = panes.window->sidebar();
 
-    // FOUR since Stage 6 T9: the Comments pane after them (D6-12); FIVE since T11, the Attachments pane (D6-17).
-    REQUIRE(sidebar->panes().size() == 5);
+    // FOUR since Stage 6 T9: the Comments pane after them (D6-12); FIVE since T11, the Attachments pane (D6-17); SIX since
+    // Stage 7 T17, the Layers pane (D7-9).
+    REQUIRE(sidebar->panes().size() == 6);
     CHECK(sidebar->panes()[0].id == ActionId::PaneThumbnails);
     CHECK(sidebar->panes()[1].id == ActionId::PaneBookmarks);
     CHECK(sidebar->panes()[2].id == ActionId::PaneDestinations);
-    CHECK(sidebar->panes()[3].id == ActionId::PaneComments);
-    CHECK(sidebar->panes()[4].id == ActionId::PaneAttachments);
+    // The Layers pane where `ActionId.def` declares it -- before the Comments pane -- since the list is the table's order.
+    CHECK(sidebar->panes()[3].id == ActionId::PaneLayers);
+    CHECK(sidebar->panes()[4].id == ActionId::PaneComments);
+    CHECK(sidebar->panes()[5].id == ActionId::PaneAttachments);
 
     // THE CHOOSER IS VISIBLE NOW, which it was not at T5: it is hidden below two panes, because a
     // chooser with one entry is furniture. The surface reads the registry rather than a second
@@ -1210,13 +1215,14 @@ TEST_CASE("the sidebar now lists exactly five panes, and still no more", "[panes
     driveLayout(panes.window.get());
     auto* chooser = sidebar->findChild<QComboBox*>(QStringLiteral("sidebarPaneChooser"));
     REQUIRE(chooser != nullptr);
-    CHECK(chooser->count() == 5);
+    CHECK(chooser->count() == 6);
     CHECK(chooser->isVisible());
 
-    // And the five that have no model are still absent -- the D4-2 claim, re-asserted where the
-    // list has grown, because "only panes that exist" is a claim about the whole set.
-    CHECK(sidebar->paneWidget(ActionId::PaneLayers) == nullptr);
+    // And the four that have no model are still absent -- the D4-2 claim, re-asserted where the
+    // list has grown, because "only panes that exist" is a claim about the whole set. The Layers pane exists since S7 T17.
+    CHECK(sidebar->paneWidget(ActionId::PaneLayers) != nullptr);
     CHECK(sidebar->paneWidget(ActionId::PaneSignatures) == nullptr);
+    CHECK(sidebar->paneWidget(ActionId::PaneTags) == nullptr);
 }
 
 TEST_CASE("Ctrl+Shift+B opens the bookmarks pane, and the destinations pane has no chord",

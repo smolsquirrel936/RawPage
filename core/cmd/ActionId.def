@@ -496,6 +496,11 @@ RAWPAGE_ACTION(LayerLock,              "layer.lock",              Global, "actio
 RAWPAGE_ACTION(LayerMerge,             "layer.merge",             Global, "action.layer.merge")
 RAWPAGE_ACTION(LayerFlatten,           "layer.flatten",           Global, "action.layer.flatten")
 RAWPAGE_ACTION(LayerProperties,        "layer.properties",        Global, "action.layer.properties")
+// Stage 7 T17: minted -- the surfaces *Create a layer*, *Delete a layer* and *Rename a layer* need (`Features.md` §5.6)
+// and §8 does not name (plan §4).
+RAWPAGE_ACTION(LayerCreate,            "layer.create",            Global, "action.layer.create")
+RAWPAGE_ACTION(LayerDelete,            "layer.delete",            Global, "action.layer.delete")
+RAWPAGE_ACTION(LayerRename,            "layer.rename",            Global, "action.layer.rename")
 
 RAWPAGE_ACTION(HeaderFooterAdd,        "headerFooter.add",        Global, "action.headerFooter.add")
 RAWPAGE_ACTION(HeaderFooterUpdate,     "headerFooter.update",     Global, "action.headerFooter.update")

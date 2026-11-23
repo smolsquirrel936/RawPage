@@ -64,5 +64,9 @@ RAWPAGE_COMMAND(ApplyBatesCommand, "bates.apply", "core/cmd/commands/DecorationC
 RAWPAGE_COMMAND(RemoveBatesCommand, "bates.remove", "core/cmd/commands/DecorationCommands.h")
 RAWPAGE_COMMAND(ApplyWatermarkCommand, "watermark.apply", "core/cmd/commands/DecorationCommands.h")
 RAWPAGE_COMMAND(RemoveWatermarkCommand, "watermark.remove", "core/cmd/commands/DecorationCommands.h")
+RAWPAGE_COMMAND(CreateLayerCommand, "layer.create", "core/cmd/commands/StructureCommands.h")
+RAWPAGE_COMMAND(DeleteLayerCommand, "layer.delete", "core/cmd/commands/StructureCommands.h")
+RAWPAGE_COMMAND(MergeLayersCommand, "layer.merge", "core/cmd/commands/StructureCommands.h")
+RAWPAGE_COMMAND(SetLayerPropertiesCommand, "layer.setProperties", "core/cmd/commands/StructureCommands.h")
 
 #undef RAWPAGE_COMMAND

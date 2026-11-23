@@ -320,6 +320,20 @@ TEST_CASE("shadows() reports class 1 and never class 2", "[keybindings]")
 // A-33 -- each collision resolves to the right id per context
 // =======================================================================================
 
+// Stage 7 guide A-109 (T17): `Ctrl+Shift+L` is the Layers pane wherever Write mode does not claim the chord -- the pane's
+// command registered at T17 (`tests/ui/tst_layerspane.cpp`), the binding §8's, and Write's row the bulleted list still.
+TEST_CASE("Ctrl+Shift+L shows the Layers pane in every context but Write", "[keybindings]")
+{
+    const KeyBindingStore store;
+    const auto at = [&](KeyContext context) { return store.lookup(*Chord::parse("Ctrl+Shift+L"), context); };
+    for (const KeyContext context : {KeyContext::Global, KeyContext::Common, KeyContext::Viewer, KeyContext::PageThumbnails,
+                                     KeyContext::Bookmarks, KeyContext::Comments, KeyContext::FindSearch}) {
+        INFO(static_cast<int>(context));
+        CHECK(at(context) == ActionId::PaneLayers);
+    }
+    CHECK(at(KeyContext::Write) == ActionId::WriteBulletedList);
+}
+
 TEST_CASE("the class-1 chords each mean the right thing in each context", "[keybindings]")
 {
     // The one thing the whole KeyContext model exists for.

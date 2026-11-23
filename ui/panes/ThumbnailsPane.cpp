@@ -732,6 +732,9 @@ RenderRequest ThumbnailsPane::requestFor(int pageIndex) const
     // and transparency-grid preferences are about reading it at size. Sharing the viewer's flags
     // would also split the cache key for no visible gain at 128 pixels wide.
     request.flags = core::render::RenderFlags::None;
+    // S7 T17 (D7-9): but the layers the screen hides, as the viewer's tiles are -- a thumbnail shows the page as it is
+    // seen, and the scheduler supersedes a request under any other view.
+    request.hiddenLayers = scheduler_.layerView(document_);
     return request;
 }
 

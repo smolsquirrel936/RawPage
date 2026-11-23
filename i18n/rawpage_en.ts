@@ -1180,6 +1180,18 @@
         <translation>Properties</translation>
     </message>
     <message>
+        <source>action.layer.create</source>
+        <translation>New Layer…</translation>
+    </message>
+    <message>
+        <source>action.layer.delete</source>
+        <translation>Delete Layer</translation>
+    </message>
+    <message>
+        <source>action.layer.rename</source>
+        <translation>Rename Layer</translation>
+    </message>
+    <message>
         <source>action.headerFooter.add</source>
         <translation>Add Header and Footer…</translation>
     </message>
@@ -3957,6 +3969,62 @@
         <source>error.imposition.pageUnsupported</source>
         <translation>A page cannot be drawn on a sheet (page and reason: %1).</translation>
     </message>
+    <message>
+        <source>error.layer.badId</source>
+        <translation>A layer in this command could not be read.</translation>
+    </message>
+    <message>
+        <source>error.layer.badName</source>
+        <translation>A layer name must have a visible character and no control character.</translation>
+    </message>
+    <message>
+        <source>error.layer.tooMany</source>
+        <translation>This document has more layers than can be edited (%1).</translation>
+    </message>
+    <message>
+        <source>error.layer.notFound</source>
+        <translation>The document has no such layer.</translation>
+    </message>
+    <message>
+        <source>error.layer.notEditable</source>
+        <translation>The layer %1 belongs to a watermark and is not edited here.</translation>
+    </message>
+    <message>
+        <source>error.layer.mergeSelf</source>
+        <translation>A layer cannot be merged into itself.</translation>
+    </message>
+    <message>
+        <source>error.layer.badParent</source>
+        <translation>A layer cannot be nested under a layer that is nested under it.</translation>
+    </message>
+    <message>
+        <source>error.layer.badOrder</source>
+        <translation>The layer order names a layer the document does not have.</translation>
+    </message>
+    <message>
+        <source>error.layer.tooDeep</source>
+        <translation>The layers are nested more than %1 deep and are read-only.</translation>
+    </message>
+    <message>
+        <source>error.layer.orderCycle</source>
+        <translation>The layer order contains itself and is read-only.</translation>
+    </message>
+    <message>
+        <source>error.layer.locked</source>
+        <translation>The layer %1 is locked: it is shown or hidden as the document says.</translation>
+    </message>
+    <message>
+        <source>error.layer.unchanged</source>
+        <translation>The layer %1 already has these properties.</translation>
+    </message>
+    <message>
+        <source>error.layer.notWritten</source>
+        <translation>A layer could not be written.</translation>
+    </message>
+    <message>
+        <source>error.layer.viewNotShown</source>
+        <translation>The layers could not be shown as chosen.</translation>
+    </message>
 </context>
 <context>
     <name>ribbon</name>
@@ -5237,6 +5305,26 @@
     <message>
         <source>command.watermark.remove</source>
         <translation>Remove watermarks from %1 page(s)</translation>
+    </message>
+    <message>
+        <source>command.layer.create</source>
+        <translation>Create layer %1</translation>
+    </message>
+    <message>
+        <source>command.layer.delete</source>
+        <translation>Delete layer %1</translation>
+    </message>
+    <message>
+        <source>command.layer.deleteMany</source>
+        <translation>Delete %1 layers</translation>
+    </message>
+    <message>
+        <source>command.layer.merge</source>
+        <translation>Merge %1 layer(s) into %2</translation>
+    </message>
+    <message>
+        <source>command.layer.properties</source>
+        <translation>Set the properties of layer %1</translation>
     </message>
 </context>
 <context>
@@ -8076,6 +8164,129 @@
     <message>
         <source>imposition.suggestedName</source>
         <translation>%1 (imposed)</translation>
+    </message>
+</context>
+<context>
+    <name>layers</name>
+    <message>
+        <source>layers.title</source>
+        <translation>Layers</translation>
+    </message>
+    <message>
+        <source>layers.column.name</source>
+        <translation>Layer</translation>
+    </message>
+    <message>
+        <source>layers.column.locked</source>
+        <translation>Lock</translation>
+    </message>
+    <message>
+        <source>layers.locked</source>
+        <translation>Locked</translation>
+    </message>
+    <message>
+        <source>layers.lockedTip</source>
+        <translation>Locked: the document keeps this layer shown or hidden as it is.</translation>
+    </message>
+    <message>
+        <source>layers.usage.unset</source>
+        <translation>Not set</translation>
+    </message>
+    <message>
+        <source>layers.usage.on</source>
+        <translation>Shown</translation>
+    </message>
+    <message>
+        <source>layers.usage.off</source>
+        <translation>Hidden</translation>
+    </message>
+    <message>
+        <source>layers.nameLabel</source>
+        <translation>Name:</translation>
+    </message>
+    <message>
+        <source>layers.mergeTitle</source>
+        <translation>Merge Layers</translation>
+    </message>
+    <message>
+        <source>layers.mergeInto</source>
+        <translation>Merge %1 into:</translation>
+    </message>
+    <message>
+        <source>layers.propertiesTitle</source>
+        <translation>Layer Properties</translation>
+    </message>
+    <message>
+        <source>layers.shownAtOpen</source>
+        <translation>Shown when the document opens</translation>
+    </message>
+    <message>
+        <source>layers.lockedBox</source>
+        <translation>Locked: a viewer may not show or hide it</translation>
+    </message>
+    <message>
+        <source>layers.print</source>
+        <translation>When printed:</translation>
+    </message>
+    <message>
+        <source>layers.view</source>
+        <translation>On screen:</translation>
+    </message>
+    <message>
+        <source>layers.export</source>
+        <translation>When exported:</translation>
+    </message>
+    <message>
+        <source>layers.parent</source>
+        <translation>Nested under:</translation>
+    </message>
+    <message>
+        <source>layers.topLevel</source>
+        <translation>(Top level)</translation>
+    </message>
+    <message>
+        <source>layers.exclusive</source>
+        <translation>Only one shown at a time with:</translation>
+    </message>
+    <message>
+        <source>layers.defaultName</source>
+        <translation>Layer %1</translation>
+    </message>
+    <message>
+        <source>layers.newTitle</source>
+        <translation>New Layer</translation>
+    </message>
+    <message>
+        <source>layers.done</source>
+        <translation>%1.</translation>
+    </message>
+    <message>
+        <source>layers.refused</source>
+        <translation>%1 was not done: %2</translation>
+    </message>
+    <message>
+        <source>layers.viewRefused</source>
+        <translation>The layer could not be shown or hidden: %1</translation>
+    </message>
+    <message>
+        <source>layers.deleted</source>
+        <translation>Deleted the layer %1. What it drew is in no layer now, and is drawn as content no layer lists.</translation>
+    </message>
+    <message>
+        <source>layers.tooltip.needsLayer</source>
+        <translation>Select a layer in the Layers pane first.</translation>
+    </message>
+    <message>
+        <source>layers.tooltip.needsShown</source>
+        <translation>Select a shown layer that is not locked.</translation>
+    </message>
+    <message>
+        <source>layers.tooltip.needsHidden</source>
+        <translation>Select a hidden layer that is not locked.</translation>
+    </message>
+    <message>
+        <source>layers.tooltip.needsTwo</source>
+        <translation>Select a layer; the document needs another to merge it into.</translation>
     </message>
 </context>
 </TS>

@@ -100,6 +100,8 @@ add_executable(rawpage_render_tests
                                   #   rotation; Bates across three open documents; shrink graded on the ink with its control
     tst_impositionengine.cpp      # Stage 7 T16 -- guide A-103 (D7-8, D7-46): impositions through the shipped backend opened by
                                   #   PDFium with no repair, each identity it extracts in its planned cell, upright or turned
+    tst_layersengine.cpp          # Stage 7 T17 -- guide A-105 ... A-107's engine halves (D7-9): the default view, a view shown
+                                  #   and hidden drawn with no byte written, a delete's orphan and a merge as PDFium draws them
     tst_watermarkengine.cpp       # Stage 7 T15 -- guide A-99 ... A-101's raster halves (D7-45): print-only and screen-only under
                                   #   PDFium's print flag and without it; behind hidden by opaque content and in front not;
                                   #   opacity on the raster; a page as the source; an image page; 0 px after apply-remove

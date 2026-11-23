@@ -25,6 +25,7 @@
 #include "pdf/ops/EmbeddedFileReader.h"
 #include "pdf/ops/AnnotationReader.h"
 #include "core/doc/Destinations.h"
+#include "core/doc/LayerTree.h"
 #include "core/doc/Metadata.h"
 #include "core/doc/PageTransitions.h"
 #include "core/doc/Outline.h"
@@ -41,6 +42,7 @@
 #include "pdf/ops/PageStamp.h"
 #include "pdf/ops/DocumentAssembler.h"
 #include "pdf/ops/DocumentMerger.h"
+#include "pdf/ops/LayerOps.h"
 #include "pdf/ops/RevisionWriter.h"
 #include "pdf/ops/SignatureFields.h"
 #include "pdf/cos/XrefRepair.h"
@@ -169,6 +171,8 @@ public:
                                                           QLatin1String("error.destination.readingsDisagree"),
                                                           QStringLiteral("planted")});
             plantedDestinations_ = false;
+            // S7 T17 (D7-9): the layers, first-party -- the only reading there is.
+            entry->layers = pdf::ops::LayerOps::read(sink.value()->table());
         }
         if (fromBytes)
             entry->permissions = core::Permissions::readOnly(origin == core::BytesOrigin::Assembly ? "error.edit.unsavedAssembly"
@@ -368,6 +372,39 @@ public:
         return entry ? &entry->destinations : &destinations_;
     }
     const core::Metadata* metadata(core::DocumentHandle) const override { return &metadata_; }
+    // S7 T17: the layers as read at open; and a view composed as the shipped backend composes it -- over the newest
+    // revision and the last update shown -- with no engine to hand it to. `shownView()` is that section.
+    const core::LayerTree* layers(core::DocumentHandle handle) const override
+    {
+        const auto* entry = find(handle);
+        return entry ? &entry->layers : nullptr;
+    }
+    core::Status showLayers(core::DocumentHandle handle, const std::vector<core::LayerId>& hidden) override
+    {
+        auto* entry = findMutable(handle);
+        if (entry == nullptr)
+            return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.backend.unknownDocument"), QString()};
+        std::vector<long long> numbers;
+        for (const core::LayerId& id : hidden) {
+            if (!id.isCreated()) numbers.push_back(id.object);
+            else if (entry->sink) {
+                if (const std::optional<long long> number = entry->sink->layerNumber(id)) numbers.push_back(*number);
+            }
+        }
+        std::string composed(entry->bytes.constData(), static_cast<std::size_t>(entry->bytes.size()));
+        composed.append(entry->shown.constData(), static_cast<std::size_t>(entry->shown.size()));
+        auto view = pdf::ops::LayerOps::viewSection(composed, numbers, entry->shown.isEmpty());
+        if (!view) return view.error();
+        entry->view = std::move(view).value();
+        ++layerViews_;
+        return {};
+    }
+    QByteArray shownView(core::DocumentHandle handle) const
+    {
+        const auto* entry = find(handle);
+        return entry ? entry->view : QByteArray();
+    }
+    int layerViews() const noexcept { return layerViews_; }
 
     // S4 T10 (D4-12): empty, which is the ordinary answer -- almost no document carries one.
     const core::PageTransitions* pageTransitions(core::DocumentHandle) const override
@@ -411,6 +448,7 @@ public:
 
     core::Outline outline_;
     core::Destinations destinations_;
+    int layerViews_ = 0;   // S7 T17
     core::Metadata metadata_;
     core::PageTransitions transitions_;
 
@@ -554,6 +592,9 @@ private:
         core::Attachments attachments;         // S6 T11
         core::Outline outline;                 // S7 T11
         core::Destinations destinations;       // S7 T12
+        core::LayerTree layers = core::LayerTree::refused(
+            core::Error{core::ErrorCode::PermissionDenied, QLatin1String("error.edit.encrypted"), QString()});   // S7 T17
+        QByteArray view;                       // S7 T17: the view section the last `showLayers` composed
         QByteArray bytes;
         core::PageTree tree;
         core::RepairReport repair;

@@ -4,6 +4,7 @@
 #include "core/cmd/commands/AnnotationCommands.h"
 #include "core/cmd/commands/AttachmentCommands.h"
 #include "core/cmd/commands/PageCommands.h"
+#include "core/cmd/commands/StructureCommands.h"
 #include "core/doc/MergeRunner.h"
 #include "core/doc/PageTree.h"
 #include "core/doc/PageWorkRunner.h"
@@ -28,6 +29,7 @@
 #include "ui/panes/AttachmentsPane.h"
 #include "ui/panes/CommentsPane.h"
 #include "ui/panes/DestinationsPane.h"
+#include "ui/panes/LayersPane.h"
 #include "ui/panes/ThumbnailsPane.h"
 #include "ui/shell/ActionFactory.h"
 #include "ui/shell/Catalog.h"
@@ -354,6 +356,30 @@ MainWindow::MainWindow(const app::Services& services, QWidget* parent)
     destinations_ = new DestinationsPane(sidebar_);
     sidebar_->addPane(core::ActionId::PaneDestinations,
                       catalog::translate(catalog::key::PanesDestinationsTitle), destinations_);
+
+    // S7 T17 (D7-9) -- THE LAYERS PANE. Its eye is view state, handed to the tab (`setLayerShown`); a rename typed in
+    // place and every row of its menu are commands, registered in `registerLayerActions`.
+    layers_ = new LayersPane(sidebar_);
+    sidebar_->addPane(core::ActionId::PaneLayers, catalog::translate(catalog::key::LayersTitle), layers_);
+    connect(layers_, &LayersPane::visibilityRequested, this, [this](const core::LayerId& id, bool shown) {
+        (void)setLayerShown(currentDocument(), id, shown);
+    });
+    connect(layers_, &LayersPane::renameRequested, this, [this](const core::LayerId& id, const QString& name) {
+        DocumentWindow* document = currentDocument();
+        if (document == nullptr || document->journal() == nullptr) return;
+        core::LayerProperties properties = core::LayerProperties::of(document->journal()->document().layers(), id);
+        if (properties.name == name) return;
+        properties.name = name;
+        (void)runLayerCommand(document, std::make_unique<core::SetLayerPropertiesCommand>(id, std::move(properties)));
+    });
+    connect(layers_, &LayersPane::actionRequested, this,
+            [this](core::ActionId id) { (void)services_.actions.dispatch(id, core::KeyContext::Global); });
+    layers_->setChordText([this](core::ActionId id) {
+        if (const std::optional<core::Chord> chord = services_.keyBindings.primaryChordFor(id, core::KeyContext::Global))
+            return QString::fromStdString(chord->toString());
+        return QString();
+    });
+    layers_->setCommandEnabled([this](core::ActionId id) { return services_.actions.isEnabled(id); });
 
     // ONE NAVIGATION, whichever pane asked. Both panes hand up a `core::Destination` and this is
     // the single place that turns one into a movement, so a bookmark and a named destination
@@ -902,6 +928,14 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
         updateBookmarksPane(document);   // S7 T11: the model's outline, which the command remapped
         updateDestinationsPane(document);   // S7 T12: and the model's table
     });
+    // S7 T17 (D7-9): the layers the screen hides changed -- the thumbnails are asked again under the new view, the pane's
+    // eyes follow, and the chrome re-asks `layer.show` and `layer.hide`.
+    connect(document, &DocumentWindow::layerViewChanged, this, [this, document] {
+        if (document != currentDocument()) return;
+        if (thumbnails_) thumbnails_->refresh();
+        updateLayersPane(document);
+        if (actionFactory_) actionFactory_->refresh();
+    });
     connect(document, &DocumentWindow::mutated, this, [this, document] {
         updateDocumentTitles();
         // THE PANE IS TOLD THE NEW REVISION, not re-pointed at the document (Stage 4 T5). A
@@ -920,6 +954,8 @@ void MainWindow::adoptDocument(DocumentWindow* document, int index)
         if (document == currentDocument()) updateBookmarksPane(document);
         // S7 T12: and the Destinations pane the table -- a destination command, its undo, a page command's remap.
         if (document == currentDocument()) updateDestinationsPane(document);
+        // S7 T17: and the Layers pane the tree -- a layer command, its undo.
+        if (document == currentDocument()) updateLayersPane(document);
         // S6 T9: the Comments pane re-asks its query, keeping the comment it had current.
         if (comments_ && document == currentDocument()) {
             if (const core::CommandJournal* journal = document->journal()) {
@@ -2791,6 +2827,7 @@ void MainWindow::updateDocumentPanes()
         thumbnails_->setDocument({}, {}, nullptr);
         if (bookmarks_) bookmarks_->setDocument({}, nullptr);
         if (destinations_) destinations_->setDocument({}, nullptr);
+        if (layers_) layers_->setDocument({}, nullptr, {}, false);   // S7 T17
         if (comments_) comments_->setDocument(nullptr, {}, {}, {});
         if (attachments_) attachments_->setDocument(nullptr, nullptr, false);
         updateCommentNumbers();
@@ -2835,6 +2872,7 @@ void MainWindow::updateDocumentPanes()
     // than an error (`core/backend.h` draws that distinction deliberately).
     updateBookmarksPane(current);   // S7 T11 (D7-10): the model's outline, editable where it may be
     updateDestinationsPane(current);   // S7 T12 (D7-10): the model's table
+    updateLayersPane(current);   // S7 T17 (D7-9): the tree, and what this tab's screen hides
 
     // THE MODEL'S TREE FOR WHAT IS SHOWN, THE ENGINE'S FOR THE DELTA (D3-15) -- the same pair
     // `DocumentWindow` hands `PageView`, so an unsaved rotation is in the thumbnail and in the page
@@ -3403,6 +3441,7 @@ void MainWindow::registerActions()
     registerLinkActions();       // S7 T12
     registerDecorationActions();   // S7 T14
     registerImpositionActions();   // S7 T16
+    registerLayerActions();        // S7 T17
 
     // --- Documents and windows (T12) --------------------------------------------------------
     // `file.open` raises a file dialog and hands what it collects to `openFiles`, which checks a

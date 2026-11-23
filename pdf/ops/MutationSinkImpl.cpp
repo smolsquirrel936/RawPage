@@ -2,6 +2,7 @@
 
 #include "pdf/ops/MutationSinkImpl.h"
 
+#include "pdf/ops/LayerOps.h"
 #include "pdf/ops/OutlineOps.h"
 
 #include "core/Measure.h"
@@ -555,6 +556,8 @@ core::Result<cos::ObjectDelta> MutationSinkImpl::delta()
     numberNewPages(delta);
     if (core::Status graphs = composeGraphs(delta); !graphs) return graphs.error();
     if (core::Status replaced = composeReplacements(pageDictionaries, handled); !replaced) return replaced.error();
+    // S7 T17 (D7-9): the layer commands' tree, before the groups inserted pages bring are listed on top of it.
+    if (core::Status edited = composeLayerEdits(delta, pageDictionaries); !edited) return edited.error();
     if (core::Status layers = composeLayers(pageDictionaries); !layers) return layers.error();
     if (orderChanged) {
         if (core::Status order = composePageOrder(delta, pageDictionaries, handled); !order) return order.error();
@@ -1903,6 +1906,7 @@ core::Status MutationSinkImpl::adopt(std::string_view bytes)
     // S7 T11: the outline, as it composed it -- each created item now the object the save put it at.
     if (core::Status outline = reconcileOutline(table.value()); !outline) return outline;
     if (core::Status destinations = reconcileDestinations(table.value()); !destinations) return destinations;   // S7 T12
+    if (core::Status layers = reconcileLayers(table.value()); !layers) return layers;   // S7 T17
 
     bytes_ = bytes;
     table_ = std::move(table).value();
@@ -2047,6 +2051,11 @@ core::Status MutationSinkImpl::adopt(std::string_view bytes)
     // S7 T11: a created item keeps the number the save gave it; a target on a page the save first numbered follows it; and
     // what was read of the old revision goes.
     for (const auto& [key, number] : outlineComposed_) outlineOnDisk_.insert_or_assign(key, number);
+    // S7 T17: a created group keeps the number the save gave it, and the tree saved is the disk's as the model knows it.
+    for (const auto& [key, number] : layersComposed_) layersOnDisk_.insert_or_assign(key, number);
+    layersComposed_.clear();
+    layerBaseline_ = layers_;
+    layerReferences_.reset();
     outlineComposed_.clear();
     outlineRootComposed_.reset();
     diskOutline_.reset();
@@ -5374,6 +5383,181 @@ core::Status MutationSinkImpl::reconcileDestinations(cos::XrefTable& written) co
     }
     for (const DestinationReader::Entry& entry : reading.entries) got.emplace(static_cast<int>(entry.form), entry.key);
     if (want != got) return mismatch(QString::number(static_cast<qulonglong>(got.size())));
+    return core::Status{};
+}
+
+// ==========================================================================================
+// Layers (Stage 7 T17, D7-9) -- see the header
+// ==========================================================================================
+
+core::Status MutationSinkImpl::setLayers(const core::LayerTree& layers)
+{
+    if (core::Status valid = layers.validate(); !valid) return valid;
+    layers_ = layers;
+    return core::Status{};
+}
+
+const core::LayerTree& MutationSinkImpl::layerBaseline()
+{
+    if (!layerBaseline_) layerBaseline_ = LayerOps::read(table_);
+    return *layerBaseline_;
+}
+
+std::optional<long long> MutationSinkImpl::layerNumber(const core::LayerId& id) const
+{
+    if (!id.isCreated()) return id.object > 0 ? std::optional<long long>(id.object) : std::nullopt;
+    if (const auto composed = layersComposed_.find(id.created); composed != layersComposed_.end()) return composed->second;
+    if (const auto saved = layersOnDisk_.find(id.created); saved != layersOnDisk_.end()) return saved->second;
+    return std::nullopt;
+}
+
+std::map<QString, long long> MutationSinkImpl::createdLayerNumbers() const
+{
+    std::map<QString, long long> out = layersOnDisk_;
+    for (const auto& [key, number] : layersComposed_) out.insert_or_assign(key, number);
+    return out;
+}
+
+std::set<long long> MutationSinkImpl::removedLayers()
+{
+    std::set<long long> out;
+    if (!layers_) return out;
+    for (const core::Layer& layer : layerBaseline().layers()) {
+        if (layers_->find(layer.id) != nullptr) continue;
+        if (const std::optional<long long> number = layerNumber(layer.id)) out.insert(*number);
+    }
+    for (const auto& merge : layers_->merges()) {
+        if (const std::optional<long long> number = layerNumber(merge.first)) out.insert(*number);
+    }
+    return out;
+}
+
+core::Status MutationSinkImpl::composeLayerEdits(cos::ObjectDelta& delta, std::map<long long, cos::CosObject>& pending)
+{
+    layersComposed_.clear();
+    if (!layers_ || layers_->digest() == layerBaseline().digest()) return core::Status{};
+    const core::LayerTree& model = *layers_;
+    const auto current = [&](long long number) -> std::optional<cos::CosObject> {
+        if (const auto held = pending.find(number); held != pending.end()) return held->second;
+        auto fetched = table_.fetch(number);
+        if (!fetched) return std::nullopt;
+        return withoutSpans(fetched.value().object);
+    };
+
+    // 1. EACH GROUP'S DICTIONARY: a created one new; one whose name or usage changed written again, its other keys kept.
+    for (const core::Layer& layer : model.layers()) {
+        if (layer.decoration) continue;
+        if (layer.id.isCreated() && layersOnDisk_.count(layer.id.created) == 0) {
+            const long long number =
+                delta.add("layer:" + layer.id.created.toStdString(), LayerOps::groupDictionary(layer, cos::CosObject::makeDictionary({})));
+            layersComposed_.insert_or_assign(layer.id.created, number);
+            continue;
+        }
+        const std::optional<long long> number = layerNumber(layer.id);
+        if (!number) return sinkError(core::ErrorCode::Corrupted, "error.layer.notWritten", -1);
+        const std::optional<cos::CosObject> dictionary = current(*number);
+        if (!dictionary || !dictionary->isDictionary()) return sinkError(core::ErrorCode::NotFound, "error.pdf.objectMissing", *number);
+        const core::Layer read = LayerOps::layerOf(table_, *dictionary);
+        if (read.name != layer.name || read.print != layer.print || read.view != layer.view || read.exportUsage != layer.exportUsage)
+            pending.insert_or_assign(*number, LayerOps::groupDictionary(layer, *dictionary));
+    }
+
+    // 2. EACH MERGE: every object naming the merged group repointed at the one it went into -- followed to the last
+    //    merge, and only where that group has an object (one created and deleted unsaved has none: the content is then
+    //    left naming the merged group, orphaned with it).
+    std::map<long long, cos::CosObject> into;
+    if (!model.merges().empty()) {
+        std::map<core::LayerId, core::LayerId> next;
+        for (const auto& merge : model.merges()) next[merge.first] = merge.second;
+        for (const auto& merge : model.merges()) {
+            core::LayerId last = merge.second;
+            for (std::size_t steps = 0; next.count(last) != 0 && steps <= model.merges().size(); ++steps) last = next[last];
+            const std::optional<long long> fromNumber = layerNumber(merge.first);
+            const std::optional<long long> toNumber = layerNumber(last);
+            if (!fromNumber || !toNumber || *fromNumber == *toNumber) continue;
+            into.insert_or_assign(*fromNumber,
+                                  cos::CosObject::makeReference(*toNumber, last.isCreated() ? 0 : generationOf(table_, *toNumber)));
+        }
+    }
+    if (!into.empty()) {
+        if (!layerReferences_) {
+            std::set<long long> groups;
+            for (const core::Layer& layer : layerBaseline().layers()) {
+                if (const std::optional<long long> number = layerNumber(layer.id)) groups.insert(*number);
+            }
+            for (const auto& entry : into) groups.insert(entry.first);
+            layerReferences_ = LayerOps::referencing(table_, groups);
+        }
+        for (const long long number : *layerReferences_) {
+            const std::optional<cos::CosObject> value = current(number);
+            if (!value) continue;
+            if (std::optional<cos::CosObject> moved = LayerOps::repointed(*value, into)) pending.insert_or_assign(number, std::move(*moved));
+        }
+    }
+
+    // 3. `/OCProperties`: the model's lists, what it does not know kept, each part written where it is held.
+    const cos::CosObject& root = table_.trailer().get("Root");
+    if (!root.isReference()) return sinkError(core::ErrorCode::Corrupted, "error.pdf.objectMissing", -1);
+    const long long catalogNumber = root.reference().number;
+    std::optional<cos::CosObject> catalog = current(catalogNumber);
+    if (!catalog || !catalog->isDictionary()) return sinkError(core::ErrorCode::NotFound, "error.pdf.objectMissing", catalogNumber);
+    const cos::CosObject* held = catalog->find("OCProperties");
+    std::optional<long long> holder;
+    cos::CosObject properties = cos::CosObject::makeDictionary({});
+    if (held != nullptr && held->isReference()) {
+        holder = held->reference().number;
+        if (std::optional<cos::CosObject> found = current(*holder); found && found->isDictionary()) properties = *found;
+    } else if (held != nullptr && held->isDictionary()) {
+        properties = *held;
+    }
+    const cos::CosObject dHeld = properties.get("D");
+    cos::CosObject defaults = cos::CosObject::makeDictionary({});
+    if (dHeld.isReference()) {
+        if (std::optional<cos::CosObject> found = current(dHeld.reference().number); found && found->isDictionary()) defaults = *found;
+    } else if (dHeld.isDictionary()) {
+        defaults = dHeld;
+    }
+    const std::set<long long> removed = removedLayers();
+    auto composed = LayerOps::compose(table_, properties, defaults, model, removed, [&](const core::LayerId& id) -> std::optional<cos::CosObject> {
+        const std::optional<long long> number = layerNumber(id);
+        if (!number) return std::nullopt;
+        return cos::CosObject::makeReference(*number, id.isCreated() ? 0 : generationOf(table_, *number));
+    });
+    if (!composed) return composed.error();
+    cos::CosObject out = properties;
+    if (const cos::CosObject& groups = properties.get("OCGs"); groups.isReference()) {
+        pending.insert_or_assign(groups.reference().number, std::move(composed.value().groups));
+    } else {
+        out = AnnotationOps::withEntry(out, "OCGs", std::move(composed.value().groups));
+    }
+    if (dHeld.isReference()) pending.insert_or_assign(dHeld.reference().number, std::move(composed.value().defaults));
+    else out = AnnotationOps::withEntry(out, "D", std::move(composed.value().defaults));
+    if (holder) pending.insert_or_assign(*holder, std::move(out));
+    else pending.insert_or_assign(catalogNumber, AnnotationOps::withEntry(*catalog, "OCProperties", std::move(out)));
+    return core::Status{};
+}
+
+core::Status MutationSinkImpl::reconcileLayers(cos::XrefTable& written) const
+{
+    if (!layers_) return core::Status{};
+    const core::LayerTree read = LayerOps::read(written);
+    const auto mismatch = [](const QString& where) {
+        return core::Error{core::ErrorCode::Corrupted, QLatin1String("error.save.verifyFailed"), QStringLiteral("layers:") + where};
+    };
+    std::map<long long, const core::Layer*> listed;
+    for (const core::Layer& layer : read.layers()) listed.emplace(layer.id.object, &layer);
+    for (const core::Layer& layer : layers_->layers()) {
+        if (layer.decoration) continue;
+        const std::optional<long long> number = layerNumber(layer.id);
+        if (!number) return mismatch(layer.id.toString());
+        const auto found = listed.find(*number);
+        if (found == listed.end()) return mismatch(QString::number(*number));
+        if (found->second->name != layer.name) return mismatch(QStringLiteral("name:") + QString::number(*number));
+    }
+    for (const auto& merge : layers_->merges()) {
+        if (const std::optional<long long> number = layerNumber(merge.first); number && listed.count(*number) != 0)
+            return mismatch(QStringLiteral("merged:") + QString::number(*number));
+    }
     return core::Status{};
 }
 

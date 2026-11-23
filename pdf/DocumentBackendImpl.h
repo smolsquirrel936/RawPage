@@ -96,6 +96,9 @@ public:
     core::Result<core::CopiedPages> tableOfContents(const core::TableOfContents& toc) override;
     const core::Destinations* destinations(core::DocumentHandle document) const override;
     const core::Metadata* metadata(core::DocumentHandle document) const override;
+    // S7 T17 (D7-9): the layers read first-party at open, and the screen's view of them -- see `core/backend.h`.
+    const core::LayerTree* layers(core::DocumentHandle document) const override;
+    core::Status showLayers(core::DocumentHandle document, const std::vector<core::LayerId>& hidden) override;
 
     // S4 T10 (D4-12). The first reader that is not PDFium's -- S5 T8's attachment descriptions are the
     // second (`searchUnits` below): the engine has no `/Trans` call, so
@@ -199,6 +202,8 @@ private:
     // S7 T4: the verify of `entry`'s last `showEdits`, finished -- before anything reads the sink again.
     static void awaitVerify(Open& entry);
     const Open* find(core::DocumentHandle document) const;
+    // S7 T17: the view section `target`'s hidden layers make after `base` and `update` -- empty with no view set.
+    static QByteArray viewOf(const Open& target, const QByteArray& base, const QByteArray& update);
     // The last piece: everything `open()` did after the engine opened the bytes, and the registration.
     core::Result<core::DocumentHandle> assemble(Opening& opening);
 

@@ -49,6 +49,10 @@ add_library(rawpage_ops STATIC
     # them, with the marks -- built and verified by the assembler.
     ImpositionOps.h
     ImpositionOps.cpp
+    # S7 T17 (D7-9): the layers read first-party, composed from the model whole, a merged group repointed, and the
+    # view-only section the screen's hidden groups are handed to the engine in.
+    LayerOps.h
+    LayerOps.cpp
 
     # S7 T6 (D7-20's reading, D7-25): how many signatures a document carries -- what Save As that rewrites asks about.
     SignatureFields.h

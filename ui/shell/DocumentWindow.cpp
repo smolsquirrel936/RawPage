@@ -655,6 +655,48 @@ PageView* DocumentWindow::view() const noexcept
 }
 
 // ---------------------------------------------------------------------------------------------
+// The layers the screen hides (S7 T17, D7-9) -- view state; see the header
+// ---------------------------------------------------------------------------------------------
+
+const core::LayerTree* DocumentWindow::layerTree() const
+{
+    if (journal_) return &journal_->document().layers();
+    return services_.backend.layers(handle_);
+}
+
+std::set<core::LayerId> DocumentWindow::hiddenLayers() const
+{
+    if (hiddenLayers_) return *hiddenLayers_;
+    const core::LayerTree* tree = layerTree();
+    return tree != nullptr ? core::LayerView::atOpen(*tree) : std::set<core::LayerId>{};
+}
+
+core::Status DocumentWindow::setLayerShown(const core::LayerId& id, bool shown)
+{
+    const core::LayerTree* tree = layerTree();
+    if (tree == nullptr)
+        return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.layer.viewNotShown"), QString()};
+    const std::set<core::LayerId> before = hiddenLayers();
+    core::Result<std::set<core::LayerId>> next = core::LayerView::setShown(*tree, before, id, shown);
+    if (!next) return next.error();
+    if (hiddenLayers_ && *hiddenLayers_ == next.value()) return {};
+    // THE KEY FIRST, then the engine: nothing the engine draws after the swap can be cached under the old view.
+    const std::vector<long long> previousKey = services_.renderScheduler.layerView(handle_);
+    services_.renderScheduler.setLayerView(handle_, core::LayerView::key(next.value()));
+    const std::vector<core::LayerId> hidden(next.value().begin(), next.value().end());
+    if (core::Status shownNow = services_.backend.showLayers(handle_, hidden); !shownNow) {
+        services_.renderScheduler.setLayerView(handle_, previousKey);
+        return shownNow;
+    }
+    hiddenLayers_ = std::move(next).value();
+    if (split_) {
+        for (PageView* pane : split_->views()) pane->layerViewChanged();
+    }
+    emit layerViewChanged();
+    return {};
+}
+
+// ---------------------------------------------------------------------------------------------
 // Reflow view (S5 T11, D5-16)
 // ---------------------------------------------------------------------------------------------
 

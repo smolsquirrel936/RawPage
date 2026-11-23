@@ -10,6 +10,7 @@
 #include "core/cmd/commands/DecorationCommands.h"
 #include "core/cmd/commands/DestinationCommands.h"
 #include "core/cmd/commands/PageCommands.h"
+#include "core/cmd/commands/StructureCommands.h"
 
 #include <QJsonValue>
 

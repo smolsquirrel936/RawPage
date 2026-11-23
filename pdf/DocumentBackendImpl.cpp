@@ -15,6 +15,7 @@
 #include "pdf/ops/FdfCodec.h"
 #include "pdf/cos/XrefRepair.h"
 #include "pdf/ops/EmbeddedFileReader.h"
+#include "pdf/ops/LayerOps.h"
 #include "pdf/ops/MutationSinkImpl.h"
 #include "pdf/ops/OutlineFiles.h"
 #include "pdf/ops/OutlineReader.h"
@@ -293,6 +294,18 @@ struct DocumentBackendImpl::Open {
     // S7 T12 (D7-10): the named destinations as read at OPEN, likewise -- each entry's table known where the two
     // readings agree, else PDFium's reading, refused for editing with the reason.
     core::Destinations openDestinations;
+
+    // S7 T17 (D7-9): THE LAYERS, read first-party at open -- the only reading; refused, with the reason, where the walk
+    // read nothing. And THIS HANDLE'S VIEW of them: the groups the screen hides, once a person showed or hid one
+    // (`showLayers`) -- none set, the engine draws the document's own default -- with what the engine was last handed,
+    // so a view can be drawn over it again: the base, the update, the gate its verify opens, and the numbers created
+    // groups had in that update. Read and written on the UI thread only.
+    core::LayerTree layers;
+    std::optional<std::vector<core::LayerId>> hiddenLayers;
+    QByteArray shownBase;
+    QByteArray shownUpdate;
+    std::shared_ptr<render::ShowGate> shownGate;
+    std::map<QString, long long> createdLayerNumbers;
 };
 
 DocumentBackendImpl::DocumentBackendImpl() = default;
@@ -657,6 +670,20 @@ core::Result<core::DocumentHandle> DocumentBackendImpl::assemble(Opening& openin
             entry->document->destinations().all());
     }
     entry->destinations = entry->openDestinations;
+    // S7 T17 (D7-9): THE LAYERS, first-party -- no engine API names optional content, so there is no second reading.
+    if (sink) {
+        entry->layers = ops::LayerOps::read(sink.value()->table());
+        if (!entry->layers.status()) {
+            RAWPAGE_LOG_WARNING(core::LogSubsystem::Render)
+                << "backend: the layers of" << path << "are read-only --" << entry->layers.status().error().messageKey
+                << entry->layers.status().error().context;
+        }
+    } else {
+        entry->layers = core::LayerTree::refused(
+            core::Error{core::ErrorCode::PermissionDenied,
+                        reading == core::CosReading::Encrypted ? QLatin1String("error.edit.encrypted") : QLatin1String("error.edit.noPageMap"),
+                        QString()});
+    }
     // S6 T11: a document from bytes is never edited -- its permissions say so by key -- and keeps its sink all the
     // same, so a Save As writes it, unchanged, to a file of its own (`RevisionWriter`: a save of an unchanged file
     // is a copy).
@@ -1088,7 +1115,11 @@ core::Status DocumentBackendImpl::showEdits(core::DocumentHandle document,
                 target->outline = target->openOutline;
                 target->destinations = target->openDestinations;
             }
-            target->document->show(target->document->bytes(), QByteArray());
+            // S7 T17: and the view each handle has set, over the bytes it opened.
+            target->shownBase = target->document->bytes();
+            target->shownUpdate = QByteArray();
+            target->shownGate.reset();
+            target->document->show(target->document->bytes(), viewOf(*target, target->shownBase, QByteArray()));
         }
         return core::Status{};
     }
@@ -1188,7 +1219,12 @@ core::Status DocumentBackendImpl::showEdits(core::DocumentHandle document,
             target->destinations = std::move(destinations);
             replaced.push_back(std::move(before));
         }
-        target->document->show(entry->bytes, update, from, gate, facts);
+        // S7 T17 (D7-9): the update, then the view this handle has set -- a section Save never writes.
+        target->shownBase = entry->bytes;
+        target->shownUpdate = update;
+        target->shownGate = gate;
+        target->createdLayerNumbers = entry->sink->createdLayerNumbers();
+        target->document->show(entry->bytes, update + viewOf(*target, entry->bytes, update), from, gate, facts);
         gated.push_back(handle);
     }
 
@@ -1397,6 +1433,65 @@ const core::Destinations* DocumentBackendImpl::destinations(core::DocumentHandle
     const std::lock_guard<std::mutex> guard(mutex_);
     const Open* entry = find(document);
     return entry ? &entry->destinations : nullptr;   // S7 T3: as they name pages now
+}
+
+const core::LayerTree* DocumentBackendImpl::layers(core::DocumentHandle document) const
+{
+    const std::lock_guard<std::mutex> guard(mutex_);
+    const Open* entry = find(document);
+    return entry ? &entry->layers : nullptr;
+}
+
+// THE VIEW SECTION (S7 T17, D7-9): `base` and `update` as one file, and the view `target` has set over them -- each hidden
+// group by the number it has in that file. A view that cannot be made is logged and the engine draws without it: what
+// fails here is the screen's choice of layers, never the document.
+QByteArray DocumentBackendImpl::viewOf(const Open& target, const QByteArray& base, const QByteArray& update)
+{
+    if (!target.hiddenLayers) return QByteArray();
+    std::vector<long long> numbers;
+    for (const core::LayerId& id : *target.hiddenLayers) {
+        if (!id.isCreated()) {
+            numbers.push_back(id.object);
+        } else if (const auto found = target.createdLayerNumbers.find(id.created); found != target.createdLayerNumbers.end()) {
+            numbers.push_back(found->second);
+        }
+    }
+    std::string composed;
+    composed.reserve(static_cast<std::size_t>(base.size() + update.size()));
+    composed.append(base.constData(), static_cast<std::size_t>(base.size()));
+    composed.append(update.constData(), static_cast<std::size_t>(update.size()));
+    auto section = ops::LayerOps::viewSection(composed, numbers, update.isEmpty());
+    if (!section) {
+        RAWPAGE_LOG_WARNING(core::LogSubsystem::Render)
+            << "backend: the layer view could not be drawn --" << section.error().messageKey << section.error().context;
+        return QByteArray();
+    }
+    return std::move(section).value();
+}
+
+core::Status DocumentBackendImpl::showLayers(core::DocumentHandle document, const std::vector<core::LayerId>& hidden)
+{
+    Open* entry = nullptr;
+    {
+        const std::lock_guard<std::mutex> guard(mutex_);
+        entry = find(document);
+    }
+    if (entry == nullptr) {
+        return core::Error{core::ErrorCode::InvalidArgument, QLatin1String("error.backend.unknownDocument"),
+                           QString::number(static_cast<qulonglong>(document.id))};
+    }
+    if (!entry->layers.status() && entry->layers.isEmpty())
+        return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.layer.viewNotShown"), entry->layers.status().error().messageKey};
+    // A show whose verify refused is being taken back: nothing is drawn over it.
+    if (entry->shownGate && entry->shownGate->verdict() == std::optional<bool>(false))
+        return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.layer.viewNotShown"), QStringLiteral("refused")};
+    entry->hiddenLayers = hidden;
+    const QByteArray base = entry->shownBase.isNull() ? entry->document->bytes() : entry->shownBase;
+    const QByteArray view = viewOf(*entry, base, entry->shownUpdate);
+    if (view.isEmpty() && !hidden.empty())
+        return core::Error{core::ErrorCode::Unavailable, QLatin1String("error.layer.viewNotShown"), QStringLiteral("compose")};
+    entry->document->show(base, entry->shownUpdate + view, entry->drawnFrom, entry->shownGate, entry->drawnFacts);
+    return core::Status{};
 }
 
 const core::Metadata* DocumentBackendImpl::metadata(core::DocumentHandle document) const

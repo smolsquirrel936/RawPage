@@ -531,6 +531,7 @@ void RenderScheduler::documentChanged(DocumentHandle document, const Scope& scop
         warm.deviceScale = 0.05;
         warm.revision = newRevision;
         warm.flags = RenderFlags::Annotations;
+        if (const auto view = views_.find(document.id); view != views_.end()) warm.hiddenLayers = view->second;   // S7 T17
         lock.unlock();
         if (map->newCount() > 0) {
             enqueue(warm, RenderPriority::Background, CachePolicy::Bypass);
@@ -618,9 +619,48 @@ void RenderScheduler::documentChanged(DocumentHandle document, const Scope& scop
 
 bool RenderScheduler::isSupersededLocked(const RenderRequest& request) const
 {
+    // S7 T17: a tile asked for under a layer view the document no longer has is as stale as one at an old revision.
+    if (const auto view = views_.find(request.document.id); view != views_.end() && request.hiddenLayers != view->second)
+        return true;
     const auto found = revisions_.find(request.document.id);
     if (found == revisions_.end()) return false;
     return request.revision != found->second;
+}
+
+void RenderScheduler::setLayerView(DocumentHandle document, std::vector<long long> key)
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    views_[document.id] = std::move(key);
+    // Queued tiles of another view go now; running ones are dropped when they finish, as `isSupersededLocked` says, and
+    // finished ones waiting for the pump likewise.
+    std::vector<std::uint64_t> keep;
+    keep.reserve(pending_.size());
+    for (const std::uint64_t id : pending_) {
+        const auto found = jobs_.find(id);
+        if (found == jobs_.end()) continue;
+        if (found->second.kind != JobKind::Raster || found->second.request.document != document
+            || !isSupersededLocked(found->second.request)) {
+            keep.push_back(id);
+            continue;
+        }
+        forgetJobLocked(found);
+        ++stats_.cancelledBeforeStart;
+    }
+    pending_ = std::move(keep);
+    completed_.erase(std::remove_if(completed_.begin(), completed_.end(),
+                                    [this, document](const Completion& completion) {
+                                        return completion.kind == JobKind::Raster && completion.request.document == document
+                                               && isSupersededLocked(completion.request);
+                                    }),
+                     completed_.end());
+    idle_.notify_all();
+}
+
+std::vector<long long> RenderScheduler::layerView(DocumentHandle document) const
+{
+    std::lock_guard<std::mutex> lock(mutex_);
+    const auto found = views_.find(document.id);
+    return found == views_.end() ? std::vector<long long>{} : found->second;
 }
 
 RenderScheduler::SubscriptionToken RenderScheduler::subscribeReady(ReadyHandler handler)

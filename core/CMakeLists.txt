@@ -85,6 +85,8 @@ add_library(rawpage_core STATIC
     cmd/commands/DestinationCommands.cpp
     cmd/commands/DecorationCommands.h      # Stage 7 T14 (D7-7, D7-14, D7-44)
     cmd/commands/DecorationCommands.cpp
+    cmd/commands/StructureCommands.h       # Stage 7 T17 (D7-9): the layers' four commands
+    cmd/commands/StructureCommands.cpp
 
     # Stage 3 T9 (D3-11): what the journal tells a durable recorder, and the recorder -- the recovery
     # directory, one flushed line per operation, discovery and replay by undo step.
@@ -248,6 +250,9 @@ add_library(rawpage_core STATIC
     doc/Outline.cpp
     doc/Destinations.h
     doc/Destinations.cpp
+    # S7 T17 (D7-9): the layers -- read first-party, the only reading -- and what the screen draws of them.
+    doc/LayerTree.h
+    doc/LayerTree.cpp
     # S7 T12 (D7-12): what following a link does, what verifying finds, and which runs of text are web addresses.
     doc/LinkActions.h
     doc/LinkActions.cpp

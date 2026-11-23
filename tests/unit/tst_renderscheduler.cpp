@@ -381,6 +381,66 @@ TEST_CASE("render scheduler drops a superseded result rather than caching it", "
     }
 }
 
+// Stage 7 T17 (D7-9): A LAYER VIEW SUPERSEDES AS A REVISION DOES. The engine draws whatever view it was handed last, so a
+// tile asked for under one view and drawn after the swap would cache the other view's pixels under its key -- and be
+// served the day a person shows the layer again. Queued, running and finished, each is dropped; a tile asked for under
+// the view in force is drawn; another document is untouched. What the engine does with a view is
+// `tests/render/tst_layersengine.cpp`'s.
+TEST_CASE("render scheduler supersedes a tile asked for under another layer view", "[core][render][layers]")
+{
+    // ONE-ELEMENT KEYS SPELLED `(1, n)`, never `{n}`: under the portable-asan job's flags GCC reads a one-element
+    // initializer list's copy as out of bounds (`-Warray-bounds`, Stage 6 guide I-11's pattern).
+    const std::vector<long long> viewTwelve(1, 12);
+    RenderCache cache;
+    RasterizerProbe probe;
+    RenderScheduler scheduler(factoryFor(probe), &cache);
+    scheduler.pause();
+    RenderRequest old = requestFor(1);
+    RenderRequest other = requestFor(1, 0, Revision::initial(), kDocB);
+    scheduler.enqueue(old, RenderPriority::Visible);
+    scheduler.enqueue(other, RenderPriority::Visible);
+    CHECK(scheduler.layerView(kDocA).empty());
+
+    // QUEUED: gone when the view changes; another document's stays.
+    scheduler.setLayerView(kDocA, viewTwelve);
+    CHECK(scheduler.layerView(kDocA) == viewTwelve);
+    CHECK(scheduler.pendingCount() == 1);
+    // A request under the view in force is drawn and cached under its key.
+    RenderRequest fresh = requestFor(1);
+    fresh.hiddenLayers = viewTwelve;
+    scheduler.enqueue(fresh, RenderPriority::Visible);
+    scheduler.resume();
+    REQUIRE(scheduler.waitForIdle(2000));
+    CHECK(scheduler.deliverReady() == 2);
+    CHECK(cache.lookup(fresh).has_value());
+    CHECK_FALSE(cache.lookup(old).has_value());
+
+    SECTION("RUNNING when the view changes: drawn and dropped, never cached")
+    {
+        RasterizerProbe held;
+        held.hold.store(true);
+        RenderCache freshCache;
+        RenderScheduler running(factoryFor(held), &freshCache);
+        running.enqueue(requestFor(3), RenderPriority::Visible);
+        REQUIRE(held.waitForCalls(1, 2000));
+        running.setLayerView(kDocA, std::vector<long long>(1, 7));
+        held.release();
+        REQUIRE(running.waitForIdle(2000));
+        CHECK(running.stats().droppedSuperseded == 1);
+        CHECK(running.deliverReady() == 0);
+        CHECK(freshCache.entryCount() == 0);
+    }
+
+    SECTION("FINISHED and waiting for the pump when the view changes: dropped")
+    {
+        RenderScheduler finished(factoryFor(probe), &cache);
+        finished.enqueue(requestFor(4), RenderPriority::Visible);
+        REQUIRE(finished.waitForIdle(2000));
+        finished.setLayerView(kDocA, std::vector<long long>(1, 9));
+        CHECK(finished.deliverReady() == 0);
+    }
+}
+
 TEST_CASE("render scheduler forgets a FINISHED tile of a document that was cancelled", "[core][render]")
 {
     // Stage 2 issue I-35, found by M-09's growth clause: the product kept ~4 MB per round of ten

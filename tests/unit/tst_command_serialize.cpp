@@ -19,6 +19,7 @@
 #include "core/cmd/commands/BookmarkCommands.h"
 #include "core/cmd/commands/DecorationCommands.h"
 #include "core/cmd/commands/DestinationCommands.h"
+#include "core/cmd/commands/StructureCommands.h"
 #include "core/doc/Stamps.h"
 #include "pdf/ops/ObjectGraphCopier.h"
 #include "core/cmd/commands/PageCommands.h"
@@ -556,6 +557,51 @@ const std::map<std::string, std::function<std::vector<std::unique_ptr<Command>>(
              out.push_back(std::make_unique<core::RemoveWatermarkCommand>());
              return out;
          }},
+        // Stage 7 T17 (D7-9): a group created at the top level and under another, with usage; one and several deleted;
+        // two merged into a third; every property set -- nesting, a radio group, a name outside Latin-1.
+        {"layer.create",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             core::Layer layer;
+             layer.id = core::LayerId::ofCreated(QStringLiteral("2f0c7a1e-0b4d-4c1e-9f0a-0123456789ab"));
+             layer.name = QStringLiteral("Stamps");
+             out.push_back(std::make_unique<core::CreateLayerCommand>(layer, core::LayerId{}));
+             layer.name = QStringLiteral("\u5716\u5c64");
+             layer.defaultOn = false;
+             layer.print = core::LayerUsage::On;
+             layer.view = core::LayerUsage::Off;
+             out.push_back(std::make_unique<core::CreateLayerCommand>(layer, core::LayerId::ofObject(12)));
+             return out;
+         }},
+        {"layer.delete",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             out.push_back(std::make_unique<core::DeleteLayerCommand>(std::vector<core::LayerId>{core::LayerId::ofObject(9)}));
+             out.push_back(std::make_unique<core::DeleteLayerCommand>(
+                 std::vector<core::LayerId>{core::LayerId::ofObject(9), core::LayerId::ofCreated(QStringLiteral("made-here"))}));
+             return out;
+         }},
+        {"layer.merge",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             out.push_back(std::make_unique<core::MergeLayersCommand>(
+                 std::vector<core::LayerId>{core::LayerId::ofObject(9), core::LayerId::ofObject(10)}, core::LayerId::ofObject(11)));
+             return out;
+         }},
+        {"layer.setProperties",
+         [] {
+             std::vector<std::unique_ptr<Command>> out;
+             core::LayerProperties properties;
+             properties.name = QStringLiteral("Base drawing \u2014 locked");
+             properties.defaultOn = false;
+             properties.locked = true;
+             properties.print = core::LayerUsage::Off;
+             properties.exportUsage = core::LayerUsage::On;
+             properties.parent = core::LayerId::ofObject(3);
+             properties.exclusiveWith = {core::LayerId::ofObject(4), core::LayerId::ofObject(5)};
+             out.push_back(std::make_unique<core::SetLayerPropertiesCommand>(core::LayerId::ofObject(7), properties));
+             return out;
+         }},
         // Stage 6 T13 (D6-20): an import that only adds -- an exchange's names, an Acrobat-shaped one among them --
         // one that only replaces, and one that does both.
         {"annot.import",
@@ -644,9 +690,10 @@ TEST_CASE("every Commands.def row round-trips through CommandRegistry", "[cmd][s
     // Stage 7 T12, the three form actions added). Stage 7 T12: annot.add's fourth sample, the links; the three destination
     // commands, 1, 1 and 2. Stage 7 guide I-23: page.insert's two pastes back into their own document (+ 2). Stage 7 T14:
     // the header/footer apply 2 (added, updated), its remove 1, the Bates apply 1 and its remove 1. Stage 7 T15: the
-    // watermark apply 3 (text, an image update, a kept page) and its remove 2 (one chosen, every one).
+    // watermark apply 3 (text, an image update, a kept page) and its remove 2 (one chosen, every one). Stage 7 T17: the
+    // layers' four -- create 2, delete 2, merge 1, properties 1.
     CHECK(roundTrips == 16 + 3 + 4 + 2 + 2 + 2 + 2 + 2 + 2 + 3 + 2 + 2 + 3 + 3 + 2 + 2 + 2 + 1 + 2 + 2 + 2 + 2 + 2 + 2 + 2 + 2 + 12 + 2
-                            + 1 + 1 + 2 + 2 + 2 + 1 + 1 + 1 + 3 + 2);
+                            + 1 + 1 + 2 + 2 + 2 + 1 + 1 + 1 + 3 + 2 + 2 + 2 + 1 + 1);
 }
 
 // Stage 6 T13 (D6-20): an import is a journal line carrying two sets -- what it adds must be what an add accepts,

@@ -34,6 +34,7 @@
 #include "core/cmd/commands/BookmarkCommands.h"
 #include "core/cmd/commands/DecorationCommands.h"
 #include "core/cmd/commands/DestinationCommands.h"
+#include "core/cmd/commands/StructureCommands.h"
 #include "core/cmd/commands/PageCommands.h"
 #include "core/doc/Document.h"
 #include "core/doc/DrawnShapes.h"
@@ -150,6 +151,17 @@ core::HeaderFooterSpec reversibilityBates(int page)
     spec.areas[5] = QStringLiteral("<<bates>>");
     spec.bates = core::BatesFormat{QStringLiteral("R"), QString(), 6, 1};
     return spec;
+}
+
+// Stage 7 T17: the groups a person sees and a command may change, in `/OCGs` order -- none where the tree is read-only.
+std::vector<core::LayerId> editableLayers(const core::Document& document)
+{
+    std::vector<core::LayerId> out;
+    if (!document.layers().status()) return out;
+    for (const core::Layer& layer : document.layers().layers()) {
+        if (!layer.decoration) out.push_back(layer.id);
+    }
+    return out;
 }
 
 // Stage 7 T15: watermarks on ONE page -- a print-only text one behind, and a tiled image one in front.
@@ -530,6 +542,49 @@ const Generators& registeredGenerators()
                  std::make_unique<core::ApplyWatermarkCommand>(reversibilityImage(page)),
                  std::make_unique<core::ApplyHeaderFooterCommand>(reversibilityHeader(page), reversibilityFields()),
                  std::make_unique<core::RemoveWatermarkCommand>()));
+             return out;
+         }},
+        // Stage 7 T17 (D7-9): on a document whose layers may be edited -- most have none, and a create adds the first -- a
+        // group created, the first group a person sees deleted, merged into the second, and given new properties.
+        {"layer.create",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             if (!document.layers().status() || page != 0) return out;
+             core::Layer layer;
+             layer.id = core::LayerId::ofCreated(QStringLiteral("reversibility-layer"));
+             layer.name = QStringLiteral("Reversibility");
+             layer.print = core::LayerUsage::Off;
+             out.push_back(std::make_unique<core::CreateLayerCommand>(layer, core::LayerId{}));
+             return out;
+         }},
+        {"layer.delete",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             const std::vector<core::LayerId> shown = editableLayers(document);
+             if (page != 0 || shown.empty()) return out;
+             out.push_back(std::make_unique<core::DeleteLayerCommand>(std::vector<core::LayerId>{shown.front()}));
+             return out;
+         }},
+        {"layer.merge",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             const std::vector<core::LayerId> shown = editableLayers(document);
+             if (page != 0 || shown.size() < 2) return out;
+             out.push_back(std::make_unique<core::MergeLayersCommand>(std::vector<core::LayerId>{shown.front()}, shown[1]));
+             return out;
+         }},
+        {"layer.setProperties",
+         [](const core::Document& document, int page) {
+             std::vector<std::unique_ptr<Command>> out;
+             const std::vector<core::LayerId> shown = editableLayers(document);
+             if (page != 0 || shown.empty()) return out;
+             core::LayerProperties properties = core::LayerProperties::of(document.layers(), shown.front());
+             properties.name = QStringLiteral("Reversibility renamed");
+             properties.locked = !properties.locked;
+             properties.defaultOn = !properties.defaultOn;
+             properties.exportUsage = core::LayerUsage::Off;
+             if (shown.size() >= 2) properties.exclusiveWith = {shown[1]};
+             out.push_back(std::make_unique<core::SetLayerPropertiesCommand>(shown.front(), properties));
              return out;
          }},
         {"bates.remove",
@@ -1237,7 +1292,8 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
                                                                           "destination.rename", "destination.delete",
                                                                           "headerFooter.apply", "headerFooter.remove",
                                                                           "bates.apply", "bates.remove", "watermark.apply",
-                                                                          "watermark.remove"});
+                                                                          "watermark.remove", "layer.create", "layer.delete",
+                                                                          "layer.merge", "layer.setProperties"});
     }
 }
 
@@ -1245,7 +1301,7 @@ TEST_CASE("reversibility harness fails a command whose revert lies", "[cmd][reve
 // A-43 -- reversibility over the corpus
 // ==========================================================================================
 
-TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand][revert:AddAnnotationCommand][revert:DeleteAnnotationCommand][revert:EditAnnotationCommand][revert:MoveAnnotationCommand][revert:SetAnnotationAppearanceCommand][revert:LockAnnotationCommand][revert:ReplyToAnnotationCommand][revert:SetAnnotationStatusCommand][revert:AddAttachmentCommand][revert:DeleteAttachmentCommand][revert:ImportAnnotationsCommand][revert:MovePagesCommand][revert:DeletePagesCommand][revert:DuplicatePagesCommand][revert:InsertPagesCommand][revert:ReplacePagesCommand][revert:CropPagesCommand][revert:ResizePagesCommand][revert:RenumberPagesCommand][revert:SetEmbeddedThumbnailsCommand][revert:CreateBookmarkCommand][revert:EditBookmarkCommand][revert:DeleteBookmarkCommand][revert:ReparentBookmarkCommand][revert:SetBookmarkTargetCommand][revert:GenerateBookmarksCommand][revert:CreateDestinationCommand][revert:RenameDestinationCommand][revert:DeleteDestinationCommand][revert:ApplyHeaderFooterCommand][revert:RemoveHeaderFooterCommand][revert:ApplyBatesCommand][revert:RemoveBatesCommand][revert:ApplyWatermarkCommand][revert:RemoveWatermarkCommand]")
+TEST_CASE("reversibility of every registered command over every editable corpus file", "[cmd][reversibility][revert:RotatePageCommand][revert:AddAnnotationCommand][revert:DeleteAnnotationCommand][revert:EditAnnotationCommand][revert:MoveAnnotationCommand][revert:SetAnnotationAppearanceCommand][revert:LockAnnotationCommand][revert:ReplyToAnnotationCommand][revert:SetAnnotationStatusCommand][revert:AddAttachmentCommand][revert:DeleteAttachmentCommand][revert:ImportAnnotationsCommand][revert:MovePagesCommand][revert:DeletePagesCommand][revert:DuplicatePagesCommand][revert:InsertPagesCommand][revert:ReplacePagesCommand][revert:CropPagesCommand][revert:ResizePagesCommand][revert:RenumberPagesCommand][revert:SetEmbeddedThumbnailsCommand][revert:CreateBookmarkCommand][revert:EditBookmarkCommand][revert:DeleteBookmarkCommand][revert:ReparentBookmarkCommand][revert:SetBookmarkTargetCommand][revert:GenerateBookmarksCommand][revert:CreateDestinationCommand][revert:RenameDestinationCommand][revert:DeleteDestinationCommand][revert:ApplyHeaderFooterCommand][revert:RemoveHeaderFooterCommand][revert:ApplyBatesCommand][revert:RemoveBatesCommand][revert:ApplyWatermarkCommand][revert:RemoveWatermarkCommand][revert:CreateLayerCommand][revert:DeleteLayerCommand][revert:MergeLayersCommand][revert:SetLayerPropertiesCommand]")
 {
     const std::vector<std::string> missing = missingGenerators(registeredGenerators());
     INFO("registered type ids with no generator: " << missing.size());

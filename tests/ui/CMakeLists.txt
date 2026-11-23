@@ -75,6 +75,9 @@ add_executable(rawpage_ui_tests
     # S7 T16 -- the imposition dialog, its preview, refusals and profiles, and *Booklet* and *N-up* from their actions
     # opening the imposed document untitled (S7 guide A-97's and A-102's surface halves).
     tst_impositiondialogs.cpp
+    # S7 T17 -- the Layers pane: the tree, its eye a view and never a command, rename in place, every command from its menu,
+    # the properties dialog (S7 guide A-108, A-109's registration half).
+    tst_layerspane.cpp
     # S7 T12 -- the Link tool through the window (S7 guide A-83's tool half), the link dialog's answer (A-86's surface
     # half), and the Destinations pane's create, rename and delete (A-82's surface half).
     tst_linktool.cpp

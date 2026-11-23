@@ -200,7 +200,16 @@ RenderRequest TilePresenter::twinOf(const RenderRequest& stale) const
 {
     RenderRequest twin = stale;
     twin.revision = revision_;
+    twin.hiddenLayers = scheduler_.layerView(document_);   // S7 T17: and the view as it is now
     return twin;
+}
+
+void TilePresenter::layerViewChanged()
+{
+    // S7 T17 (D7-9): as a new revision -- what is held stays on screen until its twin under the new view lands.
+    cancelAll();
+    for (auto& [request, held] : tiles_) stale_.insert_or_assign(request, std::move(held));
+    tiles_.clear();
 }
 
 void TilePresenter::cancelAll()
@@ -241,6 +250,8 @@ RenderRequest TilePresenter::requestAt(int pageIndex, const TileRect& tile, doub
         request.pageRotationDelta = core::rotateBy(core::PageRotation::None, (((model - engine) % 360) + 360) % 360 / 90);
     }
     request.flags = flags_;
+    // S7 T17 (D7-9): the layers the screen hides -- part of the key, read where the scheduler keeps it.
+    request.hiddenLayers = scheduler_.layerView(document_);
     return request;
 }
 

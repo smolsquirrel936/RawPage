@@ -334,6 +334,9 @@ core::Status verifyModel(cos::OpenedFile& opened, const MutationSinkImpl& sink)
     // And the named destinations (Stage 7 T12): each name in its table, none other.
     if (core::Status destinations = sink.reconcileDestinations(opened.table); !destinations)
         return destinations;
+    // And the layers (Stage 7 T17): every group of the desired tree listed under its name, none it merged away.
+    if (core::Status layers = sink.reconcileLayers(opened.table); !layers)
+        return layers;
     return core::Status{};
 }
 } // namespace

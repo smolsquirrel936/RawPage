@@ -348,6 +348,17 @@ public:
     void documentChanged(DocumentHandle document, const Scope& scope, Revision newRevision,
                          const PageTree* pages = nullptr);
 
+    // THE LAYERS THE SCREEN HIDES CHANGED -- Stage 7 T17 (D7-9). View state, not a revision: `key` is
+    // `core::LayerView::key` of the new set, and from now on every tile of `document` is asked for with it
+    // (`layerView`, which every caller building a request reads -- `RenderRequest::hiddenLayers`). A tile of the
+    // document asked for under another key is SUPERSEDED exactly as one at an old revision is: cancelled before
+    // it starts, dropped when it finishes, never cached -- the engine draws whatever view was handed it LAST, so
+    // a tile that ran across the change would cache one view's pixels under the other's key. Tiles cached under
+    // an earlier key stay cached: showing a layer again finds them. Call it BEFORE the backend is handed the
+    // view (`IDocumentBackend::showLayers`), so nothing drawn after the swap can be keyed by the old view.
+    void setLayerView(DocumentHandle document, std::vector<long long> key);
+    std::vector<long long> layerView(DocumentHandle document) const;
+
     // Removed by TOKEN, never by hoping. Convention 10's threaded form: a subscriber that outlives
     // its object is Stage 1's I-12, and a worker thread makes it a use-after-free rather than a
     // repaint of a dead widget.
@@ -528,6 +539,7 @@ private:
 
     std::deque<Completion> completed_;
     std::unordered_map<std::uint64_t, Revision> revisions_;
+    std::unordered_map<std::uint64_t, std::vector<long long>> views_;   // S7 T17: each document's layer view, once set
 
     std::uint64_t nextJobId_ = 1;
     std::uint64_t nextTicketId_ = 1;

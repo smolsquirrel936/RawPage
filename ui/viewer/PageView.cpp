@@ -1535,6 +1535,12 @@ core::DeviceSize PageView::viewportSizeInDevicePixels() const
     return core::DeviceSize{viewport()->width() * dpr, viewport()->height() * dpr};
 }
 
+void PageView::layerViewChanged()
+{
+    if (presenter_) presenter_->layerViewChanged();
+    refresh();
+}
+
 void PageView::refresh()
 {
     if (syncing_ || refreshing_) return;

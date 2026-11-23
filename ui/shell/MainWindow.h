@@ -98,6 +98,7 @@ class CommentsPane;
 class CommentMigration;
 class ComparisonView;
 class DestinationsPane;
+class LayersPane;
 class LogPane;
 class MeasurementScaleDialog;
 class SearchPane;
@@ -238,6 +239,16 @@ public:
     // ---------------------------------------------------------------------------------------
     // The Destinations pane handed `document`'s table: the model's where the tab has a journal, else the backend's.
     void updateDestinationsPane(DocumentWindow* document);
+
+    // ---------------------------------------------------------------------------------------
+    // LAYERS -- Stage 7 T17 (`Stage7-Assembly-Plan.md` D7-9). `ui/shell/MainWindowLayers.cpp`.
+    // ---------------------------------------------------------------------------------------
+    // The Layers pane handed `document`'s tree and what its screen hides.
+    void updateLayersPane(DocumentWindow* document);
+    // EVERY LAYER COMMAND A SURFACE RUNS GOES THROUGH HERE: what it did or why not on the status bar.
+    core::Status runLayerCommand(DocumentWindow* document, std::unique_ptr<core::Command> command);
+    // A layer shown or hidden on `document`'s screen -- VIEW STATE, no command -- and why not, on the status bar.
+    core::Status setLayerShown(DocumentWindow* document, const core::LayerId& id, bool shown);
     // EVERY LINK AND DESTINATION COMMAND A SURFACE RUNS GOES THROUGH HERE: what it did or why not on the status bar.
     core::Status runLinkCommand(DocumentWindow* document, std::unique_ptr<core::Command> command);
     // The Link tool's rectangle -- asked where it goes (`LinkPropertiesDialog`), then ONE `AddAnnotationCommand`.
@@ -508,6 +519,7 @@ public:
     FullScreenController* fullScreen() const noexcept { return fullScreen_.get(); }
     BookmarksPane*      bookmarksPane() const { return bookmarks_; }
     DestinationsPane*   destinationsPane() const { return destinations_; }
+    LayersPane*         layersPane() const { return layers_; }   // S7 T17
     // S6 T9 (D6-12): the Comments pane, one per window like the others, over the store of the tab in front.
     CommentsPane*       commentsPane() const { return comments_; }
 
@@ -797,6 +809,7 @@ private:
     void registerLinkActions();      // S7 T12 -- `ui/shell/MainWindowLinks.cpp`
     void registerDecorationActions();   // S7 T14 -- `ui/shell/MainWindowDecorate.cpp`
     void registerImpositionActions();   // S7 T16 -- `ui/shell/MainWindowImpose.cpp`
+    void registerLayerActions();        // S7 T17 -- `ui/shell/MainWindowLayers.cpp`
     void finishMerge(core::Result<core::MergedDocument> merged, const std::vector<QString>& paths);
     void updatePageBadges();         // S7 T8 -- the thumbnails' badges from the document in front's store
 
@@ -877,6 +890,7 @@ private:
     };
     BookmarkJump lastBookmarkJump_;
     DestinationsPane* destinations_ = nullptr;
+    LayersPane* layers_ = nullptr;   // S7 T17 (D7-9)
     CommentsPane*     comments_ = nullptr;
     AttachmentsPane*  attachments_ = nullptr;   // S6 T11
     // S6 T9: the overlay the pane's sequence numbers were last given -- cleared when the tab in front changes.

@@ -1180,6 +1180,18 @@
         <translation>圖層內容</translation>
     </message>
     <message>
+        <source>action.layer.create</source>
+        <translation>新增圖層…</translation>
+    </message>
+    <message>
+        <source>action.layer.delete</source>
+        <translation>刪除圖層</translation>
+    </message>
+    <message>
+        <source>action.layer.rename</source>
+        <translation>重新命名圖層</translation>
+    </message>
+    <message>
         <source>action.headerFooter.add</source>
         <translation>加入頁首及頁尾…</translation>
     </message>
@@ -3957,6 +3969,62 @@
         <source>error.imposition.pageUnsupported</source>
         <translation>有頁面無法繪製於紙張上（頁面與原因：%1）。</translation>
     </message>
+    <message>
+        <source>error.layer.badId</source>
+        <translation>無法讀取此命令中的圖層。</translation>
+    </message>
+    <message>
+        <source>error.layer.badName</source>
+        <translation>圖層名稱必須含有可見字元，且不得含有控制字元。</translation>
+    </message>
+    <message>
+        <source>error.layer.tooMany</source>
+        <translation>此文件的圖層多於可編輯的數量（%1）。</translation>
+    </message>
+    <message>
+        <source>error.layer.notFound</source>
+        <translation>文件中沒有此圖層。</translation>
+    </message>
+    <message>
+        <source>error.layer.notEditable</source>
+        <translation>圖層 %1 屬於浮水印，無法在此編輯。</translation>
+    </message>
+    <message>
+        <source>error.layer.mergeSelf</source>
+        <translation>圖層無法合併至自身。</translation>
+    </message>
+    <message>
+        <source>error.layer.badParent</source>
+        <translation>圖層不能巢狀於其下層的圖層之下。</translation>
+    </message>
+    <message>
+        <source>error.layer.badOrder</source>
+        <translation>圖層順序中有文件所沒有的圖層。</translation>
+    </message>
+    <message>
+        <source>error.layer.tooDeep</source>
+        <translation>圖層巢狀超過 %1 層，為唯讀。</translation>
+    </message>
+    <message>
+        <source>error.layer.orderCycle</source>
+        <translation>圖層順序包含自身，為唯讀。</translation>
+    </message>
+    <message>
+        <source>error.layer.locked</source>
+        <translation>圖層 %1 已鎖定：依文件設定顯示或隱藏。</translation>
+    </message>
+    <message>
+        <source>error.layer.unchanged</source>
+        <translation>圖層 %1 已具有這些內容。</translation>
+    </message>
+    <message>
+        <source>error.layer.notWritten</source>
+        <translation>無法寫入圖層。</translation>
+    </message>
+    <message>
+        <source>error.layer.viewNotShown</source>
+        <translation>無法依選擇顯示圖層。</translation>
+    </message>
 </context>
 <context>
     <name>ribbon</name>
@@ -5237,6 +5305,26 @@
     <message>
         <source>command.watermark.remove</source>
         <translation>移除 %1 頁的浮水印</translation>
+    </message>
+    <message>
+        <source>command.layer.create</source>
+        <translation>建立圖層 %1</translation>
+    </message>
+    <message>
+        <source>command.layer.delete</source>
+        <translation>刪除圖層 %1</translation>
+    </message>
+    <message>
+        <source>command.layer.deleteMany</source>
+        <translation>刪除 %1 個圖層</translation>
+    </message>
+    <message>
+        <source>command.layer.merge</source>
+        <translation>將 %1 個圖層合併至 %2</translation>
+    </message>
+    <message>
+        <source>command.layer.properties</source>
+        <translation>設定圖層 %1 的內容</translation>
     </message>
 </context>
 <context>
@@ -8076,6 +8164,129 @@
     <message>
         <source>imposition.suggestedName</source>
         <translation>%1（已排版）</translation>
+    </message>
+</context>
+<context>
+    <name>layers</name>
+    <message>
+        <source>layers.title</source>
+        <translation>圖層</translation>
+    </message>
+    <message>
+        <source>layers.column.name</source>
+        <translation>圖層</translation>
+    </message>
+    <message>
+        <source>layers.column.locked</source>
+        <translation>鎖定</translation>
+    </message>
+    <message>
+        <source>layers.locked</source>
+        <translation>已鎖定</translation>
+    </message>
+    <message>
+        <source>layers.lockedTip</source>
+        <translation>已鎖定：文件將此圖層維持目前的顯示或隱藏狀態。</translation>
+    </message>
+    <message>
+        <source>layers.usage.unset</source>
+        <translation>未設定</translation>
+    </message>
+    <message>
+        <source>layers.usage.on</source>
+        <translation>顯示</translation>
+    </message>
+    <message>
+        <source>layers.usage.off</source>
+        <translation>隱藏</translation>
+    </message>
+    <message>
+        <source>layers.nameLabel</source>
+        <translation>名稱：</translation>
+    </message>
+    <message>
+        <source>layers.mergeTitle</source>
+        <translation>合併圖層</translation>
+    </message>
+    <message>
+        <source>layers.mergeInto</source>
+        <translation>將 %1 合併至：</translation>
+    </message>
+    <message>
+        <source>layers.propertiesTitle</source>
+        <translation>圖層內容</translation>
+    </message>
+    <message>
+        <source>layers.shownAtOpen</source>
+        <translation>開啟文件時顯示</translation>
+    </message>
+    <message>
+        <source>layers.lockedBox</source>
+        <translation>鎖定：檢視者不能顯示或隱藏此圖層</translation>
+    </message>
+    <message>
+        <source>layers.print</source>
+        <translation>列印時：</translation>
+    </message>
+    <message>
+        <source>layers.view</source>
+        <translation>螢幕上：</translation>
+    </message>
+    <message>
+        <source>layers.export</source>
+        <translation>匯出時：</translation>
+    </message>
+    <message>
+        <source>layers.parent</source>
+        <translation>巢狀於：</translation>
+    </message>
+    <message>
+        <source>layers.topLevel</source>
+        <translation>（最上層）</translation>
+    </message>
+    <message>
+        <source>layers.exclusive</source>
+        <translation>與下列圖層一次只顯示一個：</translation>
+    </message>
+    <message>
+        <source>layers.defaultName</source>
+        <translation>圖層 %1</translation>
+    </message>
+    <message>
+        <source>layers.newTitle</source>
+        <translation>新增圖層</translation>
+    </message>
+    <message>
+        <source>layers.done</source>
+        <translation>%1。</translation>
+    </message>
+    <message>
+        <source>layers.refused</source>
+        <translation>未完成%1：%2</translation>
+    </message>
+    <message>
+        <source>layers.viewRefused</source>
+        <translation>無法顯示或隱藏此圖層：%1</translation>
+    </message>
+    <message>
+        <source>layers.deleted</source>
+        <translation>已刪除圖層 %1。其內容已不屬於任何圖層，將以不屬於任何圖層的內容繪製。</translation>
+    </message>
+    <message>
+        <source>layers.tooltip.needsLayer</source>
+        <translation>請先在「圖層」窗格中選取圖層。</translation>
+    </message>
+    <message>
+        <source>layers.tooltip.needsShown</source>
+        <translation>請選取已顯示且未鎖定的圖層。</translation>
+    </message>
+    <message>
+        <source>layers.tooltip.needsHidden</source>
+        <translation>請選取已隱藏且未鎖定的圖層。</translation>
+    </message>
+    <message>
+        <source>layers.tooltip.needsTwo</source>
+        <translation>請選取圖層；文件需要另一個圖層作為合併目標。</translation>
     </message>
 </context>
 </TS>

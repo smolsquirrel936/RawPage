@@ -68,6 +68,7 @@ Status Permissions::may(Operation operation) const
     case Operation::Annotate:
     case Operation::Attach:
     case Operation::EditOutline:
+    case Operation::EditLayers:
         if (editable_)
             return Status{};
         return Error{ErrorCode::PermissionDenied, refusalKey_, refusalContext_};
